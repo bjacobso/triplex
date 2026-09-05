@@ -2,6 +2,7 @@ import {
   DatalogQuery,
   EntityId,
   Triples,
+  type TemporalBasis,
   type DatalogQuery as DatalogQueryType,
   type TransactionRecord,
   type Triple,
@@ -191,6 +192,7 @@ export const loadEntityTypePage = (
   entityType: string,
   cursor: string | null,
   pageSize = 5,
+  requestedBasis?: TemporalBasis,
 ): Effect.Effect<EntityTypePageView, unknown, Triples | ConfigStore.ConfigStore> =>
   Effect.gen(function* () {
     const triples = yield* Triples;
@@ -198,7 +200,13 @@ export const loadEntityTypePage = (
     const now = Date.now();
     const decoded =
       cursor === null
-        ? { version: 1 as const, entityType, recordedAt: now, validAt: now, afterEntityId: null }
+        ? {
+            version: 1 as const,
+            entityType,
+            recordedAt: requestedBasis?.recordedAt ?? now,
+            validAt: requestedBasis?.validAt ?? now,
+            afterEntityId: null,
+          }
         : yield* decodeCursor(cursor);
     if (decoded.entityType !== entityType) {
       return yield* Effect.fail(new Error("Entity page cursor belongs to a different entity type"));
@@ -369,12 +377,14 @@ const decodeDraftValue = (value: unknown) =>
     ]),
   )(value);
 
-export const saveEntity = (input: {
+export interface SaveEntityInput {
   readonly mode: "create" | "edit";
   readonly entityId: string;
   readonly entityType: string;
   readonly facts: string;
-}): Effect.Effect<string, unknown, Triples> =>
+}
+
+export const saveEntity = (input: SaveEntityInput): Effect.Effect<string, unknown, Triples> =>
   Effect.gen(function* () {
     const triples = yield* Triples;
     const entityId = yield* EntityId.decode(input.entityId.trim());
@@ -421,7 +431,7 @@ const ConfigRefDraft = Schema.Struct({
   key: Schema.String,
 });
 
-export const publishConfigChange = (input: {
+export interface PublishConfigChangeInput {
   readonly operation: "create" | "edit" | "remove";
   readonly identity?: string;
   readonly kind: string;
@@ -430,7 +440,11 @@ export const publishConfigChange = (input: {
   readonly refs: string;
   readonly label: string;
   readonly targetRef: string;
-}): Effect.Effect<string, unknown, ConfigStore.ConfigStore> =>
+}
+
+export const publishConfigChange = (
+  input: PublishConfigChangeInput,
+): Effect.Effect<string, unknown, ConfigStore.ConfigStore> =>
   Effect.gen(function* () {
     const config = yield* ConfigStore.ConfigStore;
     const snapshot = yield* config.resolveRef("live");
@@ -658,7 +672,10 @@ export const configuredDerivations = (
     { concurrency: "unbounded" },
   ).pipe(Effect.map((items) => items.filter((item) => item !== undefined)));
 
-export const executeQueryText = (source: string): Effect.Effect<QueryView, unknown, Triples> =>
+export const executeQueryText = (
+  source: string,
+  basis?: TemporalBasis,
+): Effect.Effect<QueryView, unknown, Triples> =>
   Effect.gen(function* () {
     const triples = yield* Triples;
     const parsed = yield* Effect.try({
@@ -668,7 +685,7 @@ export const executeQueryText = (source: string): Effect.Effect<QueryView, unkno
     const query = yield* Schema.decodeUnknownEffect(DatalogQuery)(parsed);
     const started = performance.now();
     const [response, explanation] = yield* Effect.all([
-      triples.query(query, { debug: true }),
+      triples.query(query, { debug: true, ...(basis === undefined ? {} : { basis }) }),
       triples.explain(query),
     ]);
     const elapsed = response.debug?.executionTimeMs ?? performance.now() - started;
@@ -689,136 +706,150 @@ export const executeQueryText = (source: string): Effect.Effect<QueryView, unkno
     };
   });
 
-export const loadDashboard: Effect.Effect<
-  DashboardData,
-  unknown,
-  Triples | ConfigStore.ConfigStore
-> = Effect.gen(function* () {
-  const triples = yield* Triples;
-  const config = yield* ConfigStore.ConfigStore;
-  const generatedAt = Date.now();
-  const [facts, journal, position, store, live] = yield* Effect.all([
-    triples.match({}),
-    triples.transactions({ after: 0, limit: 1_000 }),
-    triples.currentPosition(),
-    config.load(),
-    config.resolveRef("live"),
-  ]);
-  const release = live ?? [...store.snapshots].sort((left, right) => right.seq - left.seq)[0];
-  const entities = entitiesFrom(facts);
-  const configuredEntityTypes = (release?.root.children ?? [])
-    .filter((child) => child.node.kind === "entity-type" || child.node.kind === "entity-schema")
-    .map((child) => child.node.key);
-  const entityTypes = [
-    ...new Set([...entities.map((entity) => entity.type), ...configuredEntityTypes]),
-  ]
-    .sort()
-    .map((name) => {
-      const instances = entities.filter((entity) => entity.type === name);
-      const configured = release?.root.children.find(
-        (child) =>
-          (child.node.kind === "entity-type" || child.node.kind === "entity-schema") &&
-          child.node.key === name,
-      )?.node;
-      return {
-        name,
-        entityCount: instances.length,
-        attributeCount: new Set([
-          ...instances.flatMap((entity) => entity.facts.map((fact) => fact.attribute)),
-          ...(configured?.refs ?? [])
-            .filter((reference) => reference.kind === "attribute")
-            .map((reference) => reference.key),
-        ]).size,
-      };
-    });
-  const applicationFacts = facts.filter(isApplicationFact);
-  const transactions = [...journal.transactions].reverse().map(transactionView);
-  const definitions = yield* configuredDerivations(store, release);
-  const materializations = yield* Effect.forEach(
-    definitions,
-    (definition) =>
-      Derivation.Materialization.current(triples, definition, {
-        basis: { validAt: generatedAt },
-      }),
-    { concurrency: "unbounded" },
-  );
-  const candidates = materializations.flatMap((state) =>
-    state.candidates.map((candidate) => ({
-      id: candidate.id,
-      revision: candidate.revision,
-      definitionId: candidate.definitionId,
-      bindings: Object.entries(candidate.result)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([variable, value]) => ({ variable, value: valueTextFromConstant(value) })),
-      sourceCount: candidate.sources.length,
-      sourceTransactionCount: new Set(
-        candidate.sources.flatMap((source) =>
-          source.transactionId === undefined ? [] : [source.transactionId],
-        ),
-      ).size,
-    })),
-  );
-  const objects = configObjectViews(store, release);
-  const forms = configuredForms(store, release);
+export const loadDashboardAt = (
+  requestedBasis?: TemporalBasis,
+  source = "memory://demo-learning",
+): Effect.Effect<DashboardData, unknown, Triples | ConfigStore.ConfigStore> =>
+  Effect.gen(function* () {
+    const triples = yield* Triples;
+    const config = yield* ConfigStore.ConfigStore;
+    const generatedAt = Date.now();
+    const basis = {
+      ...(requestedBasis?.recordedAt === undefined
+        ? {}
+        : { recordedAt: requestedBasis.recordedAt }),
+      validAt: requestedBasis?.validAt ?? generatedAt,
+    };
+    const [facts, journal, position, store, live] = yield* Effect.all([
+      triples.match({}, basis),
+      triples.transactions({ after: 0, limit: 1_000 }),
+      triples.currentPosition(),
+      config.load(),
+      config.resolveRef("live"),
+    ]);
+    const release = live ?? [...store.snapshots].sort((left, right) => right.seq - left.seq)[0];
+    const entities = entitiesFrom(facts);
+    const configuredEntityTypes = (release?.root.children ?? [])
+      .filter((child) => child.node.kind === "entity-type" || child.node.kind === "entity-schema")
+      .map((child) => child.node.key);
+    const entityTypes = [
+      ...new Set([...entities.map((entity) => entity.type), ...configuredEntityTypes]),
+    ]
+      .sort()
+      .map((name) => {
+        const instances = entities.filter((entity) => entity.type === name);
+        const configured = release?.root.children.find(
+          (child) =>
+            (child.node.kind === "entity-type" || child.node.kind === "entity-schema") &&
+            child.node.key === name,
+        )?.node;
+        return {
+          name,
+          entityCount: instances.length,
+          attributeCount: new Set([
+            ...instances.flatMap((entity) => entity.facts.map((fact) => fact.attribute)),
+            ...(configured?.refs ?? [])
+              .filter((reference) => reference.kind === "attribute")
+              .map((reference) => reference.key),
+          ]).size,
+        };
+      });
+    const applicationFacts = facts.filter(isApplicationFact);
+    const transactions = [...journal.transactions].reverse().map(transactionView);
+    const definitions = yield* configuredDerivations(store, release);
+    const materializations = yield* Effect.forEach(
+      definitions,
+      (definition) =>
+        Derivation.Materialization.current(triples, definition, {
+          basis,
+        }),
+      { concurrency: "unbounded" },
+    );
+    const candidates = materializations.flatMap((state) =>
+      state.candidates.map((candidate) => ({
+        id: candidate.id,
+        revision: candidate.revision,
+        definitionId: candidate.definitionId,
+        bindings: Object.entries(candidate.result)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([variable, value]) => ({ variable, value: valueTextFromConstant(value) })),
+        sourceCount: candidate.sources.length,
+        sourceTransactionCount: new Set(
+          candidate.sources.flatMap((source) =>
+            source.transactionId === undefined ? [] : [source.transactionId],
+          ),
+        ).size,
+      })),
+    );
+    const objects = configObjectViews(store, release);
+    const forms = configuredForms(store, release);
 
-  return {
-    generatedAt,
-    position,
-    metrics: [
-      {
-        label: "Entities",
-        value: String(entities.length),
-        detail: `${new Set(entities.map((entity) => entity.type)).size} entity types`,
-        tone: "blue",
+    return {
+      source,
+      generatedAt,
+      position,
+      basis: {
+        recordedAt: requestedBasis?.recordedAt ?? null,
+        validAt: basis.validAt,
       },
-      {
-        label: "Live facts",
-        value: String(applicationFacts.length),
-        detail: `${applicationFacts.filter((fact) => fact.value.type === "ref").length} graph relationships`,
-        tone: "violet",
+      metrics: [
+        {
+          label: "Entities",
+          value: String(entities.length),
+          detail: `${new Set(entities.map((entity) => entity.type)).size} entity types`,
+          tone: "blue",
+        },
+        {
+          label: "Live facts",
+          value: String(applicationFacts.length),
+          detail: `${applicationFacts.filter((fact) => fact.value.type === "ref").length} graph relationships`,
+          tone: "violet",
+        },
+        {
+          label: "Transactions",
+          value: String(transactions.length),
+          detail: `journal position ${position}`,
+          tone: "green",
+        },
+        {
+          label: "Derived candidates",
+          value: String(candidates.length),
+          detail: `${definitions.length} configured derivations`,
+          tone: candidates.length === 0 ? "green" : "amber",
+        },
+      ],
+      entities,
+      entityTypes,
+      transactions,
+      config: {
+        label: release?.label ?? "No configuration release",
+        snapshotId: release?.id ?? "—",
+        rootContentId: release?.rootCid ?? "—",
+        sequence: release?.seq ?? 0,
+        objectCount: store.objects.size,
+        revisionCount: store.revisions.length,
+        releaseCount: store.snapshots.length,
+        refs: [...store.refs.entries()].map(([name, snapshotId]) => ({ name, snapshotId })),
+        releases: [...store.snapshots]
+          .sort((left, right) => right.seq - left.seq || right.id.localeCompare(left.id))
+          .map((snapshot) => ({
+            snapshotId: snapshot.id,
+            sequence: snapshot.seq,
+            label: snapshot.label,
+            rootContentId: snapshot.rootCid,
+            parentSnapshotId: snapshot.parentId,
+            revisionCount: snapshot.revisionIds.length,
+            refs: [...store.refs.entries()]
+              .filter(([, snapshotId]) => snapshotId === snapshot.id)
+              .map(([name]) => name)
+              .sort(),
+          })),
+        objects,
       },
-      {
-        label: "Transactions",
-        value: String(transactions.length),
-        detail: `journal position ${position}`,
-        tone: "green",
-      },
-      {
-        label: "Derived candidates",
-        value: String(candidates.length),
-        detail: `${definitions.length} configured derivations`,
-        tone: candidates.length === 0 ? "green" : "amber",
-      },
-    ],
-    entities,
-    entityTypes,
-    transactions,
-    config: {
-      label: release?.label ?? "No configuration release",
-      snapshotId: release?.id ?? "—",
-      rootContentId: release?.rootCid ?? "—",
-      sequence: release?.seq ?? 0,
-      objectCount: store.objects.size,
-      revisionCount: store.revisions.length,
-      releaseCount: store.snapshots.length,
-      refs: [...store.refs.entries()].map(([name, snapshotId]) => ({ name, snapshotId })),
-      releases: [...store.snapshots]
-        .sort((left, right) => right.seq - left.seq || right.id.localeCompare(left.id))
-        .map((snapshot) => ({
-          snapshotId: snapshot.id,
-          sequence: snapshot.seq,
-          label: snapshot.label,
-          rootContentId: snapshot.rootCid,
-          parentSnapshotId: snapshot.parentId,
-          revisionCount: snapshot.revisionIds.length,
-          refs: [...store.refs.entries()]
-            .filter(([, snapshotId]) => snapshotId === snapshot.id)
-            .map(([name]) => name)
-            .sort(),
-        })),
-      objects,
-    },
-    forms,
-    candidates,
-  };
-});
+      forms,
+      candidates,
+    };
+  });
+
+/** Current-time dashboard load retained as the local/demo convenience effect. */
+export const loadDashboard = loadDashboardAt();

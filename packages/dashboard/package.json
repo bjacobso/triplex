@@ -8,11 +8,15 @@
     "build": "vite build",
     "clean": "rm -rf dist",
     "dev": "vite --host 0.0.0.0 --port 4173",
+    "serve": "tsx src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@bjacobso/triplex": "workspace:^",
+    "@bjacobso/triplex-postgres": "workspace:^",
+    "@bjacobso/triplex-sqlite": "workspace:^",
+    "@effect/platform-node": "catalog:",
     "@foldkit/ui": "catalog:",
     "effect": "catalog:",
     "foldkit": "catalog:"
@@ -22,6 +26,7 @@
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "tailwindcss": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

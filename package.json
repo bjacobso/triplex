@@ -17,6 +17,7 @@
     "docs:plan": "alchemy plan --stage prod",
     "docs:preview": "vitepress preview docs",
     "dashboard": "pnpm --filter @bjacobso/triplex-dashboard dev",
+    "dashboard:serve": "turbo run build --filter=@bjacobso/triplex-dashboard && pnpm --filter @bjacobso/triplex-dashboard serve",
     "triplex": "pnpm --filter @bjacobso/triplex-cli dev",
     "example:compliance-host": "pnpm --filter triplex-compliance-host start",
     "example:demo": "pnpm --filter triplex-demo start",
