@@ -7,3 +7,5 @@ coverage/
 .DS_Store
 **/.vitepress/cache/
 .alchemy/
+playwright-report/
+test-results/
