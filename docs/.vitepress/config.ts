@@ -19,7 +19,7 @@ export default defineConfig({
     ["meta", { property: "og:site_name", content: "Triplex" }],
   ],
   markdown: {
-    theme: { light: "github-light", dark: "tokyo-night" },
+    theme: { light: "tokyo-night", dark: "tokyo-night" },
     languages: ["js", "json", "sh", "sql", "ts"],
     codeTransformers: [
       transformerTwoslash({

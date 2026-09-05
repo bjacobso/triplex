@@ -12,6 +12,9 @@
   --vp-c-text-1: #0d142b;
   --vp-c-text-2: #4f586f;
   --vp-code-block-bg: #10162a;
+  --vp-code-tab-text-color: #aeb8d2;
+  --vp-code-tab-hover-text-color: #f3f5ff;
+  --vp-code-tab-active-text-color: #f3f5ff;
   --twoslash-popup-bg: var(--vp-code-block-bg);
   --vp-nav-height: 72px;
 }
