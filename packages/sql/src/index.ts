@@ -21,7 +21,11 @@ export { packValue } from "./queries.js";
 export { type Migration, migrations, runMigrations } from "./migrations.js";
 
 // SQL-based query executors
-export { SqlQueryExecutorLive } from "./SqlQueryExecutor.js";
+export {
+  SqlQueryExecutorLive,
+  makeSqlQueryExecutor,
+  type SqlStatementRunner,
+} from "./SqlQueryExecutor.js";
 
 // Storage backend
 export { StorageBackend, type StorageBackendService } from "./StorageBackend.js";

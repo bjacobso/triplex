@@ -1,0 +1,19 @@
+{
+  "name": "triplex-cloudflare-conformance",
+  "main": "test/fixtures/WorkerdHarness.ts",
+  "compatibility_date": "2026-09-06",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TRIPLEX_TEST_OBJECTS",
+        "class_name": "TriplexTestObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TriplexTestObject"],
+    },
+  ],
+}

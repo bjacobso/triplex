@@ -1,0 +1,34 @@
+{
+  "name": "triplex-tenant-host-cloudflare",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Authenticated isolated-tenant Triplex host on Cloudflare Durable Objects",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist",
+    "deploy": "alchemy deploy --stage dev",
+    "dev": "alchemy dev --stage dev",
+    "plan": "alchemy plan --stage dev",
+    "test": "vitest --run --config vitest.workerd.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bjacobso/triplex": "workspace:^",
+    "@bjacobso/triplex-cloudflare": "workspace:^",
+    "@bjacobso/triplex-host": "workspace:^",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "@types/node": "catalog:",
+    "alchemy": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
