@@ -26,6 +26,10 @@ test.beforeEach(async ({ page }) => {
     page.getByRole("heading", { level: 1, name: "See the database think" }),
   ).toBeVisible();
   await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toHaveCount(0);
+  await expect(
+    page.getByRole("banner").getByRole("button", { name: /Temporal basis:/ }),
+  ).toBeVisible();
 });
 
 test("dashboard overview", async ({ page }) => {
@@ -39,7 +43,10 @@ test("dashboard overview", async ({ page }) => {
 });
 
 test("temporal basis controls", async ({ page }) => {
-  await page.getByRole("button", { name: /valid now.*recorded latest/ }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: /Temporal basis: valid now.*recorded latest/ })
+    .click();
   await expect(page.getByRole("complementary", { name: "Temporal basis" })).toBeVisible();
   await expect(page.getByText("Read the database as of…", { exact: true })).toBeVisible();
 

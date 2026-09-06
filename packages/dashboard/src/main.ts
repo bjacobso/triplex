@@ -3911,7 +3911,7 @@ const temporalPanel = (model: Model, h: HtmlBuilder<Message>): Html | null => {
   return h.aside(
     [
       h.Class(
-        "fixed right-3 bottom-9 z-50 w-[min(440px,calc(100vw-1.5rem))] rounded-lg border border-[#cfd3dc] bg-white p-4 shadow-2xl",
+        "fixed right-3 bottom-3 z-50 w-[min(440px,calc(100vw-1.5rem))] rounded-lg border border-[#cfd3dc] bg-white p-4 shadow-2xl",
       ),
       h.AriaLabel("Temporal basis"),
     ],
@@ -4122,6 +4122,26 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
                 ],
                 [model.data === null ? "loading" : `tx ${model.data.position}`],
               ),
+              Button.view(
+                {
+                  onClick: Message.ToggledTemporalPanel(),
+                  toView: ({ button }) =>
+                    h.button(
+                      [
+                        ...button,
+                        h.AriaLabel(`Temporal basis: ${temporalSummary(model)}`),
+                        h.Class(
+                          "inline-flex h-7 items-center gap-1.5 rounded border border-white/10 bg-white/5 px-2 font-mono text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                        ),
+                      ],
+                      [
+                        icon("journal", h),
+                        h.span([h.Class("hidden lg:inline")], [temporalSummary(model)]),
+                      ],
+                    ),
+                },
+                h,
+              ),
               h.span(
                 [h.Class("flex items-center gap-1.5 text-[11px] text-slate-300")],
                 [
@@ -4142,7 +4162,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
       ),
       toolTabs(model, h),
       h.main(
-        [h.Class("pt-22 pb-8")],
+        [h.Class("pt-22 pb-4")],
         [
           h.div(
             [h.Class("mx-auto max-w-[1800px] px-3 py-3 sm:px-4 lg:px-5 lg:py-4")],
@@ -4183,39 +4203,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
         ],
       ),
       ...(model.temporalPanelOpen ? [temporalPanel(model, h)!] : []),
-      h.footer(
-        [
-          h.Class(
-            "border-console fixed inset-x-0 bottom-0 z-30 flex h-7 items-center justify-between border-t bg-[#f1f3f6] px-3 font-mono text-[10px] text-slate-500 lg:left-60",
-          ),
-        ],
-        [
-          h.span(
-            [],
-            [
-              model.data === null
-                ? "opening database…"
-                : `${model.data.entities.length} entities  ·  ${model.data.entityTypes.length} types  ·  ${model.data.transactions.length} journal entries`,
-            ],
-          ),
-          Button.view(
-            {
-              onClick: Message.ToggledTemporalPanel(),
-              toView: ({ button }) =>
-                h.button(
-                  [
-                    ...button,
-                    h.Class(
-                      "rounded px-2 py-0.5 text-right hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                    ),
-                  ],
-                  [temporalSummary(model)],
-                ),
-            },
-            h,
-          ),
-        ],
-      ),
     ],
   ),
 });
