@@ -132,7 +132,22 @@ const runCorpus = Effect.gen(function* () {
   ]);
 
   return yield* Effect.forEach(corpus, (query) =>
-    triples.query(query).pipe(Effect.map(({ results }) => normalizeRows(results))),
+    Effect.gen(function* () {
+      const expected = yield* triples.queryAll(query);
+      const rows: QueryContext[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = yield* triples.query(query, {
+          pageSize: 1,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        rows.push(...page.results);
+        cursor = page.nextCursor;
+        expect(rows.length).toBeLessThanOrEqual(expected.results.length);
+      } while (cursor !== undefined);
+      expect(normalizeRows(rows)).toEqual(normalizeRows(expected.results));
+      return normalizeRows(rows);
+    }),
   );
 });
 

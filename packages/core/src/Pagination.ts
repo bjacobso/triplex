@@ -1,12 +1,27 @@
 import { Encoding, Result, Schema } from "effect";
 
 import type { WrappedQueryResult } from "./storage/QueryExecutor.js";
-import type { OrderBySpec, WrappedQuery } from "./datalog/types.js";
+import type { DatalogQuery, OrderBySpec, WrappedQuery } from "./datalog/types.js";
 import type { ResolvedTemporalBasis, TemporalBasis } from "./Temporal.js";
 import { resolveTemporalBasis } from "./Temporal.js";
 import { PaginationCursorError } from "./errors/index.js";
 import * as CanonicalJson from "./content/CanonicalJson.js";
 import * as ContentId from "./content/ContentId.js";
+
+/** Public reads default to 100 rows and never exceed 1,000 rows per page. */
+export const DEFAULT_QUERY_PAGE_SIZE = 100;
+export const MAX_QUERY_PAGE_SIZE = 1_000;
+
+/** Preserve the raw query's limit/offset as a logical subquery boundary. */
+export const wrapDatalogQuery = (
+  query: DatalogQuery,
+  options?: { readonly pageSize?: number; readonly cursor?: string },
+): WrappedQuery => ({
+  inner: query,
+  ...(query.orderBy === undefined ? {} : { orderBy: query.orderBy }),
+  ...(options?.pageSize === undefined ? {} : { limit: options.pageSize }),
+  ...(options?.cursor === undefined ? {} : { cursor: options.cursor }),
+});
 
 export type PaginationValue = string | number | boolean | null;
 
@@ -54,7 +69,7 @@ export interface PreparedPagination {
   readonly cursorValues?: readonly PaginationValue[];
   readonly queryFingerprint: string;
   readonly scopeFingerprint: string;
-  readonly pageSize?: number;
+  readonly pageSize: number;
 }
 
 const textEncoder = new TextEncoder();
@@ -104,12 +119,6 @@ export const normalizePaginationOrder = (query: WrappedQuery): readonly OrderByS
     }
   }
 
-  if (query.limit !== undefined && order.length === 0) {
-    throw new PaginationCursorError({
-      reason: "invalid_ordering",
-      message: "A paginated query must project at least one variable",
-    });
-  }
   return order;
 };
 
@@ -181,9 +190,6 @@ const decodeEnvelope = (cursor: string): PaginationCursorEnvelope => {
   return result.success;
 };
 
-const sameBasis = (left: ResolvedTemporalBasis, right: ResolvedTemporalBasis): boolean =>
-  left.recordedAt === right.recordedAt && left.validAt === right.validAt;
-
 export const preparePagination = (input: {
   readonly query: WrappedQuery;
   readonly basis?: TemporalBasis;
@@ -197,8 +203,31 @@ export const preparePagination = (input: {
       message: "Pagination requires a non-negative safe commit position",
     });
   }
+  const pageSize = input.query.limit ?? DEFAULT_QUERY_PAGE_SIZE;
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > MAX_QUERY_PAGE_SIZE) {
+    throw new PaginationCursorError({
+      reason: "malformed",
+      message: `Query page size must be an integer between 1 and ${MAX_QUERY_PAGE_SIZE}`,
+    });
+  }
   const orderBy = normalizePaginationOrder(input.query);
-  const baseQuery = withoutCursor({ ...input.query, orderBy: [...orderBy] });
+  const inner = input.query.inner;
+  const stableInner =
+    inner.limit === undefined && inner.offset === undefined
+      ? inner
+      : {
+          ...inner,
+          orderBy: normalizePaginationOrder({
+            inner,
+            ...(inner.orderBy === undefined ? {} : { orderBy: inner.orderBy }),
+          }),
+        };
+  const baseQuery = withoutCursor({
+    ...input.query,
+    inner: stableInner,
+    limit: pageSize,
+    orderBy: [...orderBy],
+  });
   const envelope =
     input.query.cursor === undefined ? undefined : decodeEnvelope(input.query.cursor);
 
@@ -209,8 +238,11 @@ export const preparePagination = (input: {
   if (envelope !== undefined) {
     basis = envelope.basis;
     if (input.basis !== undefined) {
-      const requested = resolveTemporalBasis(input.basis, input.now);
-      if (!sameBasis(requested, basis)) {
+      const requested = input.basis;
+      if (
+        (requested.recordedAt !== undefined && requested.recordedAt !== basis.recordedAt) ||
+        (requested.validAt !== undefined && requested.validAt !== basis.validAt)
+      ) {
         throw new PaginationCursorError({
           reason: "basis_mismatch",
           message: "Pagination cursor cannot be reused with a different temporal basis",
@@ -247,10 +279,9 @@ export const preparePagination = (input: {
     });
   }
 
-  const pageSize = input.query.limit;
   const query: WrappedQuery = {
     ...baseQuery,
-    ...(pageSize === undefined ? {} : { limit: pageSize + 1 }),
+    limit: pageSize + 1,
   };
 
   return {
@@ -261,7 +292,7 @@ export const preparePagination = (input: {
     ...(envelope === undefined ? {} : { cursorValues: envelope.values }),
     queryFingerprint: expectedQueryFingerprint,
     scopeFingerprint: expectedScopeFingerprint,
-    ...(pageSize === undefined ? {} : { pageSize }),
+    pageSize,
   };
 };
 
@@ -272,7 +303,7 @@ export const finishPagination = (
   prepared: PreparedPagination,
   result: WrappedQueryResult,
 ): WrappedQueryResult => {
-  if (prepared.pageSize === undefined || result.results.length <= prepared.pageSize) return result;
+  if (result.results.length <= prepared.pageSize) return result;
 
   const results = result.results.slice(0, prepared.pageSize);
   const last = results.at(-1)!;

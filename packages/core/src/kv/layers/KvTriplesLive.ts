@@ -58,7 +58,7 @@ import {
 } from "../../store/systemNamespace.js";
 import { resolveTemporalBasis, type ResolvedTemporalBasis } from "../../Temporal.js";
 import { TxAttributes } from "../../utils/id.js";
-import { finishPagination, preparePagination } from "../../Pagination.js";
+import { finishPagination, preparePagination, wrapDatalogQuery } from "../../Pagination.js";
 import * as ContentIds from "../../content/ContentId.js";
 import { unsafe } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
@@ -733,7 +733,8 @@ const makeKvTriplesService = Effect.gen(function* () {
       );
     },
 
-    transactionsForEntity: (entityId, request) => transactionsForEntity(service, entityId, request),
+    transactionsForEntity: (entityId, request) =>
+      transactionsForEntity({ ...service, query: service.queryAll }, entityId, request),
 
     currentPosition: () => currentKvCommitPosition(kvBackend),
 
@@ -752,7 +753,7 @@ const makeKvTriplesService = Effect.gen(function* () {
 
     // === Datalog reads =====================================================
 
-    query: (q: DatalogQuery, options?: QueryOptions) =>
+    queryAll: (q: DatalogQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
         const basis = resolveTemporalBasis(options?.basis, yield* runtime.now);
         return yield* executeQuery(hexaStore, q, q.rules ?? [], { basis });
@@ -773,6 +774,13 @@ const makeKvTriplesService = Effect.gen(function* () {
           e instanceof DatalogValidationError || e instanceof UnboundVariableError
             ? e
             : new ReadError({ message: `Query execution failed: ${String(e)}`, cause: e }),
+        ),
+      ),
+
+    query: (q, options) =>
+      validateDatalogQuery(q).pipe(
+        Effect.flatMap((validated) =>
+          service.queryPage(wrapDatalogQuery(validated, options), options),
         ),
       ),
 
@@ -799,6 +807,7 @@ const makeKvTriplesService = Effect.gen(function* () {
                   cause,
                 }),
         });
+        const started = performance.now();
         const result = yield* executeWrappedQuery(
           hexaStore,
           prepared.query,
@@ -811,6 +820,15 @@ const makeKvTriplesService = Effect.gen(function* () {
         return finishPagination(prepared, {
           results: result.results as unknown as QueryResult,
           ...(result.totalCount !== undefined ? { totalCount: result.totalCount } : {}),
+          ...(options?.debug
+            ? {
+                debug: {
+                  metrics: makeKvMetrics(query.inner),
+                  executionTimeMs: performance.now() - started,
+                  resultCount: result.results.length,
+                },
+              }
+            : {}),
         });
       }).pipe(
         Effect.mapError((e) =>

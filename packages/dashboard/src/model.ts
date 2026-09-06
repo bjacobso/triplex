@@ -193,6 +193,7 @@ export const MetricView = Schema.Struct({
 export type MetricView = typeof MetricView.Type;
 
 export const QueryView = Schema.Struct({
+  nextCursor: Schema.NullOr(Schema.String),
   columns: Schema.Array(Schema.String),
   rows: Schema.Array(Schema.Array(Schema.String)),
   resultCount: Schema.Number,
