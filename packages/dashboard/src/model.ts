@@ -202,8 +202,13 @@ export const QueryView = Schema.Struct({
 export type QueryView = typeof QueryView.Type;
 
 export const DashboardData = Schema.Struct({
+  source: Schema.String,
   generatedAt: Schema.Number,
   position: Schema.Number,
+  basis: Schema.Struct({
+    recordedAt: Schema.NullOr(Schema.Number),
+    validAt: Schema.Number,
+  }),
   metrics: Schema.Array(MetricView),
   entities: Schema.Array(EntityView),
   entityTypes: Schema.Array(EntityTypeSummary),
@@ -244,6 +249,12 @@ export const Model = Schema.Struct({
   queryPreset: Schema.String,
   queryText: Schema.String,
   queryResult: Schema.NullOr(QueryView),
+  temporalPanelOpen: Schema.Boolean,
+  recordedAt: Schema.NullOr(Schema.Number),
+  validAt: Schema.NullOr(Schema.Number),
+  recordedAtDraft: Schema.String,
+  recordedAtDraftExact: Schema.NullOr(Schema.Number),
+  validAtDraft: Schema.String,
   busy: Schema.Boolean,
   error: Schema.NullOr(Schema.String),
   notice: Schema.NullOr(Schema.String),

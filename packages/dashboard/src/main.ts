@@ -1,84 +1,39 @@
 import { Button, Input, Select, Textarea } from "@foldkit/ui";
-import { Triples } from "@bjacobso/triplex";
-import { ConfigStore } from "@bjacobso/triplex/config";
-import { Effect, Schema } from "effect";
-import { Command, Runtime, type Update } from "foldkit";
+import { Runtime, type Update } from "foldkit";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
-import { defineMessageUnion } from "foldkit/message";
 
 import logoUrl from "../../../assets/triplex-logo-dark.svg?url";
+import { initialQueryText, queryPresets } from "./data.js";
 import {
-  executeQueryText,
-  initialQueryText,
-  loadDashboard,
-  loadEntityHistory,
-  loadEntityTypePage,
-  moveConfigRef,
-  publishConfigChange,
-  queryPresets,
-  saveEntity,
-} from "./data.js";
+  LoadDashboard,
+  LoadEntityHistory,
+  LoadEntityTypePage,
+  MoveConfigRef,
+  RunQuery,
+  SaveConfig,
+  SaveEntity,
+} from "./commands.js";
+import { Message as MessageUnion, type Message as MessageType } from "./messages.js";
 import {
-  DashboardData,
   type EntityAttributeDraft,
   type EntityView,
   EntityTypePageView,
   Model,
   Page,
-  QueryView,
-  TransactionView,
+  type TransactionView,
 } from "./model.js";
 
-export const Message = defineMessageUnion({
-  SelectedPage: { page: Page },
-  SelectedEntityType: { entityType: Schema.String },
-  SelectedForm: { formKey: Schema.String },
-  ChangedFormField: { field: Schema.String, value: Schema.String },
-  RequestedValidateForm: {},
-  SelectedConfigObject: { object: Schema.String },
-  SelectedConfigRevision: { revisionId: Schema.String },
-  RequestedCreateEntity: {},
-  RequestedEditEntity: {},
-  ClosedEntityEditor: {},
-  ChangedEntityDraftId: { value: Schema.String },
-  ChangedEntityDraftType: { value: Schema.String },
-  ChangedEntityDraftFacts: { value: Schema.String },
-  SelectedEntityEditorFormat: { format: Schema.Literals(["form", "json"]) },
-  ChangedEntityAttributeValue: { attribute: Schema.String, value: Schema.String },
-  ChangedEntityAttributeType: { attribute: Schema.String, valueType: Schema.String },
-  ChangedEntityReferenceSearch: { attribute: Schema.String, search: Schema.String },
-  SelectedEntityReference: { attribute: Schema.String, entityId: Schema.String },
-  ClearedEntityAttribute: { attribute: Schema.String },
-  RestoredEntityAttribute: { attribute: Schema.String },
-  RequestedSaveEntity: {},
-  RequestedEditConfig: {},
-  RequestedCreateConfig: {},
-  RequestedRemoveConfig: {},
-  ClosedConfigEditor: {},
-  ChangedConfigDraftKind: { value: Schema.String },
-  ChangedConfigDraftKey: { value: Schema.String },
-  ChangedConfigDraftAttrs: { value: Schema.String },
-  ChangedConfigDraftRefs: { value: Schema.String },
-  ChangedConfigDraftLabel: { value: Schema.String },
-  ChangedConfigTargetRef: { value: Schema.String },
-  RequestedSaveConfig: {},
-  RequestedMoveConfigRef: { name: Schema.String, snapshotId: Schema.String },
-  RequestedNextEntityTypePage: {},
-  RequestedPreviousEntityTypePage: {},
-  ChangedEntitySearch: { value: Schema.String },
-  SelectedEntity: { entityId: Schema.String },
-  SelectedQueryPreset: { preset: Schema.String },
-  ChangedQueryText: { value: Schema.String },
-  RequestedQuery: {},
-  RequestedRefresh: {},
-  SucceededLoadDashboard: { data: DashboardData },
-  SucceededLoadEntityTypePage: { page: EntityTypePageView },
-  SucceededLoadEntityHistory: { transactions: Schema.Array(TransactionView) },
-  SucceededMutation: { notice: Schema.String },
-  SucceededRunQuery: { result: QueryView },
-  FailedDashboardCommand: { message: Schema.String },
-});
-export type Message = typeof Message.Type;
+export {
+  LoadDashboard,
+  LoadEntityHistory,
+  LoadEntityTypePage,
+  MoveConfigRef,
+  RunQuery,
+  SaveConfig,
+  SaveEntity,
+} from "./commands.js";
+export const Message = MessageUnion;
+export type Message = MessageType;
 
 export const initialModel: Model = {
   page: "entities",
@@ -110,6 +65,12 @@ export const initialModel: Model = {
   queryPreset: queryPresets[0].id,
   queryText: initialQueryText,
   queryResult: null,
+  temporalPanelOpen: false,
+  recordedAt: null,
+  validAt: null,
+  recordedAtDraft: "",
+  recordedAtDraftExact: null,
+  validAtDraft: "",
   busy: true,
   error: null,
   notice: null,
@@ -124,112 +85,11 @@ const errorMessage = (error: unknown): string => {
   return String(error);
 };
 
-export const LoadDashboard = Command.define("LoadDashboard", {
-  messages: [Message.SucceededLoadDashboard, Message.FailedDashboardCommand],
-  execute: loadDashboard.pipe(
-    Effect.map((data) => Message.SucceededLoadDashboard({ data })),
-    Effect.catch((error) =>
-      Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-    ),
-  ),
-});
-
-export const RunQuery = Command.define("RunQuery", {
-  args: { source: Schema.String },
-  messages: [Message.SucceededRunQuery, Message.FailedDashboardCommand],
-  execute: ({ source }) =>
-    executeQueryText(source).pipe(
-      Effect.map((result) => Message.SucceededRunQuery({ result })),
-      Effect.catch((error) =>
-        Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-      ),
-    ),
-});
-
-export const LoadEntityTypePage = Command.define("LoadEntityTypePage", {
-  args: {
-    entityType: Schema.String,
-    cursor: Schema.NullOr(Schema.String),
-  },
-  messages: [Message.SucceededLoadEntityTypePage, Message.FailedDashboardCommand],
-  execute: ({ entityType, cursor }) =>
-    loadEntityTypePage(entityType, cursor).pipe(
-      Effect.map((page) => Message.SucceededLoadEntityTypePage({ page })),
-      Effect.catch((error) =>
-        Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-      ),
-    ),
-});
-
-export const LoadEntityHistory = Command.define("LoadEntityHistory", {
-  args: { entityId: Schema.String },
-  messages: [Message.SucceededLoadEntityHistory, Message.FailedDashboardCommand],
-  execute: ({ entityId }) =>
-    loadEntityHistory(entityId).pipe(
-      Effect.map((transactions) =>
-        Message.SucceededLoadEntityHistory({ transactions: [...transactions] }),
-      ),
-      Effect.catch((error) =>
-        Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-      ),
-    ),
-});
-
-export const SaveEntity = Command.define("SaveEntity", {
-  args: {
-    mode: Schema.Literals(["create", "edit"]),
-    entityId: Schema.String,
-    entityType: Schema.String,
-    facts: Schema.String,
-  },
-  messages: [Message.SucceededMutation, Message.FailedDashboardCommand],
-  execute: (input) =>
-    saveEntity(input).pipe(
-      Effect.map((notice) => Message.SucceededMutation({ notice })),
-      Effect.catch((error) =>
-        Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-      ),
-    ),
-});
-
-export const SaveConfig = Command.define("SaveConfig", {
-  args: {
-    operation: Schema.Literals(["create", "edit", "remove"]),
-    identity: Schema.optional(Schema.String),
-    kind: Schema.String,
-    key: Schema.String,
-    attrs: Schema.String,
-    refs: Schema.String,
-    label: Schema.String,
-    targetRef: Schema.String,
-  },
-  messages: [Message.SucceededMutation, Message.FailedDashboardCommand],
-  execute: ({ identity, ...input }) =>
-    publishConfigChange({ ...input, ...(identity === undefined ? {} : { identity }) }).pipe(
-      Effect.map((notice) => Message.SucceededMutation({ notice })),
-      Effect.catch((error) =>
-        Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-      ),
-    ),
-});
-
-export const MoveConfigRef = Command.define("MoveConfigRef", {
-  args: { name: Schema.String, snapshotId: Schema.String },
-  messages: [Message.SucceededMutation, Message.FailedDashboardCommand],
-  execute: ({ name, snapshotId }) =>
-    moveConfigRef(name, snapshotId).pipe(
-      Effect.map((notice) => Message.SucceededMutation({ notice })),
-      Effect.catch((error) =>
-        Effect.succeed(Message.FailedDashboardCommand({ message: errorMessage(error) })),
-      ),
-    ),
-});
-
-type Resources = Triples | ConfigStore.ConfigStore;
+type Resources = import("./api.js").DashboardApi;
 
 export const init: Runtime.ApplicationInit<Model, Message, void, Resources> = () => ({
   model: initialModel,
-  commands: [LoadDashboard()],
+  commands: [LoadDashboard({ recordedAt: null, validAt: null })],
 });
 
 const entityFactsDraft = (entity: EntityView) =>
@@ -365,6 +225,23 @@ const configRefs = (body: string): string => {
   }
 };
 
+const basisCommandArgs = (model: Model) => ({
+  recordedAt: model.recordedAt,
+  validAt: model.validAt,
+});
+
+const dateTimeInputValue = (instant: number): string => {
+  const date = new Date(instant);
+  return new Date(instant - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 23);
+};
+
+const parseTemporalDraft = (label: string, value: string): number | null => {
+  if (value.trim() === "") return null;
+  const instant = Date.parse(value);
+  if (!Number.isFinite(instant) || instant < 0) throw new Error(`${label} must be a valid date`);
+  return instant;
+};
+
 export const update = (model: Model, message: Message) =>
   Message.match<Update.Return<Model, Message, Resources>>(message, {
     SelectedPage: ({ page }) => ({ model: { ...model, page, notice: null } }),
@@ -378,7 +255,7 @@ export const update = (model: Model, message: Message) =>
         busy: true,
         error: null,
       },
-      commands: [LoadEntityTypePage({ entityType, cursor: null })],
+      commands: [LoadEntityTypePage({ entityType, cursor: null, ...basisCommandArgs(model) })],
     }),
     SelectedForm: ({ formKey }) => ({
       model: { ...model, selectedFormKey: formKey, formValues: {}, notice: null, error: null },
@@ -661,7 +538,13 @@ export const update = (model: Model, message: Message) =>
           busy: true,
           error: null,
         },
-        commands: [LoadEntityTypePage({ entityType: model.selectedEntityType, cursor })],
+        commands: [
+          LoadEntityTypePage({
+            entityType: model.selectedEntityType,
+            cursor,
+            ...basisCommandArgs(model),
+          }),
+        ],
       };
     },
     RequestedPreviousEntityTypePage: () => {
@@ -677,7 +560,13 @@ export const update = (model: Model, message: Message) =>
           busy: true,
           error: null,
         },
-        commands: [LoadEntityTypePage({ entityType: model.selectedEntityType, cursor })],
+        commands: [
+          LoadEntityTypePage({
+            entityType: model.selectedEntityType,
+            cursor,
+            ...basisCommandArgs(model),
+          }),
+        ],
       };
     },
     ChangedEntitySearch: ({ value }) => ({
@@ -703,13 +592,67 @@ export const update = (model: Model, message: Message) =>
     ChangedQueryText: ({ value }) => ({
       model: { ...model, queryText: value, queryPreset: "custom", notice: null },
     }),
+    ChangedRecordedAtDraft: ({ value }) => ({
+      model: { ...model, recordedAtDraft: value, recordedAtDraftExact: null, notice: null },
+    }),
+    ChangedValidAtDraft: ({ value }) => ({
+      model: { ...model, validAtDraft: value, notice: null },
+    }),
+    SelectedJournalBasis: ({ instant }) => ({
+      model: {
+        ...model,
+        temporalPanelOpen: true,
+        recordedAtDraft: dateTimeInputValue(instant),
+        recordedAtDraftExact: instant,
+        notice: null,
+      },
+    }),
+    ToggledTemporalPanel: () => ({
+      model: { ...model, temporalPanelOpen: !model.temporalPanelOpen },
+    }),
+    RequestedApplyTemporalBasis: () => {
+      try {
+        const recordedAt =
+          model.recordedAtDraftExact ?? parseTemporalDraft("Recorded time", model.recordedAtDraft);
+        const validAt = parseTemporalDraft("Valid time", model.validAtDraft);
+        return {
+          model: {
+            ...model,
+            recordedAt,
+            validAt,
+            temporalPanelOpen: false,
+            busy: true,
+            error: null,
+            notice: null,
+          },
+          commands: [LoadDashboard({ recordedAt, validAt })],
+        };
+      } catch (error) {
+        return { model: { ...model, error: errorMessage(error), notice: null } };
+      }
+    },
+    RequestedLatestTemporalBasis: () => ({
+      model: {
+        ...model,
+        recordedAt: null,
+        validAt: null,
+        recordedAtDraft: "",
+        recordedAtDraftExact: null,
+        validAtDraft: "",
+        temporalPanelOpen: false,
+        busy: true,
+        error: null,
+        notice: null,
+      },
+      commands: [LoadDashboard({ recordedAt: null, validAt: null })],
+    }),
     RequestedQuery: () => ({
       model: { ...model, busy: true, error: null, notice: null },
-      commands: [RunQuery({ source: model.queryText })],
+      commands: [RunQuery({ source: model.queryText, ...basisCommandArgs(model) })],
     }),
     RequestedRefresh: () => ({
       model: { ...model, busy: true, error: null, notice: null },
-      commands: [LoadDashboard()],
+      commands: [LoadDashboard(basisCommandArgs(model))],
     }),
     SucceededLoadDashboard: ({ data }) => ({
       model: (() => {
@@ -741,7 +684,7 @@ export const update = (model: Model, message: Message) =>
         };
       })(),
       commands: [
-        RunQuery({ source: model.queryText }),
+        RunQuery({ source: model.queryText, ...basisCommandArgs(model) }),
         ...(data.entityTypes[0] === undefined
           ? []
           : [
@@ -750,6 +693,7 @@ export const update = (model: Model, message: Message) =>
                   data.entityTypes.find((item) => item.name === model.selectedEntityType)?.name ??
                   data.entityTypes[0].name,
                 cursor: null,
+                ...basisCommandArgs(model),
               }),
             ]),
       ],
@@ -788,7 +732,7 @@ export const update = (model: Model, message: Message) =>
         notice,
         error: null,
       },
-      commands: [LoadDashboard()],
+      commands: [LoadDashboard(basisCommandArgs(model))],
     }),
     SucceededRunQuery: ({ result }) => ({
       model: { ...model, queryResult: result, busy: false, error: null },
@@ -3954,6 +3898,145 @@ const configView = (model: Model, h: HtmlBuilder<Message>): Html => {
   );
 };
 
+const temporalSummary = (model: Model): string => {
+  const valid = model.validAt === null ? "valid now" : `valid ${formatInstant(model.validAt)}`;
+  const recorded =
+    model.recordedAt === null ? "recorded latest" : `recorded ${formatInstant(model.recordedAt)}`;
+  return `${valid}  ·  ${recorded}`;
+};
+
+const temporalPanel = (model: Model, h: HtmlBuilder<Message>): Html | null => {
+  if (!model.temporalPanelOpen) return null;
+  const transactions = model.data?.transactions ?? [];
+  return h.aside(
+    [
+      h.Class(
+        "fixed right-3 bottom-3 z-50 w-[min(440px,calc(100vw-1.5rem))] rounded-lg border border-[#cfd3dc] bg-white p-4 shadow-2xl",
+      ),
+      h.AriaLabel("Temporal basis"),
+    ],
+    [
+      h.div(
+        [h.Class("mb-3")],
+        [
+          h.p([h.Class("text-sm font-semibold text-slate-900")], ["Read the database as of…"]),
+          h.p(
+            [h.Class("mt-1 text-xs leading-5 text-slate-500")],
+            ["Recorded time controls what was known; valid time controls when facts were true."],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class("grid gap-3 sm:grid-cols-2")],
+        [
+          h.label(
+            [h.Class("block")],
+            [
+              h.span(
+                [h.Class("mb-1 block text-[11px] font-medium text-slate-600")],
+                ["Recorded at"],
+              ),
+              Input.view(
+                {
+                  id: "temporal-recorded-at",
+                  value: model.recordedAtDraft,
+                  onInput: (value) => Message.ChangedRecordedAtDraft({ value }),
+                  toView: ({ input }) =>
+                    h.input([
+                      ...input,
+                      h.Type("datetime-local"),
+                      h.Step("0.001"),
+                      h.Class(
+                        "h-9 w-full rounded border border-slate-300 bg-white px-2 font-mono text-xs outline-none focus:border-blue-500",
+                      ),
+                    ]),
+                },
+                h,
+              ),
+            ],
+          ),
+          h.label(
+            [h.Class("block")],
+            [
+              h.span([h.Class("mb-1 block text-[11px] font-medium text-slate-600")], ["Valid at"]),
+              Input.view(
+                {
+                  id: "temporal-valid-at",
+                  value: model.validAtDraft,
+                  onInput: (value) => Message.ChangedValidAtDraft({ value }),
+                  toView: ({ input }) =>
+                    h.input([
+                      ...input,
+                      h.Type("datetime-local"),
+                      h.Step("0.001"),
+                      h.Class(
+                        "h-9 w-full rounded border border-slate-300 bg-white px-2 font-mono text-xs outline-none focus:border-blue-500",
+                      ),
+                    ]),
+                },
+                h,
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.label(
+        [h.Class("mt-3 block")],
+        [
+          h.span(
+            [h.Class("mb-1 block text-[11px] font-medium text-slate-600")],
+            ["Snap recorded time to a journal transaction"],
+          ),
+          Select.view(
+            {
+              id: "temporal-journal-position",
+              value: "",
+              onChange: (value) => Message.SelectedJournalBasis({ instant: Number(value) }),
+              toView: ({ select }) =>
+                h.select(
+                  [
+                    ...select,
+                    h.Class(
+                      "h-9 w-full rounded border border-slate-300 bg-white px-2 font-mono text-xs outline-none focus:border-blue-500",
+                    ),
+                  ],
+                  [
+                    h.option([h.Value("")], ["Choose a journal position…"]),
+                    ...transactions.map((transaction) =>
+                      h.option(
+                        [h.Value(String(transaction.instant))],
+                        [
+                          `tx ${transaction.position} · ${formatInstant(transaction.instant)}${transaction.actor === null ? "" : ` · ${transaction.actor}`}`,
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+            },
+            h,
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class("mt-4 flex items-center justify-between gap-3")],
+        [
+          uiButton("Latest / now", Message.RequestedLatestTemporalBasis(), h, { kind: "quiet" }),
+          h.div(
+            [h.Class("flex gap-2")],
+            [
+              uiButton("Close", Message.ToggledTemporalPanel(), h, { kind: "secondary" }),
+              uiButton("Apply basis", Message.RequestedApplyTemporalBasis(), h, {
+                kind: "primary",
+                disabled: model.busy,
+              }),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
 const content = (model: Model, h: HtmlBuilder<Message>): Html => {
   if (model.data === null) {
     return h.div(
@@ -4024,7 +4107,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
               icon("database", h),
               h.span(
                 [h.Class("truncate font-mono text-[11px] text-slate-200")],
-                ["memory://demo-learning"],
+                [model.data?.source ?? "opening data source…"],
               ),
             ],
           ),
@@ -4038,6 +4121,26 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
                   ),
                 ],
                 [model.data === null ? "loading" : `tx ${model.data.position}`],
+              ),
+              Button.view(
+                {
+                  onClick: Message.ToggledTemporalPanel(),
+                  toView: ({ button }) =>
+                    h.button(
+                      [
+                        ...button,
+                        h.AriaLabel(`Temporal basis: ${temporalSummary(model)}`),
+                        h.Class(
+                          "inline-flex h-7 items-center gap-1.5 rounded border border-white/10 bg-white/5 px-2 font-mono text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                        ),
+                      ],
+                      [
+                        icon("journal", h),
+                        h.span([h.Class("hidden lg:inline")], [temporalSummary(model)]),
+                      ],
+                    ),
+                },
+                h,
               ),
               h.span(
                 [h.Class("flex items-center gap-1.5 text-[11px] text-slate-300")],
@@ -4059,7 +4162,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
       ),
       toolTabs(model, h),
       h.main(
-        [h.Class("pt-22 pb-8")],
+        [h.Class("pt-22 pb-4")],
         [
           h.div(
             [h.Class("mx-auto max-w-[1800px] px-3 py-3 sm:px-4 lg:px-5 lg:py-4")],
@@ -4099,24 +4202,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
           ),
         ],
       ),
-      h.footer(
-        [
-          h.Class(
-            "border-console fixed inset-x-0 bottom-0 z-30 flex h-7 items-center justify-between border-t bg-[#f1f3f6] px-3 font-mono text-[10px] text-slate-500 lg:left-60",
-          ),
-        ],
-        [
-          h.span(
-            [],
-            [
-              model.data === null
-                ? "opening database…"
-                : `${model.data.entities.length} entities  ·  ${model.data.entityTypes.length} types  ·  ${model.data.transactions.length} journal entries`,
-            ],
-          ),
-          h.span([h.Class("hidden sm:inline")], ["valid now  ·  recorded latest"]),
-        ],
-      ),
+      ...(model.temporalPanelOpen ? [temporalPanel(model, h)!] : []),
     ],
   ),
 });

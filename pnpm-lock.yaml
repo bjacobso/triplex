@@ -284,6 +284,15 @@ importers:
       '@bjacobso/triplex':
         specifier: workspace:^
         version: link:../core
+      '@bjacobso/triplex-postgres':
+        specifier: workspace:^
+        version: link:../postgres
+      '@bjacobso/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../sqlite
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
       '@foldkit/ui':
         specifier: 'catalog:'
         version: 0.157.0(effect@4.0.0-rc.112)(foldkit@0.157.0(effect@4.0.0-rc.112))
@@ -306,6 +315,9 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.2

@@ -19,11 +19,15 @@ import { LoadDashboard, Message, RunQuery, init, initialModel, update, view } fr
 describe("Triplex dashboard", () => {
   it("loads real Triplex facts, config, journal records, and derivations through a Foldkit command", async () => {
     const loaded = await Effect.runPromise(
-      LoadDashboard().effect.pipe(Effect.provide(DashboardDemoLayer)),
+      LoadDashboard({ recordedAt: null, validAt: null }).effect.pipe(
+        Effect.provide(DashboardDemoLayer),
+      ),
     );
 
     expect(loaded._tag).toBe("SucceededLoadDashboard");
     if (loaded._tag !== "SucceededLoadDashboard") return;
+    expect(loaded.data.source).toBe("memory://demo-learning");
+    expect(loaded.data.basis.recordedAt).toBeNull();
     expect(loaded.data.entities.length).toBeGreaterThanOrEqual(7);
     expect(loaded.data.transactions.length).toBeGreaterThanOrEqual(4);
     expect(loaded.data.config.refs).toContainEqual({
@@ -99,8 +103,12 @@ describe("Triplex dashboard", () => {
   it("executes the Datalog workbench through the same app resource layer", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* LoadDashboard().effect;
-        return yield* RunQuery({ source: initialQueryText }).effect;
+        yield* LoadDashboard({ recordedAt: null, validAt: null }).effect;
+        return yield* RunQuery({
+          source: initialQueryText,
+          recordedAt: null,
+          validAt: null,
+        }).effect;
       }).pipe(Effect.provide(DashboardDemoLayer)),
     );
 
@@ -141,6 +149,67 @@ describe("Triplex dashboard", () => {
     expect(Exit.isFailure(result.wrongType)).toBe(true);
   });
 
+  it("applies one recorded/valid basis to dashboard, entity, and Datalog reads", async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const cutoff = Date.now();
+        yield* Effect.sleep(2);
+        const triples = yield* Triples;
+        yield* triples.assert({
+          entityId: EntityId.make("student:after-temporal-cutoff"),
+          entityType: "Student",
+          attribute: ":person/name",
+          value: string("After Temporal Cutoff"),
+        });
+        const validAt = Date.now();
+        const latest = yield* LoadDashboard({ recordedAt: null, validAt }).effect;
+        const historical = yield* LoadDashboard({ recordedAt: cutoff, validAt }).effect;
+        const historicalPage = yield* loadEntityTypePage("Student", null, 100, {
+          recordedAt: cutoff,
+          validAt,
+        });
+        const historicalQuery = yield* RunQuery({
+          source: JSON.stringify({
+            find: ["?entity"],
+            where: [["?entity", ":person/name", "After Temporal Cutoff"]],
+          }),
+          recordedAt: cutoff,
+          validAt,
+        }).effect;
+        return { latest, historical, historicalPage, historicalQuery, cutoff, validAt };
+      }).pipe(Effect.provide(DashboardDemoLayer)),
+    );
+
+    expect(result.latest._tag).toBe("SucceededLoadDashboard");
+    expect(result.historical._tag).toBe("SucceededLoadDashboard");
+    expect(result.historicalQuery._tag).toBe("SucceededRunQuery");
+    if (
+      result.latest._tag !== "SucceededLoadDashboard" ||
+      result.historical._tag !== "SucceededLoadDashboard" ||
+      result.historicalQuery._tag !== "SucceededRunQuery"
+    ) {
+      return;
+    }
+    expect(
+      result.latest.data.entities.some((entity) => entity.id === "student:after-temporal-cutoff"),
+    ).toBe(true);
+    expect(
+      result.historical.data.entities.some(
+        (entity) => entity.id === "student:after-temporal-cutoff",
+      ),
+    ).toBe(false);
+    expect(result.historical.data.basis).toEqual({
+      recordedAt: result.cutoff,
+      validAt: result.validAt,
+    });
+    expect(
+      result.historicalPage.entities.some(
+        (entity) => entity.id === "student:after-temporal-cutoff",
+      ),
+    ).toBe(false);
+    expect(result.historicalQuery.result.resultCount).toBe(0);
+  });
+
   it("keeps navigation and async work explicit in update", () => {
     const started = init();
     expect(started.commands?.[0]?.name).toBe("LoadDashboard");
@@ -151,6 +220,29 @@ describe("Triplex dashboard", () => {
     const running = update(next.model, Message.RequestedQuery());
     expect(running.model.busy).toBe(true);
     expect(running.commands?.[0]?.name).toBe("RunQuery");
+  });
+
+  it("opens the temporal control and applies journal snap points explicitly", async () => {
+    const data = await Effect.runPromise(loadDashboard.pipe(Effect.provide(DashboardDemoLayer)));
+    const base = { ...initialModel, data, busy: false };
+    const opened = update(base, Message.ToggledTemporalPanel());
+    const transaction = data.transactions[0]!;
+    const snapped = update(
+      opened.model,
+      Message.SelectedJournalBasis({ instant: transaction.instant }),
+    );
+    const applied = update(snapped.model, Message.RequestedApplyTemporalBasis());
+
+    expect(opened.model.temporalPanelOpen).toBe(true);
+    expect(snapped.model.recordedAtDraft).not.toBe("");
+    expect(applied.model.recordedAt).toBe(transaction.instant);
+    expect(applied.commands?.[0]?.name).toBe("LoadDashboard");
+    scene(
+      { update, view },
+      given(opened.model),
+      expectScene(text("Read the database as of…")).toExist(),
+      expectScene(role("button", { name: "Apply basis" })).toBeEnabled(),
+    );
   });
 
   it("creates and edits entities through attributed transactions with entity-scoped history", async () => {
