@@ -128,10 +128,20 @@ export const TransactOp = Schema.Union([
 ]);
 export type TransactOp = typeof TransactOp.Type;
 
-export const TransactionPrecondition = Schema.Struct({
+export const TripleLivePrecondition = Schema.Struct({
   _tag: Schema.Literal("TripleLive"),
   id: TripleId,
 });
+export const EntityStatePrecondition = Schema.Struct({
+  _tag: Schema.Literal("EntityState"),
+  entityId: EntityId,
+  /** The complete set of live fact identities observed before constructing the transaction. */
+  tripleIds: Schema.Array(TripleId),
+});
+export const TransactionPrecondition = Schema.Union([
+  TripleLivePrecondition,
+  EntityStatePrecondition,
+]);
 export type TransactionPrecondition = typeof TransactionPrecondition.Type;
 
 export const TransactRequest = Schema.Struct({

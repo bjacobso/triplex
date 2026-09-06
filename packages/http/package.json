@@ -1,0 +1,63 @@
+{
+  "name": "@bjacobso/triplex-http",
+  "version": "0.0.0",
+  "description": "Configuration-derived HTTP APIs for Triplex",
+  "keywords": [
+    "effect",
+    "http",
+    "openapi",
+    "rest",
+    "triplestore"
+  ],
+  "homepage": "https://github.com/bjacobso/triplex#readme",
+  "bugs": {
+    "url": "https://github.com/bjacobso/triplex/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bjacobso/triplex.git",
+    "directory": "packages/http"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
+    "dev": "tsdown --watch",
+    "test": "vitest --run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@bjacobso/triplex": "workspace:^",
+    "ulidx": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "effect": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "effect": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

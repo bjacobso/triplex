@@ -478,11 +478,25 @@ export function makeCloudflareAdapter(ctx: DOState): StorageAdapterService {
         const params: SqlStorageValue[] = [];
 
         if (basis?.recordedPosition !== undefined) {
-          conditions.push(
-            "recorded_position <= ?",
-            "(retracted_position IS NULL OR retracted_position > ?)",
-          );
-          params.push(basis.recordedPosition, basis.recordedPosition);
+          if (basis.recordedAt === undefined) {
+            conditions.push(
+              "recorded_position <= ?",
+              "(retracted_position IS NULL OR retracted_position > ?)",
+            );
+            params.push(basis.recordedPosition, basis.recordedPosition);
+          } else {
+            conditions.push(
+              "recorded_position <= ?",
+              "recorded_at <= ?",
+              "(retracted_position IS NULL OR retracted_position > ? OR retracted_at > ?)",
+            );
+            params.push(
+              basis.recordedPosition,
+              basis.recordedAt,
+              basis.recordedPosition,
+              basis.recordedAt,
+            );
+          }
         } else if (basis?.recordedAt === undefined) {
           conditions.push("retracted_at IS NULL");
         } else {

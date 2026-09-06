@@ -72,6 +72,9 @@ hosts typed configuration as a modular layer over the same core.
   allocates a monotonic commit position in that atomic boundary; `Triples.transactions` pages the
   journal from a durable resume cursor. Command IDs are atomically unique per database through a
   backend-local claim index, while the corresponding `_Transaction` remains the queryable receipt.
+- Entity-state preconditions compare the complete observed live fact-ID set after entering that
+  serialized boundary. They extend compare-and-retract to insertion-only races, so replacement and
+  deletion cannot silently overlook facts written between read and commit.
 - Hosts may opt a transaction into graph-constraint enforcement using plain versioned rules loaded
   from its pinned `ConfigSnapshot`. After allocating the serialized commit position, the backend
   evaluates the projected post-state at every valid-time boundary before mutation. Required,
@@ -94,6 +97,9 @@ hosts typed configuration as a modular layer over the same core.
   the canonical query, complete projected-row keyset order, temporal basis, and database scope.
   Facts retain assertion and retraction commit positions internally, so subsequent pages read the
   exact first-page snapshot even when concurrent commits share an epoch-millisecond timestamp.
+- `Triples.entityPage` is the entity-materialization counterpart: its opaque cursor binds database
+  scope, entity type, temporal basis, and exact commit position, and both ID discovery and batched
+  bodies are read from that cut.
 - `_triplex/` entities, `:triplex/` and `:_tx/` attributes, and Triplex-owned entity types are
   reserved for core services. Ordinary writes fail before mutation; config and validation services
   cross that boundary through a private core capability.
@@ -114,6 +120,10 @@ hosts typed configuration as a modular layer over the same core.
 - `@bjacobso/triplex-cli` is an application package over the public core, config, SQLite, and
   PostgreSQL surfaces. It uses Effect v4's CLI modules for typed parsing and service composition;
   it does not expose or depend on backend adapters or `@bjacobso/triplex/internal`.
+- `@bjacobso/triplex-http` is an optional application-facing package over public core and config
+  exports. It compiles immutable releases into runtime schemas, Effect `HttpApi` contracts,
+  OpenAPI, and backend-neutral handlers. Hosts own database selection, authorization, and server
+  allocation; core and backend packages never import HTTP.
 - The PostgreSQL package also owns SQL-aware host composition. Its ambient-client layer builds
   `Triples` from the caller's exact `SqlClient`, preserving Effect SQL's fiber-local transaction
   and savepoint boundary without exposing `StorageAdapter`. Its database-scoped layer returns both

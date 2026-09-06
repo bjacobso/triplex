@@ -1,23 +1,27 @@
 {
-  "name": "triplex-integration-tests",
+  "name": "triplex-http-api-example",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest --run",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "start": "tsx src/server.ts",
+    "test": "echo 'example: no tests'",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@bjacobso/triplex": "workspace:^",
     "@bjacobso/triplex-http": "workspace:^",
-    "@bjacobso/triplex-sql": "workspace:^",
     "@bjacobso/triplex-sqlite": "workspace:^",
-    "@bjacobso/triplex-testkit": "workspace:^",
-    "@effect/sql-sqlite-node": "catalog:",
+    "@effect/platform-node": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "vitest": "catalog:"
+    "tsx": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

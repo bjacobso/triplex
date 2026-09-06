@@ -38,6 +38,7 @@ import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import type { TemporalBasis } from "../Temporal.js";
 import type { TripleValue } from "../Value.js";
 import type { Rule as ConstraintRule } from "../Constraint.js";
+import type { EntityPageCursor, EntityPageRequest, EntityPageSnapshot } from "../EntityPage.js";
 import type {
   QueryResult,
   QueryDebugInfo,
@@ -79,9 +80,10 @@ export interface TransactionMeta {
     readonly constraints: readonly ConstraintRule[];
   };
   /**
-   * Compare-and-retract conditions. Every referenced triple must also have a
-   * `retract` operation in this transaction. If another writer retracts it
-   * first, the whole transaction fails with `TransactionConflictError`.
+   * Serialized transaction preconditions. `TripleLive` references must also
+   * have a matching `retract` operation; `EntityState` compares the complete
+   * observed live fact-ID set. A mismatch fails the whole transaction with
+   * `TransactionConflictError`.
    */
   readonly preconditions?: readonly TransactionPrecondition[];
 }
@@ -150,6 +152,13 @@ export interface DependencyState {
   readonly sourcePosition: number;
   /** Earliest future valid-time edge in the selected attributes' recorded view. */
   readonly nextTemporalBoundary?: number;
+}
+
+export interface EntityPage {
+  /** Complete entity bodies, ordered by entity identity, all read from one exact commit cut. */
+  readonly entities: readonly (readonly Triple[])[];
+  readonly snapshot: EntityPageSnapshot;
+  readonly nextCursor?: EntityPageCursor;
 }
 
 /**
@@ -221,6 +230,9 @@ export interface TriplesService {
     entityIds: readonly EntityId[],
     basis?: TemporalBasis,
   ) => Effect.Effect<readonly (readonly Triple[])[], ReadError>;
+  readonly entityPage: (
+    request: EntityPageRequest,
+  ) => Effect.Effect<EntityPage, ReadError | PaginationCursorError>;
   /** Match triples against a pattern. */
   readonly match: (
     pattern: Pattern,

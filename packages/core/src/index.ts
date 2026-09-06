@@ -9,6 +9,11 @@ export * from "./Branded.js";
 export * from "./Triple.js";
 export * from "./Temporal.js";
 export { type PaginationCursor } from "./Pagination.js";
+export {
+  type EntityPageCursor,
+  type EntityPageRequest,
+  type EntityPageSnapshot,
+} from "./EntityPage.js";
 export * from "./Value.js";
 export * as Constraint from "./Constraint.js";
 export * from "./errors/index.js";
@@ -75,6 +80,7 @@ export {
   type EntityTransactionPageRequest,
   type EntityTransactionPage,
   type DependencyState,
+  type EntityPage,
   type QueryOptions,
   type QueryResponse,
   type PagedQueryResponse,

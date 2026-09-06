@@ -48,6 +48,7 @@ import { unsafe } from "../Branded.js";
 import * as Constraint from "../Constraint.js";
 import { TripleStoreRuntime } from "./TripleStoreRuntime.js";
 import {
+  entityStatePreconditions,
   invalidCommandId,
   livePreconditionIds,
   metadataInputs,
@@ -66,6 +67,7 @@ import { resolveTemporalBasis } from "../Temporal.js";
 import { TxAttributes } from "../utils/id.js";
 import { finishPagination, preparePagination } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
+import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
 
 // =============================================================================
 // Row to Triple Conversion
@@ -296,6 +298,24 @@ export const TriplesLive = Layer.effect(
           const actor = meta?.actor;
           const preconditionIds = livePreconditionIds(meta);
 
+          for (const condition of entityStatePreconditions(meta)) {
+            const actual = (yield* adapter.getByEntity(condition.entityId))
+              .map((row) => row.id)
+              .sort();
+            const expected = [...condition.tripleIds].sort();
+            if (
+              actual.length !== expected.length ||
+              actual.some((id, index) => id !== expected[index])
+            ) {
+              return yield* Effect.fail(
+                new TransactionConflictError({
+                  entityId: condition.entityId,
+                  message: `Expected entity ${condition.entityId} to have the observed fact set, but another transaction changed it`,
+                }),
+              );
+            }
+          }
+
           if (meta?.enforce !== undefined) {
             const current = yield* Constraint.loadRelevantFacts(
               meta.enforce.constraints,
@@ -509,6 +529,42 @@ export const TriplesLive = Layer.effect(
         return entityIds.map((id) => (rows.get(id) ?? []).map(rowToTriple));
       });
 
+    const entityPage: TriplesService["entityPage"] = (request) =>
+      Effect.gen(function* () {
+        const currentTime = yield* now;
+        const recordedPosition = yield* adapter.currentCommitPosition();
+        const prepared = yield* Effect.try({
+          try: () =>
+            prepareEntityPage({
+              request,
+              now: currentTime,
+              recordedPosition,
+              scope: runtime.scope,
+            }),
+          catch: (cause) =>
+            cause instanceof PaginationCursorError
+              ? cause
+              : new PaginationCursorError({
+                  reason: "malformed",
+                  message: `Failed to prepare entity page: ${String(cause)}`,
+                  cause,
+                }),
+        });
+        const facts = yield* adapter.query({ entityType: request.entityType }, prepared.basis);
+        const ids = [...new Set(facts.map((row) => row.entity_id))]
+          .sort()
+          .filter((id) => prepared.after === undefined || id > prepared.after);
+        const selected = ids.slice(0, prepared.limit);
+        const rows = yield* adapter.getByEntities(selected, prepared.basis);
+        return {
+          entities: selected.map((id) => (rows.get(id) ?? []).map(rowToTriple)),
+          snapshot: prepared.basis,
+          ...(ids.length > prepared.limit
+            ? { nextCursor: encodeEntityPageCursor(prepared, selected.at(-1)!) }
+            : {}),
+        };
+      });
+
     const match: TriplesService["match"] = (pattern, basis) =>
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
@@ -643,6 +699,7 @@ export const TriplesLive = Layer.effect(
       get,
       entity,
       entities,
+      entityPage,
       match,
       history,
       transaction,

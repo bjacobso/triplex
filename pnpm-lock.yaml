@@ -216,6 +216,31 @@ importers:
         specifier: 'catalog:'
         version: 6.0.2
 
+  examples/http-api:
+    dependencies:
+      '@bjacobso/triplex':
+        specifier: workspace:^
+        version: link:../../packages/core
+      '@bjacobso/triplex-http':
+        specifier: workspace:^
+        version: link:../../packages/http
+      '@bjacobso/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../../packages/sqlite
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.0
+
   packages/cli:
     dependencies:
       '@bjacobso/triplex':
@@ -353,6 +378,25 @@ importers:
         specifier: 'catalog:'
         version: 4.1.11(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.0))
 
+  packages/http:
+    dependencies:
+      '@bjacobso/triplex':
+        specifier: workspace:^
+        version: link:../core
+      ulidx:
+        specifier: 'catalog:'
+        version: 2.4.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.1
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.0))
+
   packages/postgres:
     dependencies:
       '@bjacobso/triplex':
@@ -443,6 +487,9 @@ importers:
       '@bjacobso/triplex':
         specifier: workspace:^
         version: link:../../packages/core
+      '@bjacobso/triplex-http':
+        specifier: workspace:^
+        version: link:../../packages/http
       '@bjacobso/triplex-sql':
         specifier: workspace:^
         version: link:../../packages/sql

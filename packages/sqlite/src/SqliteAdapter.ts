@@ -511,12 +511,27 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
         if (basis === undefined) return ["retracted_at IS NULL"];
         const conditions =
           basis.recordedPosition !== undefined
-            ? ["recorded_position <= ?", "(retracted_position IS NULL OR retracted_position > ?)"]
+            ? basis.recordedAt === undefined
+              ? ["recorded_position <= ?", "(retracted_position IS NULL OR retracted_position > ?)"]
+              : [
+                  "recorded_position <= ?",
+                  "recorded_at <= ?",
+                  "(retracted_position IS NULL OR retracted_position > ? OR retracted_at > ?)",
+                ]
             : basis.recordedAt === undefined
               ? ["retracted_at IS NULL"]
               : ["recorded_at <= ?", "(retracted_at IS NULL OR retracted_at > ?)"];
         if (basis.recordedPosition !== undefined) {
-          params.push(basis.recordedPosition, basis.recordedPosition);
+          if (basis.recordedAt === undefined) {
+            params.push(basis.recordedPosition, basis.recordedPosition);
+          } else {
+            params.push(
+              basis.recordedPosition,
+              basis.recordedAt,
+              basis.recordedPosition,
+              basis.recordedAt,
+            );
+          }
         } else if (basis.recordedAt !== undefined) {
           params.push(basis.recordedAt, basis.recordedAt);
         }

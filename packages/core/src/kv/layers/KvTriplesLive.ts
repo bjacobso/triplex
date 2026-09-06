@@ -42,6 +42,7 @@ import {
   makeTripleStoreRuntimeLayer,
 } from "../../store/TripleStoreRuntime.js";
 import {
+  entityStatePreconditions,
   invalidCommandId,
   livePreconditionIds,
   metadataInputs,
@@ -62,6 +63,7 @@ import { finishPagination, preparePagination } from "../../Pagination.js";
 import * as ContentIds from "../../content/ContentId.js";
 import { unsafe } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
+import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
 const COMMAND_RECEIPT_PREFIX = 0x22;
@@ -459,6 +461,26 @@ const makeKvTriplesService = Effect.gen(function* () {
             const actor = meta?.actor;
             const preconditionIds = livePreconditionIds(meta);
 
+            for (const condition of entityStatePreconditions(meta)) {
+              const actual = (yield* transactionStore.scanCollectAsync({
+                entity: condition.entityId,
+              }))
+                .map((datom) => datom.tripleId)
+                .sort();
+              const expected = [...condition.tripleIds].sort();
+              if (
+                actual.length !== expected.length ||
+                actual.some((id, index) => id !== expected[index])
+              ) {
+                return yield* Effect.fail(
+                  new TransactionConflictError({
+                    entityId: condition.entityId,
+                    message: `Expected entity ${condition.entityId} to have the observed fact set, but another transaction changed it`,
+                  }),
+                );
+              }
+            }
+
             if (meta?.enforce !== undefined) {
               const current = yield* Constraint.loadRelevantFacts(
                 meta.enforce.constraints,
@@ -655,6 +677,52 @@ const makeKvTriplesService = Effect.gen(function* () {
           Effect.fail(
             new ReadError({ message: `Batch entity read failed: ${String(e)}`, cause: e }),
           ),
+        ),
+      ),
+
+    entityPage: (request) =>
+      Effect.gen(function* () {
+        const currentTime = yield* runtime.now;
+        const recordedPosition = yield* currentKvCommitPosition(kvBackend);
+        const prepared = yield* Effect.try({
+          try: () =>
+            prepareEntityPage({
+              request,
+              now: currentTime,
+              recordedPosition,
+              scope: runtime.scope,
+            }),
+          catch: (cause) =>
+            cause instanceof PaginationCursorError
+              ? cause
+              : new PaginationCursorError({
+                  reason: "malformed",
+                  message: `Failed to prepare entity page: ${String(cause)}`,
+                  cause,
+                }),
+        });
+        const facts = yield* match({ entityType: request.entityType }, prepared.basis);
+        const ids = [...new Set(facts.map((triple) => triple.entityId))]
+          .sort()
+          .filter((id) => prepared.after === undefined || id > prepared.after);
+        const selected = ids.slice(0, prepared.limit);
+        const rows = yield* Effect.forEach(selected, (entityId) =>
+          hexaStore
+            .scanCollectTemporalAsync({ entity: entityId }, prepared.basis)
+            .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
+        );
+        return {
+          entities: rows,
+          snapshot: prepared.basis,
+          ...(ids.length > prepared.limit
+            ? { nextCursor: encodeEntityPageCursor(prepared, selected.at(-1)!) }
+            : {}),
+        };
+      }).pipe(
+        Effect.mapError((cause) =>
+          cause instanceof PaginationCursorError
+            ? cause
+            : new ReadError({ message: `Entity page failed: ${String(cause)}`, cause }),
         ),
       ),
 

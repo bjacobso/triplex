@@ -228,6 +228,86 @@ describe("KvTriples (merged service)", () => {
     );
   });
 
+  it("rejects replacement after an insertion-only entity race", async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const original = yield* triples.assert({
+          entityId: "race:1",
+          entityType: "Race",
+          attribute: ":race/name",
+          value: { type: "string", value: "before" },
+        });
+        const observed = yield* triples.entity("race:1");
+        yield* triples.assert({
+          entityId: "race:1",
+          entityType: "Race",
+          attribute: ":race/note",
+          value: { type: "string", value: "concurrent" },
+        });
+        return yield* Effect.result(
+          triples.transact(
+            [
+              { op: "retract", id: original.id },
+              {
+                op: "assert",
+                entityId: "race:1",
+                entityType: "Race",
+                attribute: ":race/name",
+                value: { type: "string", value: "after" },
+              },
+            ],
+            {
+              preconditions: [
+                {
+                  _tag: "EntityState",
+                  entityId: "race:1",
+                  tripleIds: observed.map((fact) => fact.id),
+                },
+              ],
+            },
+          ),
+        );
+      }),
+    );
+
+    expect(result._tag).toBe("Failure");
+    if (result._tag === "Failure") expect(result.failure).toBeInstanceOf(TransactionConflictError);
+  });
+
+  it("materializes entity pages at one exact commit cut", async () => {
+    const pages = await run(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        yield* triples.assertBatch(
+          ["a", "b", "c"].map((suffix) => ({
+            entityId: `page:${suffix}`,
+            entityType: "Paged",
+            attribute: ":page/name",
+            value: { type: "string" as const, value: suffix },
+          })),
+        );
+        const first = yield* triples.entityPage({ entityType: "Paged", limit: 2 });
+        yield* triples.assert({
+          entityId: "page:aa",
+          entityType: "Paged",
+          attribute: ":page/name",
+          value: { type: "string", value: "inserted later" },
+        });
+        const second = yield* triples.entityPage({
+          entityType: "Paged",
+          limit: 2,
+          cursor: first.nextCursor,
+        });
+        return { first, second };
+      }),
+    );
+
+    expect(pages.first.entities.map((facts) => facts[0]?.entityId)).toEqual(["page:a", "page:b"]);
+    expect(pages.second.entities.map((facts) => facts[0]?.entityId)).toEqual(["page:c"]);
+    expect(pages.second.snapshot).toEqual(pages.first.snapshot);
+  });
+
   it("rolls back every KV write when a transaction dies partway through", async () => {
     let generated = 0;
     const layer = KvTriplesLive.pipe(

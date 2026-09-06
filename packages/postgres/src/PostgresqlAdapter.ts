@@ -429,10 +429,16 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
       ): string[] => {
         const conditions =
           basis?.recordedPosition !== undefined
-            ? [
-                `recorded_position <= ${collector.add(basis.recordedPosition)}`,
-                `(retracted_position IS NULL OR retracted_position > ${collector.add(basis.recordedPosition)})`,
-              ]
+            ? basis.recordedAt === undefined
+              ? [
+                  `recorded_position <= ${collector.add(basis.recordedPosition)}`,
+                  `(retracted_position IS NULL OR retracted_position > ${collector.add(basis.recordedPosition)})`,
+                ]
+              : [
+                  `recorded_position <= ${collector.add(basis.recordedPosition)}`,
+                  `recorded_at <= ${collector.add(basis.recordedAt)}`,
+                  `(retracted_position IS NULL OR retracted_position > ${collector.add(basis.recordedPosition)} OR retracted_at > ${collector.add(basis.recordedAt)})`,
+                ]
             : basis?.recordedAt === undefined
               ? ["retracted_at IS NULL"]
               : [

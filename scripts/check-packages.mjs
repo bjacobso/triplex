@@ -13,6 +13,7 @@ const packageNames = [
   "@bjacobso/triplex-foundationdb",
   "@bjacobso/triplex-testkit",
   "@bjacobso/triplex-cli",
+  "@bjacobso/triplex-http",
 ];
 const publishPackageNames = new Set([
   "@bjacobso/triplex",
@@ -21,6 +22,7 @@ const publishPackageNames = new Set([
   "@bjacobso/triplex-postgres",
   "@bjacobso/triplex-testkit",
   "@bjacobso/triplex-cli",
+  "@bjacobso/triplex-http",
 ]);
 const heldPackageNames = new Set([
   "@bjacobso/triplex-cloudflare",
@@ -164,6 +166,7 @@ import { PgTriples } from "@bjacobso/triplex-postgres";
 import * as Sql from "@bjacobso/triplex-sql";
 import { makeSqliteLayer } from "@bjacobso/triplex-sqlite";
 import * as Testkit from "@bjacobso/triplex-testkit";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@bjacobso/triplex-http";
 
 const triple: TripleInput = {
   entityId: EntityId.make("person:alice"),
@@ -217,6 +220,8 @@ void FoundationDb;
 void Postgres;
 void Sql;
 void Testkit;
+void EntityHttp;
+void HttpAuthorizationAllowAll;
 `,
   );
 

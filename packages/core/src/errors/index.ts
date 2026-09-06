@@ -40,7 +40,8 @@ export class TransactionError extends Data.TaggedError("TransactionError")<{
  * reload the current facts and retry their command.
  */
 export class TransactionConflictError extends Data.TaggedError("TransactionConflictError")<{
-  readonly tripleId: TripleId;
+  readonly tripleId?: TripleId;
+  readonly entityId?: EntityId;
   readonly message: string;
 }> {}
 

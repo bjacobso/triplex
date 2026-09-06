@@ -372,6 +372,16 @@ The package lives at [`packages/dashboard`](packages/dashboard). It uses one app
 layer as a Foldkit resource; named commands resolve `Triples` and `ConfigStore` from that layer,
 while `@foldkit/ui` supplies accessible controls and Tailwind supplies styling.
 
+## Configuration-derived HTTP API
+
+`@bjacobso/triplex-http` compiles persisted entity configuration into validated REST handlers and
+OpenAPI 3.1 without retaining the TypeScript DSL declarations. Hosts provide `Triples`,
+`ConfigStore`, an authorization layer, and their chosen HTTP server; KV and SQLite share the same
+Fetch-level integration suite. Wire objects use full global keywords, writes are atomic and pinned
+to one immutable config snapshot, and historical snapshot URLs are read-only by default.
+
+See the [HTTP API guide](docs/http-api.md) and [standalone host](examples/http-api).
+
 ## Agent CLI
 
 `@bjacobso/triplex-cli` exposes the same database and configuration services through Effect v4's

@@ -21,6 +21,7 @@
     "triplex": "pnpm --filter @bjacobso/triplex-cli dev",
     "example:compliance-host": "pnpm --filter triplex-compliance-host start",
     "example:demo": "pnpm --filter triplex-demo start",
+    "example:http-api": "pnpm --filter triplex-http-api-example start",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
