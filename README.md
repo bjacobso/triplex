@@ -9,7 +9,7 @@
 
 An Effect-native fact database for applications that have to explain themselves.
 
-[Documentation](https://triplex-docs.bjacobso.workers.dev) ·
+[Documentation](https://triplex.build) ·
 [GitHub](https://github.com/bjacobso/triplex) ·
 [npm](https://www.npmjs.com/package/@bjacobso/triplex)
 

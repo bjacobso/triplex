@@ -78,10 +78,28 @@ pnpm docs:plan
 pnpm docs:deploy
 ```
 
-The production stage publishes <https://triplex-docs.bjacobso.workers.dev>. Local deployment uses
-the maintainer's authenticated Alchemy profile. CI deployment is intentionally not configured
-until a narrowly scoped Cloudflare credential is provisioned for GitHub Actions; package releases
-do not implicitly deploy the documentation.
+The production stage publishes <https://triplex.build>, with
+<https://triplex-docs.bjacobso.workers.dev> also available. The `triplex.build` zone must be active
+in the deploying Cloudflare account; Alchemy attaches the Worker's custom domain, and Cloudflare
+manages its DNS record and HTTPS certificate. Only the `prod` stage attaches the custom domain.
+Local deployment uses the maintainer's authenticated Alchemy profile.
+
+The CI workflow deploys documentation after every push to `main` (including PR merges), once
+verification, package-consumer checks, documentation browser tests, and PostgreSQL integration
+tests pass. Pull requests do not deploy. Production deployments are serialized and are not
+canceled mid-deploy.
+
+Configure these repository Actions secrets before the first CI deployment:
+
+- `CLOUDFLARE_ACCOUNT_ID`: the same account used by the local production deployment.
+- `CLOUDFLARE_API_TOKEN`: a dedicated deployment token scoped to that account and the
+  `triplex.build` zone. It needs account-level Workers Scripts Edit, Account Settings Read,
+  and Secrets Store Edit, plus zone-level Zone Read and Workers Routes Edit.
+
+CI uses Alchemy's existing remote `Cloudflare.state()` store, so local and automated deployments
+share the `triplex` stack's `prod` state. Secrets Store Edit is required to bind the state-store
+secret when a fresh runner authenticates; Secrets Store Read alone is insufficient. See
+[Cloudflare's Secrets Store permissions](https://developers.cloudflare.com/secrets-store/access-control/).
 
 ## Verify the canary
 

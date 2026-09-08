@@ -9,8 +9,10 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
+    const stage = yield* Alchemy.Stage;
     const docs = yield* Cloudflare.Website.StaticSite("Docs", {
       name: "triplex-docs",
+      ...(stage === "prod" ? { domain: "triplex.build" } : {}),
       command: "pnpm docs:build",
       outdir: "dist",
       workersDev: true,
