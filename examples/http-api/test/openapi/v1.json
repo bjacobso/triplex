@@ -1,0 +1,688 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Triplex entity API",
+    "version": "1",
+    "description": "Derived from immutable configuration snapshot sha256-51ced2392dd5ae1906f03ffc3397e427779899a54e13e2e9046345f73c84d13c"
+  },
+  "paths": {
+    "/api/rest/v1/schema": {
+      "get": {
+        "tags": ["Triplex configuration"],
+        "operationId": "triplexMeta.schema",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "TriplexConfigurationSchema",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexConfigurationSchema" }
+              }
+            }
+          },
+          "400": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
+            }
+          },
+          "401": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_1" }
+              }
+            }
+          },
+          "403": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_2" }
+              }
+            }
+          },
+          "404": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_3" }
+              }
+            }
+          },
+          "405": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "allow": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_4" }
+              }
+            }
+          },
+          "409": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_5" }
+              }
+            }
+          },
+          "500": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_6" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rest/v1/openapi.json": {
+      "get": {
+        "tags": ["Triplex configuration"],
+        "operationId": "triplexMeta.openapi",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
+            }
+          },
+          "401": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_1" }
+              }
+            }
+          },
+          "403": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_2" }
+              }
+            }
+          },
+          "404": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_3" }
+              }
+            }
+          },
+          "405": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "allow": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_4" }
+              }
+            }
+          },
+          "409": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_5" }
+              }
+            }
+          },
+          "500": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_6" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rest/v1/docs": {
+      "get": {
+        "tags": ["Triplex configuration"],
+        "operationId": "triplexMeta.docs",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "400": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
+            }
+          },
+          "401": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_1" }
+              }
+            }
+          },
+          "403": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_2" }
+              }
+            }
+          },
+          "404": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_3" }
+              }
+            }
+          },
+          "405": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "allow": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_4" }
+              }
+            }
+          },
+          "409": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_5" }
+              }
+            }
+          },
+          "500": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_6" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rest/v1/employees": {
+      "get": {
+        "tags": ["Employee"],
+        "operationId": "Employee.list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                { "type": "string", "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$" },
+                { "type": "null" }
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+            "required": false
+          },
+          {
+            "name": "recordedAt",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    { "type": "string", "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$" },
+                    { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+                  ]
+                },
+                { "type": "null" }
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "validAt",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    { "type": "string", "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$" },
+                    { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+                  ]
+                },
+                { "type": "null" }
+              ]
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Employee" }
+                    },
+                    "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                  },
+                  "required": ["items"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
+            }
+          },
+          "401": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_1" }
+              }
+            }
+          },
+          "403": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_2" }
+              }
+            }
+          },
+          "404": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_3" }
+              }
+            }
+          },
+          "405": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "allow": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_4" }
+              }
+            }
+          },
+          "409": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_5" }
+              }
+            }
+          },
+          "500": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_6" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rest/v1/employees/{id}": {
+      "get": {
+        "tags": ["Employee"],
+        "operationId": "Employee.get",
+        "parameters": [
+          { "name": "id", "in": "path", "schema": { "type": "string" }, "required": true },
+          {
+            "name": "recordedAt",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    { "type": "string", "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$" },
+                    { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+                  ]
+                },
+                { "type": "null" }
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "validAt",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    { "type": "string", "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$" },
+                    { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+                  ]
+                },
+                { "type": "null" }
+              ]
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Employee",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Employee" } }
+            }
+          },
+          "400": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
+            }
+          },
+          "401": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_1" }
+              }
+            }
+          },
+          "403": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_2" }
+              }
+            }
+          },
+          "404": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_3" }
+              }
+            }
+          },
+          "405": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "allow": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_4" }
+              }
+            }
+          },
+          "409": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_5" }
+              }
+            }
+          },
+          "500": {
+            "description": "TriplexHttpError",
+            "headers": {
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TriplexHttpError_6" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TriplexConfigurationSchema": {
+        "type": "object",
+        "properties": {
+          "protocolVersion": { "type": "number", "enum": [1] },
+          "snapshotId": { "type": "string" },
+          "label": { "type": "string" },
+          "entities": { "type": "array" },
+          "constraints": { "type": "array" }
+        },
+        "required": ["protocolVersion", "snapshotId", "label", "entities", "constraints"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError_1": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError_2": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError_3": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError_4": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError_5": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "TriplexHttpError_6": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "EmployeeAttributes": {
+        "type": "object",
+        "properties": { ":employee/name": { "type": "string" } },
+        "required": [":employee/name"],
+        "additionalProperties": false
+      },
+      "Employee": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["Employee"] },
+          "attributes": { "$ref": "#/components/schemas/EmployeeAttributes" }
+        },
+        "required": ["id", "type", "attributes"],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {}
+  },
+  "security": [],
+  "tags": [
+    { "name": "Triplex configuration" },
+    { "name": "Employee", "description": "Configuration-derived Employee collection" }
+  ]
+}

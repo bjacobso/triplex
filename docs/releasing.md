@@ -13,6 +13,7 @@ The first public release contains:
 - `@bjacobso/triplex-postgres`
 - `@bjacobso/triplex-testkit`
 - `@bjacobso/triplex-cli`
+- `@bjacobso/triplex-http`
 
 `@bjacobso/triplex-cloudflare` and `@bjacobso/triplex-foundationdb` remain private workspace
 packages until they pass the supported backend conformance contract. The dashboard and examples
@@ -45,7 +46,7 @@ Allow direct `npm publish` for this workflow. It runs on a GitHub-hosted runner 
 ## One-time npm bootstrap (completed)
 
 npm package settings do not exist until the package has first been created. The package family was
-bootstrapped with an authenticated local canary, then all six trusted publishers were registered
+bootstrapped with an authenticated local canary, then the original six trusted publishers were registered
 and verified by a second GitHub Actions OIDC canary. No long-lived npm token is required by the
 current workflow.
 

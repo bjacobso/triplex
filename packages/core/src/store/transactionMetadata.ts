@@ -165,7 +165,14 @@ export const transactionRecordsFromTriples = (
 };
 
 export const livePreconditionIds = (meta?: TransactionMeta): ReadonlySet<string> =>
-  new Set(meta?.preconditions?.map((condition) => condition.id) ?? []);
+  new Set(
+    meta?.preconditions?.flatMap((condition) =>
+      condition._tag === "TripleLive" ? [condition.id] : [],
+    ) ?? [],
+  );
+
+export const entityStatePreconditions = (meta?: TransactionMeta) =>
+  meta?.preconditions?.filter((condition) => condition._tag === "EntityState") ?? [];
 
 export const invalidCommandId = (meta?: TransactionMeta): string | undefined => {
   const commandId = meta?.commandId;
@@ -183,5 +190,8 @@ export const validatePreconditions = (
       operation.op === "retract" && operation.id !== undefined ? [operation.id] : [],
     ),
   );
-  return meta?.preconditions?.find((condition) => !retractIds.has(condition.id))?.id;
+  const invalid = meta?.preconditions?.find(
+    (condition) => condition._tag === "TripleLive" && !retractIds.has(condition.id),
+  );
+  return invalid?._tag === "TripleLive" ? invalid.id : undefined;
 };

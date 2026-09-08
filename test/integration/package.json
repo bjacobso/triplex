@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@bjacobso/triplex": "workspace:^",
+    "@bjacobso/triplex-http": "workspace:^",
     "@bjacobso/triplex-sql": "workspace:^",
     "@bjacobso/triplex-sqlite": "workspace:^",
     "@bjacobso/triplex-testkit": "workspace:^",

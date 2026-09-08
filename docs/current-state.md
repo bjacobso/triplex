@@ -36,6 +36,9 @@ roadmap tracks work that is not complete.
 - An Effect v4 agent CLI with schema-decoded commands and stable JSON output for SQLite and
   PostgreSQL. It explores entities, bitemporal facts, Datalog, causal history, configuration
   revisions/releases/refs/impact, applies attributed idempotent transactions, and moves refs.
+- A backend-neutral configuration-derived HTTP package with exact-keyword runtime schemas, REST
+  CRUD, OpenAPI, immutable version resolution, host authorization, bounded exact-cut pages, and
+  atomic constraint-enforced writes over both in-memory KV and SQLite.
 - One greenfield SQL v1 migration, host-owned migration entrypoints, Changesets configuration and
   release automation, dist-only exports, package tarball checks (including the installed CLI), and
   Effect dependencies aligned through the root pnpm catalog.
@@ -82,7 +85,7 @@ outside the normal test matrix.
 
 ## Honest limitations
 
-- All six public packages have registry canaries under the `next` tag. A GitHub Actions OIDC canary
+- The original six public packages have registry canaries under the `next` tag. A GitHub Actions OIDC canary
   has passed with npm provenance. Stable `0.1.0` has not been published. The GitHub repository is
   `bjacobso/triplex`, and the local `origin` uses that canonical URL.
 - npm assigned the package family's first bootstrap snapshot to `latest` as well as `next`, and the
@@ -101,6 +104,8 @@ outside the normal test matrix.
 - Constraint enforcement is opt-in and serialized through the commit-position boundary. Direct
   adapter writes, authorization, general Datalog invariants, inbox/outbox delivery, timers, retries,
   and application workflow lifecycle are host responsibilities.
+- The HTTP API intentionally omits PATCH, filters, relationship expansion, raw Datalog, writable
+  historical schemas, automatic migrations, empty entities, and mutation of scheduled facts.
 - The schema is intentionally greenfield. Databases created by pre-baseline development builds
   must be recreated or migrated by application-owned tooling.
 - The Cloudflare host is a reference implementation, not a production support claim. Backup and
@@ -109,7 +114,7 @@ outside the normal test matrix.
 
 ## First-release gates
 
-1. Merge the initial Changesets version PR, which advances the six public packages from `0.0.0` to
+1. Merge the initial Changesets version PR, which advances the public packages from `0.0.0` to
    `0.1.0`.
 2. Publish the scoped stable packages together and verify their peer dependency, provenance, CLI,
    and exports behavior from the registry.

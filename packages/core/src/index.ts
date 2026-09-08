@@ -13,6 +13,11 @@ export {
   MAX_QUERY_PAGE_SIZE,
   type PaginationCursor,
 } from "./Pagination.js";
+export {
+  type EntityPageCursor,
+  type EntityPageRequest,
+  type EntityPageSnapshot,
+} from "./EntityPage.js";
 export * from "./Value.js";
 export * as Constraint from "./Constraint.js";
 export * from "./errors/index.js";
@@ -79,6 +84,7 @@ export {
   type EntityTransactionPageRequest,
   type EntityTransactionPage,
   type DependencyState,
+  type EntityPage,
   type QueryOptions,
   type PagedQueryOptions,
   type QueryResponse,
