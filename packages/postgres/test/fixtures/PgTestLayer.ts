@@ -29,6 +29,7 @@
  *
  * Environment overrides:
  *   PG_TEST_IMAGE=postgres:17-alpine  (default)
+ *   PG_TEST_URL=postgresql://localhost/disposable_test (skip container lifecycle)
  */
 
 import { Context, Effect, Layer } from "effect";
@@ -105,12 +106,17 @@ export class PgConnectionInfo extends Context.Service<PgConnectionInfo, { readon
 /**
  * Layer that manages the PostgreSQL container lifecycle.
  */
-export const PgContainerLayer: Layer.Layer<PgConnectionInfo> = Layer.effect(
+const ContainerLayer: Layer.Layer<PgConnectionInfo> = Layer.effect(
   PgConnectionInfo,
   Effect.acquireRelease(acquirePgContainer, releasePgContainer).pipe(
     Effect.map(({ url }) => ({ url })),
   ),
 );
+
+/** Explicit opt-in for a disposable local PostgreSQL database when Docker is unavailable. */
+export const PgContainerLayer: Layer.Layer<PgConnectionInfo> = process.env["PG_TEST_URL"]
+  ? Layer.succeed(PgConnectionInfo, { url: process.env["PG_TEST_URL"]! })
+  : ContainerLayer;
 
 /**
  * SqlClient layer that connects to the containerized PostgreSQL.
@@ -142,6 +148,7 @@ export const PgTestLayer = TriplesLive.pipe(
  * Use to conditionally skip PG test suites.
  */
 export const checkDockerAvailable = (): boolean => {
+  if (process.env["PG_TEST_URL"]) return true;
   try {
     const { execSync } = require("node:child_process");
     execSync("docker info", { stdio: "pipe" });

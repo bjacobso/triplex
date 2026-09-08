@@ -590,7 +590,7 @@ export const update = (model: Model, message: Message) =>
       };
     },
     ChangedQueryText: ({ value }) => ({
-      model: { ...model, queryText: value, queryPreset: "custom", notice: null },
+      model: { ...model, queryText: value, queryPreset: "custom", queryResult: null, notice: null },
     }),
     ChangedRecordedAtDraft: ({ value }) => ({
       model: { ...model, recordedAtDraft: value, recordedAtDraftExact: null, notice: null },
@@ -620,6 +620,7 @@ export const update = (model: Model, message: Message) =>
             ...model,
             recordedAt,
             validAt,
+            queryResult: null,
             temporalPanelOpen: false,
             busy: true,
             error: null,
@@ -636,6 +637,7 @@ export const update = (model: Model, message: Message) =>
         ...model,
         recordedAt: null,
         validAt: null,
+        queryResult: null,
         recordedAtDraft: "",
         recordedAtDraftExact: null,
         validAtDraft: "",
@@ -650,6 +652,14 @@ export const update = (model: Model, message: Message) =>
       model: { ...model, busy: true, error: null, notice: null },
       commands: [RunQuery({ source: model.queryText, ...basisCommandArgs(model) })],
     }),
+    RequestedNextQueryPage: () => {
+      const cursor = model.queryResult?.nextCursor;
+      if (!cursor || model.busy) return { model, commands: [] };
+      return {
+        model: { ...model, busy: true, error: null },
+        commands: [RunQuery({ source: model.queryText, cursor, ...basisCommandArgs(model) })],
+      };
+    },
     RequestedRefresh: () => ({
       model: { ...model, busy: true, error: null, notice: null },
       commands: [LoadDashboard(basisCommandArgs(model))],
@@ -2836,6 +2846,16 @@ const queryView = (model: Model, h: HtmlBuilder<Message>): Html => {
                           ),
                         ],
                       ),
+                      result.nextCursor === null
+                        ? h.empty
+                        : h.button(
+                            [
+                              h.Class("m-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white"),
+                              h.Disabled(model.busy),
+                              h.OnClick(Message.RequestedNextQueryPage()),
+                            ],
+                            ["Next page"],
+                          ),
                       h.div(
                         [h.Class("border-t border-slate-100 bg-slate-50/60 p-5")],
                         [

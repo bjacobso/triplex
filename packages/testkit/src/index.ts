@@ -72,6 +72,137 @@ export interface ConformanceCase {
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
   {
+    name: "Datalog reads are bounded by default and cursors traverse the complete snapshot",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      yield* t.assertBatch(
+        Array.from({ length: 205 }, (_, index) => ({
+          entityId: eid(`conf:bounded:${String(index).padStart(3, "0")}`),
+          attribute: ":conf/bounded",
+          value: number(index),
+        })),
+      );
+      const query = { find: ["?e", "?v"], where: [["?e", ":conf/bounded", "?v"]] } as const;
+      const first = yield* t.query(query);
+      yield* check(
+        first.results.length === 100 && first.nextCursor !== undefined,
+        "raw Datalog must default to one bounded page",
+      );
+      const wrapped = yield* t.queryPage({ inner: query });
+      yield* check(
+        wrapped.results.length === 100 && wrapped.nextCursor !== undefined,
+        "wrapped Datalog must also default to one bounded page",
+      );
+      const second = yield* t.query(query, { cursor: first.nextCursor! });
+      const last = yield* t.query(query, { cursor: second.nextCursor! });
+      yield* check(
+        second.results.length === 100 && last.results.length === 5 && last.nextCursor === undefined,
+        "pages must terminate without losing rows",
+      );
+      const values = [...first.results, ...second.results, ...last.results].map((row) => row["?v"]);
+      yield* check(new Set(values).size === 205, "pages must not duplicate rows");
+      const all = yield* t.queryAll(query);
+      yield* check(all.results.length === 205, "complete reads require explicit queryAll");
+      for (const limit of [0, -1, 1.5, 1001, Number.MAX_SAFE_INTEGER, Infinity]) {
+        const failure = yield* t.query(query, { pageSize: limit }).pipe(Effect.flip);
+        yield* check(failure !== undefined, "invalid page sizes must fail");
+      }
+      const subset = {
+        ...query,
+        orderBy: [{ variable: "?v", direction: "desc" }] as const,
+        limit: 7,
+        offset: 2,
+      };
+      const a = yield* t.query(subset, { pageSize: 4 });
+      const b = yield* t.query(subset, { pageSize: 4, cursor: a.nextCursor! });
+      yield* check(
+        JSON.stringify([...a.results, ...b.results].map((row) => row["?v"])) ===
+          JSON.stringify([202, 201, 200, 199, 198, 197, 196]),
+        "paging must preserve logical inner limits and offsets",
+      );
+      const constant = yield* t.query({ find: [true], where: query.where }, { pageSize: 1 });
+      yield* check(
+        constant.results.length === 1 && constant.nextCursor === undefined,
+        "constant-only set projections are valid terminal pages",
+      );
+    }),
+  },
+  {
+    name: "historical cursor pages intersect recorded time and the commit snapshot",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const old = yield* t.assertBatch(
+        ["a", "b", "c"].map((value) => ({
+          entityId: eid(`conf:paged-history:${value}`),
+          attribute: ":conf/paged-history",
+          value: string(value),
+        })),
+      );
+      const recordedAt = old[0]!.recordedAt;
+      yield* Effect.sleep(2);
+      yield* t.retract(old[1]!.id);
+      yield* t.assert({
+        entityId: eid("conf:paged-history:d"),
+        attribute: ":conf/paged-history",
+        value: string("d"),
+      });
+      const query = { find: ["?v"], where: [["?e", ":conf/paged-history", "?v"]] } as const;
+      const first = yield* t.query(query, { pageSize: 2, basis: { recordedAt } });
+      yield* Effect.sleep(2);
+      const last = yield* t.query(query, {
+        pageSize: 2,
+        cursor: first.nextCursor!,
+        basis: { recordedAt },
+      });
+      yield* check(
+        JSON.stringify([...first.results, ...last.results].map((row) => row["?v"])) ===
+          JSON.stringify(["a", "b", "c"]),
+        "historical pages must retain later-retracted facts and exclude later assertions",
+      );
+    }),
+  },
+  {
+    name: "recursive relations support cursor pagination and optional total counts",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      yield* t.assertBatch(
+        [0, 1, 2].map((index) => ({
+          entityId: eid(`conf:paged-rule:${index}`),
+          attribute: ":conf/paged-parent",
+          value: ref(`conf:paged-rule:${index + 1}`),
+        })),
+      );
+      const inner = {
+        find: ["?ancestor"],
+        where: [["paged-ancestor", "conf:paged-rule:0", "?ancestor"]],
+        rules: [
+          { name: "paged-ancestor", body: [["?x", ":conf/paged-parent", "?y"]] },
+          {
+            name: "paged-ancestor",
+            body: [
+              ["?x", ":conf/paged-parent", "?z"],
+              ["paged-ancestor", "?z", "?y"],
+            ],
+          },
+        ],
+      } as const;
+      const first = yield* t.queryPage({ inner, limit: 2, includeCount: true });
+      const last = yield* t.queryPage({
+        inner,
+        limit: 2,
+        includeCount: true,
+        cursor: first.nextCursor!,
+      });
+      yield* check(
+        first.totalCount === 3 &&
+          last.totalCount === 3 &&
+          last.results.length === 1 &&
+          last.nextCursor === undefined,
+        "recursive pages must count and traverse the entire relation",
+      );
+    }),
+  },
+  {
     name: "assert then get and match return the fact",
     run: Effect.gen(function* () {
       const t = yield* Triples;

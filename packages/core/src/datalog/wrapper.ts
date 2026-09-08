@@ -9,9 +9,11 @@
 
 import {
   compile,
+  compileWithRules,
   type CompileOptions,
   type CompiledQuery,
   type CompiledValueColumns,
+  type QueryMetrics,
 } from "./compiler.js";
 import { isTypedConstant } from "./schema.js";
 import type { SqlDialect } from "../dialects/index.js";
@@ -29,6 +31,7 @@ import { assertWrappedQuery } from "./validation.js";
  * Result of compiling a wrapped query
  */
 export interface CompiledWrappedQuery {
+  readonly metrics: QueryMetrics;
   /** SQL for fetching paginated results */
   sql: string;
   /** SQL for fetching total count (only if includeCount=true) */
@@ -317,11 +320,21 @@ export const compileWrapped = (
   dialect: SqlDialect = SqliteDialect,
   options: CompileOptions & { readonly cursorValues?: readonly PaginationValue[] } = {},
 ): CompiledWrappedQuery => {
+  const started = performance.now();
   const query = assertWrappedQuery(input);
   const { inner, filters, orderBy, limit, includeCount } = query;
 
   // 1. Compile inner query (without wrapper's orderBy/limit/cursor)
-  const innerCompiled: CompiledQuery = compile(inner, dialect, false, options);
+  // Ordering without a subquery boundary cannot affect membership. Avoid
+  // sorting twice; the complete outer keyset order owns page ordering.
+  const { orderBy: _innerOrder, ...unordered } = inner;
+  const logicalInner = inner.limit === undefined && inner.offset === undefined ? unordered : inner;
+  const innerCompiled: CompiledQuery = (inner.rules?.length ? compileWithRules : compile)(
+    logicalInner,
+    dialect,
+    true,
+    options,
+  );
 
   // 2. Build CTE
   const cteName = "inner_results";
@@ -415,6 +428,13 @@ export const compileWrapped = (
   }
 
   return {
+    metrics: {
+      ...innerCompiled.metrics!,
+      cteCount: (innerCompiled.metrics?.cteCount ?? 0) + 1,
+      sqlLength: sql.length,
+      paramCount: mainCollector.params.length,
+      compilationTimeMs: performance.now() - started,
+    },
     sql,
     countSql,
     params: mainCollector.params,

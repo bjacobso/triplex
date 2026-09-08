@@ -204,7 +204,7 @@ const tripleMatches = (
   termMatches(clause[2], tripleValueConstant(triple.value), row) &&
   (clause.length === 3 || termMatches(clause[3], Option.getOrNull(triple.txId), row));
 
-export interface Reader extends Pick<TriplesService, "match" | "query" | "transaction"> {
+export interface Reader extends Pick<TriplesService, "match" | "queryAll" | "transaction"> {
   /** Indexed freshness and temporal scheduling when backed by a full store. */
   readonly dependencyState?: TriplesService["dependencyState"];
   /** Ordered journal access enables discovery of future valid-time boundaries. */
@@ -422,7 +422,7 @@ export const evaluate = (
       find: unique([...definition.query.find, ...internalVariables]),
     };
     const [response, nextTemporalBoundary] = yield* Effect.all([
-      triples.query(augmentedQuery, { basis: options.basis }),
+      triples.queryAll(augmentedQuery, { basis: options.basis }),
       temporalBoundaryFromJournal(triples, definition, options.basis),
     ]);
     const grouped = new Map<ContentId, Candidate>();
