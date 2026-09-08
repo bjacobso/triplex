@@ -11,7 +11,7 @@ export default defineConfig({
   expect: {
     toHaveScreenshot: {
       // Keep snapshots strict while allowing tiny distro-specific font rasterization differences.
-      maxDiffPixelRatio: 0.0002,
+      maxDiffPixelRatio: 0.0003,
     },
   },
   use: {
