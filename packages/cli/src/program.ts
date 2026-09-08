@@ -285,12 +285,14 @@ const fact = Command.make("fact").pipe(
 
 const queryRun = Command.make(
   "run",
-  { input, debug, validAt, recordedAt },
-  ({ input, debug, validAt, recordedAt }) =>
+  { input, debug, validAt, recordedAt, limit, cursor: Flag.string("cursor").pipe(Flag.optional) },
+  ({ input, debug, validAt, recordedAt, limit, cursor }) =>
     Effect.gen(function* () {
       const query = yield* readWith(DatalogQuery, input);
       return yield* emit("query.run", {
         _tag: "query-run",
+        pageSize: limit,
+        ...Option.match(cursor, { onNone: () => ({}), onSome: (cursor) => ({ cursor }) }),
         query,
         debug,
         ...(basisOf(validAt, recordedAt) === undefined
@@ -298,7 +300,7 @@ const queryRun = Command.make(
           : { basis: basisOf(validAt, recordedAt) }),
       });
     }),
-).pipe(Command.withDescription("Execute a raw Datalog query from JSON"));
+).pipe(Command.withDescription("Execute one bounded Datalog page from JSON"));
 
 const queryPage = Command.make(
   "page",

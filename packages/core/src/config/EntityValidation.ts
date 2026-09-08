@@ -853,7 +853,7 @@ const makeService = Effect.gen(function* () {
         const [checkpointRows, refRows, invalidResponse, currentPosition] = yield* Effect.all([
           triples.match({ entityId: checkpointEntity }),
           triples.match({ entityId: ConfigStore.entityId.ref(ref) }),
-          triples.query(lastInvalidQuery(ref)),
+          triples.queryAll(lastInvalidQuery(ref)),
           latestSourcePosition,
         ]);
         const sourcePosition = numberValue(
@@ -879,7 +879,7 @@ const makeService = Effect.gen(function* () {
         return { status, sourcePosition, currentPosition, invalid };
       }),
     everInvalid: () =>
-      triples.query(everInvalidQuery()).pipe(
+      triples.queryAll(everInvalidQuery()).pipe(
         Effect.map((response) =>
           response.results
             .map((row) => row["?subject"])
@@ -888,7 +888,7 @@ const makeService = Effect.gen(function* () {
         ),
       ),
     violations: (input?: { readonly subject?: string; readonly resultEntityId?: string }) =>
-      triples.query(violationsQuery(input)).pipe(
+      triples.queryAll(violationsQuery(input)).pipe(
         Effect.map((response) =>
           response.results
             .flatMap((row) => {

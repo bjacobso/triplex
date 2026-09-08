@@ -458,7 +458,7 @@ const makeService = Effect.gen(function* () {
 
   const reverseDependencies: ConfigStoreService["reverseDependencies"] = (object) =>
     Effect.gen(function* () {
-      const response = yield* triples.query({
+      const response = yield* triples.queryAll({
         find: ["?revision"],
         where: [
           [

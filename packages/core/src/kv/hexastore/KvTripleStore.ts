@@ -941,15 +941,11 @@ const matchesPattern = (datom: Datom, pattern: ScanPattern): boolean => {
 const visibleAt = (datom: Datom, basis: ResolvedTemporalBasis): boolean => {
   const recordedVisible =
     basis.recordedPosition !== undefined
-      ? (datom.recordedPosition === 0
-          ? basis.recordedAt === undefined || datom.recordedAt <= basis.recordedAt
-          : datom.recordedPosition <= basis.recordedPosition &&
-            (basis.recordedAt === undefined || datom.recordedAt <= basis.recordedAt)) &&
+      ? datom.recordedPosition <= basis.recordedPosition &&
+        (basis.recordedAt === undefined || datom.recordedAt <= basis.recordedAt) &&
         (datom.retractedAt === null ||
-          (datom.retractedPosition === null
-            ? basis.recordedAt !== undefined && datom.retractedAt > basis.recordedAt
-            : datom.retractedPosition > basis.recordedPosition ||
-              (basis.recordedAt !== undefined && datom.retractedAt > basis.recordedAt)))
+          (basis.recordedAt !== undefined && datom.retractedAt > basis.recordedAt) ||
+          (datom.retractedPosition !== null && datom.retractedPosition > basis.recordedPosition))
       : basis.recordedAt === undefined
         ? datom.retractedAt === null
         : datom.recordedAt <= basis.recordedAt &&

@@ -39,13 +39,14 @@ export const LoadDashboard = Command.define("LoadDashboard", {
 export const RunQuery = Command.define("RunQuery", {
   args: {
     source: Schema.String,
+    cursor: Schema.optional(Schema.String),
     recordedAt: Schema.NullOr(Schema.Number),
     validAt: Schema.NullOr(Schema.Number),
   },
   messages: [Message.SucceededRunQuery, Message.FailedDashboardCommand],
-  execute: ({ source, recordedAt, validAt }) =>
+  execute: ({ source, recordedAt, validAt, cursor }) =>
     DashboardApi.pipe(
-      Effect.flatMap((api) => api.runQuery(source, basis(recordedAt, validAt))),
+      Effect.flatMap((api) => api.runQuery(source, basis(recordedAt, validAt), cursor)),
       Effect.map((result) => Message.SucceededRunQuery({ result })),
       recover,
     ),

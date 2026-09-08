@@ -19,6 +19,45 @@ const encoded = (value: unknown): string =>
   Encoding.encodeBase64Url(new TextEncoder().encode(JSON.stringify(value)));
 
 describe("paged query cursor contract", () => {
+  it("defaults to a bounded page and reuses omitted temporal fields from the cursor", () => {
+    const request = { inner: query.inner };
+    const first = preparePagination({
+      query: request,
+      now: 100,
+      recordedPosition: 4,
+      scope: "test",
+    });
+    expect(first.pageSize).toBe(100);
+    expect(first.query.limit).toBe(101);
+    const page = finishPagination(first, {
+      results: Array.from({ length: 101 }, (_, i) => ({ "?entity": String(i), "?name": "A" })),
+    });
+    for (const basis of [{}, { recordedAt: 100 }, { validAt: 100 }]) {
+      const next = preparePagination({
+        query: { ...request, cursor: page.nextCursor! },
+        basis,
+        now: 200,
+        recordedPosition: 9,
+        scope: "test",
+      });
+      expect(next.basis).toEqual(first.basis);
+    }
+  });
+
+  it.each([0, -1, 1.5, 1001, Infinity, Number.MAX_SAFE_INTEGER])(
+    "rejects invalid public page size %s",
+    (limit) => {
+      expect(() =>
+        preparePagination({
+          query: { ...query, limit },
+          now: 100,
+          recordedPosition: 4,
+          scope: "test",
+        }),
+      ).toThrow(PaginationCursorError);
+    },
+  );
+
   it("pins the basis and completes equal primary ordering with row tie-breakers", () => {
     const first = preparePagination({
       query,

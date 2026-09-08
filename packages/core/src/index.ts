@@ -8,7 +8,11 @@
 export * from "./Branded.js";
 export * from "./Triple.js";
 export * from "./Temporal.js";
-export { type PaginationCursor } from "./Pagination.js";
+export {
+  DEFAULT_QUERY_PAGE_SIZE,
+  MAX_QUERY_PAGE_SIZE,
+  type PaginationCursor,
+} from "./Pagination.js";
 export {
   type EntityPageCursor,
   type EntityPageRequest,
@@ -82,6 +86,7 @@ export {
   type DependencyState,
   type EntityPage,
   type QueryOptions,
+  type PagedQueryOptions,
   type QueryResponse,
   type PagedQueryResponse,
   type ExplainResult,

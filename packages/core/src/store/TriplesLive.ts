@@ -17,6 +17,7 @@ import {
   type TransactionResult,
   type TransactionMeta,
   type QueryOptions,
+  type PagedQueryOptions,
 } from "./Triples.js";
 import { StorageAdapter } from "../storage/StorageAdapter.js";
 import { QueryExecutor } from "../storage/QueryExecutor.js";
@@ -32,7 +33,7 @@ import type {
 import { queryToPattern } from "../Triple.js";
 import type { Pattern } from "../types/Pattern.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
-import { validateWrappedQuery } from "../datalog/validation.js";
+import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
 import {
   WriteError,
   ReadError,
@@ -65,7 +66,7 @@ import {
 } from "./systemNamespace.js";
 import { resolveTemporalBasis } from "../Temporal.js";
 import { TxAttributes } from "../utils/id.js";
-import { finishPagination, preparePagination } from "../Pagination.js";
+import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
 
@@ -623,7 +624,7 @@ export const TriplesLive = Layer.effect(
 
     const entityTransactions: TriplesService["transactionsForEntity"] = (entityId, request) =>
       transactionsForEntity(
-        { currentPosition: adapter.currentCommitPosition, query, transaction },
+        { currentPosition: adapter.currentCommitPosition, query: queryAll, transaction },
         entityId,
         request,
       );
@@ -632,7 +633,7 @@ export const TriplesLive = Layer.effect(
     // Datalog Reads (via QueryExecutor)
     // =========================================================================
 
-    const query = (q: DatalogQuery, options?: QueryOptions) =>
+    const queryAll = (q: DatalogQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
         const basis = resolveTemporalBasis(options?.basis, yield* now);
         return yield* executor.execute(q, options?.debug ?? false, basis);
@@ -669,6 +670,11 @@ export const TriplesLive = Layer.effect(
         );
         return finishPagination(prepared, result);
       }).pipe(Effect.withSpan("triples.queryPage"));
+
+    const query = (q: DatalogQuery, options?: PagedQueryOptions) =>
+      validateDatalogQuery(q).pipe(
+        Effect.flatMap((validated) => queryPage(wrapDatalogQuery(validated, options), options)),
+      );
 
     const explain = (q: DatalogQuery) =>
       executor.explain(q).pipe(
@@ -714,6 +720,7 @@ export const TriplesLive = Layer.effect(
         }),
       query,
       queryPage,
+      queryAll,
       explain,
       explainPage,
     } satisfies TriplesService;

@@ -178,9 +178,7 @@ const applyTemporalBasis = (sql: string, basis: CompileOptions["basis"]): string
     (_condition, alias: string) => {
       const recorded =
         basis.recordedPosition !== undefined
-          ? basis.recordedAt === undefined
-            ? `${alias}.recorded_position <= ${basis.recordedPosition} AND (${alias}.retracted_position IS NULL OR ${alias}.retracted_position > ${basis.recordedPosition})`
-            : `${alias}.recorded_position <= ${basis.recordedPosition} AND ${alias}.recorded_at <= ${basis.recordedAt} AND (${alias}.retracted_position IS NULL OR ${alias}.retracted_position > ${basis.recordedPosition} OR ${alias}.retracted_at > ${basis.recordedAt})`
+          ? `${alias}.recorded_position <= ${basis.recordedPosition}${basis.recordedAt === undefined ? "" : ` AND ${alias}.recorded_at <= ${basis.recordedAt}`} AND (${alias}.retracted_position IS NULL OR ${alias}.retracted_position > ${basis.recordedPosition}${basis.recordedAt === undefined ? "" : ` OR ${alias}.retracted_at > ${basis.recordedAt}`})`
           : basis.recordedAt === undefined
             ? `${alias}.retracted_at IS NULL`
             : `${alias}.recorded_at <= ${basis.recordedAt} AND (${alias}.retracted_at IS NULL OR ${alias}.retracted_at > ${basis.recordedAt})`;

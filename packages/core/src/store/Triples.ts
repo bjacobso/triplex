@@ -171,11 +171,20 @@ export interface QueryOptions {
   readonly basis?: TemporalBasis;
 }
 
+/** Options for bounded Datalog reads. */
+export interface PagedQueryOptions extends QueryOptions {
+  /** Defaults to 100; maximum 1,000. Independent of the query's logical limit. */
+  readonly pageSize?: number;
+  /** Opaque continuation returned by the previous call with the same query. */
+  readonly cursor?: string;
+}
+
 /**
- * Response from a Datalog `query`: result bindings plus optional debug info.
+ * Response from a Datalog read. `queryAll` never includes a continuation.
  */
 export interface QueryResponse {
   readonly results: QueryResult;
+  readonly nextCursor?: string;
   readonly debug?: QueryDebugInfo;
 }
 
@@ -267,12 +276,17 @@ export interface TriplesService {
   ) => Effect.Effect<DependencyState, ReadError>;
 
   // --- Datalog reads -------------------------------------------------------
-  /** Execute a Datalog query. */
-  readonly query: (
+  /** Explicit complete Datalog read for trusted batch/internal processing. */
+  readonly queryAll: (
     query: DatalogQuery,
     options?: QueryOptions,
   ) => Effect.Effect<QueryResponse, ReadError | DatalogQueryError>;
-  /** Execute a wrapped/paginated Datalog query. */
+  /** Execute one bounded, snapshot-stable Datalog page (100 rows by default). */
+  readonly query: (
+    query: DatalogQuery,
+    options?: PagedQueryOptions,
+  ) => Effect.Effect<PagedQueryResponse, ReadError | DatalogQueryError | PaginationCursorError>;
+  /** Execute a wrapped Datalog page (100 rows by default; maximum 1,000). */
   readonly queryPage: (
     query: WrappedQuery,
     options?: QueryOptions,
