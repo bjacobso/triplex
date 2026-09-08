@@ -44,7 +44,7 @@ roadmap tracks work that is not complete.
   rows, Triplex facts/journal, command claims, commit positions, and host outbox rows commit or roll
   back together without an internal second pool.
 - The VitePress documentation is published as a Cloudflare assets-only Worker through the
-  repository's Effect-native Alchemy stack at <https://triplex-docs.bjacobso.workers.dev>.
+  repository's Effect-native Alchemy stack at <https://triplex.build>.
 - A private portable host package now defines immutable tenant database identity, authorization,
   CAS lifecycle contracts, route fencing, and a schema-decoded v1 data protocol. The Cloudflare
   package exposes a complete `CloudflareTriples` layer using one Durable Object SQLite handle for
