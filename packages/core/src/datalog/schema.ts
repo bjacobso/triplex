@@ -505,15 +505,15 @@ export const WrappedQuery = Schema.Struct({
   inner: DatalogQuery,
   /** Additional filters on the inner query's result columns */
   filters: Schema.optional(Schema.Array(WrapperFilter)),
-  /** Order by specification for wrapper (required for cursor pagination) */
+  /** Optional wrapper order; the service completes it with projected-row tie-breakers */
   orderBy: Schema.optional(Schema.Array(OrderBySpec)),
-  /** Limit for wrapper pagination */
+  /** Public page size: defaults to 100; maximum 1,000 (the executor receives one lookahead row) */
   limit: Schema.optional(
     Schema.Number.pipe(Schema.check(Schema.isInt()), Schema.check(Schema.isGreaterThan(0))),
   ),
   /** Opaque, versioned keyset cursor returned by `Triples.queryPage` */
   cursor: Schema.optional(Schema.String),
-  /** Whether to include total count of filtered results */
+  /** Opt into an additional complete count of filtered results; defaults to false */
   includeCount: Schema.optional(Schema.Boolean),
 }).annotate({
   identifier: "WrappedQuery",

@@ -32,7 +32,6 @@ export const queryPresets = [
         { variable: "?entity", direction: "asc" },
         { variable: "?attribute", direction: "asc" },
       ],
-      limit: 100,
     },
   },
 ] as const satisfies ReadonlyArray<{
@@ -675,6 +674,7 @@ export const configuredDerivations = (
 export const executeQueryText = (
   source: string,
   basis?: TemporalBasis,
+  cursor?: string,
 ): Effect.Effect<QueryView, unknown, Triples> =>
   Effect.gen(function* () {
     const triples = yield* Triples;
@@ -685,7 +685,11 @@ export const executeQueryText = (
     const query = yield* Schema.decodeUnknownEffect(DatalogQuery)(parsed);
     const started = performance.now();
     const [response, explanation] = yield* Effect.all([
-      triples.query(query, { debug: true, ...(basis === undefined ? {} : { basis }) }),
+      triples.query(query, {
+        debug: true,
+        ...(basis === undefined ? {} : { basis }),
+        ...(cursor === undefined ? {} : { cursor }),
+      }),
       triples.explain(query),
     ]);
     const elapsed = response.debug?.executionTimeMs ?? performance.now() - started;
@@ -696,13 +700,16 @@ export const executeQueryText = (
       ]),
     ];
     return {
+      nextCursor: response.nextCursor ?? null,
       columns,
       rows: response.results.map((row) =>
         columns.map((column) => valueTextFromConstant(row[column])),
       ),
       resultCount: response.results.length,
       executionTimeMs: elapsed,
-      plan: explanation.queryPlan.steps.map((step) => `${step.label}: ${step.query}`),
+      plan: (response.debug?.queryPlan ?? explanation.queryPlan).steps.map(
+        (step) => `${step.label}: ${step.query}`,
+      ),
     };
   });
 

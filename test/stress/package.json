@@ -8,6 +8,7 @@
     "stress-test": "vitest run",
     "stress-test:kv": "STRESS_BACKEND=kv STRESS_UPDATE_ROUNDS=0 NODE_OPTIONS='--max-old-space-size=4096' vitest run",
     "stress-test:fdb": "STRESS_BACKEND=fdb STRESS_UPDATE_ROUNDS=0 NODE_OPTIONS='--max-old-space-size=4096' vitest run",
+    "benchmark:datalog": "tsx scripts/datalog-pagination.ts",
     "benchmark": "tsx scripts/generate-benchmark-report.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

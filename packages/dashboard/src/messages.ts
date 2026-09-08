@@ -50,6 +50,7 @@ export const Message = defineMessageUnion({
   RequestedApplyTemporalBasis: {},
   RequestedLatestTemporalBasis: {},
   RequestedQuery: {},
+  RequestedNextQueryPage: {},
   RequestedRefresh: {},
   SucceededLoadDashboard: { data: DashboardData },
   SucceededLoadEntityTypePage: { page: EntityTypePageView },

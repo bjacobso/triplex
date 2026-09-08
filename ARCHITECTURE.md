@@ -90,10 +90,14 @@ hosts typed configuration as a modular layer over the same core.
   covering attribute/history indexes, while KV scans the AEVT prefix. It returns the latest
   assertion-or-retraction position and earliest future valid-time edge for one fixed dependency
   set, so freshness checks and temporal wakeups do not replay the transaction journal.
-- Wrapped Datalog pagination uses versioned opaque cursors whose content-addressed fingerprints bind
+- Both raw and wrapped Datalog reads default to 100 rows (maximum 1,000 per page); complete
+  internal/batch Datalog materialization is explicit through `Triples.queryAll`. Pagination uses
+  versioned opaque cursors whose content-addressed fingerprints bind
   the canonical query, complete projected-row keyset order, temporal basis, and database scope.
   Facts retain assertion and retraction commit positions internally, so subsequent pages read the
   exact first-page snapshot even when concurrent commits share an epoch-millisecond timestamp.
+  Historical pages intersect the recorded timestamp with that commit cut. SQL wrappers support
+  recursive queries, omit redundant unbounded inner sorts, and report count execution separately.
 - `_triplex/` entities, `:triplex/` and `:_tx/` attributes, and Triplex-owned entity types are
   reserved for core services. Ordinary writes fail before mutation; config and validation services
   cross that boundary through a private core capability.

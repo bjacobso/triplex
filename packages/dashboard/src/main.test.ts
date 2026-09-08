@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   initialQueryText,
+  executeQueryText,
   loadDashboard,
   loadEntityHistory,
   loadEntityTypePage,
@@ -208,6 +209,32 @@ describe("Triplex dashboard", () => {
       ),
     ).toBe(false);
     expect(result.historicalQuery.result.resultCount).toBe(0);
+  });
+
+  it("bounds custom Datalog results and continues with a cursor", async () => {
+    const { first, second } = await Effect.runPromise(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        yield* triples.assertBatch(
+          Array.from({ length: 105 }, (_, index) => ({
+            entityId: EntityId.make(`dashboard:page:${index}`),
+            attribute: ":dashboard/page",
+            value: string(String(index)),
+          })),
+        );
+        const source = JSON.stringify({ find: ["?e"], where: [["?e", ":dashboard/page", "?v"]] });
+        const first = yield* executeQueryText(source, {});
+        const second = yield* executeQueryText(source, {}, first.nextCursor!);
+        return { first, second };
+      }).pipe(Effect.provide(DashboardDemoLayer)),
+    );
+    expect(first.resultCount).toBe(100);
+    expect(second.resultCount).toBe(5);
+    expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.rows, ...second.rows].map((row) => row[0])).size).toBe(105);
+    const model = { ...initialModel, queryResult: first, busy: false };
+    expect(update(model, Message.RequestedNextQueryPage()).commands?.[0]?.name).toBe("RunQuery");
+    expect(update(model, Message.ChangedQueryText({ value: "{}" })).model.queryResult).toBeNull();
   });
 
   it("keeps navigation and async work explicit in update", () => {

@@ -136,6 +136,7 @@ interface QueryPlan {
 interface QueryDebugInfo {
   readonly metrics: QueryExecutorMetrics;
   readonly executionTimeMs: number;
+  readonly countExecutionTimeMs?: number;
   readonly resultCount: number;
   readonly queryPlan?: QueryPlan;
   readonly generatedSql?: string;
@@ -272,7 +273,9 @@ export const makeSqlQueryExecutor = (
 
       // 3. Execute count query if requested
       let totalCount: number | undefined;
+      let countExecutionTimeMs: number | undefined;
       if (compiled.countSql) {
+        const countStart = performance.now();
         const countRows = yield* runner
           .run<{ total: number }>(compiled.countSql, compiled.countParams)
           .pipe(
@@ -287,6 +290,7 @@ export const makeSqlQueryExecutor = (
         // PostgreSQL returns COUNT(*) as int8 text while SQLite returns a
         // number. Keep the public result identical across both backends.
         totalCount = toNumber(countRows[0]?.total) ?? 0;
+        countExecutionTimeMs = performance.now() - countStart;
       }
 
       // 4. Convert rows to QueryContext objects
@@ -303,23 +307,9 @@ export const makeSqlQueryExecutor = (
       // 5. Build result. The Triples boundary owns the opaque cursor envelope.
       const debugInfo: QueryDebugInfo | undefined = debug
         ? {
-            metrics: {
-              joinCount: 0,
-              whereConditionCount: 0,
-              subqueryCount: 1,
-              cteCount: 1,
-              sqlLength: compiled.sql.length,
-              paramCount: compiled.params.length,
-              patternCount: 0,
-              predicateCount: 0,
-              notClauseCount: 0,
-              orClauseCount: 0,
-              hasAggregation: false,
-              isRecursive: false,
-              aggregateOps: [],
-              compilationTimeMs: 0,
-            },
-            executionTimeMs: execTime,
+            metrics: compiled.metrics,
+            executionTimeMs: execTime + (countExecutionTimeMs ?? 0),
+            ...(countExecutionTimeMs === undefined ? {} : { countExecutionTimeMs }),
             resultCount: results.length,
             generatedSql: compiled.sql,
             params: [...compiled.params],

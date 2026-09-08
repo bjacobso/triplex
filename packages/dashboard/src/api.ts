@@ -51,6 +51,7 @@ export const DashboardRequest = Schema.Union([
   }),
   Schema.Struct({
     _tag: Schema.Literal("RunQuery"),
+    cursor: Schema.optional(Schema.String),
     source: Schema.String,
     basis: Schema.optional(TemporalBasis),
   }),
@@ -76,6 +77,7 @@ export interface DashboardApiService {
   readonly runQuery: (
     source: string,
     basis?: TemporalBasisType,
+    cursor?: string,
   ) => Effect.Effect<QueryViewType, unknown>;
   readonly loadEntityTypePage: (
     entityType: string,
@@ -114,7 +116,8 @@ export const localDashboardApiLayer = (
 
       return DashboardApi.of({
         loadDashboard: (basis) => withDatabase(loadDashboardAt(basis, source)),
-        runQuery: (querySource, basis) => withTriples(executeQueryText(querySource, basis)),
+        runQuery: (querySource, basis, cursor) =>
+          withTriples(executeQueryText(querySource, basis, cursor)),
         loadEntityTypePage: (entityType, cursor, basis) =>
           withDatabase(loadEntityTypePage(entityType, cursor, 5, basis)),
         loadEntityHistory: (entityId) => withTriples(loadEntityHistory(entityId)),
@@ -134,7 +137,7 @@ export const executeDashboardRequest = (
       case "LoadDashboard":
         return yield* api.loadDashboard(request.basis);
       case "RunQuery":
-        return yield* api.runQuery(request.source, request.basis);
+        return yield* api.runQuery(request.source, request.basis, request.cursor);
       case "LoadEntityTypePage":
         return yield* api.loadEntityTypePage(request.entityType, request.cursor, request.basis);
       case "LoadEntityHistory":
@@ -194,8 +197,8 @@ export const remoteDashboardApiLayer = (baseUrl = ""): Layer.Layer<DashboardApi>
     DashboardApi.of({
       loadDashboard: (basis) =>
         remoteCall(baseUrl, { _tag: "LoadDashboard", basis }, DashboardData),
-      runQuery: (source, basis) =>
-        remoteCall(baseUrl, { _tag: "RunQuery", source, basis }, QueryView),
+      runQuery: (source, basis, cursor) =>
+        remoteCall(baseUrl, { _tag: "RunQuery", source, basis, cursor }, QueryView),
       loadEntityTypePage: (entityType, cursor, basis) =>
         remoteCall(
           baseUrl,

@@ -201,8 +201,8 @@ export const evaluateOverlay = (
 
         const viewBasis = { validAt: options.basis.validAt };
         const reader: Reader = {
-          query: (query, queryOptions) =>
-            memory.query(query, {
+          queryAll: (query, queryOptions) =>
+            memory.queryAll(query, {
               ...queryOptions,
               basis: viewBasis,
             }),

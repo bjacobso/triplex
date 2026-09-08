@@ -44,6 +44,8 @@ export type ExecuteOptions =
     }
   | {
       readonly _tag: "query-run";
+      readonly cursor?: string;
+      readonly pageSize?: number;
       readonly query: DatalogQueryType;
       readonly basis?: TemporalBasis | undefined;
       readonly debug: boolean;
@@ -239,6 +241,8 @@ export const execute = (
       }
       case "query-run":
         return yield* triples.query(options.query, {
+          ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+          ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
           debug: options.debug,
           ...(options.basis === undefined ? {} : { basis: options.basis }),
         });

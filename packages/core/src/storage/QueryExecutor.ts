@@ -80,7 +80,9 @@ export interface QueryMetrics {
  */
 export interface QueryDebugInfo {
   readonly metrics: QueryMetrics;
+  /** Main SQL plus optional count execution; excludes compilation and decoding. */
   readonly executionTimeMs: number;
+  readonly countExecutionTimeMs?: number;
   readonly resultCount: number;
   readonly queryPlan?: QueryPlan;
 

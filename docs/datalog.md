@@ -1,7 +1,7 @@
 # Datalog
 
-Triplex exposes raw Datalog through `Triples.query` and a wrapped, paginated form through
-`Triples.queryPage`. The in-memory KV and SQL engines share one schema, semantic preflight, result
+Triplex exposes bounded Datalog pages through `Triples.query` and a wrapped form through
+`Triples.queryPage`. Both default to 100 bindings and allow at most 1,000 per page. The in-memory KV and SQL engines share one schema, semantic preflight, result
 identity, ordering contract, and bitemporal basis.
 
 ## Query shape
@@ -170,6 +170,28 @@ preflight failures.
 
 ## Snapshot-stable pagination
 
+Ordinary queries return a cursor too:
+
+```ts
+const query = {
+  find: ["?person", "?name"],
+  where: [["?person", ":person/name", "?name"]],
+} as const;
+
+const pages = Effect.gen(function* () {
+  const first = yield* triples.query(query, { pageSize: 50 });
+  const second = first.nextCursor
+    ? yield* triples.query(query, { pageSize: 50, cursor: first.nextCursor })
+    : undefined;
+  return { first, second };
+});
+```
+
+Use the same query and page size for continuation. Omitted temporal fields inherit the original
+page's basis. `query.limit` and `query.offset` define the total logical subset; `options.pageSize`
+pages that subset without changing its membership. `queryPage` exposes separate wrapper filters,
+ordering, page size, and optional total count:
+
 ```ts
 const request = {
   inner: {
@@ -199,6 +221,23 @@ temporal basis, and database scope. Malformed or cross-query/scope reuse fails w
 The total order is numbers/datetimes, booleans, text-family values, then null. Direction applies
 within a family. Applications should treat cursors as short-lived capabilities and never decode or
 edit them.
+
+Queries with joins, negation, disjunction, optional projections, aggregation, and recursive rules
+all support this pagination contract. Constant-only projections form at most one distinct row and
+return a terminal page. `includeCount` defaults to false because it evaluates an additional full
+count query.
+
+### Migrating complete reads
+
+`Triples.query` now returns the first page instead of an unbounded array. Callers must follow
+`nextCursor` to process further pages. Trusted batch operations that explicitly require complete
+results can use `triples.queryAll(query, options)`, which retains the previous raw-query semantics.
+Core configuration discovery and derivation evaluation use that explicit API to preserve complete
+results. `Triples.queryPage` without a limit is now bounded too.
+
+Pagination bounds result transfer, not necessarily database work. See the
+[Datalog performance investigation](datalog-performance.md) for measured SQLite/PostgreSQL plans,
+timings, and the remaining low-level fact-read audit.
 
 ## Recursive rules
 
