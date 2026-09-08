@@ -50,5 +50,34 @@ curl http://127.0.0.1:3000/api/rest/v1/openapi.json
 curl http://127.0.0.1:3000/api/rest/v2/openapi.json
 ```
 
+## OpenAPI snapshots
+
+The generated contracts are checked in as readable JSON:
+
+- [v1](test/openapi/v1.json): name only, read-only.
+- [v2](test/openapi/v2.json): name and email, read-only.
+- [latest](test/openapi/latest.json): the v2 schema with CRUD enabled.
+
+Tests request each OpenAPI endpoint through the same configuration deployment and
+routes used by the server, with a fresh in-memory database and no listening socket.
+They preserve the actual deterministic configuration IDs and use the repository's
+JSON formatting. Missing or changed snapshots fail `pnpm check` without rewriting files.
+
+After an intentional schema or generator change, regenerate and inspect the diff:
+
+```sh
+pnpm --filter triplex-http-api-example snapshots:update
+git diff -- examples/http-api/test/openapi
+```
+
+Commit the updated JSON alongside the change. Git keeps the running history of each
+contract; inspect it with:
+
+```sh
+git log -p -- examples/http-api/test/openapi/latest.json
+```
+
+To check just the example snapshots, run `pnpm --filter triplex-http-api-example test`.
+
 This example deliberately installs the explicit allow-all authorization layer. Real hosts should
 provide an application policy through `HttpAuthorization`.

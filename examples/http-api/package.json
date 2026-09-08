@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc --noEmit",
     "start": "tsx src/server.ts",
-    "test": "echo 'example: no tests'",
+    "test": "vitest run",
+    "snapshots:update": "vitest run --update",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
@@ -19,7 +20,9 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "oxfmt": "catalog:",
+    "tsx": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=22"

@@ -237,9 +237,15 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.1
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.44.0
       tsx:
         specifier: 'catalog:'
         version: 4.19.0
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.0))
 
   packages/cli:
     dependencies:
