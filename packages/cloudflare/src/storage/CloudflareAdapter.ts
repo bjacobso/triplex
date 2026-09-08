@@ -30,19 +30,19 @@ import type { TripleRow } from "@bjacobso/triplex/internal";
 // =============================================================================
 
 // Cloudflare DO SQLite value types
-type SqlStorageValue = string | number | ArrayBuffer | null;
+export type SqlStorageValue = string | number | ArrayBuffer | null;
 
 // Cloudflare DO SQLite returns a cursor from exec
-interface SqlStorageCursor<T> extends Iterable<T> {
+export interface SqlStorageCursor<T> extends Iterable<T> {
   toArray(): T[];
-  one(): T | null;
+  one(): T;
   raw<R extends SqlStorageValue[]>(): IterableIterator<R>;
   columnNames: string[];
   rowsRead: number;
   rowsWritten: number;
 }
 
-interface SqlStorage {
+export interface SqlStorage {
   exec<T = Record<string, SqlStorageValue>>(
     query: string,
     ...params: SqlStorageValue[]
@@ -156,7 +156,7 @@ export function makeCloudflareAdapter(ctx: DOState): StorageAdapterService {
             .exec<{ readonly position: number }>(
               "SELECT position FROM triplex_commit_position WHERE singleton = 1",
             )
-            .one()?.position ?? 0,
+            .toArray()[0]?.position ?? 0,
         ),
       catch: (error) =>
         new ReadError({
@@ -250,8 +250,8 @@ export function makeCloudflareAdapter(ctx: DOState): StorageAdapterService {
             "SELECT transaction_id FROM triplex_command_receipts WHERE command_id = ?",
             commandId,
           )
-          .one();
-        if (existing === null) {
+          .toArray()[0];
+        if (existing === undefined) {
           throw new Error(`Command receipt ${commandId} has no original transaction`);
         }
         return existing.transaction_id;
@@ -346,67 +346,64 @@ export function makeCloudflareAdapter(ctx: DOState): StorageAdapterService {
 
     return Effect.try({
       try: () => {
-        // Use Cloudflare's native transactionSync for atomicity
-        return ctx.storage.transactionSync(() => {
-          const results: TripleRow[] = [];
+        const results: TripleRow[] = [];
 
-          for (let index = 0; index < inputs.length; index++) {
-            const input = inputs[index]!;
-            const id = ids[index]!;
-            const packed = packValue(input.value);
+        for (let index = 0; index < inputs.length; index++) {
+          const input = inputs[index]!;
+          const id = ids[index]!;
+          const packed = packValue(input.value);
 
-            sqlStorage.exec(
-              `INSERT INTO triples (
+          sqlStorage.exec(
+            `INSERT INTO triples (
                 id, entity_id, attribute, value_type,
                 value_string, value_number, value_boolean, value_datetime, value_json,
                 recorded_at, recorded_position, valid_from, valid_to,
                 created_by, entity_type, schema_version, tx_id
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              id,
-              input.entityId,
-              input.attribute,
-              packed.value_type,
-              packed.value_string,
-              packed.value_number,
-              packed.value_boolean,
-              packed.value_datetime,
-              packed.value_json,
-              timestamp,
-              position,
-              input.validFrom ?? timestamp,
-              input.validTo ?? null,
-              input.createdBy ?? null,
-              input.entityType ?? null,
-              1,
-              txId,
-            );
+            id,
+            input.entityId,
+            input.attribute,
+            packed.value_type,
+            packed.value_string,
+            packed.value_number,
+            packed.value_boolean,
+            packed.value_datetime,
+            packed.value_json,
+            timestamp,
+            position,
+            input.validFrom ?? timestamp,
+            input.validTo ?? null,
+            input.createdBy ?? null,
+            input.entityType ?? null,
+            1,
+            txId,
+          );
 
-            results.push({
-              id,
-              entity_id: input.entityId,
-              attribute: input.attribute,
-              value_type: packed.value_type,
-              value_string: packed.value_string,
-              value_number: packed.value_number,
-              value_boolean: packed.value_boolean,
-              value_datetime: packed.value_datetime,
-              value_json: packed.value_json,
-              recorded_at: timestamp,
-              recorded_position: position,
-              valid_from: input.validFrom ?? timestamp,
-              valid_to: input.validTo ?? null,
-              created_by: input.createdBy ?? null,
-              retracted_at: null,
-              retracted_position: null,
-              retract_tx_id: null,
-              entity_type: input.entityType ?? null,
-              schema_version: 1,
-              tx_id: txId,
-            } as TripleRow);
-          }
+          results.push({
+            id,
+            entity_id: input.entityId,
+            attribute: input.attribute,
+            value_type: packed.value_type,
+            value_string: packed.value_string,
+            value_number: packed.value_number,
+            value_boolean: packed.value_boolean,
+            value_datetime: packed.value_datetime,
+            value_json: packed.value_json,
+            recorded_at: timestamp,
+            recorded_position: position,
+            valid_from: input.validFrom ?? timestamp,
+            valid_to: input.validTo ?? null,
+            created_by: input.createdBy ?? null,
+            retracted_at: null,
+            retracted_position: null,
+            retract_tx_id: null,
+            entity_type: input.entityType ?? null,
+            schema_version: 1,
+            tx_id: txId,
+          } as TripleRow);
+        }
 
-          return results;
-        });
+        return results;
       },
       catch: (error) =>
         new WriteError({
@@ -598,40 +595,41 @@ export function makeCloudflareAdapter(ctx: DOState): StorageAdapterService {
 
   const initialize: StorageAdapterService["initialize"] = () =>
     Effect.try({
-      try: () => {
-        // Ensure base tables exist using the local Cloudflare database schema support
-        sqlStorage.exec(TRIPLES_TABLE_DDL);
-        sqlStorage.exec(MIGRATIONS_TABLE_DDL);
+      try: () =>
+        ctx.storage.transactionSync(() => {
+          // Ensure base tables exist using the local Cloudflare database schema support
+          sqlStorage.exec(TRIPLES_TABLE_DDL);
+          sqlStorage.exec(MIGRATIONS_TABLE_DDL);
 
-        // Run versioned migrations (same migration list as Node.js)
-        const applied = new Set<number>();
-        const rows = sqlStorage
-          .exec<{ version: number }>(
-            "SELECT version FROM triplex_schema_migrations ORDER BY version",
-          )
-          .toArray();
-        for (const row of rows) {
-          applied.add(row.version);
-        }
-
-        for (const migration of migrations) {
-          if (applied.has(migration.version)) continue;
-          for (const statement of migration.up) {
-            sqlStorage.exec(statement);
+          // Run versioned migrations (same migration list as Node.js)
+          const applied = new Set<number>();
+          const rows = sqlStorage
+            .exec<{ version: number }>(
+              "SELECT version FROM triplex_schema_migrations ORDER BY version",
+            )
+            .toArray();
+          for (const row of rows) {
+            applied.add(row.version);
           }
-          sqlStorage.exec(
-            "INSERT INTO triplex_schema_migrations (version, name, applied_at) VALUES (?, ?, ?)",
-            migration.version,
-            migration.name,
-            Date.now(),
-          );
-        }
 
-        // Create indexes using the local Cloudflare database schema support
-        for (const indexDef of INDEX_DDLS) {
-          sqlStorage.exec(indexDef);
-        }
-      },
+          for (const migration of migrations) {
+            if (applied.has(migration.version)) continue;
+            for (const statement of migration.up) {
+              sqlStorage.exec(statement);
+            }
+            sqlStorage.exec(
+              "INSERT INTO triplex_schema_migrations (version, name, applied_at) VALUES (?, ?, ?)",
+              migration.version,
+              migration.name,
+              Date.now(),
+            );
+          }
+
+          // Create indexes using the local Cloudflare database schema support
+          for (const indexDef of INDEX_DDLS) {
+            sqlStorage.exec(indexDef);
+          }
+        }),
       catch: (error) =>
         new MigrationError({
           version: 0,

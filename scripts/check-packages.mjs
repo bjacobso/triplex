@@ -10,6 +10,7 @@ const packageNames = [
   "@bjacobso/triplex-sqlite",
   "@bjacobso/triplex-postgres",
   "@bjacobso/triplex-cloudflare",
+  "@bjacobso/triplex-host",
   "@bjacobso/triplex-foundationdb",
   "@bjacobso/triplex-testkit",
   "@bjacobso/triplex-cli",
@@ -26,6 +27,7 @@ const publishPackageNames = new Set([
 ]);
 const heldPackageNames = new Set([
   "@bjacobso/triplex-cloudflare",
+  "@bjacobso/triplex-host",
   "@bjacobso/triplex-foundationdb",
 ]);
 
@@ -161,6 +163,7 @@ import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Ev
 import * as Derivation from "@bjacobso/triplex/derivation";
 import * as Cloudflare from "@bjacobso/triplex-cloudflare";
 import * as FoundationDb from "@bjacobso/triplex-foundationdb";
+import * as Host from "@bjacobso/triplex-host";
 import * as Postgres from "@bjacobso/triplex-postgres";
 import { PgTriples } from "@bjacobso/triplex-postgres";
 import * as Sql from "@bjacobso/triplex-sql";
@@ -217,6 +220,7 @@ void Derivation.Overlay;
 void makeSqliteLayer;
 void Cloudflare;
 void FoundationDb;
+void Host;
 void Postgres;
 void Sql;
 void Testkit;

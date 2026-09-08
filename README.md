@@ -453,11 +453,14 @@ pagination, projection, and host/runtime boundaries.
 | `@bjacobso/triplex`              | `KvTriples.layer`                   | Supported in-memory baseline                                  |
 | `@bjacobso/triplex-sqlite`       | `SqliteTriples.layer({ filename })` | Supported durable baseline                                    |
 | `@bjacobso/triplex-postgres`     | `PgTriples.layer(config)`           | Candidate; shared integration/conformance is currently opt-in |
-| `@bjacobso/triplex-cloudflare`   | Durable Object SQLite adapter       | Experimental                                                  |
+| `@bjacobso/triplex-cloudflare`   | `CloudflareTriples.layer(...)`      | Experimental                                                  |
 | `@bjacobso/triplex-foundationdb` | `FdbTriples.layer(config)`          | Experimental                                                  |
 
 `@bjacobso/triplex-sql` contains shared migrations and SQL query execution rather than a database.
 `@bjacobso/triplex-testkit` contains the behavioral conformance corpus used by adapters.
+`@bjacobso/triplex-host` is a private experimental package for portable tenant identity,
+authorization, lifecycle, and protocol contracts. The deployable reference wiring is in
+[`examples/tenant-host-cloudflare`](examples/tenant-host-cloudflare).
 
 Switching the supported quick start to SQLite changes only the provided layer:
 

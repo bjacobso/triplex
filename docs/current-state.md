@@ -48,6 +48,16 @@ roadmap tracks work that is not complete.
   back together without an internal second pool.
 - The VitePress documentation is published as a Cloudflare assets-only Worker through the
   repository's Effect-native Alchemy stack at <https://triplex-docs.bjacobso.workers.dev>.
+- A private portable host package now defines immutable tenant database identity, authorization,
+  CAS lifecycle contracts, route fencing, and a schema-decoded v1 data protocol. The Cloudflare
+  package exposes a complete `CloudflareTriples` layer using one Durable Object SQLite handle for
+  storage and Datalog, and passes the shared backend corpus both in its native-SQL harness and in
+  workerd against a real SQLite-backed Durable Object.
+- A private Cloudflare reference host wires an authenticated gateway, a durable CAS registry, one
+  SQLite Durable Object per database, idempotent provisioning, suspension/resume/deletion fencing,
+  request budgets, and a separately state-named Alchemy v2 stack with retention protection. Its
+  default workerd test exercises two-tenant isolation, restart persistence, lifecycle fencing, and
+  generation-safe recreation.
 
 ## Backend maturity
 
@@ -56,7 +66,7 @@ roadmap tracks work that is not complete.
 | In-memory KV  | Yes                  | Yes                | Yes        | Tests, browser, ephemeral data |
 | SQLite        | Yes                  | Yes                | Yes        | Supported local persistence    |
 | PostgreSQL    | Yes                  | Yes                | Yes        | Pre-1.0 production candidate   |
-| Cloudflare DO | Partial product API  | No                 | Build/unit | Experimental                   |
+| Cloudflare DO | Yes                  | Harness + workerd  | Yes        | Experimental reference hosting |
 | FoundationDB  | Yes                  | Native opt-in      | No         | Experimental                   |
 
 PostgreSQL includes validated logical database IDs, deterministic safely quoted schema names, and
@@ -65,10 +75,13 @@ Docker integration tests in CI, including rollback and concurrent multi-connecti
 remains a pre-1.0 production candidate until operational use establishes its backup, migration,
 observability, and scale characteristics.
 
-Cloudflare has the current temporal SQL columns and adapter contract but does not expose the same
-one-line `Triples` composition or pass the shared backend corpus. FoundationDB requires a non-empty
-subspace by default and scopes clears to it, but still depends on native infrastructure outside the
-normal test matrix.
+Cloudflare now has the complete one-line `Triples` composition and passes the shared corpus against
+both a fast Durable Object API-compatible native SQLite harness and Cloudflare's workerd runtime.
+The reference host also passes its local workerd isolation and restart corpus. It remains
+experimental until credentialed deployment, upgrade, retention, limit, and provider-failure gates
+pass. The host and Alchemy stack have not been promoted or published. FoundationDB requires a
+non-empty subspace by default and scopes clears to it, but still depends on native infrastructure
+outside the normal test matrix.
 
 ## Honest limitations
 
@@ -95,6 +108,9 @@ normal test matrix.
   historical schemas, automatic migrations, empty entities, and mutation of scheduled facts.
 - The schema is intentionally greenfield. Databases created by pre-baseline development builds
   must be recreated or migrated by application-owned tooling.
+- The Cloudflare host is a reference implementation, not a production support claim. Backup and
+  restore, provider limit measurements, staged migration/rollout drills, credentialed Alchemy
+  reconciliation, and lost-acknowledgement/node-failure exercises remain explicit gates.
 
 ## First-release gates
 

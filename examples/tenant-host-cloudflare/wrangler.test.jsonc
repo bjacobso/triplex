@@ -1,0 +1,30 @@
+{
+  "name": "triplex-tenant-host-conformance",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-06",
+  "vars": {
+    "ADMIN_TOKEN": "test-admin-token",
+    "INTERNAL_CAPABILITY": "test-internal-capability",
+    "TENANT_TOKENS": "{\"tenant-a\":\"test-token-a\",\"tenant-b\":\"test-token-b\",\"tenant-c\":\"test-token-c\"}",
+    "HOST_ENVIRONMENT": "test",
+    "RUNTIME_RELEASE": "test-release",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TENANT_DATABASES",
+        "class_name": "TenantDatabase",
+      },
+      {
+        "name": "TENANT_REGISTRY",
+        "class_name": "TenantRegistryObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TenantDatabase", "TenantRegistryObject"],
+    },
+  ],
+}

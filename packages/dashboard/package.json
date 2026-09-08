@@ -18,6 +18,8 @@
     "@bjacobso/triplex-sqlite": "workspace:^",
     "@effect/platform-node": "catalog:",
     "@foldkit/ui": "catalog:",
+    "@fontsource-variable/ibm-plex-sans": "catalog:",
+    "@fontsource/ibm-plex-mono": "catalog:",
     "effect": "catalog:",
     "foldkit": "catalog:"
   },

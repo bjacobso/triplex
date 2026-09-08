@@ -2,6 +2,8 @@
 
 Status: proposed implementation plan. This change adds the plan only.
 
+The separate tenant-hosting proposal is preserved in [HOSTING_PLAN.md](HOSTING_PLAN.md).
+
 ## Outcome
 
 Add `@bjacobso/triplex-http`, an optional package that derives an Effect `HttpApi`,
