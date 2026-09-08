@@ -10,7 +10,16 @@ export {
   makeCloudflareAdapter,
   makeCloudflareAdapterLayer,
   type DOState,
+  type SqlStorage,
+  type SqlStorageCursor,
+  type SqlStorageValue,
 } from "./storage/index.js";
+
+export {
+  CloudflareTriples,
+  type CloudflareTriplesLayer,
+  type CloudflareTriplesOptions,
+} from "./CloudflareTriples.js";
 
 export {
   StorageAdapter,

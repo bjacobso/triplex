@@ -6,12 +6,15 @@ packages:
 onlyBuiltDependencies:
   - "better-sqlite3"
   - "esbuild"
+  - "workerd"
 
 overrides:
   "better-sqlite3": "12.10.0"
 
 catalog:
   "@changesets/cli": 3.0.1
+  "@cloudflare/vitest-plugin": 1.1.4
+  "@cloudflare/workers-types": 5.20260904.1
   "@effect/platform-node": 4.0.0-rc.112
   "@effect/sql-pg": 4.0.0-rc.112
   "@effect/sql-sqlite-node": 4.0.0-rc.112
@@ -24,7 +27,9 @@ catalog:
   "@foldkit/vite-plugin": 0.20.1
   "@tailwindcss/vite": 4.3.3
   "@types/node": 25.9.1
+  "@types/better-sqlite3": 7.6.13
   alchemy: 2.0.0-beta.76
+  better-sqlite3: 12.10.0
   effect: 4.0.0-rc.112
   foldkit: 0.157.0
   foundationdb: 2.0.1
