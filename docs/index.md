@@ -17,8 +17,10 @@ pageClass: triplex-index
       Bitemporal facts, Datalog, and typed, content-addressed configuration—built on Effect.
     </p>
     <div class="triplex-home__actions">
-      <a class="triplex-home__primary" href="/current-state">Get started →</a>
-      <a class="triplex-home__secondary" href="https://github.com/bjacobso/triplex">GitHub ↗</a>
+      <a class="triplex-home__primary" href="/current-state">
+        Get started<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span>
+      </a>
+      <a class="triplex-home__secondary" href="https://github.com/bjacobso/triplex">GitHub</a>
     </div>
   </header>
 
@@ -52,9 +54,9 @@ pageClass: triplex-index
   </section>
 
   <nav class="triplex-home__guides" aria-label="Guides">
-    <a href="/datalog">Datalog →</a>
-    <a href="/configuration">Typed configuration →</a>
-    <a href="/derivations">Derived facts →</a>
-    <a href="/operational-primitives">Operations →</a>
+    <a href="/datalog">Datalog<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+    <a href="/configuration">Typed configuration<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+    <a href="/derivations">Derived facts<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+    <a href="/operational-primitives">Operations<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
   </nav>
 </div>
