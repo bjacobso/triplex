@@ -1,5 +1,10 @@
 # Datalog pagination and performance
 
+A private [DuckDB analytical snapshot POC](https://github.com/bjacobso/triplex/tree/main/packages/duckdb) compares the shared
+Datalog executor over SQLite and native DuckDB at the same commit and temporal cut. Its
+benchmark is opt-in and reports import cost separately; it does not establish distributed
+execution or replace SQLite's transactional backend.
+
 `Triples.query` and `Triples.queryPage` return at most 100 bindings by default. Page sizes are
 validated in the shared service boundary and may not exceed 1,000. SQL fetches one extra row to
 determine whether `nextCursor` exists; only the requested page reaches the caller. Total counts

@@ -12,6 +12,7 @@ overrides:
   "better-sqlite3": "12.10.0"
 
 catalog:
+  "@duckdb/node-api": 1.5.5-r.4
   "@changesets/cli": 3.0.1
   "@cloudflare/vitest-plugin": 1.1.4
   "@cloudflare/workers-types": 5.20260904.1
