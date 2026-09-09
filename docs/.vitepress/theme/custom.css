@@ -157,6 +157,11 @@ body {
   color: var(--vp-c-brand-1);
 }
 
+.triplex-home__link-icon {
+  flex: none;
+  margin-left: 0.375em;
+}
+
 .triplex-home__code {
   margin-top: 28px;
 }
@@ -231,6 +236,11 @@ body {
   gap: 16px 32px;
   margin-top: 32px;
   font-size: 0.95rem;
+}
+
+.triplex-home__guides a {
+  display: inline-flex;
+  align-items: center;
 }
 
 .triplex-home a:focus-visible {
