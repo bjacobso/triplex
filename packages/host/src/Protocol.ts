@@ -142,7 +142,11 @@ export const executeDataOperation = (
     case "History":
       return triples.history(operation.entityId);
     case "Query":
-      return triples.query(operation.query, queryOptions(operation.options));
+      return triples.query(operation.query, {
+        ...queryOptions(operation.options),
+        // The tenant protocol never exposes the trusted, unbounded queryAll path.
+        pageSize: 100,
+      });
     case "QueryPage":
       return triples.queryPage(operation.query, queryOptions(operation.options));
     case "Transaction":

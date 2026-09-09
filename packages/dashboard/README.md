@@ -70,6 +70,3 @@ historical read.
 - `src/data.ts` translates Triplex services into presentation models.
 - `src/main.ts` owns update and view composition.
 - `src/server.ts` composes a real backend, API routes, and static assets.
-
-Potential reusable Foldkit component work is captured as upstream-ready prompts in
-[`../../docs/foldworks-component-prompts.md`](../../docs/foldworks-component-prompts.md).

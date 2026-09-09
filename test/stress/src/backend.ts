@@ -33,6 +33,7 @@ import {
 import {
   InMemoryKvBackendLive,
   KvTriplesLive,
+  RuntimeServicesLive,
   TripleStoreRuntimeLayer,
 } from "@bjacobso/triplex/internal";
 import { makeFdbKvBackend, type FdbKvBackendConfig } from "@bjacobso/triplex-foundationdb";
@@ -306,6 +307,8 @@ function makeSqliteManagerLayer(): Layer.Layer<DatabaseManager> {
     Layer.provide(DatabaseRegistryLive),
     Layer.provide(backend),
     Layer.provide(NodeServices.layer),
+    Layer.provide(RuntimeServicesLive),
+    Layer.provide(TripleStoreRuntimeLayer),
   ) as Layer.Layer<DatabaseManager>;
 }
 
@@ -321,6 +324,8 @@ function makePgManagerLayer(): Layer.Layer<DatabaseManager> {
   return DatabaseManagerLive.pipe(
     Layer.provide(DatabaseRegistryLive),
     Layer.provide(backend),
+    Layer.provide(RuntimeServicesLive),
+    Layer.provide(TripleStoreRuntimeLayer),
   ) as Layer.Layer<DatabaseManager>;
 }
 

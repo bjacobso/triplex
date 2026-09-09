@@ -38,10 +38,9 @@ export const increment = (key: Uint8Array): Uint8Array => {
     }
     result[i] = 0;
   }
-  // All bytes were 0xFF -- extend with a trailing 0x00
-  const extended = new Uint8Array(result.length + 1);
-  extended.set(result);
-  extended[0] = 0x01;
+  // All bytes were 0xFF -- the smallest greater key extends the original.
+  const extended = new Uint8Array(key.length + 1);
+  extended.set(key);
   return extended;
 };
 

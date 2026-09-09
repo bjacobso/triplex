@@ -17,6 +17,7 @@
   --vp-code-tab-active-text-color: #f3f5ff;
   --twoslash-popup-bg: var(--vp-code-block-bg);
   --vp-nav-height: 72px;
+  --vp-layout-top-height: 32px;
 }
 
 .dark {
@@ -36,6 +37,30 @@
 body {
   font-size: 16px;
   letter-spacing: -0.008em;
+}
+
+.triplex-prerelease {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--vp-z-index-layout-top);
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--vp-layout-top-height);
+  border-bottom: 1px solid color-mix(in srgb, var(--vp-c-warning-1) 28%, var(--vp-c-divider));
+  background: var(--vp-c-warning-soft);
+  color: var(--vp-c-text-1);
+  padding: 7px 16px;
+  overflow: hidden;
+  font-size: 13px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.triplex-prerelease a {
+  color: var(--vp-c-warning-1);
+  font-weight: 600;
 }
 
 .VPNavBar {

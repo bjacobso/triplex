@@ -7,21 +7,23 @@
 
 # Triplex
 
+> [!WARNING]
+> Triplex is pre-1.0 and currently published only as canaries under the npm `next` tag. It requires
+> the Effect v4 release candidate `effect@4.0.0-rc.112`; Effect 3 is not compatible. KV and SQLite
+> are the supported baseline, PostgreSQL is a production candidate, and Cloudflare and FoundationDB
+> are experimental. See [Current state](docs/current-state.md) for the exact maturity contract.
+
 An Effect-native fact database for applications that have to explain themselves.
 
 [Documentation](https://triplex.build) ·
 [GitHub](https://github.com/bjacobso/triplex) ·
-[npm](https://www.npmjs.com/package/@bjacobso/triplex)
+[npm](https://www.npmjs.com/package/@bjacobso/triplex) ·
+[Security](SECURITY.md)
 
 Triplex stores what is true, what was true, which versioned rules governed each write, and what
 work the data implies. One store answers "what does this record look like today", "what did we
 believe last Tuesday", "who changed it and under which policy", and "what tasks should exist right
 now", without stitching together a database, an audit log, a config service, and a job queue.
-
-> Pre-1.0 canaries are published to npm under the `next` tag. KV and SQLite are the supported
-> baseline; PostgreSQL is a production candidate with a Docker-backed CI integration suite.
-> Cloudflare and FoundationDB are experimental. See [Current state](docs/current-state.md) for the
-> exact maturity contract.
 
 ## Why Triplex?
 

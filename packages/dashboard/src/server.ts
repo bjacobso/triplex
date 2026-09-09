@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DashboardRequest, executeDashboardRequest, localDashboardApiLayer } from "./api.js";
+import { isAllowedDashboardOrigin } from "./server-security.js";
 
 interface ServerOptions {
   readonly source: "sqlite" | "postgres";
@@ -53,6 +54,12 @@ const ApiRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/api/health", HttpServerResponse.jsonUnsafe({ ok: true })),
   HttpRouter.add("POST", "/api/dashboard", (request) =>
     Effect.gen(function* () {
+      if (!isAllowedDashboardOrigin(request.headers["origin"], options.port)) {
+        return HttpServerResponse.jsonUnsafe(
+          { ok: false, error: "Dashboard requests require the matching loopback Origin" },
+          { status: 403 },
+        );
+      }
       const body = yield* request.json;
       const operation = yield* Schema.decodeUnknownEffect(DashboardRequest)(body);
       const value = yield* executeDashboardRequest(operation);
