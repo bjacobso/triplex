@@ -34,15 +34,28 @@ const MAX_QUERY_CLAUSES = 100;
 const json = (value: unknown, status = 200): Response =>
   Response.json(value, { status, headers: { "cache-control": "no-store" } });
 
-const errorResponse = (error: unknown, status = 400): Response => {
-  const tagged = error as { readonly _tag?: string; readonly message?: string };
+const publicError = (status: number): { readonly code: string; readonly message: string } => {
+  switch (status) {
+    case 400:
+      return { code: "invalid_request", message: "The request could not be validated" };
+    case 401:
+      return { code: "unauthorized", message: "Authentication is required" };
+    case 403:
+      return { code: "forbidden", message: "The request is not allowed" };
+    case 404:
+      return { code: "not_found", message: "The requested resource was not found" };
+    case 409:
+      return { code: "conflict", message: "The request conflicts with current host state" };
+    default:
+      return { code: "internal_error", message: "The request could not be completed" };
+  }
+};
+
+const errorResponse = (_error: unknown, status = 400): Response => {
   return json(
     {
       ok: false,
-      error: {
-        type: tagged?._tag ?? "HostError",
-        message: tagged?.message ?? (error instanceof Error ? error.message : String(error)),
-      },
+      error: publicError(status),
     },
     status,
   );

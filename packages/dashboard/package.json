@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "A standalone Foldkit explorer for Triplex databases.",
+  "license": "MIT",
+  "author": "Ben Jacobson",
   "type": "module",
   "scripts": {
     "build": "vite build",

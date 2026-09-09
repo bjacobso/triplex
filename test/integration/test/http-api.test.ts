@@ -7,7 +7,13 @@ import {
   type TriplesService,
 } from "@bjacobso/triplex";
 import { Attribute, ConfigStore, EntityType } from "@bjacobso/triplex/config";
-import { EntityHttp, HttpAuthorizationAllowAll } from "@bjacobso/triplex-http";
+import {
+  EntityHttp,
+  ForbiddenError,
+  HttpAuthorization,
+  HttpAuthorizationAllowAll,
+  UnauthorizedError,
+} from "@bjacobso/triplex-http";
 import { SqliteTriples } from "@bjacobso/triplex-sqlite";
 import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/unstable/http";
@@ -37,7 +43,30 @@ const uniqueNodes = async () => {
   return [...new Map(nodes.flat().map((node) => [`${node.kind}\u0000${node.key}`, node])).values()];
 };
 
-const makeWebHandler = async (triplesLayer: Layer.Layer<any, any, any>) => {
+interface ErrorResponse {
+  readonly code: string;
+}
+
+interface DocumentResponse {
+  readonly id: string;
+  readonly attributes: Record<string, unknown>;
+}
+
+interface OpenApiResponse {
+  readonly paths: Record<string, { readonly post?: unknown }>;
+}
+
+interface ListResponse {
+  readonly items: readonly unknown[];
+  readonly nextCursor: string;
+}
+
+const responseJson = <A>(response: Response): Promise<A> => response.json() as Promise<A>;
+
+const makeWebHandler = async (
+  triplesLayer: Layer.Layer<Triples, unknown>,
+  authorizationLayer: Layer.Layer<HttpAuthorization> = HttpAuthorizationAllowAll,
+) => {
   const objects = await uniqueNodes();
   const database = ConfigStore.layer.pipe(Layer.provideMerge(triplesLayer));
   let snapshotId = "";
@@ -56,7 +85,7 @@ const makeWebHandler = async (triplesLayer: Layer.Layer<any, any, any>) => {
     basePath: "/api",
     docs: true,
     exposure: { collections: { Employer: "employers", Employment: "employments" } },
-  }).pipe(Layer.provide(HttpAuthorizationAllowAll), Layer.provide(seeded));
+  }).pipe(Layer.provide(authorizationLayer), Layer.provide(seeded));
   const web = HttpRouter.toWebHandler(routes, { disableLogger: true });
   // Route construction is lazy; force initialization before returning the captured snapshot.
   await web.handler(new Request("http://triplex.test/api/rest/latest/schema"));
@@ -85,19 +114,58 @@ const cases = [
 ] as const;
 
 describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLayer) => {
+  it("maps host authorization failures to 401 and 403", async () => {
+    const authorization = Layer.succeed(
+      HttpAuthorization,
+      HttpAuthorization.of({
+        authorize: ({ request }) => {
+          const token = request.headers["authorization"];
+          return token === undefined
+            ? Effect.fail(
+                new UnauthorizedError({ code: "unauthorized", message: "Authentication required" }),
+              )
+            : token !== "Bearer allowed"
+              ? Effect.fail(new ForbiddenError({ code: "forbidden", message: "Access denied" }))
+              : Effect.void;
+        },
+        canReadEntity: () => Effect.succeed(true),
+        actor: () => Effect.succeed(undefined),
+      }),
+    );
+    const web = await makeWebHandler(triplesLayer, authorization);
+    try {
+      const unauthorized = await web.handler(
+        new Request("http://triplex.test/api/rest/latest/schema"),
+      );
+      expect(unauthorized.status).toBe(401);
+      expect((await responseJson<ErrorResponse>(unauthorized)).code).toBe("unauthorized");
+
+      const forbidden = await web.handler(
+        new Request("http://triplex.test/api/rest/latest/schema", {
+          headers: { authorization: "Bearer denied" },
+        }),
+      );
+      expect(forbidden.status).toBe(403);
+      expect((await responseJson<ErrorResponse>(forbidden)).code).toBe("forbidden");
+    } finally {
+      await web.dispose();
+    }
+  });
+
   it("provides exact entity pages and insertion-race preconditions", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const triples = yield* Triples;
+        const raceId = EntityId.make("race:1");
         const original = yield* triples.assert({
-          entityId: "race:1",
+          entityId: raceId,
           entityType: "Race",
           attribute: ":race/name",
           value: { type: "string", value: "before" },
         });
-        const observed = yield* triples.entity("race:1");
+        const observed = yield* triples.entity(raceId);
         yield* triples.assert({
-          entityId: "race:1",
+          entityId: raceId,
           entityType: "Race",
           attribute: ":race/note",
           value: { type: "string", value: "concurrent" },
@@ -107,7 +175,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
             preconditions: [
               {
                 _tag: "EntityState",
-                entityId: "race:1",
+                entityId: raceId,
                 tripleIds: observed.map((fact) => fact.id),
               },
             ],
@@ -116,7 +184,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
 
         yield* triples.assertBatch(
           ["a", "b", "c"].map((suffix) => ({
-            entityId: `page:${suffix}`,
+            entityId: EntityId.make(`page:${suffix}`),
             entityType: "Paged",
             attribute: ":page/name",
             value: { type: "string" as const, value: suffix },
@@ -124,7 +192,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         );
         const first = yield* triples.entityPage({ entityType: "Paged", limit: 2 });
         yield* triples.assert({
-          entityId: "page:aa",
+          entityId: EntityId.make("page:aa"),
           entityType: "Paged",
           attribute: ":page/name",
           value: { type: "string", value: "later" },
@@ -153,7 +221,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
       const schema = await web.handler(new Request("http://triplex.test/api/rest/latest/schema"));
       expect(schema.status).toBe(200);
       expect(schema.headers.get("x-triplex-config-snapshot")).toBe(web.snapshotId());
-      expect((await schema.json()).entities).toHaveLength(2);
+      expect(
+        (await responseJson<{ readonly entities: readonly unknown[] }>(schema)).entities,
+      ).toHaveLength(2);
 
       const docs = await web.handler(new Request("http://triplex.test/api/rest/latest/docs"));
       expect(docs.status).toBe(200);
@@ -163,7 +233,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         new Request("http://triplex.test/api/rest/latest/openapi.json"),
       );
       expect(openapi.status).toBe(200);
-      const latestOpenApi = await openapi.json();
+      const latestOpenApi = await responseJson<OpenApiResponse>(openapi);
       expect(Object.keys(latestOpenApi.paths)).toContain("/api/rest/latest/employers");
       expect(latestOpenApi.paths["/api/rest/latest/employers"].post).toBeDefined();
 
@@ -172,7 +242,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
       );
       expect(historicalOpenApi.status).toBe(200);
       expect(
-        (await historicalOpenApi.json()).paths[`/api/rest/${web.snapshotId()}/employers`].post,
+        (await responseJson<OpenApiResponse>(historicalOpenApi)).paths[
+          `/api/rest/${web.snapshotId()}/employers`
+        ]?.post,
       ).toBeUndefined();
 
       const invalid = await web.handler(
@@ -209,7 +281,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
       );
       expect(created.status).toBe(201);
       expect(created.headers.get("location")).toMatch(/\/employers\/employer%3A/);
-      const employer = await created.json();
+      const employer = await responseJson<DocumentResponse>(created);
       expect(employer.attributes[":employer/tag"]).toEqual(["a", "z"]);
 
       const replaced = await web.handler(
@@ -223,7 +295,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         ),
       );
       expect(replaced.status).toBe(200);
-      expect((await replaced.json()).attributes).toEqual({ ":employer/name": "Acme, Inc." });
+      expect((await responseJson<DocumentResponse>(replaced)).attributes).toEqual({
+        ":employer/name": "Acme, Inc.",
+      });
 
       const wrongCollection = await web.handler(
         new Request(
@@ -296,15 +370,21 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         }),
       );
       expect(secondEmployer.status).toBe(201);
-      const secondEmployerBody = await secondEmployer.json();
+      const secondEmployerBody = await responseJson<DocumentResponse>(secondEmployer);
 
       const page = await web.handler(
         new Request("http://triplex.test/api/rest/latest/employers?limit=1"),
       );
       expect(page.status).toBe(200);
-      const pageBody = await page.json();
+      const pageBody = await responseJson<ListResponse>(page);
       expect(pageBody.items).toHaveLength(1);
       expect(pageBody.nextCursor).toEqual(expect.any(String));
+
+      const forgedCursor = await web.handler(
+        new Request("http://triplex.test/api/rest/latest/employers?cursor=forged"),
+      );
+      expect(forgedCursor.status).toBe(400);
+      expect((await responseJson<ErrorResponse>(forgedCursor)).code).toBe("invalid_request");
 
       const nextSnapshot = await web.advanceLive();
       expect(nextSnapshot).not.toBe(web.snapshotId());
@@ -314,7 +394,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         ),
       );
       expect(movedContinuation.status).toBe(409);
-      expect((await movedContinuation.json()).code).toBe("cursor_conflict");
+      expect((await responseJson<ErrorResponse>(movedContinuation)).code).toBe("cursor_conflict");
 
       const historicalWrite = await web.handler(
         new Request(`http://triplex.test/api/rest/${web.snapshotId()}/employers`, {
@@ -335,7 +415,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         }),
       );
       expect(disposable.status).toBe(201);
-      const disposableBody = await disposable.json();
+      const disposableBody = await responseJson<DocumentResponse>(disposable);
       const deleted = await web.handler(
         new Request(
           `http://triplex.test/api/rest/latest/employers/${encodeURIComponent(disposableBody.id)}`,
@@ -346,7 +426,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
       expect(await web.history(disposableBody.id)).not.toHaveLength(0);
 
       await web.assertFact({
-        entityId: "employer:corrupt",
+        entityId: EntityId.make("employer:corrupt"),
         entityType: "Employer",
         attribute: ":employer/name",
         value: { type: "number", value: 42 },
@@ -355,10 +435,10 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         new Request("http://triplex.test/api/rest/latest/employers/employer%3Acorrupt"),
       );
       expect(corrupt.status).toBe(409);
-      expect((await corrupt.json()).code).toBe("data_shape_conflict");
+      expect((await responseJson<ErrorResponse>(corrupt)).code).toBe("data_shape_conflict");
 
       await web.assertFact({
-        entityId: secondEmployerBody.id,
+        entityId: EntityId.make(secondEmployerBody.id),
         entityType: "Employer",
         attribute: ":employer/note",
         value: { type: "string", value: "scheduled" },
@@ -375,7 +455,7 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         ),
       );
       expect(scheduledReplace.status).toBe(409);
-      expect((await scheduledReplace.json()).code).toBe("scheduled_facts");
+      expect((await responseJson<ErrorResponse>(scheduledReplace)).code).toBe("scheduled_facts");
 
       const blockedDelete = await web.handler(
         new Request(

@@ -23,6 +23,7 @@ interface RecordResponse {
 interface DataResponse {
   readonly ok: boolean;
   readonly value?: unknown;
+  readonly error?: { readonly code: string; readonly message: string };
 }
 
 const identity = (tenantId: string, generation = "g1"): Identity => ({
@@ -86,6 +87,56 @@ const transact = (entityId: string, value: string, commandId: string) => ({
 const entity = (entityId: string) => ({ _tag: "Entity", entityId });
 
 describe("two-tenant Cloudflare host in workerd", () => {
+  it("bounds raw Datalog and never returns internal failure details", async () => {
+    const tenant = await provision("tenant-budgets");
+    const revision = tenant.record.routingRevision;
+    const inserted = await data("tenant-budgets", "test-token-budgets", revision, {
+      _tag: "Transact",
+      request: {
+        operations: Array.from({ length: 125 }, (_, index) => ({
+          op: "assert",
+          entityId: `bounded:${index.toString().padStart(3, "0")}`,
+          attribute: ":host/bounded",
+          value: { type: "number", value: index },
+        })),
+        meta: { commandId: "bounded-seed" },
+      },
+    });
+    expect(inserted.ok).toBe(true);
+    await inserted.text();
+
+    const query = await data("tenant-budgets", "test-token-budgets", revision, {
+      _tag: "Query",
+      query: {
+        find: ["?entity"],
+        where: [["?entity", ":host/bounded", "?value"]],
+      },
+    });
+    const queryBody = (await query.json()) as {
+      readonly value: { readonly results: unknown[]; readonly nextCursor?: string };
+    };
+    expect(queryBody.value.results).toHaveLength(100);
+    expect(queryBody.value.nextCursor).toEqual(expect.any(String));
+
+    const invalid = await data("tenant-budgets", "test-token-budgets", revision, {
+      _tag: "Query",
+      query: {
+        find: ["?entity"],
+        where: [
+          ["?entity", ":host/bounded", "?value"],
+          ["=", "?missing", 1],
+        ],
+      },
+    });
+    expect(invalid.status).toBe(400);
+    const invalidBody = (await invalid.json()) as DataResponse;
+    expect(invalidBody.error).toEqual({
+      code: "invalid_request",
+      message: "The request could not be validated",
+    });
+    expect(JSON.stringify(invalidBody)).not.toContain("Unbound");
+  });
+
   it("isolates data, cursors, feeds, and the direct actor boundary", async () => {
     const tenantA = await provision("tenant-a");
     const tenantB = await provision("tenant-b");

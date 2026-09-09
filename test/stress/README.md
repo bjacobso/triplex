@@ -142,25 +142,27 @@ pnpm --filter triplex-stress test:watch
 
 ## Environment Variables
 
-| Variable                | Default                            | Description                                                                                                                     |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `STRESS_BACKEND`        | `sqlite`                           | Backend to test: `sqlite`, `pg`, `kv`, or `fdb`                                                                                 |
-| `STRESS_EMPLOYEE_COUNT` | `100000`                           | Number of employees to generate. Each produces ~10 triples. Benchmark script defaults to 1,000,000.                             |
-| `STRESS_UPDATE_ROUNDS`  | `10`                               | Number of update rounds. Each round updates 5 attributes per employee. Set to `0` to skip (required for `kv`/`fdb`).            |
-| `DATABASE_URL`          | _(empty)_                          | PostgreSQL connection URL. **Required** when `STRESS_BACKEND=pg`.                                                               |
-| `FDB_CLUSTER_FILE`      | _(empty)_                          | FoundationDB cluster file path. Optional for `fdb` backend (uses FDB default if unset).                                         |
-| `FDB_IMAGE`             | `foundationdb/foundationdb:7.3.75` | Docker image tag used by `pnpm --filter triplex-stress benchmark` for FoundationDB.                                             |
-| `FDB_PLATFORM`          | `linux/amd64`                      | Docker platform override for FoundationDB (use `linux/arm64` when an ARM image is available).                                   |
-| `FDB_API_VERSION`       | `720`                              | Optional FoundationDB API version override.                                                                                     |
-| `FDB_MAX_TX_ENTRIES`    | `5000`                             | Max key-value entries per FDB transaction in bulk insert. Tune lower for large values, higher for small ones.                   |
-| `STRESS_FDB_SUBSPACE`   | _(auto)_                           | Optional fixed FoundationDB subspace prefix. Defaults to a unique per-run prefix.                                               |
-| `STRESS_DROP_INDEXES`   | `false`                            | Drop indexes before bulk insert, recreate after. SQLite only. ~3-5x speedup.                                                    |
-| `STRESS_UNSAFE_MODE`    | `false`                            | Use `PRAGMA synchronous=OFF` and `journal_mode=MEMORY`. SQLite only. ~1.2-2x speedup. **WARNING: Data loss possible on crash.** |
-| `STRESS_TEST_KEEP_DB`   | `false`                            | Keep the test database for inspection after the test completes.                                                                 |
+| Variable                    | Default                            | Description                                                                                                                     |
+| --------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `STRESS_BACKEND`            | `sqlite`                           | Backend to test: `sqlite`, `pg`, `kv`, or `fdb`                                                                                 |
+| `STRESS_EMPLOYEE_COUNT`     | `100000`                           | Number of employees to generate. Each produces ~10 triples. Benchmark script defaults to 1,000,000.                             |
+| `STRESS_UPDATE_ROUNDS`      | `10`                               | Number of update rounds. Each round updates 5 attributes per employee. Set to `0` to skip (required for `kv`/`fdb`).            |
+| `STRESS_ASSERT_PERFORMANCE` | `true`                             | Set to `false` for functional smoke runs that should not enforce machine-specific latency thresholds.                           |
+| `DATABASE_URL`              | _(empty)_                          | PostgreSQL connection URL. **Required** when `STRESS_BACKEND=pg`.                                                               |
+| `FDB_CLUSTER_FILE`          | _(empty)_                          | FoundationDB cluster file path. Optional for `fdb` backend (uses FDB default if unset).                                         |
+| `FDB_IMAGE`                 | `foundationdb/foundationdb:7.3.75` | Docker image tag used by `pnpm --filter triplex-stress benchmark` for FoundationDB.                                             |
+| `FDB_PLATFORM`              | `linux/amd64`                      | Docker platform override for FoundationDB (use `linux/arm64` when an ARM image is available).                                   |
+| `FDB_API_VERSION`           | `720`                              | Optional FoundationDB API version override.                                                                                     |
+| `FDB_MAX_TX_ENTRIES`        | `5000`                             | Max key-value entries per FDB transaction in bulk insert. Tune lower for large values, higher for small ones.                   |
+| `STRESS_FDB_SUBSPACE`       | _(auto)_                           | Optional fixed FoundationDB subspace prefix. Defaults to a unique per-run prefix.                                               |
+| `STRESS_DROP_INDEXES`       | `false`                            | Drop indexes before bulk insert, recreate after. SQLite only. ~3-5x speedup.                                                    |
+| `STRESS_UNSAFE_MODE`        | `false`                            | Use `PRAGMA synchronous=OFF` and `journal_mode=MEMORY`. SQLite only. ~1.2-2x speedup. **WARNING: Data loss possible on crash.** |
+| `STRESS_TEST_KEEP_DB`       | `false`                            | Keep the test database for inspection after the test completes.                                                                 |
 
 **Note**: `STRESS_DROP_INDEXES` and `STRESS_UNSAFE_MODE` only affect the SQLite backend. They are ignored by `pg`, `kv`, and `fdb`.
 
-**Note**: Stress tests are in a separate package and excluded from normal `pnpm test` runs and CI.
+**Note**: Stress tests are in a separate package and excluded from normal `pnpm test` runs. CI runs
+the approximately 100,000-triple SQLite smoke profile without machine-specific latency assertions.
 
 ## Test Data
 

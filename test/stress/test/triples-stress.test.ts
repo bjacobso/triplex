@@ -57,6 +57,7 @@ const thresholds = getThresholds(BACKEND);
 // ============================================================================
 
 const JSON_OUTPUT = process.env["STRESS_JSON_OUTPUT"] === "true";
+const ASSERT_PERFORMANCE = process.env["STRESS_ASSERT_PERFORMANCE"] !== "false";
 // ============================================================================
 // Benchmark Results Accumulator
 // ============================================================================
@@ -228,8 +229,10 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
     const expectedMax = EMPLOYEE_COUNT * 11; // 11 max (with optional manager)
     expect(totalTriples).toBeGreaterThanOrEqual(expectedMin);
     expect(totalTriples).toBeLessThanOrEqual(expectedMax);
-    expect(throughput).toBeGreaterThan(thresholds.minThroughput);
-    expect(totalInsertTime).toBeLessThan(thresholds.insertionTimeout);
+    if (ASSERT_PERFORMANCE) {
+      expect(throughput).toBeGreaterThan(thresholds.minThroughput);
+      expect(totalInsertTime).toBeLessThan(thresholds.insertionTimeout);
+    }
   }, 600_000); // 10 minute timeout
 
   // ============================================================================
@@ -353,8 +356,10 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
               maxBatchMs: maxBatch,
             });
 
-            expect(roundTime).toBeLessThan(thresholds.updateRoundTimeout);
-            expect(roundThroughput).toBeGreaterThan(thresholds.minUpdateThroughput);
+            if (ASSERT_PERFORMANCE) {
+              expect(roundTime).toBeLessThan(thresholds.updateRoundTimeout);
+              expect(roundThroughput).toBeGreaterThan(thresholds.minUpdateThroughput);
+            }
           }
         }).pipe(Effect.provide(combinedLayer)),
       );
@@ -415,7 +420,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       });
       expect(result.length).toBeGreaterThanOrEqual(9);
       expect(result.length).toBeLessThanOrEqual(10);
-      expect(duration).toBeLessThan(thresholds.entityLookup);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.entityLookup);
     });
 
     it("Q2: Query by attribute", async () => {
@@ -436,7 +441,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
         resultCount: result.length,
       });
       expect(result.length).toBe(EMPLOYEE_COUNT);
-      expect(duration).toBeLessThan(thresholds.attributeScan);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.attributeScan);
     });
 
     it("Q3: Query by entity type", async () => {
@@ -457,7 +462,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
         resultCount: result.length,
       });
       expect(result.length).toBe(EMPLOYEE_COUNT);
-      expect(duration).toBeLessThan(thresholds.typeFilter);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.typeFilter);
     });
 
     it("Q4: Query by specific value", async () => {
@@ -485,7 +490,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       });
       expect(result.length).toBeGreaterThanOrEqual(expectedMin);
       expect(result.length).toBeLessThanOrEqual(expectedMax);
-      expect(duration).toBeLessThan(thresholds.valueFilter);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.valueFilter);
     });
 
     it("Q5: Follow reference", async () => {
@@ -515,7 +520,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       if (EMPLOYEE_COUNT > 10) {
         expect(result.length).toBeGreaterThan(0);
       }
-      expect(duration).toBeLessThan(thresholds.refLookup);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.refLookup);
     });
 
     it("Q6: Get all active employees", async () => {
@@ -549,7 +554,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
         expect(result.length).toBeGreaterThan(0);
         expect(result.length).toBeLessThanOrEqual(EMPLOYEE_COUNT);
       }
-      expect(duration).toBeLessThan(thresholds.booleanFilter);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.booleanFilter);
     });
   });
 
@@ -563,7 +568,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const triples = yield* getTriples();
-          return yield* triples.query({
+          return yield* triples.queryAll({
             find: ["?name"],
             where: [["?e", ":name", "?name"]],
           });
@@ -579,7 +584,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
         resultCount: result.results.length,
       });
       expect(result.results.length).toBe(EMPLOYEE_COUNT);
-      expect(duration).toBeLessThan(thresholds.datalogSimple);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.datalogSimple);
     });
 
     it("D2: Two-variable join - name + department", async () => {
@@ -587,7 +592,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const triples = yield* getTriples();
-          return yield* triples.query({
+          return yield* triples.queryAll({
             find: ["?name", "?dept"],
             where: [
               ["?e", ":name", "?name"],
@@ -606,7 +611,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
         resultCount: result.results.length,
       });
       expect(result.results.length).toBe(EMPLOYEE_COUNT);
-      expect(duration).toBeLessThan(thresholds.datalogJoin);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.datalogJoin);
     });
 
     it("D3: Predicate filter - salary >= threshold", async () => {
@@ -626,7 +631,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const triples = yield* getTriples();
-          return yield* triples.query({
+          return yield* triples.queryAll({
             find: ["?name", "?salary"],
             where: [
               ["?e", ":name", "?name"],
@@ -648,7 +653,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       // Some employees should have salary >= threshold
       expect(result.results.length).toBeGreaterThan(0);
       expect(result.results.length).toBeLessThanOrEqual(EMPLOYEE_COUNT);
-      expect(duration).toBeLessThan(thresholds.datalogPredicate);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.datalogPredicate);
     });
 
     it("D4: Multi-attribute with value binding - Engineering employees", async () => {
@@ -656,7 +661,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const triples = yield* getTriples();
-          return yield* triples.query({
+          return yield* triples.queryAll({
             find: ["?name", "?title"],
             where: [
               ["?e", ":name", "?name"],
@@ -680,7 +685,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       });
       expect(result.results.length).toBeGreaterThanOrEqual(expectedMin);
       expect(result.results.length).toBeLessThanOrEqual(expectedMax);
-      expect(duration).toBeLessThan(thresholds.datalogMultiAttr);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.datalogMultiAttr);
     });
 
     it("D5: Aggregation - count per department", async () => {
@@ -688,7 +693,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const triples = yield* getTriples();
-          return yield* triples.query({
+          return yield* triples.queryAll({
             find: ["?dept", "?count"],
             where: [["?e", ":department", "?dept"]],
             aggregate: [["count", "?e", "?count"]],
@@ -705,7 +710,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
         resultCount: result.results.length,
       });
       expect(result.results.length).toBe(8); // 8 departments
-      expect(duration).toBeLessThan(thresholds.datalogAggregation);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.datalogAggregation);
     });
 
     it("D6: Reference traversal - employee + manager name", async () => {
@@ -713,7 +718,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const triples = yield* getTriples();
-          return yield* triples.query({
+          return yield* triples.queryAll({
             find: ["?empName", "?mgrName"],
             where: [
               ["?e", ":name", "?empName"],
@@ -737,7 +742,7 @@ describe(`Triple Store Stress Test [${BACKEND}] - ${(EMPLOYEE_COUNT * TRIPLES_PE
       });
       expect(result.results.length).toBeGreaterThanOrEqual(expectedMin);
       expect(result.results.length).toBeLessThanOrEqual(expectedMax);
-      expect(duration).toBeLessThan(thresholds.datalogRefTraversal);
+      if (ASSERT_PERFORMANCE) expect(duration).toBeLessThan(thresholds.datalogRefTraversal);
     });
   });
 

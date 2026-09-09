@@ -81,6 +81,7 @@ export default defineConfig({
           { text: "Operational primitives", link: "/operational-primitives" },
           { text: "Host integration", link: "/host-integration" },
           { text: "Configuration HTTP API", link: "/http-api" },
+          { text: "Performance", link: "/performance" },
           { text: "Releasing", link: "/releasing" },
           { text: "Roadmap", link: "/roadmap" },
         ],

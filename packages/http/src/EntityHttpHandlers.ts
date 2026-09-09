@@ -3,7 +3,7 @@ import {
   ConstraintViolationError,
   TransactionConflictError,
 } from "@bjacobso/triplex";
-import { Effect, Encoding, Result } from "effect";
+import { Cause, Effect, Encoding, Result } from "effect";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { HttpRouter, HttpServerResponse } from "effect/unstable/http";
 import { HttpApiScalar } from "effect/unstable/httpapi";
@@ -472,14 +472,15 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
       snapshotId,
     );
   }).pipe(
-    Effect.catch((error) =>
-      Effect.logError("Triplex HTTP request failed", error).pipe(
+    Effect.catchCause((cause) => {
+      const error = Cause.squash(cause);
+      return Effect.logError("Triplex HTTP request failed", error).pipe(
         Effect.as(
           responseSnapshot === undefined
             ? mapError(error)
             : withSnapshot(mapError(error), responseSnapshot),
         ),
-      ),
-    ),
+      );
+    }),
   );
 };

@@ -237,7 +237,7 @@ function startFoundationDb(): string {
     runCapture(
       `node -e "import('foundationdb').then(async (fdb)=>{fdb.setAPIVersion(720);const db=fdb.open(process.env.FDB_CLUSTER_FILE);await db.set(Buffer.from('__bench_probe__'), Buffer.from('1'));await db.get(Buffer.from('__bench_probe__'));db.close();}).catch((e)=>{console.error(e);process.exit(1)})"`,
       {
-        cwd: CORE_PKG_DIR,
+        cwd: FDB_PKG_DIR,
         stdio: "pipe",
         env: {
           ...(process.env as Record<string, string>),

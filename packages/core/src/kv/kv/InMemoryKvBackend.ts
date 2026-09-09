@@ -170,7 +170,7 @@ class InMemoryStore {
           limit !== undefined ? limit - results.length : undefined,
           true,
         );
-        results.push(...partResults);
+        for (const entry of partResults) results.push(entry);
         if (limit !== undefined && results.length >= limit) break;
       }
     } else {
@@ -184,7 +184,7 @@ class InMemoryStore {
           limit !== undefined ? limit - results.length : undefined,
           false,
         );
-        results.push(...partResults);
+        for (const entry of partResults) results.push(entry);
         if (limit !== undefined && results.length >= limit) break;
       }
     }

@@ -5,7 +5,7 @@
   "vars": {
     "ADMIN_TOKEN": "test-admin-token",
     "INTERNAL_CAPABILITY": "test-internal-capability",
-    "TENANT_TOKENS": "{\"tenant-a\":\"test-token-a\",\"tenant-b\":\"test-token-b\",\"tenant-c\":\"test-token-c\"}",
+    "TENANT_TOKENS": "{\"tenant-a\":\"test-token-a\",\"tenant-b\":\"test-token-b\",\"tenant-c\":\"test-token-c\",\"tenant-budgets\":\"test-token-budgets\"}",
     "HOST_ENVIRONMENT": "test",
     "RUNTIME_RELEASE": "test-release",
   },

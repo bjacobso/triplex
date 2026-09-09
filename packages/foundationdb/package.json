@@ -14,6 +14,7 @@
     "url": "https://github.com/bjacobso/triplex/issues"
   },
   "license": "MIT",
+  "author": "Ben Jacobson",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bjacobso/triplex.git",

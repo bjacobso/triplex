@@ -53,7 +53,9 @@ const databaseId = Flag.string("database-id").pipe(
 
 export const rootCommand = Command.make("triplex").pipe(
   Command.withSharedFlags({ pretty, sqlite, postgresUrl, databaseId }),
-  Command.withDescription("Explore and operate a Triplex database with stable JSON output"),
+  Command.withDescription(
+    "Pre-1.0 CLI: explore and operate a Triplex database with stable JSON output",
+  ),
 );
 
 const input = Flag.string("input").pipe(

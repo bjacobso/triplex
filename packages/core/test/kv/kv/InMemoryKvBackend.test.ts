@@ -107,6 +107,25 @@ describe("InMemoryKvBackend", () => {
 
       expect(Array.from(results).length).toBe(0);
     });
+
+    it("collects a large cross-partition range without spreading into the call stack", async () => {
+      const kv = makeTestKvBackend();
+      const count = 150_000;
+      const entries = Array.from({ length: count }, (_, index) => {
+        const key = new Uint8Array(5);
+        key[0] = 1;
+        new DataView(key.buffer).setUint32(1, index);
+        return [key, enc("v")] as const;
+      });
+      await run(kv.setAll(entries));
+
+      const results = kv.getRangeSync!({
+        start: new Uint8Array([1]),
+        end: new Uint8Array([2]),
+      });
+
+      expect(results).toHaveLength(count);
+    });
   });
 
   describe("transact", () => {

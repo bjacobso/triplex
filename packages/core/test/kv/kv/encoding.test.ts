@@ -52,14 +52,25 @@ describe("encoding", () => {
 
     it("handles all 0xFF bytes", () => {
       const result = increment(new Uint8Array([0xff, 0xff]));
-      // All bytes overflow -- extends with a leading 0x01
-      expect(result.length).toBe(3);
+      expect(result).toEqual(new Uint8Array([0xff, 0xff, 0x00]));
     });
 
     it("incremented key is always greater than original", () => {
       const original = new Uint8Array([0x01, 0x02, 0x03]);
       const inc = increment(original);
       expect(compare(inc, original)).toBe(1);
+    });
+
+    it("produces a greater key across deterministic arbitrary byte arrays", () => {
+      let state = 0x2f6e2b1;
+      const nextByte = () => {
+        state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+        return state & 0xff;
+      };
+      for (let sample = 0; sample < 1_000; sample++) {
+        const key = Uint8Array.from({ length: 1 + (nextByte() % 64) }, () => nextByte());
+        expect(compare(increment(key), key)).toBe(1);
+      }
     });
   });
 
@@ -88,6 +99,18 @@ describe("encoding", () => {
 
     it("encodes to lowercase hex", () => {
       expect(toHex(new Uint8Array([0xab, 0xcd]))).toBe("abcd");
+    });
+
+    it("round-trips deterministic arbitrary byte arrays", () => {
+      let state = 0x7a31c5d9;
+      for (let sample = 0; sample < 1_000; sample++) {
+        state = (Math.imul(state, 1_103_515_245) + 12_345) >>> 0;
+        const bytes = Uint8Array.from({ length: state % 128 }, (_, index) => {
+          state = (Math.imul(state ^ index, 1_103_515_245) + 12_345) >>> 0;
+          return state & 0xff;
+        });
+        expect(fromHex(toHex(bytes))).toEqual(bytes);
+      }
     });
   });
 

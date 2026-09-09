@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "stress-test": "vitest run",
+    "stress-test:smoke": "STRESS_BACKEND=sqlite STRESS_EMPLOYEE_COUNT=10000 STRESS_UPDATE_ROUNDS=0 STRESS_ASSERT_PERFORMANCE=false vitest run",
     "stress-test:kv": "STRESS_BACKEND=kv STRESS_UPDATE_ROUNDS=0 NODE_OPTIONS='--max-old-space-size=4096' vitest run",
     "stress-test:fdb": "STRESS_BACKEND=fdb STRESS_UPDATE_ROUNDS=0 NODE_OPTIONS='--max-old-space-size=4096' vitest run",
     "benchmark:datalog": "tsx scripts/datalog-pagination.ts",

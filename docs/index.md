@@ -8,6 +8,13 @@ aside: false
 pageClass: triplex-index
 ---
 
+::: warning Pre-1.0 release candidate
+Triplex is published only as npm canaries under the `next` tag and requires
+`effect@4.0.0-rc.112`. Effect 3 is not compatible. KV and SQLite are the supported baseline;
+PostgreSQL is a production candidate, while Cloudflare and FoundationDB are experimental.
+[Read the exact maturity contract](/current-state).
+:::
+
 <div class="triplex-home">
   <header class="triplex-home__intro">
     <h1>Triplex</h1>
