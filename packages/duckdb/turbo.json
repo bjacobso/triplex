@@ -2,7 +2,11 @@
   "extends": ["//"],
   "tasks": {
     "typecheck": {
-      "inputs": ["src/**", "test/**", "scripts/**", "package.json", "tsconfig*.json"]
+      "inputs": ["src/**", "test/**", "scripts/**", "package.json", "tsconfig*.json"],
+      "dependsOn": ["build"]
+    },
+    "test": {
+      "dependsOn": ["build"]
     }
   }
 }

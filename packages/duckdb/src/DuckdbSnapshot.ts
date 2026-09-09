@@ -63,12 +63,16 @@ const scalar = (value: unknown): DuckDBValue => {
 
 /**
  * Copy a migrated Triplex SQLite source using one SQL transaction, including
- * assertion/retraction history. The returned query service cannot mutate it.
+ * assertion/retraction history. The private runner also supports federation scans.
  * Keep it inside the acquiring Effect scope so native handles remain alive.
  */
-export const makeDuckdbSnapshot = (
+export const makeDuckdbSnapshotStore = (
   options: DuckdbSnapshotOptions,
-): Effect.Effect<DuckdbSnapshotService, ReadError, SqlClient.SqlClient | Scope.Scope> =>
+): Effect.Effect<
+  DuckdbSnapshotService & { readonly runner: SqlStatementRunner },
+  ReadError,
+  SqlClient.SqlClient | Scope.Scope
+> =>
   Effect.gen(function* () {
     const source = yield* SqlClient.SqlClient;
     const batchSize = options.batchSize ?? 2048;
@@ -193,6 +197,7 @@ export const makeDuckdbSnapshot = (
       duckdbVersion: versions[0]!.version,
     });
     return {
+      runner,
       metadata,
       /** Complete materialization for trusted analytical workloads. */
       queryAll: (query: DatalogQuery, debug = false) => executor.execute(query, debug, basis),
@@ -201,6 +206,12 @@ export const makeDuckdbSnapshot = (
         executor.executePage(query, debug, basis),
     };
   }).pipe(Effect.mapError(readFailure));
+
+/** Acquire an immutable analytical copy of the current SQLite source. */
+export const makeDuckdbSnapshot = (
+  options: DuckdbSnapshotOptions,
+): Effect.Effect<DuckdbSnapshotService, ReadError, SqlClient.SqlClient | Scope.Scope> =>
+  makeDuckdbSnapshotStore(options).pipe(Effect.map(({ runner: _runner, ...snapshot }) => snapshot));
 
 export class DuckdbSnapshot extends Context.Service<DuckdbSnapshot, DuckdbSnapshotService>()(
   "triplex/DuckdbSnapshot",

@@ -440,6 +440,9 @@ importers:
       '@duckdb/node-api':
         specifier: 'catalog:'
         version: 1.5.5-r.4
+      '@effect/sql-sqlite-node':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)
     devDependencies:
       '@bjacobso/triplex-sqlite':
         specifier: workspace:^

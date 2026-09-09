@@ -125,7 +125,11 @@ hosts typed configuration as a modular layer over the same core.
   source through `SqlClient` in one transaction, imports bounded batches into native DuckDB,
   and reuses the shared Datalog compiler and row decoder at a pinned temporal/commit basis.
   Its Effect service exposes read-only analytical queries, not the writable `Triples` contract.
-  It does not implement distributed execution, incremental projection, or object storage.
+  Its federation service opens a trusted catalog of local SQLite sources through independent
+  read-only clients. Local worker processes filter pinned facts and virtual database membership,
+  then a DuckDB coordinator runs the shared compiler over source-qualified identities. Source
+  shortcuts lower to ordinary membership patterns without changing the core Datalog contract.
+  It does not implement distributed recursive rounds, incremental projection, or object storage.
   See `packages/duckdb/README.md` for the opt-in comparison benchmark and limitations.
 - `@bjacobso/triplex-cloudflare` composes its synchronous Durable Object SQLite adapter with the
   shared SQL compiler/row decoder through the narrow `SqlStatementRunner` contract. Its public

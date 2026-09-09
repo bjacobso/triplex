@@ -41,12 +41,14 @@
     "test": "vitest --run --passWithNoTests",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "clean": "rm -rf dist",
-    "benchmark": "tsx scripts/benchmark.ts"
+    "benchmark": "tsx scripts/benchmark.ts",
+    "demo:federation": "pnpm run build && tsx scripts/federation.ts"
   },
   "dependencies": {
     "@bjacobso/triplex": "workspace:^",
     "@bjacobso/triplex-sql": "workspace:^",
-    "@duckdb/node-api": "catalog:"
+    "@duckdb/node-api": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:"
   },
   "devDependencies": {
     "@bjacobso/triplex-sqlite": "workspace:^",
