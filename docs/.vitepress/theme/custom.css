@@ -48,7 +48,7 @@ body {
   width: 100%;
   height: var(--vp-layout-top-height);
   border-bottom: 1px solid color-mix(in srgb, var(--vp-c-warning-1) 28%, var(--vp-c-divider));
-  background: var(--vp-c-warning-soft);
+  background: color-mix(in srgb, #eab308 15%, var(--vp-c-bg));
   color: var(--vp-c-text-1);
   padding: 7px 16px;
   overflow: hidden;
@@ -65,8 +65,7 @@ body {
 
 .VPNavBar {
   border-bottom: 1px solid var(--vp-c-divider);
-  background: color-mix(in srgb, var(--vp-c-bg) 86%, transparent) !important;
-  backdrop-filter: blur(16px);
+  background: var(--vp-c-bg) !important;
 }
 
 .VPNavBarTitle .logo {
