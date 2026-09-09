@@ -1,0 +1,8 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "typecheck": {
+      "inputs": ["src/**", "test/**", "scripts/**", "package.json", "tsconfig*.json"]
+    }
+  }
+}

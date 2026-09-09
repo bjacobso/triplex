@@ -121,6 +121,12 @@ hosts typed configuration as a modular layer over the same core.
   scalar-family joins and typed keyset ordering compare values consistently with the KV executor.
   A shared KV/SQLite/PostgreSQL conformance corpus is the regression boundary for this contract.
 - Backend packages construct the storage adapters and runtime layers for their platforms.
+- `@bjacobso/triplex-duckdb` is a private analytical snapshot POC. It copies a migrated SQLite
+  source through `SqlClient` in one transaction, imports bounded batches into native DuckDB,
+  and reuses the shared Datalog compiler and row decoder at a pinned temporal/commit basis.
+  Its Effect service exposes read-only analytical queries, not the writable `Triples` contract.
+  It does not implement distributed execution, incremental projection, or object storage.
+  See `packages/duckdb/README.md` for the opt-in comparison benchmark and limitations.
 - `@bjacobso/triplex-cloudflare` composes its synchronous Durable Object SQLite adapter with the
   shared SQL compiler/row decoder through the narrow `SqlStatementRunner` contract. Its public
   `CloudflareTriples.layer({ state, scope })` binds migrations, Datalog, writes, journal positions,

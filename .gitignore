@@ -9,3 +9,4 @@ coverage/
 .alchemy/
 playwright-report/
 test-results/
+duckdb-benchmark*.json

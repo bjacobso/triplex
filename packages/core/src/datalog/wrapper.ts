@@ -84,12 +84,12 @@ const compileFilterOp = (
     case "ilike":
       // SQLite: use LIKE with COLLATE NOCASE
       // PostgreSQL: use native ILIKE
-      if (dialect.name === "postgresql") {
+      if (dialect.name === "postgresql" || dialect.name === "duckdb") {
         return `${colName} ILIKE ${collector.add(value)}`;
       }
       return `${colName} LIKE ${collector.add(value)} COLLATE NOCASE`;
     case "not-ilike":
-      if (dialect.name === "postgresql") {
+      if (dialect.name === "postgresql" || dialect.name === "duckdb") {
         return `${colName} NOT ILIKE ${collector.add(value)}`;
       }
       return `${colName} NOT LIKE ${collector.add(value)} COLLATE NOCASE`;

@@ -1,0 +1,64 @@
+{
+  "name": "@bjacobso/triplex-duckdb",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Experimental DuckDB analytical snapshots for Triplex",
+  "keywords": [
+    "database",
+    "effect",
+    "sql",
+    "triplestore"
+  ],
+  "homepage": "https://github.com/bjacobso/triplex#readme",
+  "bugs": {
+    "url": "https://github.com/bjacobso/triplex/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bjacobso/triplex.git",
+    "directory": "packages/duckdb"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
+    "dev": "tsdown --watch",
+    "test": "vitest --run --passWithNoTests",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "clean": "rm -rf dist",
+    "benchmark": "tsx scripts/benchmark.ts"
+  },
+  "dependencies": {
+    "@bjacobso/triplex": "workspace:^",
+    "@bjacobso/triplex-sql": "workspace:^",
+    "@duckdb/node-api": "catalog:"
+  },
+  "devDependencies": {
+    "@bjacobso/triplex-sqlite": "workspace:^",
+    "@types/node": "catalog:",
+    "effect": "catalog:",
+    "tsx": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "effect": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

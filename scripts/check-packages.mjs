@@ -10,6 +10,7 @@ const packageNames = [
   "@bjacobso/triplex-sqlite",
   "@bjacobso/triplex-postgres",
   "@bjacobso/triplex-cloudflare",
+  "@bjacobso/triplex-duckdb",
   "@bjacobso/triplex-host",
   "@bjacobso/triplex-foundationdb",
   "@bjacobso/triplex-testkit",
@@ -27,6 +28,7 @@ const publishPackageNames = new Set([
 ]);
 const heldPackageNames = new Set([
   "@bjacobso/triplex-cloudflare",
+  "@bjacobso/triplex-duckdb",
   "@bjacobso/triplex-host",
   "@bjacobso/triplex-foundationdb",
 ]);
@@ -162,6 +164,7 @@ import { validateDatalogQuery, type DatalogQuery } from "@bjacobso/triplex/datal
 import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@bjacobso/triplex/config";
 import * as Derivation from "@bjacobso/triplex/derivation";
 import * as Cloudflare from "@bjacobso/triplex-cloudflare";
+import { DuckdbSnapshot } from "@bjacobso/triplex-duckdb";
 import * as FoundationDb from "@bjacobso/triplex-foundationdb";
 import * as Host from "@bjacobso/triplex-host";
 import * as Postgres from "@bjacobso/triplex-postgres";
@@ -219,6 +222,7 @@ void Derivation.Materialization;
 void Derivation.Overlay;
 void makeSqliteLayer;
 void Cloudflare;
+void DuckdbSnapshot;
 void FoundationDb;
 void Host;
 void Postgres;
@@ -254,6 +258,7 @@ void HttpAuthorizationAllowAll;
 import { EntityId, Triples, string } from "@bjacobso/triplex";
 import * as Derivation from "@bjacobso/triplex/derivation";
 import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import { makeDuckdbSnapshot } from "@bjacobso/triplex-duckdb";
 
 const result = await Effect.runPromise(
   Effect.gen(function* () {
@@ -290,19 +295,22 @@ const result = await Effect.runPromise(
         }],
       },
     });
+    const analytical = yield* makeDuckdbSnapshot({ scope: "pack-smoke", basis: { validAt: 1 } });
     return {
+      analytical: yield* analytical.queryAll(query),
       query: yield* triples.query(query, { basis: { validAt: 1 } }),
       preview,
       materialization: yield* Derivation.Materialization.current(triples, definition, {
         basis: { validAt: 1 },
       }),
     };
-  }).pipe(Effect.provide(SqliteTriples.layerMemory)),
+  }).pipe(Effect.scoped, Effect.provide(SqliteTriples.layerMemory)),
 );
 
 if (
   result.query.results.length !== 1 ||
   result.query.results[0]?.["?name"] !== "Alice" ||
+  result.analytical.results[0]?.["?name"] !== "Alice" ||
   result.preview.candidates.length !== 2 ||
   result.preview.nextTemporalBoundary !== 5 ||
   !result.preview.candidates.some((candidate) =>
