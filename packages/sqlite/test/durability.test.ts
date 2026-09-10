@@ -1,4 +1,4 @@
-import { EntityId, Triples, string } from "@bjacobso/triplex";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
 import { Effect } from "effect";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

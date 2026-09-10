@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-import { KvTriples } from "@bjacobso/triplex";
-import { makeTriplesConformanceSuite } from "@bjacobso/triplex-testkit";
+import { KvTriples } from "@triplex-build/triplex";
+import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 
 describe("in-memory KV Triples conformance", () => {
   it("matches the shared temporal, pagination, and query contract", async () => {

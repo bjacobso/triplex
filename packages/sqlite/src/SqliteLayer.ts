@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql";
 import { SqliteClient } from "@effect/sql-sqlite-node";
-import { runMigrations } from "@bjacobso/triplex-sql";
+import { runMigrations } from "@triplex-build/triplex-sql";
 
 const configureSqlite = (layer: ReturnType<typeof SqliteClient.layer>, migrate: boolean) =>
   layer.pipe(

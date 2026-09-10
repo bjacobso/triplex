@@ -47,9 +47,9 @@ import {
   SqliteDialect,
   TriplesLive,
   TripleStoreRuntimeLayer,
-} from "@bjacobso/triplex/internal";
-import { SqlQueryExecutorLive } from "@bjacobso/triplex-sql";
-import { SqliteAdapterLive } from "@bjacobso/triplex-sqlite";
+} from "@triplex-build/triplex/internal";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
+import { SqliteAdapterLive } from "@triplex-build/triplex-sqlite";
 
 // ─── Pre-composed layers (in-memory, most common) ──────────────────────────
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit } from "effect";
-import { Triples } from "@bjacobso/triplex";
-import { makeTriplesConformanceSuite } from "@bjacobso/triplex-testkit";
+import { Triples } from "@triplex-build/triplex";
+import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 import { CloudflareTriples, makeCloudflareAdapter } from "../src/index.js";
 import { makeMockDOState } from "./fixtures/MockDOState.js";
 

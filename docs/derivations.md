@@ -1,6 +1,6 @@
 # Derivations
 
-`@bjacobso/triplex/derivation` turns structural Datalog results into content-addressed candidates
+`@triplex-build/triplex/derivation` turns structural Datalog results into content-addressed candidates
 with explicit identity, provenance, temporal basis, and configuration identity. It is a derived-fact
 engine, not a workflow engine: applications decide whether a candidate opens a task, updates a
 projection, triggers an integration, or has no operational consequence.
@@ -8,7 +8,7 @@ projection, triggers an integration, or has no operational consequence.
 ## Definitions and candidates
 
 ```ts
-import * as Derivation from "@bjacobso/triplex/derivation";
+import * as Derivation from "@triplex-build/triplex/derivation";
 
 const program = Effect.gen(function* () {
   const openTraining = yield* Derivation.make({

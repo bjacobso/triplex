@@ -14,7 +14,7 @@ import {
   KvTriples,
   TripleStoreRuntimeLayer,
   RuntimeServicesLive,
-} from "@bjacobso/triplex/internal";
+} from "@triplex-build/triplex/internal";
 import { makeFdbKvBackend, type FdbKvBackendConfig } from "./FdbKvBackend.js";
 
 export const FdbTriples = {

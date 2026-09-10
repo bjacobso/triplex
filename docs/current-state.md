@@ -85,8 +85,8 @@ outside the normal test matrix.
 
 ## Honest limitations
 
-- The original six public packages have registry canaries under the `next` tag. A GitHub Actions OIDC canary
-  has passed with npm provenance. Stable `0.1.0` has not been published. The GitHub repository is
+- The seven public packages are prepared for coordinated publication under the `@triplex-build`
+  organization scope. Stable `0.1.0` has not been published. The GitHub repository is
   `bjacobso/triplex`, and the local `origin` uses that canonical URL.
 - npm assigned the package family's first bootstrap snapshot to `latest` as well as `next`, and the
   registry rejects removing the only `latest` tag. Consumers must request `@next` explicitly until
@@ -122,5 +122,6 @@ outside the normal test matrix.
 Cloudflare and FoundationDB are private for the first release. Their source stays in the monorepo
 and continues to compile, but Changesets cannot publish them accidentally.
 
-No npm deprecations are required: the package family was introduced directly under the Triplex
-names and has no legacy public package line.
+The six pre-stable `@bjacobso` canary packages must be deprecated after the corresponding
+`@triplex-build` stable packages are available. The old artifacts remain available so existing
+canary installs receive a migration message instead of breaking.

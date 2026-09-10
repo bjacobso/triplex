@@ -1,4 +1,4 @@
-import type { TripleValue, ValueType } from "@bjacobso/triplex/internal";
+import type { TripleValue, ValueType } from "@triplex-build/triplex/internal";
 
 /** Encode a typed Triplex value into the SQL table's value columns. */
 export const packValue = (

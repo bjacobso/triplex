@@ -59,7 +59,7 @@ A bare scalar pattern constant uses public scalar equality. Use a typed constant
 matters:
 
 ```ts check
-import { EntityId, ref } from "@bjacobso/triplex";
+import { EntityId, ref } from "@triplex-build/triplex";
 
 const query = {
   find: ["?movie"],

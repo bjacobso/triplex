@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-sql",
+  "name": "@triplex-build/triplex-sql",
   "version": "0.0.0",
   "description": "Shared SQL layers and query execution for Triplex",
   "keywords": [
@@ -46,7 +46,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^"
+    "@triplex-build/triplex": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql";
-import { MigrationError } from "@bjacobso/triplex/internal";
+import { MigrationError } from "@triplex-build/triplex/internal";
 import {
   TRIPLES_TABLE_DDL,
   INDEX_DDLS,

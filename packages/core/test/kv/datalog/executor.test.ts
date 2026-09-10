@@ -8,7 +8,7 @@ import {
 import { makeTestKvBackend } from "../../../src/kv/kv/InMemoryKvBackend.js";
 import type { KvBackendService } from "../../../src/kv/kv/KvBackend.js";
 import { executeQuery, executeWrappedQuery } from "../../../src/kv/datalog/executor.js";
-import type { TripleValue } from "@bjacobso/triplex";
+import type { TripleValue } from "@triplex-build/triplex";
 import type { DatalogQuery, WrappedQuery } from "../../../src/kv/datalog/types.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

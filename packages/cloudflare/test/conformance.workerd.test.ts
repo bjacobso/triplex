@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeTriplesConformanceSuite } from "@bjacobso/triplex-testkit";
+import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 import { CloudflareTriples, type DOState } from "../src/index.js";
 
 describe("CloudflareTriples in workerd", () => {

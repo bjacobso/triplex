@@ -25,10 +25,10 @@ import {
   Triples,
   UnboundVariableError,
   EntityId,
-} from "@bjacobso/triplex";
-import { ConsumerCheckpoint } from "@bjacobso/triplex/operational";
-import * as Derivation from "@bjacobso/triplex/derivation";
-import { GraphConstraint } from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex";
+import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import * as Derivation from "@triplex-build/triplex/derivation";
+import { GraphConstraint } from "@triplex-build/triplex/config";
 
 const eid = EntityId.make;
 const ref = (value: string) => makeRef(eid(value));

@@ -6,7 +6,7 @@ import {
   type TransactionMeta,
   type Triple,
   type TransactOp,
-} from "@bjacobso/triplex";
+} from "@triplex-build/triplex";
 import { Clock, Context, Effect, Layer, Option } from "effect";
 import { ulid } from "ulidx";
 
@@ -78,7 +78,7 @@ const assertOperations = (
   entity: EntityDescriptor,
   values: ReadonlyMap<
     import("./ConfigApi.js").AttributeDescriptor,
-    ReadonlyArray<import("@bjacobso/triplex").TripleValue>
+    ReadonlyArray<import("@triplex-build/triplex").TripleValue>
   >,
 ): ReadonlyArray<TransactOp> =>
   [...values].flatMap(([attribute, facts]) =>
@@ -106,7 +106,7 @@ const transactionMeta = (
 });
 
 const rejectScheduledFacts = (
-  triples: import("@bjacobso/triplex").TriplesService,
+  triples: import("@triplex-build/triplex").TriplesService,
   id: ReturnType<typeof EntityId.make>,
 ) =>
   Effect.gen(function* () {

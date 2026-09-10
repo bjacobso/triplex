@@ -70,7 +70,7 @@ export type Relation = readonly Context[];
 
 // ─── Type Guards ───────────────────────────────────────────────────────────
 // Local implementations matching the public datalog schema surface to avoid
-// runtime import issues. These mirror the logic in @bjacobso/triplex.
+// runtime import issues. These mirror the logic in @triplex-build/triplex.
 
 /** Check if a term is a variable (string starting with ?) */
 export const isVariable = (term: unknown): term is string =>

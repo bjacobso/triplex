@@ -2,7 +2,7 @@ import {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
   TransactionConflictError,
-} from "@bjacobso/triplex";
+} from "@triplex-build/triplex";
 import { Cause, Effect, Encoding, Result } from "effect";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { HttpRouter, HttpServerResponse } from "effect/unstable/http";

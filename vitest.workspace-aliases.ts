@@ -32,7 +32,7 @@ export function workspaceAliases() {
     if (!fs.existsSync(manifestPath)) continue;
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as PackageJson;
-    if (!manifest.name?.startsWith("@bjacobso/triplex")) continue;
+    if (!manifest.name?.startsWith("@triplex-build/triplex")) continue;
 
     for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
       const replacement = sourceFor(packageDir, target);

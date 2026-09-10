@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
+    "@triplex-build/triplex": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {

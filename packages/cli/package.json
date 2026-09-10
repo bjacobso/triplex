@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-cli",
+  "name": "@triplex-build/triplex-cli",
   "version": "0.0.0",
   "description": "Agent-friendly Effect CLI for exploring and operating Triplex databases.",
   "keywords": [
@@ -51,12 +51,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
-    "@bjacobso/triplex-postgres": "workspace:^",
-    "@bjacobso/triplex-sql": "workspace:^",
-    "@bjacobso/triplex-sqlite": "workspace:^",
     "@effect/platform-node": "catalog:",
-    "@effect/platform-node-shared": "catalog:"
+    "@effect/platform-node-shared": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-postgres": "workspace:^",
+    "@triplex-build/triplex-sql": "workspace:^",
+    "@triplex-build/triplex-sqlite": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "catalog:",

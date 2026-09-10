@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-foundationdb",
+  "name": "@triplex-build/triplex-foundationdb",
   "version": "0.1.0",
   "private": true,
   "description": "FoundationDB backend for Triplex",
@@ -45,7 +45,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
+    "@triplex-build/triplex": "workspace:^",
     "foundationdb": "catalog:"
   },
   "devDependencies": {

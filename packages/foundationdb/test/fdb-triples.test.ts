@@ -7,15 +7,15 @@
  * Requires Docker + FoundationDB client libraries to be available.
  *
  * ```bash
- * pnpm test --filter @bjacobso/triplex-foundationdb -- test/fdb-triples.test.ts
+ * pnpm test --filter @triplex-build/triplex-foundationdb -- test/fdb-triples.test.ts
  * ```
  */
 
 import { Effect, Layer } from "effect";
 import { describe, expect, layer } from "@effect/vitest";
 import { createRequire } from "node:module";
-import { Triples } from "@bjacobso/triplex";
-import { KvTriplesLive, TripleStoreRuntimeLayer } from "@bjacobso/triplex/internal";
+import { Triples } from "@triplex-build/triplex";
+import { KvTriplesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
 import { FdbTestLayer } from "./fixtures/FdbTestLayer.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

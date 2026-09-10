@@ -1,4 +1,4 @@
-import type { SqlDialect } from "@bjacobso/triplex/internal";
+import type { SqlDialect } from "@triplex-build/triplex/internal";
 
 export const SqliteDialect: SqlDialect = {
   name: "sqlite",

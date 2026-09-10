@@ -9,9 +9,12 @@
 
 import { describe, it, expect } from "vitest";
 import { Effect } from "effect";
-import { EntityId, Triples } from "@bjacobso/triplex";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
-import { triplesConformanceCases, makeTriplesConformanceSuite } from "@bjacobso/triplex-testkit";
+import { EntityId, Triples } from "@triplex-build/triplex";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import {
+  triplesConformanceCases,
+  makeTriplesConformanceSuite,
+} from "@triplex-build/triplex-testkit";
 
 const eid = EntityId.make;
 

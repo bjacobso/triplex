@@ -1,10 +1,10 @@
 ---
-"@bjacobso/triplex": minor
-"@bjacobso/triplex-cli": minor
-"@bjacobso/triplex-postgres": minor
-"@bjacobso/triplex-sql": minor
-"@bjacobso/triplex-sqlite": minor
-"@bjacobso/triplex-testkit": minor
+"@triplex-build/triplex": minor
+"@triplex-build/triplex-cli": minor
+"@triplex-build/triplex-postgres": minor
+"@triplex-build/triplex-sql": minor
+"@triplex-build/triplex-sqlite": minor
+"@triplex-build/triplex-testkit": minor
 ---
 
 Publish the initial Triplex package family.

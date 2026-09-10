@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
-import { makeTriplesConformanceSuite } from "@bjacobso/triplex-testkit";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 
 describe("SQLite Triples conformance", () => {
   it("matches the shared KV/SQL contract", async () => {

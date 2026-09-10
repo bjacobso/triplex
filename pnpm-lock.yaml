@@ -171,7 +171,7 @@ importers:
 
   examples/compliance-host:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../../packages/core
       effect:
@@ -190,7 +190,7 @@ importers:
 
   examples/config-explorer:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../../packages/core
       effect:
@@ -209,7 +209,7 @@ importers:
 
   examples/demo:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../../packages/core
       effect:
@@ -228,18 +228,18 @@ importers:
 
   examples/http-api:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../../packages/core
-      '@bjacobso/triplex-http':
-        specifier: workspace:^
-        version: link:../../packages/http
-      '@bjacobso/triplex-sqlite':
-        specifier: workspace:^
-        version: link:../../packages/sqlite
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../../packages/core
+      '@triplex-build/triplex-http':
+        specifier: workspace:^
+        version: link:../../packages/http
+      '@triplex-build/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../../packages/sqlite
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -259,13 +259,13 @@ importers:
 
   examples/tenant-host-cloudflare:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../../packages/core
-      '@bjacobso/triplex-cloudflare':
+      '@triplex-build/triplex-cloudflare':
         specifier: workspace:^
         version: link:../../packages/cloudflare
-      '@bjacobso/triplex-host':
+      '@triplex-build/triplex-host':
         specifier: workspace:^
         version: link:../../packages/host
       effect:
@@ -296,24 +296,24 @@ importers:
 
   packages/cli:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../core
-      '@bjacobso/triplex-postgres':
-        specifier: workspace:^
-        version: link:../postgres
-      '@bjacobso/triplex-sql':
-        specifier: workspace:^
-        version: link:../sql
-      '@bjacobso/triplex-sqlite':
-        specifier: workspace:^
-        version: link:../sqlite
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
       '@effect/platform-node-shared':
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../core
+      '@triplex-build/triplex-postgres':
+        specifier: workspace:^
+        version: link:../postgres
+      '@triplex-build/triplex-sql':
+        specifier: workspace:^
+        version: link:../sql
+      '@triplex-build/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../sqlite
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -330,19 +330,19 @@ importers:
 
   packages/cloudflare:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
-      '@bjacobso/triplex-sql':
+      '@triplex-build/triplex-sql':
         specifier: workspace:^
         version: link:../sql
     devDependencies:
-      '@bjacobso/triplex-testkit':
-        specifier: workspace:^
-        version: link:../testkit
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
         version: 1.1.4(@cloudflare/workers-types@5.20260904.1)(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.0)))
+      '@triplex-build/triplex-testkit':
+        specifier: workspace:^
+        version: link:../testkit
       '@types/better-sqlite3':
         specifier: 'catalog:'
         version: 7.6.13
@@ -380,15 +380,6 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../core
-      '@bjacobso/triplex-postgres':
-        specifier: workspace:^
-        version: link:../postgres
-      '@bjacobso/triplex-sqlite':
-        specifier: workspace:^
-        version: link:../sqlite
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
@@ -401,6 +392,15 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: 'catalog:'
         version: 5.3.0
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../core
+      '@triplex-build/triplex-postgres':
+        specifier: workspace:^
+        version: link:../postgres
+      '@triplex-build/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../sqlite
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -435,7 +435,7 @@ importers:
 
   packages/foundationdb:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
       foundationdb:
@@ -460,11 +460,11 @@ importers:
 
   packages/host:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@bjacobso/triplex-sqlite':
+      '@triplex-build/triplex-sqlite':
         specifier: workspace:^
         version: link:../sqlite
       '@types/node':
@@ -479,7 +479,7 @@ importers:
 
   packages/http:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
       ulidx:
@@ -498,17 +498,17 @@ importers:
 
   packages/postgres:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../core
-      '@bjacobso/triplex-sql':
-        specifier: workspace:^
-        version: link:../sql
       '@effect/sql-pg':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../core
+      '@triplex-build/triplex-sql':
+        specifier: workspace:^
+        version: link:../sql
     devDependencies:
-      '@bjacobso/triplex-testkit':
+      '@triplex-build/triplex-testkit':
         specifier: workspace:^
         version: link:../testkit
       '@types/node':
@@ -526,7 +526,7 @@ importers:
 
   packages/sql:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
     devDependencies:
@@ -542,17 +542,17 @@ importers:
 
   packages/sqlite:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../core
-      '@bjacobso/triplex-sql':
-        specifier: workspace:^
-        version: link:../sql
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../core
+      '@triplex-build/triplex-sql':
+        specifier: workspace:^
+        version: link:../sql
     devDependencies:
-      '@bjacobso/triplex-testkit':
+      '@triplex-build/triplex-testkit':
         specifier: workspace:^
         version: link:../testkit
       '@types/node':
@@ -567,7 +567,7 @@ importers:
 
   packages/testkit:
     dependencies:
-      '@bjacobso/triplex':
+      '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
     devDependencies:
@@ -583,24 +583,24 @@ importers:
 
   test/integration:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../../packages/core
-      '@bjacobso/triplex-http':
-        specifier: workspace:^
-        version: link:../../packages/http
-      '@bjacobso/triplex-sql':
-        specifier: workspace:^
-        version: link:../../packages/sql
-      '@bjacobso/triplex-sqlite':
-        specifier: workspace:^
-        version: link:../../packages/sqlite
-      '@bjacobso/triplex-testkit':
-        specifier: workspace:^
-        version: link:../../packages/testkit
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../../packages/core
+      '@triplex-build/triplex-http':
+        specifier: workspace:^
+        version: link:../../packages/http
+      '@triplex-build/triplex-sql':
+        specifier: workspace:^
+        version: link:../../packages/sql
+      '@triplex-build/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../../packages/sqlite
+      '@triplex-build/triplex-testkit':
+        specifier: workspace:^
+        version: link:../../packages/testkit
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -614,21 +614,6 @@ importers:
 
   test/stress:
     dependencies:
-      '@bjacobso/triplex':
-        specifier: workspace:^
-        version: link:../../packages/core
-      '@bjacobso/triplex-foundationdb':
-        specifier: workspace:^
-        version: link:../../packages/foundationdb
-      '@bjacobso/triplex-postgres':
-        specifier: workspace:^
-        version: link:../../packages/postgres
-      '@bjacobso/triplex-sql':
-        specifier: workspace:^
-        version: link:../../packages/sql
-      '@bjacobso/triplex-sqlite':
-        specifier: workspace:^
-        version: link:../../packages/sqlite
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
@@ -638,6 +623,21 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@triplex-build/triplex':
+        specifier: workspace:^
+        version: link:../../packages/core
+      '@triplex-build/triplex-foundationdb':
+        specifier: workspace:^
+        version: link:../../packages/foundationdb
+      '@triplex-build/triplex-postgres':
+        specifier: workspace:^
+        version: link:../../packages/postgres
+      '@triplex-build/triplex-sql':
+        specifier: workspace:^
+        version: link:../../packages/sql
+      '@triplex-build/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../../packages/sqlite
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
