@@ -45,7 +45,7 @@ import {
   InMemoryConfigStore,
   TypeExpr as T,
   World,
-} from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex/config";
 
 // ---------------------------------------------------------------------------
 // The graph of schemas. One per node kind; this is the whole type system the

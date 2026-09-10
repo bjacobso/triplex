@@ -1,11 +1,11 @@
-import type { TripleValue, ValueType } from "@bjacobso/triplex";
+import type { TripleValue, ValueType } from "@triplex-build/triplex";
 import {
   MigrationError,
   ReadError,
   StorageAdapter,
   type StorageAdapterService,
   WriteError,
-} from "@bjacobso/triplex/internal";
+} from "@triplex-build/triplex/internal";
 
 export { StorageAdapter, type StorageAdapterService, MigrationError, ReadError, WriteError };
 

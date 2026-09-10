@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { EntityId, KvTriples, Triples, ref } from "@bjacobso/triplex";
+import { EntityId, KvTriples, Triples, ref } from "@triplex-build/triplex";
 
 const student = EntityId.make("student:ada");
 const quiz = EntityId.make("quiz:logic-1");

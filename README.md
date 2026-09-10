@@ -17,7 +17,7 @@ An Effect-native fact database for applications that have to explain themselves.
 
 [Documentation](https://triplex.build) ·
 [GitHub](https://github.com/bjacobso/triplex) ·
-[npm](https://www.npmjs.com/package/@bjacobso/triplex) ·
+[npm](https://www.npmjs.com/package/@triplex-build/triplex) ·
 [Security](SECURITY.md)
 
 Triplex stores what is true, what was true, which versioned rules governed each write, and what
@@ -70,7 +70,7 @@ and never ask about history or provenance. Triplex is a system of record, not a 
 Install the current canary explicitly:
 
 ```sh
-pnpm add @bjacobso/triplex@next effect@4.0.0-rc.112
+pnpm add @triplex-build/triplex@next effect@4.0.0-rc.112
 ```
 
 Use `@next` until the reviewed stable `0.1.0` release: npm assigned the initial bootstrap snapshot
@@ -86,7 +86,7 @@ same program can write facts, read patterns, and run Datalog without another pac
 
 ```ts check
 import { Effect } from "effect";
-import { EntityId, KvTriples, Triples, ref, string } from "@bjacobso/triplex";
+import { EntityId, KvTriples, Triples, ref, string } from "@triplex-build/triplex";
 
 const program = Effect.gen(function* () {
   const triples = yield* Triples;
@@ -161,10 +161,10 @@ for every site they are placed on. The same six steps apply to most Triplex inte
 
 ```ts check
 import { Effect, Layer } from "effect";
-import { EntityId, KvTriples, Triples } from "@bjacobso/triplex";
-import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@bjacobso/triplex/config";
-import * as Derivation from "@bjacobso/triplex/derivation";
-import { ConsumerCheckpoint } from "@bjacobso/triplex/operational";
+import { EntityId, KvTriples, Triples } from "@triplex-build/triplex";
+import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
+import * as Derivation from "@triplex-build/triplex/derivation";
+import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
 
 // 1. Describe the domain once. Attributes own identity and type; entity types own usage rules.
 const WorkerName = Attribute.text(":worker/name");
@@ -299,7 +299,7 @@ transaction.
 Configuration is a tree-shakeable part of the primary package:
 
 ```ts
-import { Attribute, EntityType } from "@bjacobso/triplex/config";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
 
 export const EmployerName = Attribute.text(":employer/name");
 
@@ -336,7 +336,7 @@ predicates, negation, disjunction, aggregation, ordering, snapshot-stable keyset
 bounded binary recursive-rule form. Queries are schema-decoded and semantically validated before
 either the KV or SQL engine runs.
 
-`@bjacobso/triplex/derivation` pins a structural query, result identity, type, configuration
+`@triplex-build/triplex/derivation` pins a structural query, result identity, type, configuration
 snapshot, and dependency set into a content-addressed definition. Evaluation returns candidates
 with source triple and assertion-transaction provenance. Pure reconciliation reports added,
 removed, changed, and unchanged identities; the application decides whether that means opening a
@@ -376,7 +376,7 @@ while `@foldkit/ui` supplies accessible controls and Tailwind supplies styling.
 
 ## Configuration-derived HTTP API
 
-`@bjacobso/triplex-http` compiles persisted entity configuration into validated REST handlers and
+`@triplex-build/triplex-http` compiles persisted entity configuration into validated REST handlers and
 OpenAPI 3.1 without retaining the TypeScript DSL declarations. Hosts provide `Triples`,
 `ConfigStore`, an authorization layer, and their chosen HTTP server; KV and SQLite share the same
 Fetch-level integration suite. Wire objects use full global keywords, writes are atomic and pinned
@@ -386,7 +386,7 @@ See the [HTTP API guide](docs/http-api.md) and [standalone host](examples/http-a
 
 ## Agent CLI
 
-`@bjacobso/triplex-cli` exposes the same database and configuration services through Effect v4's
+`@triplex-build/triplex-cli` exposes the same database and configuration services through Effect v4's
 typed CLI modules. It is JSON-first, non-interactive, schema-validates external input, and supports
 SQLite, PostgreSQL, and database-scoped PostgreSQL:
 
@@ -450,24 +450,24 @@ pagination, projection, and host/runtime boundaries.
 
 “Supported” describes the current behavioral test boundary, not merely whether a package compiles.
 
-| Package                          | Surface                             | Status                                                        |
-| -------------------------------- | ----------------------------------- | ------------------------------------------------------------- |
-| `@bjacobso/triplex`              | `KvTriples.layer`                   | Supported in-memory baseline                                  |
-| `@bjacobso/triplex-sqlite`       | `SqliteTriples.layer({ filename })` | Supported durable baseline                                    |
-| `@bjacobso/triplex-postgres`     | `PgTriples.layer(config)`           | Candidate; shared integration/conformance is currently opt-in |
-| `@bjacobso/triplex-cloudflare`   | `CloudflareTriples.layer(...)`      | Experimental                                                  |
-| `@bjacobso/triplex-foundationdb` | `FdbTriples.layer(config)`          | Experimental                                                  |
+| Package                               | Surface                             | Status                                                        |
+| ------------------------------------- | ----------------------------------- | ------------------------------------------------------------- |
+| `@triplex-build/triplex`              | `KvTriples.layer`                   | Supported in-memory baseline                                  |
+| `@triplex-build/triplex-sqlite`       | `SqliteTriples.layer({ filename })` | Supported durable baseline                                    |
+| `@triplex-build/triplex-postgres`     | `PgTriples.layer(config)`           | Candidate; shared integration/conformance is currently opt-in |
+| `@triplex-build/triplex-cloudflare`   | `CloudflareTriples.layer(...)`      | Experimental                                                  |
+| `@triplex-build/triplex-foundationdb` | `FdbTriples.layer(config)`          | Experimental                                                  |
 
-`@bjacobso/triplex-sql` contains shared migrations and SQL query execution rather than a database.
-`@bjacobso/triplex-testkit` contains the behavioral conformance corpus used by adapters.
-`@bjacobso/triplex-host` is a private experimental package for portable tenant identity,
+`@triplex-build/triplex-sql` contains shared migrations and SQL query execution rather than a database.
+`@triplex-build/triplex-testkit` contains the behavioral conformance corpus used by adapters.
+`@triplex-build/triplex-host` is a private experimental package for portable tenant identity,
 authorization, lifecycle, and protocol contracts. The deployable reference wiring is in
 [`examples/tenant-host-cloudflare`](examples/tenant-host-cloudflare).
 
 Switching the supported quick start to SQLite changes only the provided layer:
 
 ```ts
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 
 const SqliteLive = SqliteTriples.layer({ filename: "app.db" });
 ```
@@ -477,7 +477,7 @@ const SqliteLive = SqliteTriples.layer({ filename: "app.db" });
 The standalone layer owns its pool and applies Triplex migrations as a convenience:
 
 ```ts
-import { PgTriples } from "@bjacobso/triplex-postgres";
+import { PgTriples } from "@triplex-build/triplex-postgres";
 
 const TriplexLive = PgTriples.layerFromUrl(process.env.DATABASE_URL!);
 ```
@@ -488,8 +488,8 @@ This path creates no pool and runs no migration:
 ```ts
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql";
-import { EntityId, Triples, string } from "@bjacobso/triplex";
-import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@bjacobso/triplex-postgres";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
 
 const HostSql = makePostgresqlLayerUnmigratedFromUrl(process.env.DATABASE_URL!);
 const AppDatabase = PgTriples.layerFromSqlClient({ scope: "app/main" }).pipe(
@@ -530,7 +530,7 @@ in that pool starts in the deterministic Triplex schema, and its scope is embedd
 cursors. The schema and v1 migration must already exist; `layerForDatabaseMigrated` is the explicit
 provisioning convenience for setup tools and tests.
 
-Triplex exports the ordered `migrations` and `runMigrations` from `@bjacobso/triplex-sql`.
+Triplex exports the ordered `migrations` and `runMigrations` from `@triplex-build/triplex-sql`.
 Production hosts should run them from their own deployment process against the same database or
 schema before constructing an unmigrated runtime. Triplex uses `triplex_schema_migrations`, not the
 host application's migration table.
@@ -538,16 +538,16 @@ host application's migration table.
 ## Package entrypoints
 
 ```ts
-import { Triples, KvTriples } from "@bjacobso/triplex";
-import { DatalogQuery } from "@bjacobso/triplex/datalog";
-import { SubscriptionManager } from "@bjacobso/triplex/subscriptions";
-import { ConfigStore, TypeExpr } from "@bjacobso/triplex/config";
-import { ContentId } from "@bjacobso/triplex/content";
-import * as Derivation from "@bjacobso/triplex/derivation";
-import { ConsumerCheckpoint } from "@bjacobso/triplex/operational";
+import { Triples, KvTriples } from "@triplex-build/triplex";
+import { DatalogQuery } from "@triplex-build/triplex/datalog";
+import { SubscriptionManager } from "@triplex-build/triplex/subscriptions";
+import { ConfigStore, TypeExpr } from "@triplex-build/triplex/config";
+import { ContentId } from "@triplex-build/triplex/content";
+import * as Derivation from "@triplex-build/triplex/derivation";
+import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
 ```
 
-Application code should use these public surfaces. `@bjacobso/triplex/internal` is the unstable SPI
+Application code should use these public surfaces. `@triplex-build/triplex/internal` is the unstable SPI
 for Triplex adapter packages. Public exports resolve only to built `dist` files.
 
 ## Documentation

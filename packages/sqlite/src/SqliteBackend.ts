@@ -8,9 +8,9 @@
 import { Config, Effect, Layer } from "effect";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { FileSystem } from "effect";
-import { SqliteDialect } from "@bjacobso/triplex/internal";
-import type { DatabaseId } from "@bjacobso/triplex";
-import { StorageBackend, type StorageBackendService } from "@bjacobso/triplex-sql";
+import { SqliteDialect } from "@triplex-build/triplex/internal";
+import type { DatabaseId } from "@triplex-build/triplex";
+import { StorageBackend, type StorageBackendService } from "@triplex-build/triplex-sql";
 import { SqliteAdapterLive } from "./SqliteAdapter.js";
 
 // =============================================================================

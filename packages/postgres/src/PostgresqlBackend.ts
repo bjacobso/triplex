@@ -10,9 +10,13 @@ import { Context, Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/unstable/sql";
 import { PgClient } from "@effect/sql-pg";
 import { createHash } from "node:crypto";
-import type { DatabaseId } from "@bjacobso/triplex";
-import { type SqlDialect } from "@bjacobso/triplex/internal";
-import { runMigrations, StorageBackend, type StorageBackendService } from "@bjacobso/triplex-sql";
+import type { DatabaseId } from "@triplex-build/triplex";
+import { type SqlDialect } from "@triplex-build/triplex/internal";
+import {
+  runMigrations,
+  StorageBackend,
+  type StorageBackendService,
+} from "@triplex-build/triplex-sql";
 import { PostgresqlDialect } from "./dialect.js";
 import { PostgresqlAdapterLive } from "./PostgresqlAdapter.js";
 

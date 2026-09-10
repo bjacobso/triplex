@@ -9,9 +9,9 @@ import {
   type TransactRequest,
   type Triple,
   type WrappedQuery as WrappedQueryType,
-} from "@bjacobso/triplex";
-import { ConfigStore, InMemoryConfigStore } from "@bjacobso/triplex/config";
-import type { ContentId } from "@bjacobso/triplex/content";
+} from "@triplex-build/triplex";
+import { ConfigStore, InMemoryConfigStore } from "@triplex-build/triplex/config";
+import type { ContentId } from "@triplex-build/triplex/content";
 import { Effect, Option } from "effect";
 
 export type ExecuteOptions =

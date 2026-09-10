@@ -5,8 +5,8 @@
     "lib": ["ES2024", "DOM"],
     "noEmit": true,
     "paths": {
-      "@bjacobso/triplex": ["packages/core/src/index.ts"],
-      "@bjacobso/triplex/config": ["packages/core/src/config/index.ts"]
+      "@triplex-build/triplex": ["packages/core/src/index.ts"],
+      "@triplex-build/triplex/config": ["packages/core/src/config/index.ts"]
     }
   },
   "include": ["home/**/*.ts"]

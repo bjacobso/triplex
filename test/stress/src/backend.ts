@@ -22,21 +22,21 @@ import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { NodeServices } from "@effect/platform-node";
-import { DatabaseManager } from "@bjacobso/triplex";
-import { Triples, type TriplesService } from "@bjacobso/triplex";
-import { DatabaseManagerLive, DatabaseRegistryLive } from "@bjacobso/triplex-sql";
-import { makeSqliteBackend } from "@bjacobso/triplex-sqlite";
+import { DatabaseManager } from "@triplex-build/triplex";
+import { Triples, type TriplesService } from "@triplex-build/triplex";
+import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
+import { makeSqliteBackend } from "@triplex-build/triplex-sqlite";
 import {
   makePostgresqlBackendFromUrl,
   makePostgresqlLayerFromUrl,
-} from "@bjacobso/triplex-postgres";
+} from "@triplex-build/triplex-postgres";
 import {
   InMemoryKvBackendLive,
   KvTriplesLive,
   RuntimeServicesLive,
   TripleStoreRuntimeLayer,
-} from "@bjacobso/triplex/internal";
-import { makeFdbKvBackend, type FdbKvBackendConfig } from "@bjacobso/triplex-foundationdb";
+} from "@triplex-build/triplex/internal";
+import { makeFdbKvBackend, type FdbKvBackendConfig } from "@triplex-build/triplex-foundationdb";
 import { promises as fs } from "node:fs";
 
 // ─── Types ─────────────────────────────────────────────────────────────────

@@ -14,9 +14,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
-    "@bjacobso/triplex-cloudflare": "workspace:^",
-    "@bjacobso/triplex-host": "workspace:^",
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-cloudflare": "workspace:^",
+    "@triplex-build/triplex-host": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {

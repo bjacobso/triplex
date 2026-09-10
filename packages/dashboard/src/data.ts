@@ -7,9 +7,9 @@ import {
   type TransactionRecord,
   type Triple,
   type TripleValue,
-} from "@bjacobso/triplex";
-import { ConfigNode, ConfigStore, InMemoryConfigStore } from "@bjacobso/triplex/config";
-import * as Derivation from "@bjacobso/triplex/derivation";
+} from "@triplex-build/triplex";
+import { ConfigNode, ConfigStore, InMemoryConfigStore } from "@triplex-build/triplex/config";
+import * as Derivation from "@triplex-build/triplex/derivation";
 import { Effect, Option, Schema } from "effect";
 import type {
   ConfigObjectView,
@@ -490,7 +490,7 @@ export const publishConfigChange = (
           : yield* ConfigNode.make({
               kind,
               key,
-              attrs: attrs as import("@bjacobso/triplex/config").CanonicalJson.CanonicalValue,
+              attrs: attrs as import("@triplex-build/triplex/config").CanonicalJson.CanonicalValue,
               children: target?.children ?? [],
               refs,
             });
@@ -525,7 +525,7 @@ export const moveConfigRef = (
     const config = yield* ConfigStore.ConfigStore;
     const snapshot = yield* config.setRef(
       name.trim(),
-      snapshotId as import("@bjacobso/triplex/config").ContentId.ContentId,
+      snapshotId as import("@triplex-build/triplex/config").ContentId.ContentId,
     );
     return `Moved ${name.trim()} to ${snapshot.label}`;
   });

@@ -39,8 +39,8 @@ export default defineConfig({
             strict: true,
             baseUrl: resolve(import.meta.dirname, "../.."),
             paths: {
-              "@bjacobso/triplex": ["packages/core/src/index.ts"],
-              "@bjacobso/triplex/config": ["packages/core/src/config/index.ts"],
+              "@triplex-build/triplex": ["packages/core/src/index.ts"],
+              "@triplex-build/triplex/config": ["packages/core/src/config/index.ts"],
             },
           },
         },

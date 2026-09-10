@@ -13,7 +13,7 @@ import {
   InMemoryConfigStore,
   Reactor,
   World,
-} from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex/config";
 import * as OnboardingConfig from "./OnboardingConfig.js";
 
 const { BASELINE, releaseWithRules, ruleSet } = OnboardingConfig;

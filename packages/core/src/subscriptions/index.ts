@@ -11,7 +11,7 @@
  *   checkInvalidation,
  *   SubscriptionManager,
  *   makeSubscriptionManager,
- * } from "@bjacobso/triplex/subscriptions";
+ * } from "@triplex-build/triplex/subscriptions";
  *
  * // Extract dependencies from a query
  * const deps = extractDependencies({

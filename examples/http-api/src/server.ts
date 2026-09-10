@@ -1,7 +1,7 @@
 import { NodeHttpServer, NodeRuntime, NodeServices } from "@effect/platform-node";
-import { KvTriples } from "@bjacobso/triplex";
-import { ConfigStore } from "@bjacobso/triplex/config";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import { KvTriples } from "@triplex-build/triplex";
+import { ConfigStore } from "@triplex-build/triplex/config";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer, Option, Path, Schema } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 import { HttpRouter, HttpServer } from "effect/unstable/http";

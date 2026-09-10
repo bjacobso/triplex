@@ -1,4 +1,4 @@
-# @bjacobso/triplex-http
+# @triplex-build/triplex-http
 
 > **Pre-1.0:** install this package from the `next` tag together with the matching Triplex packages
 > and `effect@4.0.0-rc.112`. Effect 3 is not compatible.
@@ -8,7 +8,7 @@ uses Effect services: hosts provide `Triples`, `ConfigStore`, and an authorizati
 mount `EntityHttp.layer` into their chosen HTTP server.
 
 ```ts
-import { EntityHttp, HttpAuthorizationAllowAll } from "@bjacobso/triplex-http";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
 import { Layer } from "effect";
 
 const routes = EntityHttp.layer({

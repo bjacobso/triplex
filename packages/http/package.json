@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-http",
+  "name": "@triplex-build/triplex-http",
   "version": "0.0.0",
   "description": "Configuration-derived HTTP APIs for Triplex",
   "keywords": [
@@ -47,7 +47,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
+    "@triplex-build/triplex": "workspace:^",
     "ulidx": "catalog:"
   },
   "devDependencies": {

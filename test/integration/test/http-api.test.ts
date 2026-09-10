@@ -5,16 +5,16 @@ import {
   Triples,
   type TripleInput,
   type TriplesService,
-} from "@bjacobso/triplex";
-import { Attribute, ConfigStore, EntityType } from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex";
+import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
 import {
   EntityHttp,
   ForbiddenError,
   HttpAuthorization,
   HttpAuthorizationAllowAll,
   UnauthorizedError,
-} from "@bjacobso/triplex-http";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+} from "@triplex-build/triplex-http";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import { describe, expect, it } from "vitest";

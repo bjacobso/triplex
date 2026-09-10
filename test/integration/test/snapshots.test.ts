@@ -13,8 +13,8 @@ import {
   triplesToAttributeMap,
   diffAttributes,
   EMPTY_ENTITY_HASH,
-} from "@bjacobso/triplex/internal";
-import { EntityId, TransactionId } from "@bjacobso/triplex";
+} from "@triplex-build/triplex/internal";
+import { EntityId, TransactionId } from "@triplex-build/triplex";
 import { SqliteTestLayer } from "./fixtures/SqliteTestLayer.js";
 
 const eid = EntityId.make;

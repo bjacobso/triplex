@@ -12,10 +12,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
-    "@bjacobso/triplex-http": "workspace:^",
-    "@bjacobso/triplex-sqlite": "workspace:^",
     "@effect/platform-node": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-http": "workspace:^",
+    "@triplex-build/triplex-sqlite": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {

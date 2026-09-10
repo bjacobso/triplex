@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
-import { Triples } from "@bjacobso/triplex";
-import { CloudflareTriples, type DOState } from "@bjacobso/triplex-cloudflare";
+import { Triples } from "@triplex-build/triplex";
+import { CloudflareTriples, type DOState } from "@triplex-build/triplex-cloudflare";
 import {
   AuthorizationError,
   InstanceIdentity,
@@ -15,7 +15,7 @@ import {
   type Principal,
   type TenantDataRequest,
   type TenantRecord as TenantRecordType,
-} from "@bjacobso/triplex-host";
+} from "@triplex-build/triplex-host";
 
 interface HostEnv {
   readonly TENANT_DATABASES: DurableObjectNamespace<TenantDatabase>;

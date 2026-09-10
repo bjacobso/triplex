@@ -5,30 +5,30 @@ import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const packageNames = [
-  "@bjacobso/triplex",
-  "@bjacobso/triplex-sql",
-  "@bjacobso/triplex-sqlite",
-  "@bjacobso/triplex-postgres",
-  "@bjacobso/triplex-cloudflare",
-  "@bjacobso/triplex-host",
-  "@bjacobso/triplex-foundationdb",
-  "@bjacobso/triplex-testkit",
-  "@bjacobso/triplex-cli",
-  "@bjacobso/triplex-http",
+  "@triplex-build/triplex",
+  "@triplex-build/triplex-sql",
+  "@triplex-build/triplex-sqlite",
+  "@triplex-build/triplex-postgres",
+  "@triplex-build/triplex-cloudflare",
+  "@triplex-build/triplex-host",
+  "@triplex-build/triplex-foundationdb",
+  "@triplex-build/triplex-testkit",
+  "@triplex-build/triplex-cli",
+  "@triplex-build/triplex-http",
 ];
 const publishPackageNames = new Set([
-  "@bjacobso/triplex",
-  "@bjacobso/triplex-sql",
-  "@bjacobso/triplex-sqlite",
-  "@bjacobso/triplex-postgres",
-  "@bjacobso/triplex-testkit",
-  "@bjacobso/triplex-cli",
-  "@bjacobso/triplex-http",
+  "@triplex-build/triplex",
+  "@triplex-build/triplex-sql",
+  "@triplex-build/triplex-sqlite",
+  "@triplex-build/triplex-postgres",
+  "@triplex-build/triplex-testkit",
+  "@triplex-build/triplex-cli",
+  "@triplex-build/triplex-http",
 ]);
 const heldPackageNames = new Set([
-  "@bjacobso/triplex-cloudflare",
-  "@bjacobso/triplex-host",
-  "@bjacobso/triplex-foundationdb",
+  "@triplex-build/triplex-cloudflare",
+  "@triplex-build/triplex-host",
+  "@triplex-build/triplex-foundationdb",
 ]);
 
 const workDir = mkdtempSync(join(tmpdir(), "triplex-pack-"));
@@ -122,7 +122,9 @@ try {
       return [name, `file:${tarball}`];
     }),
   );
-  const coreManifest = packedManifests.find((manifest) => manifest.name === "@bjacobso/triplex");
+  const coreManifest = packedManifests.find(
+    (manifest) => manifest.name === "@triplex-build/triplex",
+  );
   if (!coreManifest) throw new Error("Could not locate the packed core manifest");
   const effectVersion = coreManifest.peerDependencies.effect;
   const effectPeerVersions = new Set(
@@ -157,19 +159,19 @@ try {
 
   writeFileSync(
     join(consumerDir, "consumer.ts"),
-    `import { DatabaseId, DatalogValidationError, EntityId, TransactionId, TripleId, type TripleInput, type TriplesService } from "@bjacobso/triplex";
-import { validateDatalogQuery, type DatalogQuery } from "@bjacobso/triplex/datalog";
-import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@bjacobso/triplex/config";
-import * as Derivation from "@bjacobso/triplex/derivation";
-import * as Cloudflare from "@bjacobso/triplex-cloudflare";
-import * as FoundationDb from "@bjacobso/triplex-foundationdb";
-import * as Host from "@bjacobso/triplex-host";
-import * as Postgres from "@bjacobso/triplex-postgres";
-import { PgTriples } from "@bjacobso/triplex-postgres";
-import * as Sql from "@bjacobso/triplex-sql";
-import { makeSqliteLayer } from "@bjacobso/triplex-sqlite";
-import * as Testkit from "@bjacobso/triplex-testkit";
-import { EntityHttp, HttpAuthorizationAllowAll } from "@bjacobso/triplex-http";
+    `import { DatabaseId, DatalogValidationError, EntityId, TransactionId, TripleId, type TripleInput, type TriplesService } from "@triplex-build/triplex";
+import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/datalog";
+import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
+import * as Derivation from "@triplex-build/triplex/derivation";
+import * as Cloudflare from "@triplex-build/triplex-cloudflare";
+import * as FoundationDb from "@triplex-build/triplex-foundationdb";
+import * as Host from "@triplex-build/triplex-host";
+import * as Postgres from "@triplex-build/triplex-postgres";
+import { PgTriples } from "@triplex-build/triplex-postgres";
+import * as Sql from "@triplex-build/triplex-sql";
+import { makeSqliteLayer } from "@triplex-build/triplex-sqlite";
+import * as Testkit from "@triplex-build/triplex-testkit";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
 
 const triple: TripleInput = {
   entityId: EntityId.make("person:alice"),
@@ -251,9 +253,9 @@ void HttpAuthorizationAllowAll;
   writeFileSync(
     join(consumerDir, "smoke.mjs"),
     `import { Effect } from "effect";
-import { EntityId, Triples, string } from "@bjacobso/triplex";
-import * as Derivation from "@bjacobso/triplex/derivation";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
+import * as Derivation from "@triplex-build/triplex/derivation";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 
 const result = await Effect.runPromise(
   Effect.gen(function* () {
@@ -325,7 +327,9 @@ if (
   run("npx", ["tsc", "--project", "tsconfig.json"], consumerDir);
   run("node", ["smoke.mjs"], consumerDir);
 
-  const cliManifest = packedManifests.find((manifest) => manifest.name === "@bjacobso/triplex-cli");
+  const cliManifest = packedManifests.find(
+    (manifest) => manifest.name === "@triplex-build/triplex-cli",
+  );
   if (!cliManifest) throw new Error("Could not locate the packed CLI manifest");
   if (cliManifest.bin?.triplex !== "./dist/cli.js") {
     throw new Error("The packed CLI must expose dist/cli.js as the triplex executable");

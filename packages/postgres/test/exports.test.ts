@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { unsafe } from "@bjacobso/triplex";
+import { unsafe } from "@triplex-build/triplex";
 import {
   databaseToSchema,
   type PostgresqlDialect,

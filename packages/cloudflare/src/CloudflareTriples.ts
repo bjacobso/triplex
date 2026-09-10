@@ -5,8 +5,8 @@ import {
   QueryExecutor,
   TriplesLive,
   makeTripleStoreRuntimeLayer,
-} from "@bjacobso/triplex/internal";
-import { makeSqlQueryExecutor, type SqlStatementRunner } from "@bjacobso/triplex-sql";
+} from "@triplex-build/triplex/internal";
+import { makeSqlQueryExecutor, type SqlStatementRunner } from "@triplex-build/triplex-sql";
 import { makeCloudflareAdapterLayer, type DOState, type SqlStorageValue } from "./storage/index.js";
 
 export interface CloudflareTriplesOptions {

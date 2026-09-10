@@ -1,5 +1,5 @@
 /**
- * SQLite backend package for @bjacobso/triplex.
+ * SQLite backend package for @triplex-build/triplex.
  *
  * Provides SQLite-specific storage adapter, backend, and connection layer.
  */

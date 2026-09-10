@@ -1,5 +1,5 @@
-import { KvTriples } from "@bjacobso/triplex";
-import { ConfigStore } from "@bjacobso/triplex/config";
+import { KvTriples } from "@triplex-build/triplex";
+import { ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Layer } from "effect";
 
 import { localDashboardApiLayer } from "../api.js";

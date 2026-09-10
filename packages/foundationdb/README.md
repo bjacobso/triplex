@@ -1,9 +1,9 @@
-# @bjacobso/triplex-foundationdb
+# @triplex-build/triplex-foundationdb
 
 An ordered-KV and subscription backend for Triplex using FoundationDB.
 
 ```bash
-npm install effect @bjacobso/triplex @bjacobso/triplex-foundationdb
+npm install effect @triplex-build/triplex @triplex-build/triplex-foundationdb
 ```
 
 Requires Node.js 22 or newer and compatible FoundationDB client libraries.

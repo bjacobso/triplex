@@ -72,7 +72,7 @@ at least once, so consumers retain a checkpoint and deduplicate by command or tr
 
 ### Consumer checkpoints
 
-`@bjacobso/triplex/operational` stores one reserved, queryable checkpoint entity per named
+`@triplex-build/triplex/operational` stores one reserved, queryable checkpoint entity per named
 consumer. `ConsumerCheckpoint.advance` accepts the position read before processing and the final
 position whose effects completed. Moving it uses compare-and-retract, never moves backwards, and
 returns a typed conflict to a stale worker. The initial write is protected by the same atomic
@@ -102,7 +102,7 @@ rewrite the recorded history.
 
 ### Portable derivations and pure reconciliation
 
-`@bjacobso/triplex/derivation` provides a content-addressed `Definition` that pins a complete
+`@triplex-build/triplex/derivation` provides a content-addressed `Definition` that pins a complete
 structural Datalog query, optional result `TypeExpr`, canonical identity projection, discovered
 attribute dependencies, and configuration snapshot. Evaluation returns `Candidate` values with:
 
@@ -246,7 +246,7 @@ ambient host-owned `SqlClient`, creates no pool, and runs no DDL; both host stat
 `layerForDatabase` creates a pool whose every connection is bound at startup to the schema derived
 from a validated, server-resolved `DatabaseId`, and provides both that scoped client and `Triples`.
 The `*Migrated` variants are explicit provisioning conveniences. Production migration execution
-remains host-controlled through the ordered exports in `@bjacobso/triplex-sql`.
+remains host-controlled through the ordered exports in `@triplex-build/triplex-sql`.
 
 Subscriptions remain conservative invalidation hints rather than an automatic live-query runtime.
 Entity snapshots, validation observations, and derivation runs remain checkpointed projections;

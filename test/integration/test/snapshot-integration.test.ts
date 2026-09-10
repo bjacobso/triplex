@@ -22,10 +22,10 @@ import {
   describeCapabilities,
   TripleStoreRuntime,
   TripleStoreRuntimeLayer,
-} from "@bjacobso/triplex/internal";
-import { EntityId, TransactionId, TripleId } from "@bjacobso/triplex";
-import { SqliteAdapterLive } from "@bjacobso/triplex-sqlite";
-import { SqlQueryExecutorLive } from "@bjacobso/triplex-sql";
+} from "@triplex-build/triplex/internal";
+import { EntityId, TransactionId, TripleId } from "@triplex-build/triplex";
+import { SqliteAdapterLive } from "@triplex-build/triplex-sqlite";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 
 const sqliteDialectLayer = Layer.succeed(CurrentDialect, SqliteDialect);
 const eid = EntityId.make;

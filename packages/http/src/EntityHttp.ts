@@ -78,8 +78,8 @@ export const layer = (options: Options = {}) => {
     never,
     never,
     | HttpRouter.HttpRouter
-    | import("@bjacobso/triplex").Triples
-    | import("@bjacobso/triplex/config").ConfigStore.ConfigStore
+    | import("@triplex-build/triplex").Triples
+    | import("@triplex-build/triplex/config").ConfigStore.ConfigStore
     | HttpAuthorization
   >;
 };

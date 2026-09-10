@@ -1,7 +1,7 @@
 ---
-"@bjacobso/triplex": patch
-"@bjacobso/triplex-cli": patch
-"@bjacobso/triplex-http": patch
+"@triplex-build/triplex": patch
+"@triplex-build/triplex-cli": patch
+"@triplex-build/triplex-http": patch
 ---
 
 Fix large in-memory KV range collection and all-`0xff` key increments, and make the CLI's pre-1.0

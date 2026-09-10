@@ -1,5 +1,5 @@
-import { EntityId, KvTriples } from "@bjacobso/triplex";
-import { ConfigNode, ConfigStore } from "@bjacobso/triplex/config";
+import { EntityId, KvTriples } from "@triplex-build/triplex";
+import { ConfigNode, ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { execute } from "../src/operations.js";

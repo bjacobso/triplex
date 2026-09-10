@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-dashboard",
+  "name": "@triplex-build/triplex-dashboard",
   "version": "0.1.0",
   "private": true,
   "description": "A standalone Foldkit explorer for Triplex databases.",
@@ -15,13 +15,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
-    "@bjacobso/triplex-postgres": "workspace:^",
-    "@bjacobso/triplex-sqlite": "workspace:^",
     "@effect/platform-node": "catalog:",
     "@foldkit/ui": "catalog:",
     "@fontsource-variable/ibm-plex-sans": "catalog:",
     "@fontsource/ibm-plex-mono": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-postgres": "workspace:^",
+    "@triplex-build/triplex-sqlite": "workspace:^",
     "effect": "catalog:",
     "foldkit": "catalog:"
   },

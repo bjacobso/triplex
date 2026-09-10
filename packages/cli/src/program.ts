@@ -2,9 +2,9 @@ import {
   makePostgresqlBackend,
   PgTriples,
   type PostgresqlConfig,
-} from "@bjacobso/triplex-postgres";
-import { DatabaseManagerLive, DatabaseRegistryLive } from "@bjacobso/triplex-sql";
-import { makeSqliteBackend, SqliteTriples } from "@bjacobso/triplex-sqlite";
+} from "@triplex-build/triplex-postgres";
+import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
+import { makeSqliteBackend, SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
   DatalogQuery,
   DatabaseId,
@@ -15,10 +15,10 @@ import {
   TransactRequest,
   WrappedQuery,
   queryToPattern,
-} from "@bjacobso/triplex";
-import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@bjacobso/triplex/internal";
-import { ConfigStore } from "@bjacobso/triplex/config";
-import { ContentId } from "@bjacobso/triplex/content";
+} from "@triplex-build/triplex";
+import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
+import { ConfigStore } from "@triplex-build/triplex/config";
+import { ContentId } from "@triplex-build/triplex/content";
 import {
   Cause,
   Console,

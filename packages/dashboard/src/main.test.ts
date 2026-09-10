@@ -1,5 +1,5 @@
-import { EntityId, Triples, string } from "@bjacobso/triplex";
-import { ConfigStore } from "@bjacobso/triplex/config";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Exit } from "effect";
 import { expect as expectScene, given, role, scene, text } from "foldkit/scene";
 import { describe, expect, it } from "vitest";

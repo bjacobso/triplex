@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { Attribute, ConfigStore, EntityType } from "@bjacobso/triplex/config";
+import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
 
 const StudentName = Attribute.text(":student/name");
 

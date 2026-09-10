@@ -7,7 +7,7 @@ facts even when persisted through the same `Triples` service:
 - a `ConfigSnapshot` is an immutable release root containing revisions, schema stamps, dependency
   closures, and refs.
 
-Configuration is exported from `@bjacobso/triplex/config` rather than flattened into the package
+Configuration is exported from `@triplex-build/triplex/config` rather than flattened into the package
 root.
 
 ## Content model
@@ -23,8 +23,8 @@ Triplex system facts. A release commit and optional ref move use one atomic Trip
 
 ```ts check
 import { Layer } from "effect";
-import { KvTriples } from "@bjacobso/triplex";
-import { ConfigStore } from "@bjacobso/triplex/config";
+import { KvTriples } from "@triplex-build/triplex";
+import { ConfigStore } from "@triplex-build/triplex/config";
 
 const AppLayer = ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer));
 ```
@@ -38,8 +38,8 @@ The DSL separates three identities:
 - TypeScript property: an ergonomic local alias, such as `name`.
 
 ```ts check
-import { EntityId } from "@bjacobso/triplex";
-import { Attribute, EntityType } from "@bjacobso/triplex/config";
+import { EntityId } from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
 
 export const EmployerName = Attribute.text(":employer/name");
 

@@ -13,10 +13,10 @@ import {
   number,
   boolean,
   ref as makeRef,
-} from "@bjacobso/triplex/internal";
-import { SqlQueryExecutorLive } from "@bjacobso/triplex-sql";
-import { SqliteAdapterLive } from "@bjacobso/triplex-sqlite";
-import { EntityId, TransactionId, TripleId } from "@bjacobso/triplex";
+} from "@triplex-build/triplex/internal";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
+import { SqliteAdapterLive } from "@triplex-build/triplex-sqlite";
+import { EntityId, TransactionId, TripleId } from "@triplex-build/triplex";
 import { SqliteTestLayer } from "./fixtures/SqliteTestLayer.js";
 
 const TestLayer = SqliteTestLayer;

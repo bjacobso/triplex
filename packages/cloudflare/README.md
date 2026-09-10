@@ -1,16 +1,16 @@
-# @bjacobso/triplex-cloudflare
+# @triplex-build/triplex-cloudflare
 
 Cloudflare Durable Object SQLite storage support for Triplex.
 
 ```bash
-npm install effect @bjacobso/triplex @bjacobso/triplex-cloudflare
+npm install effect @triplex-build/triplex @triplex-build/triplex-cloudflare
 ```
 
 Compose the complete service once in a Durable Object constructor and retain the resulting Effect
 runtime for the object's activation:
 
 ```ts
-import { CloudflareTriples } from "@bjacobso/triplex-cloudflare";
+import { CloudflareTriples } from "@triplex-build/triplex-cloudflare";
 
 const layer = CloudflareTriples.layer({
   state: durableObjectState,
@@ -26,7 +26,7 @@ All work inside a `Triples.transact` boundary must remain synchronous. Effects t
 timer, network request, or other asynchronous service fail and roll back the native
 `transactionSync` callback.
 
-`pnpm --filter @bjacobso/triplex-cloudflare test` runs the shared backend corpus twice: once in a
+`pnpm --filter @triplex-build/triplex-cloudflare test` runs the shared backend corpus twice: once in a
 fast native-SQL harness and once inside Cloudflare's workerd Vitest integration with a real
 SQLite-backed Durable Object.
 

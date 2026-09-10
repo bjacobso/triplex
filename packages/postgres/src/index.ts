@@ -1,5 +1,5 @@
 /**
- * PostgreSQL backend package for @bjacobso/triplex.
+ * PostgreSQL backend package for @triplex-build/triplex.
  *
  * Provides PostgreSQL-specific storage adapter, backend, and connection layer.
  */

@@ -1,9 +1,9 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { PgTriples } from "@bjacobso/triplex-postgres";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
-import { ConfigStore } from "@bjacobso/triplex/config";
+import { PgTriples } from "@triplex-build/triplex-postgres";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Layer, Schema } from "effect";
 import { HttpRouter, HttpServerResponse, HttpStaticServer } from "effect/unstable/http";
 import { createServer } from "node:http";
@@ -20,8 +20,8 @@ interface ServerOptions {
 }
 
 const usage = `Usage:
-  pnpm --filter @bjacobso/triplex-dashboard serve -- --sqlite <database.db> [--port 4174]
-  pnpm --filter @bjacobso/triplex-dashboard serve -- --postgres <connection-url> [--port 4174]`;
+  pnpm --filter @triplex-build/triplex-dashboard serve -- --sqlite <database.db> [--port 4174]
+  pnpm --filter @triplex-build/triplex-dashboard serve -- --postgres <connection-url> [--port 4174]`;
 
 const parseOptions = (args: readonly string[]): ServerOptions => {
   const valueAfter = (flag: string): string | undefined => {

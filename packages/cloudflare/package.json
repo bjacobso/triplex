@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-cloudflare",
+  "name": "@triplex-build/triplex-cloudflare",
   "version": "0.1.0",
   "private": true,
   "description": "Cloudflare Durable Object SQLite backend for Triplex",
@@ -44,12 +44,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
-    "@bjacobso/triplex-sql": "workspace:^"
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-sql": "workspace:^"
   },
   "devDependencies": {
-    "@bjacobso/triplex-testkit": "workspace:^",
     "@cloudflare/vitest-plugin": "catalog:",
+    "@triplex-build/triplex-testkit": "workspace:^",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "better-sqlite3": "catalog:",

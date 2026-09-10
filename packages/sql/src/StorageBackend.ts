@@ -7,8 +7,8 @@
 
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql";
-import type { SqlDialect, StorageAdapter } from "@bjacobso/triplex/internal";
-import type { DatabaseId } from "@bjacobso/triplex";
+import type { SqlDialect, StorageAdapter } from "@triplex-build/triplex/internal";
+import type { DatabaseId } from "@triplex-build/triplex";
 
 // =============================================================================
 // Service Interface
