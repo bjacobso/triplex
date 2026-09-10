@@ -11,7 +11,7 @@ onlyBuiltDependencies:
 overrides:
   # rc.112's caret range otherwise resolves node-shared rc.113, which requires Effect rc.113.
   "@effect/platform-node-shared": "4.0.0-rc.112"
-  "better-sqlite3": "12.10.0"
+  "better-sqlite3": "13.0.3"
 
 catalog:
   "@changesets/cli": 3.0.1
@@ -32,7 +32,7 @@ catalog:
   "@types/node": 25.9.1
   "@types/better-sqlite3": 7.6.13
   alchemy: 2.0.0-beta.76
-  better-sqlite3: 12.10.0
+  better-sqlite3: 13.0.3
   effect: 4.0.0-rc.112
   foldkit: 0.157.0
   foundationdb: 2.0.1
