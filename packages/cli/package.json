@@ -1,6 +1,6 @@
 {
   "name": "@triplex-build/triplex-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Agent-friendly Effect CLI for exploring and operating Triplex databases.",
   "keywords": [
     "agent",
