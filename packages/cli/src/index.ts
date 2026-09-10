@@ -1,2 +1,7 @@
 export { command as rootCommand, run } from "./program.js";
-export { execute, type ExecuteOptions } from "./operations.js";
+export {
+  execute,
+  executeDatabase,
+  type ExecuteOptions,
+  type ExecuteDatabaseOptions,
+} from "./operations.js";

@@ -107,6 +107,7 @@ catalogs:
       version: 3.5.40
 
 overrides:
+  '@effect/platform-node-shared': 4.0.0-rc.112
   better-sqlite3: 12.10.0
 
 importers:
@@ -301,12 +302,18 @@ importers:
       '@bjacobso/triplex-postgres':
         specifier: workspace:^
         version: link:../postgres
+      '@bjacobso/triplex-sql':
+        specifier: workspace:^
+        version: link:../sql
       '@bjacobso/triplex-sqlite':
         specifier: workspace:^
         version: link:../sqlite
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
+      '@effect/platform-node-shared':
+        specifier: 4.0.0-rc.112
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

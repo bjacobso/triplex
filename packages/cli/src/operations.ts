@@ -1,5 +1,6 @@
 import {
   type DatalogQuery as DatalogQueryType,
+  DatabaseManager,
   type EntityId,
   Triples,
   type Pattern,
@@ -80,6 +81,18 @@ export type ExecuteOptions =
       readonly snapshotId: InMemoryConfigStore.ConfigSnapshot["id"];
     }
   | { readonly _tag: "config-impact"; readonly kind: string; readonly key: string };
+
+export type ExecuteDatabaseOptions =
+  | {
+      readonly _tag: "database-create";
+      readonly name: string;
+      readonly description?: string | undefined;
+    }
+  | { readonly _tag: "database-list" }
+  | { readonly _tag: "database-get"; readonly name: string }
+  | { readonly _tag: "database-update"; readonly name: string; readonly description: string }
+  | { readonly _tag: "database-clear"; readonly name: string }
+  | { readonly _tag: "database-delete"; readonly name: string };
 
 const isSystemEntity = (entityId: string): boolean =>
   entityId.startsWith("_triplex/") || entityId.startsWith("_tx/");
@@ -405,6 +418,33 @@ export const execute = (
           impactCandidates: impactCandidates.map((revision) => revisionView(store, revision)),
         };
       }
+    }
+  });
+
+export const executeDatabase = (
+  options: ExecuteDatabaseOptions,
+): Effect.Effect<unknown, unknown, DatabaseManager> =>
+  Effect.gen(function* () {
+    const manager = yield* DatabaseManager;
+
+    switch (options._tag) {
+      case "database-create":
+        return {
+          database: yield* manager.create(options.name, options.description),
+        };
+      case "database-list":
+        return { databases: yield* manager.list() };
+      case "database-get":
+        return { database: yield* manager.get(options.name) };
+      case "database-update":
+        return {
+          database: yield* manager.update(options.name, { description: options.description }),
+        };
+      case "database-clear":
+        return yield* manager.clear(options.name);
+      case "database-delete":
+        yield* manager.delete(options.name);
+        return { database: options.name, deleted: true };
     }
   });
 

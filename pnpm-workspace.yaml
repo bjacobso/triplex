@@ -9,6 +9,8 @@ onlyBuiltDependencies:
   - "workerd"
 
 overrides:
+  # rc.112's caret range otherwise resolves node-shared rc.113, which requires Effect rc.113.
+  "@effect/platform-node-shared": "4.0.0-rc.112"
   "better-sqlite3": "12.10.0"
 
 catalog:
@@ -16,6 +18,7 @@ catalog:
   "@cloudflare/vitest-plugin": 1.1.4
   "@cloudflare/workers-types": 5.20260904.1
   "@effect/platform-node": 4.0.0-rc.112
+  "@effect/platform-node-shared": 4.0.0-rc.112
   "@effect/sql-pg": 4.0.0-rc.112
   "@effect/sql-sqlite-node": 4.0.0-rc.112
   "@effect/vitest": 4.0.0-rc.112
