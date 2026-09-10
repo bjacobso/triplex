@@ -5,25 +5,16 @@ Effect v4 `Command`, `Flag`, and `Argument` modules and emits stable JSON envelo
 terminal-oriented tables.
 
 ```sh
-pnpm --silent triplex --sqlite ./app.db describe
-pnpm --silent triplex --sqlite ./app.db status
-pnpm --silent triplex --sqlite ./app.db entity types
+pnpm turbo run build --filter=@triplex-build/triplex-cli...
+triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
+triplex --sqlite ./app.db describe
+triplex --sqlite ./app.db status
+triplex --sqlite ./app.db entity types
 ```
 
-The same commands are available through the `triplex` binary installed by the current canary:
-
-```sh
-pnpm add @triplex-build/triplex-cli@next
-```
-
-Or run it without installing:
-
-```sh
-npx @triplex-build/triplex-cli@next db create app
-```
-
-The unscoped `triplex` name on npm belongs to an unrelated project, so the package spec must remain
-scoped when using `npx`. Once installed, the binary itself is simply `triplex`.
+The new `@triplex-build/triplex-cli` package is not yet published. Use the repository command above
+from a source checkout. After publication, the installed binary will be `triplex`; the unscoped
+`triplex` package name on npm belongs to an unrelated project.
 
 ## Agent contract
 
@@ -145,8 +136,7 @@ triplex --sqlite ./app.db transaction apply --input - <<'JSON'
   "meta": {
     "actor": "agent:curriculum",
     "commandId": "curriculum/create-mina/v1",
-    "correlationId": "course:data-systems-201",
-    "configSnapshot": "sha256-..."
+    "correlationId": "course:data-systems-201"
   }
 }
 JSON
@@ -159,7 +149,7 @@ silently applying the write twice. Inspect the durable receipt with:
 triplex --sqlite ./app.db journal receipt curriculum/create-mina/v1
 ```
 
-## Splunk configuration
+## Inspect configuration
 
 ```sh
 triplex --sqlite ./app.db config refs
@@ -168,7 +158,8 @@ triplex --sqlite ./app.db config release --ref live
 triplex --sqlite ./app.db config objects --kind form
 triplex --sqlite ./app.db config object form quiz/bitemporal-facts
 triplex --sqlite ./app.db config impact attribute :submission/status
-triplex --sqlite ./app.db config set-ref live sha256-...
+SNAPSHOT_ID='copy an actual snapshotId returned by config releases'
+triplex --sqlite ./app.db config set-ref live "$SNAPSHOT_ID"
 ```
 
 Object inspection returns every immutable revision with its canonical body, parent revision,

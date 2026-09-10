@@ -5,6 +5,10 @@ with explicit identity, provenance, temporal basis, and configuration identity. 
 engine, not a workflow engine: applications decide whether a candidate opens a task, updates a
 projection, triggers an integration, or has no operational consequence.
 
+For an accessible example of a placement producing safety-training work, start with [Derived work
+and provenance](/concepts#derived-work-and-provenance). This page defines the detailed evaluation,
+materialization, reconciliation, and overlay contracts.
+
 ## Definitions and candidates
 
 ```ts

@@ -8,16 +8,16 @@
 # Triplex
 
 > [!WARNING]
-> Triplex is pre-1.0 and currently published only as canaries under the npm `next` tag. It requires
-> the Effect v4 release candidate `effect@4.0.0-rc.112`; Effect 3 is not compatible. KV and SQLite
-> are the supported baseline, PostgreSQL is a production candidate, and Cloudflare and FoundationDB
-> are experimental. See [Current state](docs/current-state.md) for the exact maturity contract.
+> Triplex is pre-1.0. The new `@triplex-build` packages are not yet published; use a source checkout
+> for evaluation. The current tree requires `effect@4.0.0-rc.112`; Effect 3 is not compatible. KV
+> and SQLite are the supported baseline, PostgreSQL is a production candidate, and Cloudflare and
+> FoundationDB are experimental. See [Current state](docs/current-state.md) for the exact maturity
+> contract.
 
 An Effect-native fact database for applications that have to explain themselves.
 
 [Documentation](https://triplex.build) ·
 [GitHub](https://github.com/bjacobso/triplex) ·
-[npm](https://www.npmjs.com/package/@triplex-build/triplex) ·
 [Security](SECURITY.md)
 
 Triplex stores what is true, what was true, which versioned rules governed each write, and what
@@ -65,19 +65,24 @@ causal record of every change.
 **Not a fit:** high-volume telemetry, blob storage, or workloads that only need a relational table
 and never ask about history or provenance. Triplex is a system of record, not a cache or a queue.
 
-## Installation
+## Installation and evaluation
 
-Install the current canary explicitly:
+As of September 10, 2026, npm returns `404` for the new `@triplex-build` package family. Run the
+checked examples from a source checkout until the first release gates are complete:
 
 ```sh
-pnpm add @triplex-build/triplex@next effect@4.0.0-rc.112
+git clone https://github.com/bjacobso/triplex.git
+cd triplex
+corepack enable
+pnpm install --frozen-lockfile
+pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/getting-started.ts
 ```
 
-Use `@next` until the reviewed stable `0.1.0` release: npm assigned the initial bootstrap snapshot
-to `latest` when the package records were created. Triplex is ESM-only, targets Node.js 22+, and is
-aligned to `effect@4.0.0-rc.112`. The browser-safe core also runs in modern browsers and edge
-runtimes. The coordinated package and canary process is documented in
-[Releasing Triplex](docs/releasing.md).
+Do not use the superseded `@bjacobso` canaries for new work. Triplex is ESM-only, targets Node.js
+22+, and is aligned to `effect@4.0.0-rc.112`. The browser-safe core also runs in modern browsers and
+edge runtimes. The [website quickstart](docs/getting-started.md) includes expected output, Effect
+layer lifetime, and SQLite persistence. The coordinated package publication process is documented
+in [Releasing Triplex](docs/releasing.md).
 
 ## Quick start
 
@@ -151,7 +156,9 @@ of scattering unchecked string casts through domain code. Raw Datalog keeps stri
 one term can represent an entity, attribute, transaction, rule, or scalar value; its runtime schema
 validates identity positions before execution.
 
-Run `pnpm example:demo` for the smallest executable example.
+Run
+`pnpm exec tsx --tsconfig docs/snippets/tsconfig.json examples/demo/demo.ts`
+for the smallest executable example from a fresh source checkout.
 
 ## Integrating Triplex into an application
 
@@ -391,10 +398,12 @@ typed CLI modules. It is JSON-first, non-interactive, schema-validates external 
 SQLite, PostgreSQL, and database-scoped PostgreSQL:
 
 ```sh
-pnpm --silent triplex --sqlite ./app.db describe
-pnpm --silent triplex --sqlite ./app.db entity types
-pnpm --silent triplex --sqlite ./app.db --pretty config object form quiz/bitemporal-facts
-pnpm --silent triplex --sqlite ./app.db query run --input query.json
+pnpm turbo run build --filter=@triplex-build/triplex-cli...
+triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
+triplex --sqlite ./app.db describe
+triplex --sqlite ./app.db entity types
+triplex --sqlite ./app.db --pretty config object form quiz/bitemporal-facts
+triplex --sqlite ./app.db query run --input query.json
 ```
 
 Agents can inspect entity types and bitemporal facts, page entity audit history, run or explain raw
@@ -552,17 +561,23 @@ for Triplex adapter packages. Public exports resolve only to built `dist` files.
 
 ## Documentation
 
-| Document                                                 | Purpose                                             |
-| -------------------------------------------------------- | --------------------------------------------------- |
-| [Current state](docs/current-state.md)                   | Delivered behavior, maturity, limitations, releases |
-| [Datalog](docs/datalog.md)                               | Query syntax and backend-independent semantics      |
-| [Configuration](docs/configuration.md)                   | Types, releases, refs, validation, and proofs       |
-| [Derivations](docs/derivations.md)                       | Candidates, provenance, materialization, overlays   |
-| [Operational primitives](docs/operational-primitives.md) | Transactions, journal, concurrency, projections     |
-| [Architecture](ARCHITECTURE.md)                          | Package boundaries and dependency direction         |
-| [Roadmap](docs/roadmap.md)                               | Release gates and future work                       |
-| [Host integration](docs/host-integration.md)             | Runtime composition and data-migration guidance     |
-| [Source provenance](docs/provenance.md)                  | Imported repository history                         |
+| Document                                                      | Purpose                                               |
+| ------------------------------------------------------------- | ----------------------------------------------------- |
+| [Getting started](docs/getting-started.md)                    | First runnable program, output, and persistence       |
+| [Playground](docs/playground.md)                              | Local in-browser database with selectable domains     |
+| [Core concepts](docs/concepts.md)                             | Facts, time, configuration, derivation, and ownership |
+| [Configuration walkthrough](docs/configuration-versioning.md) | Publish, promote, pin, inspect, and roll back config  |
+| [CLI and dashboard](docs/tools.md)                            | Operate and explore a source-checkout database        |
+| [Troubleshooting](docs/troubleshooting.md)                    | Common failures and surprising semantics              |
+| [Current state](docs/current-state.md)                        | Delivered behavior, maturity, limitations, releases   |
+| [Datalog](docs/datalog.md)                                    | Query syntax and backend-independent semantics        |
+| [Configuration reference](docs/configuration.md)              | Types, releases, refs, validation, and proofs         |
+| [Derivations](docs/derivations.md)                            | Candidates, provenance, materialization, overlays     |
+| [Operational primitives](docs/operational-primitives.md)      | Transactions, journal, concurrency, projections       |
+| [Host integration](docs/host-integration.md)                  | Runtime composition and data-migration guidance       |
+| [Architecture](ARCHITECTURE.md)                               | Package boundaries and dependency direction           |
+| [Roadmap](docs/roadmap.md)                                    | Release gates and future work                         |
+| [Source provenance](docs/provenance.md)                       | Imported repository history                           |
 
 The focused configuration explorer remains under [`examples/config-explorer`](examples/config-explorer),
 and the full database dashboard lives under [`packages/dashboard`](packages/dashboard).

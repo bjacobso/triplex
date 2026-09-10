@@ -9,10 +9,10 @@ pageClass: triplex-index
 ---
 
 ::: warning Pre-1.0 release candidate
-Triplex is published only as npm canaries under the `next` tag and requires
-`effect@4.0.0-rc.112`. Effect 3 is not compatible. KV and SQLite are the supported baseline;
-PostgreSQL is a production candidate, while Cloudflare and FoundationDB are experimental.
-[Read the exact maturity contract](/current-state).
+The new `@triplex-build` packages are not yet published. Run Triplex from a source checkout; the
+current tree requires `effect@4.0.0-rc.112`, and Effect 3 is not compatible. KV and SQLite are the
+supported baseline; PostgreSQL is a production candidate, while Cloudflare and FoundationDB are
+experimental. [Read the exact maturity contract](/current-state).
 :::
 
 <div class="triplex-home">
@@ -24,9 +24,10 @@ PostgreSQL is a production candidate, while Cloudflare and FoundationDB are expe
       Bitemporal facts, Datalog, and typed, content-addressed configuration—built on Effect.
 </p>
 <div class="triplex-home__actions">
-<a class="triplex-home__primary" href="/current-state">
+<a class="triplex-home__primary" href="/getting-started">
         Get started<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span>
 </a>
+<a class="triplex-home__secondary" href="/playground">Try the playground</a>
 <a class="triplex-home__secondary" href="https://github.com/bjacobso/triplex">GitHub</a>
 </div>
 </header>
@@ -133,9 +134,12 @@ PostgreSQL is a production candidate, while Cloudflare and FoundationDB are expe
 </section>
 
 <nav class="triplex-home__guides" aria-label="Guides">
+<a href="/getting-started">Quickstart<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+<a href="/playground">Playground<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+<a href="/concepts">Core concepts<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/datalog">Datalog<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/configuration">Typed configuration<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/derivations">Derived facts<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
-<a href="/operational-primitives">Operations<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+<a href="/tools">CLI and dashboard<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 </nav>
 </div>

@@ -4,6 +4,10 @@ Triplex is a durable substrate for applications that need temporal facts, deriva
 This specification separates database/runtime guarantees that belong in Triplex from workflow and
 product concepts that belong in a host application.
 
+Read [Core concepts](/concepts) for the beginner-oriented model and [Host
+integration](/host-integration) for application composition. This page is the low-level operational
+contract.
+
 ## Implemented foundation
 
 ### Atomic transactions

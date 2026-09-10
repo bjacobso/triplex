@@ -6,8 +6,9 @@
     "noEmit": true,
     "paths": {
       "@triplex-build/triplex": ["packages/core/src/index.ts"],
-      "@triplex-build/triplex/config": ["packages/core/src/config/index.ts"]
+      "@triplex-build/triplex/config": ["packages/core/src/config/index.ts"],
+      "@triplex-build/triplex-sqlite": ["packages/sqlite/src/index.ts"]
     }
   },
-  "include": ["home/**/*.ts"]
+  "include": ["**/*.ts"]
 }

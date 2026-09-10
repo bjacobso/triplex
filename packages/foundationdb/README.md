@@ -2,9 +2,8 @@
 
 An ordered-KV and subscription backend for Triplex using FoundationDB.
 
-```bash
-npm install effect @triplex-build/triplex @triplex-build/triplex-foundationdb
-```
+This is a private experimental workspace package and is not available from npm. Evaluate it only
+from a source checkout with the repository's locked dependencies.
 
 Requires Node.js 22 or newer and compatible FoundationDB client libraries.
 

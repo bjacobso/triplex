@@ -2,9 +2,8 @@
 
 Cloudflare Durable Object SQLite storage support for Triplex.
 
-```bash
-npm install effect @triplex-build/triplex @triplex-build/triplex-cloudflare
-```
+This is a private experimental workspace package and is not available from npm. Evaluate it only
+from a source checkout with the repository's locked dependencies.
 
 Compose the complete service once in a Durable Object constructor and retain the resulting Effect
 runtime for the object's activation:
