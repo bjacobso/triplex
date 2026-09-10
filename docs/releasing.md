@@ -65,9 +65,9 @@ For a new package added to the family, repeat the minimal bootstrap sequence:
 
 Do not put an npm token in the repository, a shell command, or a checked-in `.npmrc`.
 
-npm assigned the first bootstrap snapshot to both `latest` and `next` and rejects deleting the
-package's only `latest` tag. Until stable `0.1.0` replaces it, documentation and consumer checks
-must always install `@next` explicitly.
+The new scope currently has no published package records. During bootstrap, verify which dist-tags
+npm assigns and keep consumer checks on explicit `@next` versions until stable `0.1.0` is released;
+do not assume the registry state in documentation before checking it.
 
 The six pre-stable packages under `@bjacobso` are a superseded bootstrap line. After the
 `@triplex-build` stable release is available, deprecate every old version with a message directing
@@ -106,7 +106,7 @@ share the `triplex` stack's `prod` state. Secrets Store Edit is required to bind
 secret when a fresh runner authenticates; Secrets Store Read alone is insufficient. See
 [Cloudflare's Secrets Store permissions](https://developers.cloudflare.com/secrets-store/access-control/).
 
-## Verify the canary
+## Verify the canary after bootstrap
 
 Install from the registry in a clean directory outside this monorepo:
 

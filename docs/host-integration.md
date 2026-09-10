@@ -5,6 +5,10 @@ an application that also owns relational operational records. The host remains r
 authentication, authorization, HTTP contracts, durable work, response caching, external effects,
 and product-specific invariants.
 
+Start with [Core concepts](/concepts#constraints-and-responsibility-boundaries) if that separation
+is unfamiliar. Use [CLI and dashboard](/tools) for local inspection and
+[Troubleshooting](/troubleshooting) for common runtime and freshness failures.
+
 The executable companion is
 [`examples/compliance-host`](https://github.com/bjacobso/triplex/tree/main/examples/compliance-host).
 Despite its focused scenario, it uses only generic Triplex primitives: content-addressed

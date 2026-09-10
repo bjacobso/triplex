@@ -12,6 +12,16 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   outDir: resolve(import.meta.dirname, "../../dist"),
+  vite: {
+    resolve: {
+      alias: [
+        {
+          find: /^@triplex-build\/triplex$/,
+          replacement: resolve(import.meta.dirname, "../../packages/core/src/index.ts"),
+        },
+      ],
+    },
+  },
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: "/mark.svg" }],
     ["meta", { name: "theme-color", content: "#0b1020" }],
@@ -51,15 +61,46 @@ export default defineConfig({
     logo: { src: "/mark.svg", alt: "Triplex" },
     siteTitle: "Triplex",
     nav: [
-      { text: "Current state", link: "/current-state" },
-      { text: "Datalog", link: "/datalog" },
-      { text: "Configuration", link: "/configuration" },
+      { text: "Get started", link: "/getting-started" },
+      { text: "Playground", link: "/playground" },
+      { text: "Concepts", link: "/concepts" },
+      {
+        text: "Reference",
+        items: [
+          { text: "Datalog", link: "/datalog" },
+          { text: "Configuration", link: "/configuration" },
+          { text: "Operational primitives", link: "/operational-primitives" },
+          { text: "HTTP API", link: "/http-api" },
+        ],
+      },
+      { text: "Operate", link: "/tools" },
     ],
     sidebar: [
       {
         text: "Start",
         items: [
+          { text: "Getting started", link: "/getting-started" },
+          { text: "Playground", link: "/playground" },
+          { text: "Core concepts", link: "/concepts" },
           { text: "Current state", link: "/current-state" },
+        ],
+      },
+      {
+        text: "Learn",
+        items: [
+          { text: "Datalog", link: "/datalog" },
+          { text: "Configuration walkthrough", link: "/configuration-versioning" },
+          { text: "Derivations", link: "/derivations" },
+          { text: "Provenance", link: "/provenance" },
+        ],
+      },
+      {
+        text: "Reference",
+        items: [
+          { text: "Configuration", link: "/configuration" },
+          { text: "Operational primitives", link: "/operational-primitives" },
+          { text: "Configuration HTTP API", link: "/http-api" },
+          { text: "Performance", link: "/performance" },
           {
             text: "Architecture",
             link: "https://github.com/bjacobso/triplex/blob/main/ARCHITECTURE.md",
@@ -67,24 +108,17 @@ export default defineConfig({
         ],
       },
       {
-        text: "Core",
+        text: "Operate",
         items: [
-          { text: "Datalog", link: "/datalog" },
-          { text: "Configuration", link: "/configuration" },
-          { text: "Derivations", link: "/derivations" },
-          { text: "Provenance", link: "/provenance" },
+          { text: "CLI and dashboard", link: "/tools" },
+          { text: "Host integration", link: "/host-integration" },
+          { text: "Troubleshooting and FAQ", link: "/troubleshooting" },
+          { text: "Releasing", link: "/releasing" },
         ],
       },
       {
-        text: "Operate",
-        items: [
-          { text: "Operational primitives", link: "/operational-primitives" },
-          { text: "Host integration", link: "/host-integration" },
-          { text: "Configuration HTTP API", link: "/http-api" },
-          { text: "Performance", link: "/performance" },
-          { text: "Releasing", link: "/releasing" },
-          { text: "Roadmap", link: "/roadmap" },
-        ],
+        text: "Project",
+        items: [{ text: "Roadmap", link: "/roadmap" }],
       },
     ],
     search: {

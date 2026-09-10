@@ -13,6 +13,15 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(root).not.toHaveClass(/dark/);
     }
     await expect(page.getByRole("heading", { level: 1, name: "Triplex" })).toBeVisible();
+    const content = page.locator("#VPContent");
+    await expect(content.getByRole("link", { name: /Get started/ })).toHaveAttribute(
+      "href",
+      "/getting-started",
+    );
+    await expect(content.getByRole("link", { name: "Try the playground" })).toHaveAttribute(
+      "href",
+      "/playground",
+    );
     const examples = page.locator('.triplex-home__snippet div[class*="language-"]');
     await expect(examples).toHaveCount(3);
     for (const example of await examples.all()) {

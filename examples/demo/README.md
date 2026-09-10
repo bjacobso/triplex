@@ -6,7 +6,7 @@ raw triples, filter with Datalog, and traverse a relationship with a Datalog joi
 From the repository root:
 
 ```sh
-pnpm example:demo
+pnpm exec tsx --tsconfig docs/snippets/tsconfig.json examples/demo/demo.ts
 ```
 
 The same program can use SQLite or a candidate/experimental backend by replacing

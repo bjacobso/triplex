@@ -6,15 +6,12 @@ The platform-neutral core includes temporal triples, an in-memory ordered-KV hex
 Datalog querying, subscriptions, entity snapshots, configuration releases,
 and Effect services.
 
-## Install
+## Availability
 
-```bash
-npm install effect@4.0.0-rc.112 @triplex-build/triplex@next
-```
-
-Pre-1.0 canaries are published under the `next` tag. Use an exact canary version in lockstep
-deployments; the unqualified install currently resolves the bootstrap snapshot until reviewed
-stable `0.1.0` replaces it.
+The `@triplex-build` package family is not yet published. Evaluate this package from the repository
+workspace with Node.js 22+, pnpm 10.11.0, and the locked `effect@4.0.0-rc.112` dependency. See the
+[source-checkout quickstart](../../docs/getting-started.md). Do not use the superseded
+`@bjacobso` canaries for new work.
 
 ## In-memory store
 

@@ -86,11 +86,12 @@ outside the normal test matrix.
 ## Honest limitations
 
 - The seven public packages are prepared for coordinated publication under the `@triplex-build`
-  organization scope. Stable `0.1.0` has not been published. The GitHub repository is
-  `bjacobso/triplex`, and the local `origin` uses that canonical URL.
-- npm assigned the package family's first bootstrap snapshot to `latest` as well as `next`, and the
-  registry rejects removing the only `latest` tag. Consumers must request `@next` explicitly until
-  stable `0.1.0` replaces it.
+  organization scope, but no package under that scope is available from npm yet. Stable `0.1.0` has
+  not been published. The GitHub repository is `bjacobso/triplex`, and the local `origin` uses that
+  canonical URL.
+- The superseded `@bjacobso` bootstrap packages are not the installation path for new consumers.
+  Evaluation uses a current source checkout until the scoped package bootstrap and registry checks
+  pass.
 - `SubscriptionManager` discovers dependencies and reports possible invalidations. It does not
   push result deltas or automatically re-run queries.
 - Entity snapshots, validation results, and derivation materializations are projections. Callers
@@ -114,9 +115,11 @@ outside the normal test matrix.
 
 ## First-release gates
 
-1. Merge the initial Changesets version PR, which advances the public packages from `0.0.0` to
+1. Bootstrap the `@triplex-build` package records, configure npm trusted publishing, and verify a
+   registry-only `next` consumer for the whole coordinated package family.
+2. Merge the initial Changesets version PR, which advances the public packages from `0.0.0` to
    `0.1.0`.
-2. Publish the scoped stable packages together and verify their peer dependency, provenance, CLI,
+3. Publish the scoped stable packages together and verify their peer dependency, provenance, CLI,
    and exports behavior from the registry.
 
 Cloudflare and FoundationDB are private for the first release. Their source stays in the monorepo

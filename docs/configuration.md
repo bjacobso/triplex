@@ -3,6 +3,11 @@
 Triplex configuration is immutable, typed, and content-addressed. It is separate from operational
 facts even when persisted through the same `Triples` service:
 
+::: tip Looking for the release workflow?
+Start with the [complete publish, promote, pin, inspect, and rollback
+walkthrough](/configuration-versioning). This page is the detailed configuration contract.
+:::
+
 - an `EntitySnapshot` materializes one fact entity at a transaction or time;
 - a `ConfigSnapshot` is an immutable release root containing revisions, schema stamps, dependency
   closures, and refs.
@@ -206,8 +211,13 @@ Validation observations remain useful for migrations and audit even when enforce
 Applications normally resolve one pinned release, collect its rules, and pass both its
 `configSnapshot` and enforcement set at the command boundary.
 
-## Browser explorer
+## Explore configuration
 
-The standalone [`examples/config-explorer`](https://github.com/bjacobso/triplex/tree/main/examples/config-explorer) workspace demonstrates
-typed nodes, releases, refs, impact analysis, evaluation, and proof tamper detection without
-importing source files from another package.
+The repository dashboard exposes typed nodes, releases, refs, immutable object history, and impact
+analysis over its demo database or a supplied SQLite/PostgreSQL database. The CLI provides the same
+operator-oriented history and ref controls as stable JSON. See [CLI and
+dashboard](/tools#inspect-configuration).
+
+Continue to [Derivations](/derivations) to use a pinned configuration snapshot in explainable
+derived work, or [Troubleshooting](/troubleshooting#does-moving-a-config-ref-roll-back-data) for
+common release and rollback surprises.

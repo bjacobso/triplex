@@ -4,6 +4,12 @@ Triplex exposes bounded Datalog pages through `Triples.query` and a wrapped form
 `Triples.queryPage`. Both default to 100 bindings and allow at most 1,000 per page. The in-memory KV and SQL engines share one schema, semantic preflight, result
 identity, ordering contract, and bitemporal basis.
 
+If facts, relationships, or the two time axes are new, read [Core concepts](/concepts) first. A
+Datalog clause is a pattern over `(entity, attribute, value)`. Reusing a `?variable` joins clauses;
+the `find` list selects the bindings returned to the caller. For example, joining a worker's
+placement site to a certificate site answers whether the same relationship exists—not merely
+whether either entity has some site fact.
+
 ## Query shape
 
 ```ts
