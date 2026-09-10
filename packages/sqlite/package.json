@@ -1,6 +1,6 @@
 {
   "name": "@triplex-build/triplex-sqlite",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "SQLite backend for Triplex",
   "keywords": [
     "database",
