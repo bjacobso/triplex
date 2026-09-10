@@ -38,7 +38,7 @@ catalog:
   foundationdb: 2.0.1
   oxfmt: 0.44.0
   oxlint: 1.59.0
-  testcontainers: 11.14.0
+  testcontainers: 12.1.0
   tsdown: 0.21.7
   tsx: 4.19.0
   turbo: 2.8.20
