@@ -25,7 +25,7 @@ import {
   type CompiledQuery,
   type CompiledWrappedQuery,
   SqliteDialect,
-} from "@bjacobso/triplex/internal";
+} from "@triplex-build/triplex/internal";
 
 // =============================================================================
 // Result Row Type

@@ -10,7 +10,7 @@ import {
   string,
   type TransactOp,
   type Triple,
-} from "@bjacobso/triplex";
+} from "@triplex-build/triplex";
 import {
   Attribute,
   ConfigNode,
@@ -18,9 +18,9 @@ import {
   EntityType,
   GraphConstraint,
   TypeExpr,
-} from "@bjacobso/triplex/config";
-import * as Derivation from "@bjacobso/triplex/derivation";
-import { ConsumerCheckpoint } from "@bjacobso/triplex/operational";
+} from "@triplex-build/triplex/config";
+import * as Derivation from "@triplex-build/triplex/derivation";
+import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
 
 const PLACEMENT_WORKER = ":placement/worker";
 const PLACEMENT_SITE = ":placement/site";

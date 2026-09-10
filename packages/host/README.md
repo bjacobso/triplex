@@ -1,8 +1,8 @@
-# @bjacobso/triplex-host
+# @triplex-build/triplex-host
 
 Portable Effect contracts for hosting isolated Triplex databases. This package owns immutable
 instance identity, authorization, lifecycle registry/provisioner contracts, route fencing, and the
-versioned data protocol. It depends only on public `@bjacobso/triplex` APIs and Effect; providers
+versioned data protocol. It depends only on public `@triplex-build/triplex` APIs and Effect; providers
 implement these contracts in their own packages or applications.
 
 An instance identity includes environment, tenant, database, and generation. Gateways resolve a

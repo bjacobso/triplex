@@ -1,5 +1,5 @@
-import { Attribute, ConfigStore, EntityType } from "@bjacobso/triplex/config";
-import { EntityHttp, HttpAuthorizationAllowAll } from "@bjacobso/triplex-http";
+import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
 import { Effect, Layer } from "effect";
 
 const EmployeeName = Attribute.text(":employee/name");

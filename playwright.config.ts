@@ -35,7 +35,8 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: "pnpm --filter @bjacobso/triplex-dashboard exec vite --host 127.0.0.1 --port 4174",
+      command:
+        "pnpm --filter @triplex-build/triplex-dashboard exec vite --host 127.0.0.1 --port 4174",
       url: "http://127.0.0.1:4174",
       reuseExistingServer: !process.env.CI,
     },

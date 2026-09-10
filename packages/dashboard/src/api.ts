@@ -1,5 +1,9 @@
-import { TemporalBasis, Triples, type TemporalBasis as TemporalBasisType } from "@bjacobso/triplex";
-import { ConfigStore } from "@bjacobso/triplex/config";
+import {
+  TemporalBasis,
+  Triples,
+  type TemporalBasis as TemporalBasisType,
+} from "@triplex-build/triplex";
+import { ConfigStore } from "@triplex-build/triplex/config";
 import { Context, Effect, Layer, Schema } from "effect";
 
 import {

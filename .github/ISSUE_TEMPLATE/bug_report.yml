@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Triplex and Effect versions
-      placeholder: "@bjacobso/triplex@…; effect@…"
+      placeholder: "@triplex-build/triplex@…; effect@…"
     validations:
       required: true
   - type: dropdown

@@ -11,10 +11,10 @@ import {
   Triples,
   type DatalogQuery,
   type QueryContext,
-} from "@bjacobso/triplex/internal";
-import { EntityId } from "@bjacobso/triplex";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
-import { ConfigStore, EntityValidation, TypeExpr } from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex/internal";
+import { EntityId } from "@triplex-build/triplex";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { ConfigStore, EntityValidation, TypeExpr } from "@triplex-build/triplex/config";
 
 const eid = EntityId.make;
 const ref = (value: string) => makeRef(eid(value));

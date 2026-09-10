@@ -1,9 +1,9 @@
 /** Opt-in query benchmark. PG_BENCH_URL must point to a disposable database. */
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql";
-import { Triples, type DatalogQuery, type PagedQueryResponse } from "@bjacobso/triplex";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
-import { PgTriples } from "@bjacobso/triplex-postgres";
+import { Triples, type DatalogQuery, type PagedQueryResponse } from "@triplex-build/triplex";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { PgTriples } from "@triplex-build/triplex-postgres";
 
 const size = Number(process.env["DATALOG_BENCH_ENTITIES"] ?? 10_000);
 if (!Number.isSafeInteger(size) || size < 100 || size > 1_000_000)

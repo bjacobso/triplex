@@ -8,8 +8,8 @@ import {
   type TripleInput,
   ref,
   string,
-} from "@bjacobso/triplex";
-import { Attribute, EntityType } from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
 
 describe("branded public identities", () => {
   it("requires decoded entity ids for assertions and references", () => {

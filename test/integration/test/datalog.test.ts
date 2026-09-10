@@ -8,8 +8,8 @@ import {
   ref as makeRef,
   compileWithRules,
   type DatalogQuery,
-} from "@bjacobso/triplex/internal";
-import { EntityId } from "@bjacobso/triplex";
+} from "@triplex-build/triplex/internal";
+import { EntityId } from "@triplex-build/triplex";
 import { SqliteTestLayer } from "./fixtures/SqliteTestLayer.js";
 
 const TestLayer = SqliteTestLayer;

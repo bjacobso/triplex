@@ -1,8 +1,8 @@
 import { NodeServices } from "@effect/platform-node";
-import { DatabaseManager } from "@bjacobso/triplex";
-import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@bjacobso/triplex/internal";
-import { DatabaseManagerLive, DatabaseRegistryLive } from "@bjacobso/triplex-sql";
-import { makeSqliteBackend } from "@bjacobso/triplex-sqlite";
+import { DatabaseManager } from "@triplex-build/triplex";
+import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
+import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
+import { makeSqliteBackend } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { Triples } from "@bjacobso/triplex";
+import { Triples } from "@triplex-build/triplex";
 
 export const openGradingTasks = Effect.gen(function* () {
   const triples = yield* Triples;

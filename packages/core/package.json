@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex",
+  "name": "@triplex-build/triplex",
   "version": "0.0.0",
   "description": "An Effect-native fact database with Datalog and typed, content-addressed configuration.",
   "keywords": [

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit, Layer, Schema } from "effect";
-import { EntityId } from "@bjacobso/triplex";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import { EntityId } from "@triplex-build/triplex";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
   AuthorizationError,
   InMemoryTenantRegistryLive,

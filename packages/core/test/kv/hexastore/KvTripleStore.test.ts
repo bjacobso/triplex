@@ -7,7 +7,7 @@ import {
 } from "../../../src/kv/hexastore/KvTripleStore.js";
 import { makeTestKvBackend } from "../../../src/kv/kv/InMemoryKvBackend.js";
 import type { KvBackendService } from "../../../src/kv/kv/KvBackend.js";
-import type { TripleValue } from "@bjacobso/triplex";
+import type { TripleValue } from "@triplex-build/triplex";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 

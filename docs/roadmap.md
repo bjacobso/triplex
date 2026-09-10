@@ -1,6 +1,6 @@
 # Triplex roadmap
 
-This document outlines strategic enhancements to make `@bjacobso/triplex` a world-class, open-source triple store and Datalog engine.
+This document outlines strategic enhancements to make `@triplex-build/triplex` a world-class, open-source triple store and Datalog engine.
 
 For the implemented surface, backend maturity, and release status, start with
 [`current-state.md`](current-state.md). Items below are future work unless explicitly marked

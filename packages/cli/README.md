@@ -13,13 +13,13 @@ pnpm --silent triplex --sqlite ./app.db entity types
 The same commands are available through the `triplex` binary installed by the current canary:
 
 ```sh
-pnpm add @bjacobso/triplex-cli@next
+pnpm add @triplex-build/triplex-cli@next
 ```
 
 Or run it without installing:
 
 ```sh
-npx @bjacobso/triplex-cli@next db create app
+npx @triplex-build/triplex-cli@next db create app
 ```
 
 The unscoped `triplex` name on npm belongs to an unrelated project, so the package spec must remain

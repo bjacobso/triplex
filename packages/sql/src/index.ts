@@ -1,5 +1,5 @@
 /**
- * @bjacobso/triplex-sql
+ * @triplex-build/triplex-sql
  *
  * SQL-bound database code: query executors, storage backends,
  * migrations, and layer implementations that depend on @effect/sql.

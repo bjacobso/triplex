@@ -1,6 +1,6 @@
 # Configuration-derived HTTP API
 
-`@bjacobso/triplex-http` turns a persisted `ConfigSnapshot` into runtime request/response schemas,
+`@triplex-build/triplex-http` turns a persisted `ConfigSnapshot` into runtime request/response schemas,
 an Effect `HttpApi`, OpenAPI 3.1, and REST handlers. It never needs the original `Attribute` or
 `EntityType` TypeScript values after deployment. The package depends only on public Triplex core
 and config APIs; the host chooses and provides its backend and server.
@@ -8,9 +8,9 @@ and config APIs; the host chooses and provides its backend and server.
 ## Host composition
 
 ```ts
-import { ConfigStore } from "@bjacobso/triplex/config";
-import { EntityHttp, HttpAuthorizationAllowAll } from "@bjacobso/triplex-http";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import { ConfigStore } from "@triplex-build/triplex/config";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
+import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Layer } from "effect";
 
 const database = ConfigStore.layer.pipe(

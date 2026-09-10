@@ -7,15 +7,15 @@ GitHub Actions; routine releases should not depend on a maintainer's local npm c
 
 The first public release contains:
 
-- `@bjacobso/triplex`
-- `@bjacobso/triplex-sql`
-- `@bjacobso/triplex-sqlite`
-- `@bjacobso/triplex-postgres`
-- `@bjacobso/triplex-testkit`
-- `@bjacobso/triplex-cli`
-- `@bjacobso/triplex-http`
+- `@triplex-build/triplex`
+- `@triplex-build/triplex-sql`
+- `@triplex-build/triplex-sqlite`
+- `@triplex-build/triplex-postgres`
+- `@triplex-build/triplex-testkit`
+- `@triplex-build/triplex-cli`
+- `@triplex-build/triplex-http`
 
-`@bjacobso/triplex-cloudflare` and `@bjacobso/triplex-foundationdb` remain private workspace
+`@triplex-build/triplex-cloudflare` and `@triplex-build/triplex-foundationdb` remain private workspace
 packages until they pass the supported backend conformance contract. The dashboard and examples
 are also private.
 
@@ -43,16 +43,17 @@ publisher after the package exists:
 Allow direct `npm publish` for this workflow. It runs on a GitHub-hosted runner with
 `id-token: write`; npm therefore issues a short-lived OIDC credential and records provenance.
 
-## One-time npm bootstrap (completed)
+## One-time npm bootstrap
 
 npm package settings do not exist until the package has first been created. The package family was
-bootstrapped with an authenticated local canary, then the original six trusted publishers were registered
-and verified by a second GitHub Actions OIDC canary. No long-lived npm token is required by the
-current workflow.
+originally tested under the maintainer's scope using pre-stable canaries. The public package family
+now uses the `@triplex-build` organization scope. Bootstrap that scope with a short-lived token,
+then leave GitHub Actions OIDC as the only automation credential.
 
 For a new package added to the family, repeat the minimal bootstrap sequence:
 
-1. Authenticate as the npm owner of the `@bjacobso` scope and confirm the new name is available.
+1. Authenticate as an npm owner of the `@triplex-build` organization and confirm the new name is
+   available.
 2. Create a granular token limited to the new package with publish access and the minimum useful
    lifetime.
 3. Store it as the `NPM_TOKEN` secret on the protected `npm-publish` GitHub environment.
@@ -67,6 +68,10 @@ Do not put an npm token in the repository, a shell command, or a checked-in `.np
 npm assigned the first bootstrap snapshot to both `latest` and `next` and rejects deleting the
 package's only `latest` tag. Until stable `0.1.0` replaces it, documentation and consumer checks
 must always install `@next` explicitly.
+
+The six pre-stable packages under `@bjacobso` are a superseded bootstrap line. After the
+`@triplex-build` stable release is available, deprecate every old version with a message directing
+consumers to its corresponding `@triplex-build` package. Do not unpublish the old artifacts.
 
 ## Documentation deployment
 
@@ -108,9 +113,9 @@ Install from the registry in a clean directory outside this monorepo:
 ```sh
 pnpm init
 pnpm add effect@4.0.0-rc.112 \
-  @bjacobso/triplex@next \
-  @bjacobso/triplex-sqlite@next \
-  @bjacobso/triplex-cli@next
+  @triplex-build/triplex@next \
+  @triplex-build/triplex-sqlite@next \
+  @triplex-build/triplex-cli@next
 pnpm exec triplex --help
 pnpm exec triplex --sqlite ./canary.sqlite describe
 ```

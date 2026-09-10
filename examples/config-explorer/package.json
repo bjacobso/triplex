@@ -10,7 +10,7 @@
     "clean": "rm -rf build"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
+    "@triplex-build/triplex": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {

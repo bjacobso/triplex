@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Effect, Layer, Schedule } from "effect";
 import { SqlClient } from "effect/unstable/sql";
-import { generateId } from "@bjacobso/triplex/internal";
-import { EntityId, string, boolean, ref } from "@bjacobso/triplex";
+import { generateId } from "@triplex-build/triplex/internal";
+import { EntityId, string, boolean, ref } from "@triplex-build/triplex";
 import { writeFileSync } from "node:fs";
 import { arch, cpus, platform, totalmem } from "node:os";
 import {

@@ -4,7 +4,7 @@ import {
   EntityValidation,
   InMemoryConfigStore,
   TypeExpr,
-} from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex/config";
 import { Effect, Result } from "effect";
 import { describe, expect, it } from "vitest";
 

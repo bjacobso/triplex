@@ -1,4 +1,4 @@
-import { ConfigStore } from "@bjacobso/triplex/config";
+import { ConfigStore } from "@triplex-build/triplex/config";
 import { Context, Effect, Layer } from "effect";
 
 import { VersionNotFoundError } from "./Errors.js";

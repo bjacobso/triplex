@@ -19,8 +19,8 @@ import {
   ReadError,
   MigrationError,
   isPatternVariable,
-} from "@bjacobso/triplex/internal";
-import { packValue, runMigrations, INDEX_DDLS, INDEX_NAMES } from "@bjacobso/triplex-sql";
+} from "@triplex-build/triplex/internal";
+import { packValue, runMigrations, INDEX_DDLS, INDEX_NAMES } from "@triplex-build/triplex-sql";
 
 // =============================================================================
 // Configuration

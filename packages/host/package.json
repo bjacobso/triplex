@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-host",
+  "name": "@triplex-build/triplex-host",
   "version": "0.1.0",
   "private": true,
   "description": "Portable isolated-tenant hosting contracts for Triplex",
@@ -44,10 +44,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^"
+    "@triplex-build/triplex": "workspace:^"
   },
   "devDependencies": {
-    "@bjacobso/triplex-sqlite": "workspace:^",
+    "@triplex-build/triplex-sqlite": "workspace:^",
     "@types/node": "catalog:",
     "effect": "catalog:",
     "vitest": "catalog:"

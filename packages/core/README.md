@@ -1,4 +1,4 @@
-# @bjacobso/triplex
+# @triplex-build/triplex
 
 An Effect-native fact database with Datalog and typed, content-addressed configuration.
 
@@ -9,7 +9,7 @@ and Effect services.
 ## Install
 
 ```bash
-npm install effect@4.0.0-rc.112 @bjacobso/triplex@next
+npm install effect@4.0.0-rc.112 @triplex-build/triplex@next
 ```
 
 Pre-1.0 canaries are published under the `next` tag. Use an exact canary version in lockstep
@@ -20,7 +20,7 @@ stable `0.1.0` replaces it.
 
 ```ts check
 import { Effect } from "effect";
-import { EntityId, KvTriples, Triples, string } from "@bjacobso/triplex";
+import { EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
 
 const program = Effect.gen(function* () {
   const triples = yield* Triples;
@@ -41,19 +41,19 @@ const program = Effect.gen(function* () {
 Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer)));
 ```
 
-SQL implementations live in `@bjacobso/triplex-sql` and the backend-specific packages.
+SQL implementations live in `@triplex-build/triplex-sql` and the backend-specific packages.
 
 ## Typed configuration
 
 ```ts
-import { Triples } from "@bjacobso/triplex";
+import { Triples } from "@triplex-build/triplex";
 import {
   ConfigRuntime,
   ConfigStore,
   EntityValidation,
   Evaluate,
   TypeExpr,
-} from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex/config";
 ```
 
 `ConfigStore.layer` stores typed configuration graphs, immutable `ConfigSnapshot`
@@ -86,7 +86,7 @@ is a complete immutable configuration release; they have separate APIs and ident
 
 ## Portable derivations
 
-`@bjacobso/triplex/derivation` evaluates content-addressed structural Datalog definitions
+`@triplex-build/triplex/derivation` evaluates content-addressed structural Datalog definitions
 at a pinned bitemporal basis. It deduplicates results by an explicit logical identity,
 merges source triple and transaction provenance from every matching graph path, discovers
 attribute dependencies, and returns candidates suitable for application-owned reconciliation.
@@ -110,7 +110,7 @@ clauses are rejected with typed errors.
 
 ## Content addressing
 
-`@bjacobso/triplex/content` exports deterministic canonical encoding and browser-safe,
+`@triplex-build/triplex/content` exports deterministic canonical encoding and browser-safe,
 domain-separated SHA-256 `ContentId` values. IDs use the format
 `sha256-<64 lowercase hex characters>`.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@bjacobso/triplex-testkit",
+  "name": "@triplex-build/triplex-testkit",
   "version": "0.0.0",
   "description": "Backend test helpers for Triplex",
   "keywords": [
@@ -45,7 +45,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^"
+    "@triplex-build/triplex": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "catalog:",

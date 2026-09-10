@@ -50,7 +50,7 @@ select a server-owned database mapping before exposing `Triples` to application 
 | Server-mapped PostgreSQL database               | `PgTriples.layerForDatabase(config, databaseId)` |
 
 Application code should depend on `Triples`, not the internal `StorageAdapter`. The
-`@bjacobso/triplex/internal` entry point is an adapter SPI and is not required for host
+`@triplex-build/triplex/internal` entry point is an adapter SPI and is not required for host
 integration.
 
 ## One database per isolation boundary
@@ -93,8 +93,8 @@ A host-owned Effect SQL client can back Triplex without a hidden second pool:
 ```ts
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql";
-import { EntityId, Triples, string } from "@bjacobso/triplex";
-import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@bjacobso/triplex-postgres";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
 
 const HostSql = makePostgresqlLayerUnmigratedFromUrl(process.env.DATABASE_URL!);
 const DatabaseLive = PgTriples.layerFromSqlClient({ scope: "host/main" }).pipe(
@@ -136,7 +136,7 @@ boundary.
 
 ## Host-controlled migrations
 
-`@bjacobso/triplex-sql` exports the ordered `migrations` definitions and `runMigrations`. Run them
+`@triplex-build/triplex-sql` exports the ordered `migrations` definitions and `runMigrations`. Run them
 from the host's deployment process against the same database or scoped schema before constructing
 an unmigrated runtime. Triplex records its state in `triplex_schema_migrations`, avoiding the
 host's migration table.

@@ -19,8 +19,8 @@ import {
   MigrationError,
   createParamCollector,
   isPatternVariable,
-} from "@bjacobso/triplex/internal";
-import { packValue, runMigrations } from "@bjacobso/triplex-sql";
+} from "@triplex-build/triplex/internal";
+import { packValue, runMigrations } from "@triplex-build/triplex-sql";
 import { PostgresqlDialect } from "./dialect.js";
 
 /**

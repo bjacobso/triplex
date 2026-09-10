@@ -8,7 +8,7 @@
  * Tests are skipped if Docker is not available.
  *
  * Run with:
- *   pnpm test --filter @bjacobso/triplex-postgres -- test/integration/postgresql.test.ts
+ *   pnpm test --filter @triplex-build/triplex-postgres -- test/integration/postgresql.test.ts
  */
 
 import { describe, it, expect } from "vitest";
@@ -23,16 +23,20 @@ import {
   string,
   number,
   ref,
-} from "@bjacobso/triplex";
-import { compile } from "@bjacobso/triplex/datalog";
-import { ConfigNode, ConfigStore, GraphConstraint } from "@bjacobso/triplex/config";
+} from "@triplex-build/triplex";
+import { compile } from "@triplex-build/triplex/datalog";
+import { ConfigNode, ConfigStore, GraphConstraint } from "@triplex-build/triplex/config";
 import {
   DatabaseRegistry,
   IdGeneratorLive,
   RuntimeClockLive,
   TripleStoreRuntimeLayer,
-} from "@bjacobso/triplex/internal";
-import { DatabaseManagerLive, DatabaseRegistryLive, runMigrations } from "@bjacobso/triplex-sql";
+} from "@triplex-build/triplex/internal";
+import {
+  DatabaseManagerLive,
+  DatabaseRegistryLive,
+  runMigrations,
+} from "@triplex-build/triplex-sql";
 import {
   databaseToSchema,
   makePostgresqlBackend,
@@ -40,8 +44,8 @@ import {
   PgTriples,
   PostgresqlDialect,
   type PostgresqlConfig,
-} from "@bjacobso/triplex-postgres";
-import { makeTriplesConformanceSuite } from "@bjacobso/triplex-testkit";
+} from "@triplex-build/triplex-postgres";
+import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 import {
   PgConnectionInfo,
   PgContainerLayer,

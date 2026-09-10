@@ -80,7 +80,7 @@ bounded Datalog contract; it does not make that broader claim.
 The benchmark lives in `test/stress/scripts/datalog-pagination.ts` and is opt-in:
 
 ```sh
-pnpm exec turbo run build --filter=@bjacobso/triplex-sqlite --filter=@bjacobso/triplex-postgres
+pnpm exec turbo run build --filter=@triplex-build/triplex-sqlite --filter=@triplex-build/triplex-postgres
 pnpm --filter triplex-stress benchmark:datalog
 PG_BENCH_URL=postgresql://localhost/triplex_bench pnpm --filter triplex-stress benchmark:datalog
 ```

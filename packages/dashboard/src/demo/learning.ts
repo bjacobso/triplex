@@ -7,9 +7,9 @@ import {
   ref,
   string,
   type DatalogQuery as DatalogQueryType,
-} from "@bjacobso/triplex";
-import { ConfigNode, ConfigStore, TypeExpr } from "@bjacobso/triplex/config";
-import * as Derivation from "@bjacobso/triplex/derivation";
+} from "@triplex-build/triplex";
+import { ConfigNode, ConfigStore, TypeExpr } from "@triplex-build/triplex/config";
+import * as Derivation from "@triplex-build/triplex/derivation";
 import { Effect } from "effect";
 
 const DAY = 86_400_000;

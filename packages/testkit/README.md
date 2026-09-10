@@ -1,9 +1,9 @@
-# @bjacobso/triplex-testkit
+# @triplex-build/triplex-testkit
 
 Reusable backend fixture and capability helpers for testing Triplex adapters.
 
 ```bash
-npm install --save-dev effect@4.0.0-rc.112 @bjacobso/triplex-testkit@next
+npm install --save-dev effect@4.0.0-rc.112 @triplex-build/triplex-testkit@next
 ```
 
 `triplesConformanceCases` and `makeTriplesConformanceSuite` define the behavioral contract used by

@@ -11,8 +11,8 @@ import {
   ChangeEmitter,
   type ChangeEmitterService,
   type ChangeEvent,
-} from "@bjacobso/triplex/internal";
-import { extractEntityType, type QueryDependencies } from "@bjacobso/triplex/subscriptions";
+} from "@triplex-build/triplex/internal";
+import { extractEntityType, type QueryDependencies } from "@triplex-build/triplex/subscriptions";
 import type FdbDatabase from "foundationdb/dist/lib/database.js";
 import type FdbTransaction from "foundationdb/dist/lib/transaction.js";
 import type { Watch } from "foundationdb/dist/lib/transaction.js";

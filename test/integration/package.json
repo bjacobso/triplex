@@ -8,12 +8,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bjacobso/triplex": "workspace:^",
-    "@bjacobso/triplex-http": "workspace:^",
-    "@bjacobso/triplex-sql": "workspace:^",
-    "@bjacobso/triplex-sqlite": "workspace:^",
-    "@bjacobso/triplex-testkit": "workspace:^",
     "@effect/sql-sqlite-node": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-http": "workspace:^",
+    "@triplex-build/triplex-sql": "workspace:^",
+    "@triplex-build/triplex-sqlite": "workspace:^",
+    "@triplex-build/triplex-testkit": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {
