@@ -1,5 +1,10 @@
-import { PgTriples, type PostgresqlConfig } from "@bjacobso/triplex-postgres";
-import { SqliteTriples } from "@bjacobso/triplex-sqlite";
+import {
+  makePostgresqlBackend,
+  PgTriples,
+  type PostgresqlConfig,
+} from "@bjacobso/triplex-postgres";
+import { DatabaseManagerLive, DatabaseRegistryLive } from "@bjacobso/triplex-sql";
+import { makeSqliteBackend, SqliteTriples } from "@bjacobso/triplex-sqlite";
 import {
   DatalogQuery,
   DatabaseId,
@@ -11,6 +16,7 @@ import {
   WrappedQuery,
   queryToPattern,
 } from "@bjacobso/triplex";
+import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@bjacobso/triplex/internal";
 import { ConfigStore } from "@bjacobso/triplex/config";
 import { ContentId } from "@bjacobso/triplex/content";
 import {
@@ -21,12 +27,18 @@ import {
   Layer,
   Option,
   Redacted,
+  References,
   Schema,
   Stdio,
   Stream,
 } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
-import { execute, type ExecuteOptions } from "./operations.js";
+import {
+  execute,
+  executeDatabase,
+  type ExecuteDatabaseOptions,
+  type ExecuteOptions,
+} from "./operations.js";
 
 declare const __TRIPLEX_CLI_VERSION__: string;
 
@@ -36,8 +48,13 @@ const pretty = Flag.boolean("pretty").pipe(
 );
 
 const sqlite = Flag.string("sqlite").pipe(
-  Flag.withDescription("SQLite file path; defaults to ./triplex.sqlite"),
+  Flag.withDescription("Standalone SQLite file path; defaults to ./triplex.sqlite"),
   Flag.withDefault("./triplex.sqlite"),
+);
+
+const dataDir = Flag.string("data-dir").pipe(
+  Flag.withDescription("Directory for managed SQLite databases"),
+  Flag.withDefault("./data"),
 );
 
 const postgresUrl = Flag.string("postgres-url").pipe(
@@ -46,13 +63,13 @@ const postgresUrl = Flag.string("postgres-url").pipe(
 );
 
 const databaseId = Flag.string("database-id").pipe(
-  Flag.withDescription("Validated logical database for PostgreSQL schema isolation"),
+  Flag.withDescription("Managed database to use for data commands"),
   Flag.withSchema(DatabaseId),
   Flag.optional,
 );
 
 export const rootCommand = Command.make("triplex").pipe(
-  Command.withSharedFlags({ pretty, sqlite, postgresUrl, databaseId }),
+  Command.withSharedFlags({ pretty, sqlite, dataDir, postgresUrl, databaseId }),
   Command.withDescription(
     "Pre-1.0 CLI: explore and operate a Triplex database with stable JSON output",
   ),
@@ -155,7 +172,10 @@ const databaseLayer = Effect.fn(function* () {
   const url = fromFlag ?? process.env["TRIPLEX_POSTGRES_URL"];
   const triplesLayer =
     url === undefined
-      ? SqliteTriples.layer({ filename: root.sqlite })
+      ? Option.match(root.databaseId, {
+          onNone: () => SqliteTriples.layer({ filename: root.sqlite }),
+          onSome: (id) => SqliteTriples.layer({ filename: `${root.dataDir}/${id}.db` }),
+        })
       : Option.match(root.databaseId, {
           onNone: () => PgTriples.layerFromUrl(url),
           onSome: (id) => PgTriples.layerForDatabaseMigrated(postgresConfig(url), id),
@@ -163,11 +183,41 @@ const databaseLayer = Effect.fn(function* () {
   return ConfigStore.layer.pipe(Layer.provideMerge(triplesLayer));
 });
 
+const databaseManagerLayer = Effect.fn(function* () {
+  const root = yield* rootCommand;
+  const url = optionValue(root.postgresUrl) ?? process.env["TRIPLEX_POSTGRES_URL"];
+  const backend =
+    url === undefined
+      ? makeSqliteBackend({ dataDir: root.dataDir })
+      : makePostgresqlBackend(postgresConfig(url));
+
+  return DatabaseManagerLive.pipe(
+    Layer.provide(DatabaseRegistryLive),
+    Layer.provide(backend),
+    Layer.provide(RuntimeServicesLive),
+    Layer.provide(TripleStoreRuntimeLayer),
+  );
+});
+
 const emit = (command: string, operation: ExecuteOptions) =>
   Effect.gen(function* () {
     const root = yield* rootCommand;
     const layer = yield* databaseLayer();
-    const data = yield* execute(operation).pipe(Effect.provide(layer));
+    const data = yield* execute(operation).pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "None"),
+    );
+    yield* Console.log(JSON.stringify({ ok: true, command, data }, null, root.pretty ? 2 : 0));
+  });
+
+const emitDatabase = (command: string, operation: ExecuteDatabaseOptions) =>
+  Effect.gen(function* () {
+    const root = yield* rootCommand;
+    const layer = yield* databaseManagerLayer();
+    const data = yield* executeDatabase(operation).pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "None"),
+    );
     yield* Console.log(JSON.stringify({ ok: true, command, data }, null, root.pretty ? 2 : 0));
   });
 
@@ -463,6 +513,79 @@ const config = Command.make("config").pipe(
   ]),
 );
 
+const managedDatabaseName = Argument.string("name").pipe(Argument.withSchema(DatabaseId));
+
+const databaseCreate = Command.make(
+  "create",
+  {
+    name: managedDatabaseName,
+    description: Flag.string("description").pipe(
+      Flag.withAlias("d"),
+      Flag.withDescription("Human-readable database description"),
+      Flag.optional,
+    ),
+  },
+  ({ name, description }) =>
+    emitDatabase("db.create", {
+      _tag: "database-create",
+      name,
+      ...(optionValue(description) === undefined ? {} : { description: optionValue(description) }),
+    }),
+).pipe(Command.withDescription("Create and migrate a managed database"));
+
+const databaseList = Command.make("list", {}, () =>
+  emitDatabase("db.list", { _tag: "database-list" }),
+).pipe(Command.withDescription("List managed databases"));
+
+const databaseGet = Command.make("get", { name: managedDatabaseName }, ({ name }) =>
+  emitDatabase("db.get", { _tag: "database-get", name }),
+).pipe(Command.withDescription("Show one managed database"));
+
+const databaseUpdate = Command.make(
+  "update",
+  {
+    name: managedDatabaseName,
+    description: Flag.string("description").pipe(
+      Flag.withAlias("d"),
+      Flag.withDescription("New human-readable database description"),
+    ),
+  },
+  ({ name, description }) =>
+    emitDatabase("db.update", { _tag: "database-update", name, description }),
+).pipe(Command.withDescription("Update managed database metadata"));
+
+const yes = Flag.boolean("yes").pipe(
+  Flag.withAlias("y"),
+  Flag.withDescription("Confirm the destructive operation"),
+  Flag.withDefault(false),
+);
+
+const requireConfirmation = <A, E, R>(confirmed: boolean, operation: Effect.Effect<A, E, R>) =>
+  confirmed
+    ? operation
+    : Effect.fail(new Error("This operation is destructive; pass --yes to confirm"));
+
+const databaseClear = Command.make("clear", { name: managedDatabaseName, yes }, ({ name, yes }) =>
+  requireConfirmation(yes, emitDatabase("db.clear", { _tag: "database-clear", name })),
+).pipe(Command.withDescription("Delete all data while preserving the managed database"));
+
+const databaseDelete = Command.make("delete", { name: managedDatabaseName, yes }, ({ name, yes }) =>
+  requireConfirmation(yes, emitDatabase("db.delete", { _tag: "database-delete", name })),
+).pipe(Command.withDescription("Delete a managed database and its storage"));
+
+const database = Command.make("db").pipe(
+  Command.withAlias("database"),
+  Command.withDescription("Create and manage isolated databases"),
+  Command.withSubcommands([
+    databaseCreate,
+    databaseList,
+    databaseGet,
+    databaseUpdate,
+    databaseClear,
+    databaseDelete,
+  ]),
+);
+
 const describe = Command.make("describe", {}, () =>
   Effect.gen(function* () {
     const root = yield* rootCommand;
@@ -483,6 +606,7 @@ const describe = Command.make("describe", {}, () =>
               transaction: ["apply"],
               journal: ["list", "receipt", "transaction"],
               config: ["refs", "releases", "release", "objects", "object", "set-ref", "impact"],
+              db: ["create", "list", "get", "update", "clear", "delete"],
             },
           },
         },
@@ -494,7 +618,17 @@ const describe = Command.make("describe", {}, () =>
 ).pipe(Command.withDescription("Print the machine-readable CLI capability manifest"));
 
 export const command = rootCommand.pipe(
-  Command.withSubcommands([status, describe, entity, fact, query, transaction, journal, config]),
+  Command.withSubcommands([
+    status,
+    describe,
+    database,
+    entity,
+    fact,
+    query,
+    transaction,
+    journal,
+    config,
+  ]),
 );
 
 export const run = Command.run(command, { version: __TRIPLEX_CLI_VERSION__ });

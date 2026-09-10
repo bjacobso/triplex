@@ -53,8 +53,10 @@
   "dependencies": {
     "@bjacobso/triplex": "workspace:^",
     "@bjacobso/triplex-postgres": "workspace:^",
+    "@bjacobso/triplex-sql": "workspace:^",
     "@bjacobso/triplex-sqlite": "workspace:^",
-    "@effect/platform-node": "catalog:"
+    "@effect/platform-node": "catalog:",
+    "@effect/platform-node-shared": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

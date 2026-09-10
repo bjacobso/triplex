@@ -16,6 +16,15 @@ The same commands are available through the `triplex` binary installed by the cu
 pnpm add @bjacobso/triplex-cli@next
 ```
 
+Or run it without installing:
+
+```sh
+npx @bjacobso/triplex-cli@next db create app
+```
+
+The unscoped `triplex` name on npm belongs to an unrelated project, so the package spec must remain
+scoped when using `npx`. Once installed, the binary itself is simply `triplex`.
+
 ## Agent contract
 
 - Successful commands write one `{ "ok": true, "command": "...", "data": ... }` JSON value to
@@ -30,6 +39,25 @@ pnpm add @bjacobso/triplex-cli@next
 - Output is compact by default. Add `--pretty` before the subcommand for readable JSON.
 
 ## Databases
+
+Create and manage isolated SQLite databases in `./data` (or a directory selected with
+`--data-dir`):
+
+```sh
+triplex db create app --description "Application database"
+triplex db list
+triplex db get app
+triplex db update app --description "Primary application database"
+triplex db clear app --yes
+triplex db delete app --yes
+```
+
+Use a managed database for the other commands by selecting its ID:
+
+```sh
+triplex --database-id app status
+triplex --database-id app entity list
+```
 
 SQLite is the default backend:
 
