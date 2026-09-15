@@ -172,6 +172,7 @@ import { EntityId, KvTriples, Triples } from "@triplex-build/triplex";
 import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
 
 // 1. Describe the domain once. Attributes own identity and type; entity types own usage rules.
 const WorkerName = Attribute.text(":worker/name");
@@ -556,28 +557,31 @@ import * as Derivation from "@triplex-build/triplex/derivation";
 import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
 ```
 
-Application code should use these public surfaces. `@triplex-build/triplex/internal` is the unstable SPI
-for Triplex adapter packages. Public exports resolve only to built `dist` files.
+Application code should use these public surfaces. Adapter authors use the `runtime` subpath to
+compose storage and query layers with a validated database scope and explicit capability providers.
+`@triplex-build/triplex/internal` remains unstable implementation support for legacy adapter code.
+Public exports resolve only to built `dist` files.
 
 ## Documentation
 
-| Document                                                      | Purpose                                               |
-| ------------------------------------------------------------- | ----------------------------------------------------- |
-| [Getting started](docs/getting-started.md)                    | First runnable program, output, and persistence       |
-| [Playground](docs/playground.md)                              | Local in-browser database with selectable domains     |
-| [Core concepts](docs/concepts.md)                             | Facts, time, configuration, derivation, and ownership |
-| [Configuration walkthrough](docs/configuration-versioning.md) | Publish, promote, pin, inspect, and roll back config  |
-| [CLI and dashboard](docs/tools.md)                            | Operate and explore a source-checkout database        |
-| [Troubleshooting](docs/troubleshooting.md)                    | Common failures and surprising semantics              |
-| [Current state](docs/current-state.md)                        | Delivered behavior, maturity, limitations, releases   |
-| [Datalog](docs/datalog.md)                                    | Query syntax and backend-independent semantics        |
-| [Configuration reference](docs/configuration.md)              | Types, releases, refs, validation, and proofs         |
-| [Derivations](docs/derivations.md)                            | Candidates, provenance, materialization, overlays     |
-| [Operational primitives](docs/operational-primitives.md)      | Transactions, journal, concurrency, projections       |
-| [Host integration](docs/host-integration.md)                  | Runtime composition and data-migration guidance       |
-| [Architecture](ARCHITECTURE.md)                               | Package boundaries and dependency direction           |
-| [Roadmap](docs/roadmap.md)                                    | Release gates and future work                         |
-| [Source provenance](docs/provenance.md)                       | Imported repository history                           |
+| Document                                                      | Purpose                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------ |
+| [Getting started](docs/getting-started.md)                    | First runnable program, output, and persistence              |
+| [Playground](docs/playground.md)                              | Local in-browser database with selectable domains            |
+| [Core concepts](docs/concepts.md)                             | Facts, time, configuration, derivation, and ownership        |
+| [Configuration walkthrough](docs/configuration-versioning.md) | Publish, promote, pin, inspect, and roll back config         |
+| [CLI and dashboard](docs/tools.md)                            | Operate and explore a source-checkout database               |
+| [Troubleshooting](docs/troubleshooting.md)                    | Common failures and surprising semantics                     |
+| [Current state](docs/current-state.md)                        | Delivered behavior, maturity, limitations, releases          |
+| [Datalog](docs/datalog.md)                                    | Query syntax and backend-independent semantics               |
+| [Configuration reference](docs/configuration.md)              | Types, releases, refs, validation, and proofs                |
+| [Derivations](docs/derivations.md)                            | Candidates, provenance, materialization, overlays            |
+| [Operational primitives](docs/operational-primitives.md)      | Transactions, journal, concurrency, projections              |
+| [Host integration](docs/host-integration.md)                  | Runtime composition and data-migration guidance              |
+| [Custom runtimes](docs/custom-runtimes.md)                    | Public runtime builders, capabilities, and backend contracts |
+| [Architecture](ARCHITECTURE.md)                               | Package boundaries and dependency direction                  |
+| [Roadmap](docs/roadmap.md)                                    | Release gates and future work                                |
+| [Source provenance](docs/provenance.md)                       | Imported repository history                                  |
 
 The focused configuration explorer remains under [`examples/config-explorer`](examples/config-explorer),
 and the full database dashboard lives under [`packages/dashboard`](packages/dashboard).

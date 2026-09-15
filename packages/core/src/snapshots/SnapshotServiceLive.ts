@@ -7,7 +7,7 @@
 
 import { Clock, Effect, Layer, Option } from "effect";
 import { unsafe, type EntityId } from "../Branded.js";
-import { StorageAdapter } from "../storage/StorageAdapter.js";
+import { StorageAdapter, isSqlStorageAdapter } from "../storage/StorageAdapter.js";
 import { Triples } from "../store/Triples.js";
 import {
   SnapshotService,
@@ -71,6 +71,9 @@ const buildSnapshot = (row: EntitySnapshotRow, data: string): EntitySnapshot => 
 
 const makeSnapshotWriter = Effect.gen(function* () {
   const adapter = yield* StorageAdapter;
+  if (!isSqlStorageAdapter(adapter)) {
+    return yield* Effect.fail(new SnapshotError({ message: "SQL snapshots require rawQuery" }));
+  }
   const store = yield* Triples;
 
   const materialize: SnapshotWriterShape["materialize"] = (txId, txTime, changedEntityIds) =>
@@ -254,6 +257,9 @@ const makeSnapshotWriter = Effect.gen(function* () {
 
 const makeSnapshotService = Effect.gen(function* () {
   const adapter = yield* StorageAdapter;
+  if (!isSqlStorageAdapter(adapter)) {
+    return yield* Effect.fail(new SnapshotError({ message: "SQL snapshots require rawQuery" }));
+  }
 
   const current: SnapshotServiceShape["current"] = (entityId) =>
     Effect.gen(function* () {

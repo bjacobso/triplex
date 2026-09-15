@@ -1,14 +1,19 @@
 /**
  * Backend implementation surface.
  *
- * This entrypoint is for Triplex's adapter packages. Application code should
- * use the root, `datalog`, `subscriptions`, `config`, and `content` exports.
+ * This entrypoint supports Triplex's legacy adapter implementations. New adapter
+ * authors should use `runtime`; applications should use the public database,
+ * query, configuration, content, derivation, and operational exports.
  * Internal exports may change between pre-1.0 releases.
  */
 
 export * from "./index.js";
 
-export { StorageAdapter, type StorageAdapterService } from "./storage/StorageAdapter.js";
+export {
+  StorageAdapter,
+  type StorageAdapterService,
+  type SqlStorageAdapterService,
+} from "./storage/StorageAdapter.js";
 export { type QueryPattern, type TransactionInfo } from "./storage/types.js";
 export {
   QueryExecutor,

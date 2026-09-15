@@ -30,13 +30,18 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
 - Delivered: Cloudflare and FoundationDB are private experimental workspace packages and cannot be
   included in the first release accidentally.
 - Delivered: the GitHub repository cutover to `bjacobso/triplex`.
-- Delivered: the protected GitHub environment and trusted publishers are configured for all six
-  public packages; a registry-only consumer and a provenance-bearing GitHub OIDC `next` canary
-  passed.
-- Remaining: review and merge the initial version PR, approve the environment deployment, and
-  verify the coordinated stable `0.1.0` release.
+- Delivered: the initial version PR; all seven public package manifests are now `0.1.0`.
+- Remaining: bootstrap the `@triplex-build` package records, verify trusted publishing for all
+  seven public packages, and pass a registry-only `next` consumer before stable publication.
+  Earlier canary validation under the superseded maintainer scope does not establish availability
+  under the new scope. Review pending Changesets and verify the coordinated stable release.
 
 ## Immediate correctness gate: backend parity
+
+- [Custom runtime composition](/custom-runtimes) now has public adapter contracts, structured
+  scopes, typed capability providers, and a public-only Cloudflare implementation. Before stable
+  adoption, validate each adapter's migrations, durability, isolation, and capability behavior;
+  the shared Triples conformance suite alone does not establish those guarantees.
 
 - The conformance corpus now runs identical typed projections, scalar joins, predicates, negation,
   booleans, ref joins, recursive transitive closure, grouped aggregation, bitemporal reads, and

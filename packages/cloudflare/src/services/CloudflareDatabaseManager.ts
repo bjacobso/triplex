@@ -18,7 +18,7 @@ import {
   type ClearResult,
   type TriplesService,
   InternalError,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-build/triplex";
 
 // Re-export for convenience of internal callers
 export { DatabaseManager };

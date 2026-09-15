@@ -240,8 +240,9 @@ transformations remain application code.
 
 These guarantees are in the shared `Triples` contract and are exercised by in-memory KV and
 SQLite in the default suite. PostgreSQL passes the same conformance and multi-database isolation
-tests through an opt-in integration suite, but remains a production candidate until those tests run
-in CI. Cloudflare and FoundationDB are experimental and are not covered by every guarantee above.
+tests through a dedicated integration suite that runs in CI and is opt-in locally. PostgreSQL
+remains a pre-1.0 production candidate pending operational validation. Cloudflare and FoundationDB
+are experimental and are not covered by every guarantee above.
 
 PostgreSQL additionally exposes three composition boundaries. `PgTriples.layer` and
 `layerFromUrl` own a pool and migrate it for standalone use. `layerFromSqlClient` consumes an

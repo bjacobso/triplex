@@ -21,6 +21,36 @@ The layer wires storage, migrations, the shared SQL Datalog executor, and cursor
 same synchronous Durable Object SQLite handle. The `scope` must be the complete immutable database
 identity; changing a generation invalidates old cursors.
 
+This convenience layer explicitly selects `Capabilities.none`. To enable snapshots and change
+emission, use the public runtime definition:
+
+```ts check
+import {
+  Capabilities,
+  DatabaseScope,
+  entitySnapshots,
+  changeEmission,
+  type ChangeEmitterService,
+} from "@triplex-build/triplex/runtime";
+import { SqlSnapshotsLive } from "@triplex-build/triplex-sql";
+import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex-cloudflare";
+
+declare const state: DOState;
+declare const emitter: ChangeEmitterService;
+
+const layer = makeCloudflareRuntime(state).layer({
+  scope: DatabaseScope.make({ env: "prod", tenant: "acme", database: "main", generation: 1 }),
+  capabilities: Capabilities.of(entitySnapshots(SqlSnapshotsLive), changeEmission(emitter)),
+});
+```
+
+The additive v2 migration creates snapshot tables when initializing an existing v1 database.
+It does not backfill snapshots for existing entities; run `SnapshotWriter.backfill()` when that
+projection is needed. The convenience layer now wraps its string scope in the versioned
+`DatabaseScope` encoding, so restart pagination instead of reusing pre-upgrade cursors.
+
+See [Custom runtimes](../../docs/custom-runtimes.md) for lifecycle ownership and capability errors.
+
 All work inside a `Triples.transact` boundary must remain synchronous. Effects that yield to a
 timer, network request, or other asynchronous service fail and roll back the native
 `transactionSync` callback.

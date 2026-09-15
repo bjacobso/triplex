@@ -37,6 +37,6 @@ package change must continue to pass `pnpm pack:check` so source files, tests, c
 dependencies never leak into npm tarballs.
 
 Add a Changeset for a publishable package change. Packages are not yet published, so the first
-release must also validate a canary tarball in a clean external consumer and enable the PostgreSQL
-integration gate in CI. Current maturity and release gates live in
+release must also validate a registry-only canary in a clean external consumer and retain the
+existing PostgreSQL integration gate in CI. Current maturity and release gates live in
 [`docs/current-state.md`](docs/current-state.md).

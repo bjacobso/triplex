@@ -24,8 +24,15 @@ export { type Migration, migrations, runMigrations } from "./migrations.js";
 export {
   SqlQueryExecutorLive,
   makeSqlQueryExecutor,
+  makeSqlQueryExecutorLayer,
   type SqlStatementRunner,
 } from "./SqlQueryExecutor.js";
+export { SqlSnapshotsLive } from "./SqlSnapshots.js";
+export {
+  type SqlStorageAdapterService,
+  type SqlDialect,
+  SqliteDialect,
+} from "@triplex-build/triplex/internal";
 
 // Storage backend
 export { StorageBackend, type StorageBackendService } from "./StorageBackend.js";

@@ -1,8 +1,9 @@
 # Current state
 
 This document is the concise maturity contract for Triplex as of September 2026. The README
-explains how to use the system, the architecture document defines dependency boundaries, and the
-roadmap tracks work that is not complete.
+explains how to use the system, [Host integration](/host-integration) defines application
+boundaries, [Custom runtimes](/custom-runtimes) defines adapter composition, and the roadmap tracks
+work that is not complete.
 
 ## Delivered
 
@@ -18,6 +19,9 @@ roadmap tracks work that is not complete.
   Query preflight rejects unsupported or ambiguous programs before backend execution.
 - Immutable entity snapshots as a projection, distinct from immutable configuration release
   snapshots.
+- Public `Runtime.define` and `Runtime.fromKv` builders, structured `DatabaseScope` identities,
+  typed capability providers, deterministic fixtures, and a testkit `runtimeConformance` helper.
+  Snapshot and emitter providers are explicit requirements; base stores use `Capabilities.none`.
 - A browser-safe canonical encoding and domain-separated SHA-256 `ContentId` foundation shared by
   entity snapshots, config graphs, derivations, validation observations, and decisions.
 - Typed configuration nodes, catalogs, releases, refs, impact queries, reactors, evaluation proofs,
@@ -42,6 +46,9 @@ roadmap tracks work that is not complete.
 - One greenfield SQL v1 migration, host-owned migration entrypoints, Changesets configuration and
   release automation, dist-only exports, package tarball checks (including the installed CLI), and
   Effect dependencies aligned through the root pnpm catalog.
+- An additive Cloudflare v2 migration for snapshot tables, and a Cloudflare runtime implementation
+  using only public core and SQL exports. Existing facts are preserved; snapshot backfill is
+  explicit, and pre-upgrade Cloudflare pagination cursors must be restarted.
 - PostgreSQL layers for standalone pools, an ambient host-owned `SqlClient`, and validated
   database-scoped pools. Ambient composition shares Effect SQL's fiber-local transaction so host
   rows, Triplex facts/journal, command claims, commit positions, and host outbox rows commit or roll
@@ -97,6 +104,9 @@ outside the normal test matrix.
 - Entity snapshots, validation results, and derivation materializations are projections. Callers
   must inspect their source position and freshness; projection failure cannot roll back an already
   committed source transaction.
+- Public runtime composition does not include automatic durable KV snapshot persistence. The
+  shared Triples conformance suite does not certify capability behavior, crash durability,
+  cross-process isolation, or migration safety.
 - Exact derivation provenance currently supports patterns, predicates, and negation. Recursive
   rules, disjunction, aggregation, pagination, dynamic attributes, and transaction-binding clauses
   are rejected where a complete explanation cannot be preserved.
@@ -117,8 +127,8 @@ outside the normal test matrix.
 
 1. Bootstrap the `@triplex-build` package records, configure npm trusted publishing, and verify a
    registry-only `next` consumer for the whole coordinated package family.
-2. Merge the initial Changesets version PR, which advances the public packages from `0.0.0` to
-   `0.1.0`.
+2. Review and version pending Changesets against the release set. The initial version PR has
+   merged, and the public manifests are already `0.1.0`; that does not mean they are published.
 3. Publish the scoped stable packages together and verify their peer dependency, provenance, CLI,
    and exports behavior from the registry.
 

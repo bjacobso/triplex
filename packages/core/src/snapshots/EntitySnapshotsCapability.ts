@@ -213,6 +213,9 @@ export const makeEntitySnapshotsCapability = (writer: SnapshotWriterShape): Stor
         }
 
         const result = yield* store.transact(operations, meta);
+        const record = yield* store
+          .transaction(result.txId)
+          .pipe(Effect.mapError(mapMaterializeError));
 
         // Collect all entity IDs touched by the transaction
         const entityIds = new Set<string>();
@@ -232,13 +235,21 @@ export const makeEntitySnapshotsCapability = (writer: SnapshotWriterShape): Stor
           }
         }
 
+        // The journal includes the exact retract-pattern matches from the atomic
+        // write, including patterns that did not name an entity explicitly.
+        if (record) {
+          entityIds.clear();
+          for (const change of record.changes) entityIds.add(change.entityId);
+        }
+
         // Filter out _Transaction metadata entities
         const filteredIds = [...entityIds].filter(
           (id) => !id.startsWith(`${SystemPrefixes.TRANSACTION}/`),
         );
 
         if (filteredIds.length > 0) {
-          const txTime = yield* resolveTxTime(store, result.txId, result.triples);
+          const txTime =
+            record?.instant ?? (yield* resolveTxTime(store, result.txId, result.triples));
           yield* writer
             .materialize(result.txId, txTime, filteredIds)
             .pipe(Effect.mapError(mapMaterializeError));

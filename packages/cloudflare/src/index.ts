@@ -17,6 +17,7 @@ export {
 
 export {
   CloudflareTriples,
+  makeCloudflareRuntime,
   type CloudflareTriplesLayer,
   type CloudflareTriplesOptions,
 } from "./CloudflareTriples.js";

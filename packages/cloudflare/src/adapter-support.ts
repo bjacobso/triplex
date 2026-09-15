@@ -5,9 +5,10 @@ import {
   StorageAdapter,
   type StorageAdapterService,
   WriteError,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-build/triplex/runtime";
 
 export { StorageAdapter, type StorageAdapterService, MigrationError, ReadError, WriteError };
+export type { SqlStorageAdapterService } from "@triplex-build/triplex-sql";
 
 export {
   TRIPLES_TABLE_DDL,

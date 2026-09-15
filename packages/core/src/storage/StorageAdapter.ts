@@ -70,13 +70,22 @@ export interface StorageAdapterService {
     basis?: ResolvedTemporalBasis,
   ) => Effect.Effect<readonly TripleRow[], ReadError>;
   readonly history: (entityId: string) => Effect.Effect<readonly TripleRow[], ReadError>;
+  readonly initialize: () => Effect.Effect<void, MigrationError>;
+  readonly close: () => Effect.Effect<void, unknown>;
+}
+
+/** SQL-only refinement used by SQL snapshot persistence, never required by a runtime. */
+export interface SqlStorageAdapterService extends StorageAdapterService {
   readonly rawQuery: <T extends object>(
     sql: string,
     params: readonly unknown[],
   ) => Effect.Effect<readonly T[], ReadError>;
-  readonly initialize: () => Effect.Effect<void, MigrationError>;
-  readonly close: () => Effect.Effect<void, unknown>;
 }
+
+export const isSqlStorageAdapter = (
+  adapter: StorageAdapterService,
+): adapter is SqlStorageAdapterService =>
+  "rawQuery" in adapter && typeof adapter.rawQuery === "function";
 
 /**
  * StorageAdapter service tag for dependency injection

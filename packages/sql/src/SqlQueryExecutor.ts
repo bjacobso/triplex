@@ -13,6 +13,7 @@ import { SqlClient } from "effect/unstable/sql";
 import {
   QueryExecutor,
   type QueryExecutorService,
+  type SqlDialect,
   type QueryContext,
   type QueryExecutorMetrics,
   CurrentDialect,
@@ -377,6 +378,10 @@ export const makeSqlQueryExecutor = (
  * SQL-based QueryExecutor implementation.
  * Compiles Datalog -> SQL and executes via SqlClient.
  */
+/** Capture dialect selection at construction; no ambient CurrentDialect dependency. */
+export const makeSqlQueryExecutorLayer = (runner: SqlStatementRunner, dialect: SqlDialect) =>
+  Layer.succeed(QueryExecutor, makeSqlQueryExecutor(runner, dialect));
+
 export const SqlQueryExecutorLive = Layer.effect(
   QueryExecutor,
   Effect.gen(function* () {

@@ -11,4 +11,9 @@ values, temporal reads, Datalog semantics, stable pagination, the transaction jo
 receipts, checkpoints, derivations, and graph constraints. New backends should pass it before being
 described as supported.
 
+`runtimeConformance(definition, options)` builds a public `Runtime.define` or `Runtime.fromKv`
+definition and runs that same corpus. Use a fresh isolated backend and choose capabilities
+explicitly. This is a Triples contract check, not a guarantee of snapshot/emitter correctness,
+crash durability, cross-process isolation, or migration safety.
+
 MIT © 2026 Ben Jacobson.

@@ -10,6 +10,7 @@ import { SqlClient } from "effect/unstable/sql";
 import {
   StorageAdapter,
   type StorageAdapterService,
+  type SqlStorageAdapterService,
   type TripleRow,
   CommandAlreadyCommittedError,
   TransactionConflictError,
@@ -633,7 +634,7 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
         rawQuery,
         initialize,
         close,
-      } satisfies StorageAdapterService;
+      } satisfies SqlStorageAdapterService;
     }),
   );
 

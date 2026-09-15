@@ -19,9 +19,9 @@ The first public release contains:
 packages until they pass the supported backend conformance contract. The dashboard and examples
 are also private.
 
-The public package manifests start at `0.0.0`. The initial minor Changeset advances every package
-in the release set to `0.1.0`, produces its changelog, and keeps the first published versions
-aligned.
+The initial version PR has merged and the public manifests are `0.1.0`. Manifest versions are
+not evidence of registry publication. Review pending Changesets and the coordinated release set
+before publishing; subsequent versioning can advance those versions.
 
 ## Required repository configuration
 

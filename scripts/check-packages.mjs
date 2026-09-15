@@ -162,6 +162,7 @@ try {
     `import { DatabaseId, DatalogValidationError, EntityId, TransactionId, TripleId, type TripleInput, type TriplesService } from "@triplex-build/triplex";
 import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/datalog";
 import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
+import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import * as Cloudflare from "@triplex-build/triplex-cloudflare";
 import * as FoundationDb from "@triplex-build/triplex-foundationdb";
@@ -212,6 +213,9 @@ void DatalogValidationError;
 void nameAssertion;
 void ConfigStore;
 void ConfigRuntime;
+void Runtime;
+void DatabaseScope;
+void Capabilities;
 void EntityValidation;
 void Evaluate;
 void GraphConstraint;
@@ -254,8 +258,13 @@ void HttpAuthorizationAllowAll;
     join(consumerDir, "smoke.mjs"),
     `import { Effect } from "effect";
 import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { Runtime, DatabaseScope } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+
+if (typeof Runtime.define !== "function" || typeof DatabaseScope.test("packed") !== "string") {
+  throw new Error("Public runtime entry point is unavailable");
+}
 
 const result = await Effect.runPromise(
   Effect.gen(function* () {

@@ -29,6 +29,15 @@ import {
 import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
+import {
+  type RuntimeOptions,
+  type RuntimeDefinition,
+  type CapabilitySet,
+  SnapshotService,
+  SnapshotWriter,
+  ChangeEmitter,
+  TripleStoreRuntime,
+} from "@triplex-build/triplex/runtime";
 
 const eid = EntityId.make;
 const ref = (value: string) => makeRef(eid(value));
@@ -2732,3 +2741,24 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
  */
 export const makeTriplesConformanceSuite = (): Effect.Effect<void, unknown, Triples> =>
   Effect.forEach(triplesConformanceCases, (c) => c.run, { discard: true });
+
+/** Run against a fresh isolated runtime. Includes only the shared Triples contract. */
+export function runtimeConformance<E, R, Provided>(
+  runtime: RuntimeDefinition<E, R, Provided>,
+  options: RuntimeOptions & { readonly capabilities?: never },
+): Effect.Effect<void, unknown, R | SnapshotService | SnapshotWriter | ChangeEmitter>;
+export function runtimeConformance<E, R, Provided, O, CE, CR>(
+  runtime: RuntimeDefinition<E, R, Provided>,
+  options: RuntimeOptions & { readonly capabilities: CapabilitySet<O, CE, CR> },
+): Effect.Effect<void, unknown, R | Exclude<CR, Triples | TripleStoreRuntime | Provided>>;
+export function runtimeConformance(
+  runtime: RuntimeDefinition<unknown, unknown, never>,
+  options: RuntimeOptions & { readonly capabilities?: CapabilitySet<never, unknown, unknown> },
+): Effect.Effect<void, unknown, unknown> {
+  const { capabilities, ...baseOptions } = options;
+  const layer =
+    capabilities === undefined
+      ? runtime.layer(baseOptions)
+      : runtime.layer({ ...baseOptions, capabilities });
+  return makeTriplesConformanceSuite().pipe(Effect.provide(layer));
+}

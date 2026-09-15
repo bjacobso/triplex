@@ -40,6 +40,21 @@ Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer)));
 
 SQL implementations live in `@triplex-build/triplex-sql` and the backend-specific packages.
 
+## Custom runtimes
+
+`@triplex-build/triplex/runtime` exports `Runtime.define` for storage/query layers and
+`Runtime.fromKv` for ordered-KV backends. Bind a validated `DatabaseScope` to obtain an Effect
+layer providing `Triples`; backend errors and external requirements remain in the layer's types.
+
+The default capabilities require snapshot reader/writer and change-emitter services. Supply them
+explicitly with `Capabilities.of(entitySnapshots(layer), changeEmission(emitter))`, or select
+`Capabilities.none` for a base store. SQL snapshot persistence is available through
+`SqlSnapshotsLive` in the SQL package; automatic durable KV snapshot persistence is not included.
+
+See [Custom runtimes](../../docs/custom-runtimes.md) for public contracts, deterministic fixtures,
+resource ownership, and the testkit conformance helper. These APIs are available in this checkout;
+they do not imply a stable npm release.
+
 ## Typed configuration
 
 ```ts

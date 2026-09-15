@@ -14,6 +14,7 @@ import { Cause, Effect, Exit, Layer } from "effect";
 import {
   StorageAdapter,
   type StorageAdapterService,
+  type SqlStorageAdapterService,
   packValue,
   WriteError,
   ReadError,
@@ -23,7 +24,7 @@ import {
   INDEX_DDLS,
   migrations,
 } from "../adapter-support.js";
-import type { TripleRow } from "@triplex-build/triplex/internal";
+import type { TripleRow } from "@triplex-build/triplex/runtime";
 
 // =============================================================================
 // Durable Object Types
@@ -79,7 +80,7 @@ export interface DOState {
  * @param ctx - The DurableObjectState from the DO's constructor
  * @returns StorageAdapterService implementation
  */
-export function makeCloudflareAdapter(ctx: DOState): StorageAdapterService {
+export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
   const sqlStorage = ctx.storage.sql;
 
   // Helper to convert cursor to array

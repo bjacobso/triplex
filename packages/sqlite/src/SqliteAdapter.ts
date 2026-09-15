@@ -11,6 +11,7 @@ import { SqlClient } from "effect/unstable/sql";
 import {
   StorageAdapter,
   type StorageAdapterService,
+  type SqlStorageAdapterService,
   type TripleRow,
   CommandAlreadyCommittedError,
   ConstraintViolationError,
@@ -721,7 +722,7 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
         rawQuery,
         initialize,
         close,
-      } satisfies StorageAdapterService;
+      } satisfies SqlStorageAdapterService;
     }),
   );
 

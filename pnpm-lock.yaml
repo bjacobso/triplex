@@ -589,6 +589,9 @@ importers:
       '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../../packages/core
+      '@triplex-build/triplex-cloudflare':
+        specifier: workspace:^
+        version: link:../../packages/cloudflare
       '@triplex-build/triplex-http':
         specifier: workspace:^
         version: link:../../packages/http

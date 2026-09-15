@@ -1,12 +1,12 @@
 /** Complete `Triples` composition for one Durable Object SQLite database. */
 
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
+import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
 import {
-  QueryExecutor,
-  TriplesLive,
-  makeTripleStoreRuntimeLayer,
-} from "@triplex-build/triplex/internal";
-import { makeSqlQueryExecutor, type SqlStatementRunner } from "@triplex-build/triplex-sql";
+  makeSqlQueryExecutorLayer,
+  SqliteDialect,
+  type SqlStatementRunner,
+} from "@triplex-build/triplex-sql";
 import { makeCloudflareAdapterLayer, type DOState, type SqlStorageValue } from "./storage/index.js";
 
 export interface CloudflareTriplesOptions {
@@ -28,15 +28,28 @@ const queryExecutorLayer = (state: DOState) => {
         catch: (error) => error,
       }),
   };
-  return Layer.succeed(QueryExecutor, makeSqlQueryExecutor(runner));
+  return makeSqlQueryExecutorLayer(runner, SqliteDialect);
 };
 
+/** Public-only adapter example; callers bind identity and select capabilities. */
+export const makeCloudflareRuntime = (state: DOState) =>
+  Runtime.define({
+    name: "cloudflare-do",
+    storage: makeCloudflareAdapterLayer(state),
+    queries: queryExecutorLayer(state),
+  });
+
 const layer = ({ state, scope }: CloudflareTriplesOptions) =>
-  TriplesLive.pipe(
-    Layer.provide(makeCloudflareAdapterLayer(state)),
-    Layer.provide(queryExecutorLayer(state)),
-    Layer.provide(makeTripleStoreRuntimeLayer(scope)),
-  );
+  makeCloudflareRuntime(state).layer({
+    scope: DatabaseScope.make({
+      env: "cloudflare",
+      tenant: "durable-object",
+      database: scope,
+      generation: 0,
+    }),
+    // Preserve the existing convenience entry point's behavior explicitly.
+    capabilities: Capabilities.none,
+  });
 
 export const CloudflareTriples = { layer } as const;
 

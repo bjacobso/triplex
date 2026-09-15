@@ -67,6 +67,11 @@
       "import": "./dist/operational/index.js",
       "default": "./dist/operational/index.js"
     },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js",
+      "default": "./dist/runtime/index.js"
+    },
     "./internal": {
       "types": "./dist/internal.d.ts",
       "import": "./dist/internal.js",
@@ -80,7 +85,7 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest --run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test/runtime/tsconfig.json",
     "clean": "rm -rf dist",
     "bench:config": "node bench/config/scale.mjs",
     "bench:config:typecheck": "node bench/config/typecheck-budget.mjs"

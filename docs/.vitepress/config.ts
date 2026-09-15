@@ -118,7 +118,10 @@ export default defineConfig({
       },
       {
         text: "Project",
-        items: [{ text: "Roadmap", link: "/roadmap" }],
+        items: [
+          { text: "Custom runtimes", link: "/custom-runtimes" },
+          { text: "Roadmap", link: "/roadmap" },
+        ],
       },
     ],
     search: {
