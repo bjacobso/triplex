@@ -46,6 +46,8 @@ export const initialModel: Model = {
   entityDraftId: "",
   entityDraftType: "",
   entityDraftFacts: "[]",
+  entityOriginalFacts: "[]",
+  entityTypeScope: "all",
   selectedEntityType: null,
   entityTypePage: null,
   entityTypeCursor: null,
@@ -257,6 +259,40 @@ export const update = (model: Model, message: Message) =>
       },
       commands: [LoadEntityTypePage({ entityType, cursor: null, ...basisCommandArgs(model) })],
     }),
+    SelectedEntityTypeScope: ({ scope }) => {
+      const types =
+        model.data?.entityTypes.filter((entityType) =>
+          scope === "all" ? true : entityType.source === scope,
+        ) ?? [];
+      const selectedEntityType = types.some((item) => item.name === model.selectedEntityType)
+        ? model.selectedEntityType
+        : (types[0]?.name ?? null);
+      return {
+        model: {
+          ...model,
+          entityTypeScope: scope,
+          selectedEntityType,
+          selectedEntityId: null,
+          selectedEntityHistory: [],
+          entityTypePage: null,
+          entityTypeCursor: null,
+          entityTypeBackStack: [],
+          busy: selectedEntityType !== null,
+          error: null,
+          notice: null,
+        },
+        commands:
+          selectedEntityType === null
+            ? []
+            : [
+                LoadEntityTypePage({
+                  entityType: selectedEntityType,
+                  cursor: null,
+                  ...basisCommandArgs(model),
+                }),
+              ],
+      };
+    },
     SelectedForm: ({ formKey }) => ({
       model: { ...model, selectedFormKey: formKey, formValues: {}, notice: null, error: null },
     }),
@@ -315,6 +351,7 @@ export const update = (model: Model, message: Message) =>
           null,
           2,
         ),
+        entityOriginalFacts: "[]",
         error: null,
         notice: null,
       },
@@ -334,18 +371,55 @@ export const update = (model: Model, message: Message) =>
               entityDraftId: entity.id,
               entityDraftType: entity.type,
               entityDraftFacts: entityFactsDraft(entity),
+              entityOriginalFacts: entityFactsDraft(entity),
               error: null,
               notice: null,
             },
+          };
+    },
+    RequestedEditEntityById: ({ entityId }) => {
+      const entity = model.entityTypePage?.entities.find((candidate) => candidate.id === entityId);
+      return entity === undefined
+        ? { model }
+        : {
+            model: {
+              ...model,
+              selectedEntityId: entity.id,
+              selectedEntityHistory: [],
+              entityEditor: "edit" as const,
+              entityEditorFormat: "form" as const,
+              entityAttributeDrafts: entityAttributeDrafts(model.entityTypePage, entity),
+              entityDraftId: entity.id,
+              entityDraftType: entity.type,
+              entityDraftFacts: entityFactsDraft(entity),
+              entityOriginalFacts: entityFactsDraft(entity),
+              error: null,
+              notice: null,
+            },
+            commands: [LoadEntityHistory({ entityId: entity.id })],
           };
     },
     ClosedEntityEditor: () => ({ model: { ...model, entityEditor: "closed" } }),
     ChangedEntityDraftId: ({ value }) => ({ model: { ...model, entityDraftId: value } }),
     ChangedEntityDraftType: ({ value }) => ({ model: { ...model, entityDraftType: value } }),
     ChangedEntityDraftFacts: ({ value }) => ({ model: { ...model, entityDraftFacts: value } }),
-    SelectedEntityEditorFormat: ({ format }) => ({
-      model: { ...model, entityEditorFormat: format, error: null },
-    }),
+    SelectedEntityEditorFormat: ({ format }) => {
+      try {
+        return {
+          model: {
+            ...model,
+            entityEditorFormat: format,
+            entityDraftFacts:
+              model.entityEditorFormat === "form" && format !== "form"
+                ? formFactsDraft(model)
+                : model.entityDraftFacts,
+            error: null,
+          },
+        };
+      } catch (error) {
+        return { model: { ...model, error: errorMessage(error), notice: null } };
+      }
+    },
     ChangedEntityAttributeValue: ({ attribute, value }) => ({
       model: {
         ...model,
@@ -415,9 +489,9 @@ export const update = (model: Model, message: Message) =>
         : (() => {
             try {
               const facts =
-                model.entityEditorFormat === "json"
-                  ? model.entityDraftFacts
-                  : formFactsDraft(model);
+                model.entityEditorFormat === "form"
+                  ? formFactsDraft(model)
+                  : model.entityDraftFacts;
               return {
                 model: { ...model, busy: true, error: null, notice: null },
                 commands: [
@@ -666,11 +740,14 @@ export const update = (model: Model, message: Message) =>
     }),
     SucceededLoadDashboard: ({ data }) => ({
       model: (() => {
-        const selectedEntityType = data.entityTypes.some(
+        const visibleEntityTypes = data.entityTypes.filter((item) =>
+          model.entityTypeScope === "all" ? true : item.source === model.entityTypeScope,
+        );
+        const selectedEntityType = visibleEntityTypes.some(
           (item) => item.name === model.selectedEntityType,
         )
           ? model.selectedEntityType
-          : (data.entityTypes[0]?.name ?? null);
+          : (visibleEntityTypes[0]?.name ?? null);
         return {
           ...model,
           data,
@@ -695,13 +772,21 @@ export const update = (model: Model, message: Message) =>
       })(),
       commands: [
         RunQuery({ source: model.queryText, ...basisCommandArgs(model) }),
-        ...(data.entityTypes[0] === undefined
+        ...(data.entityTypes.find((item) =>
+          model.entityTypeScope === "all" ? true : item.source === model.entityTypeScope,
+        ) === undefined
           ? []
           : [
               LoadEntityTypePage({
                 entityType:
-                  data.entityTypes.find((item) => item.name === model.selectedEntityType)?.name ??
-                  data.entityTypes[0].name,
+                  data.entityTypes.find(
+                    (item) =>
+                      item.name === model.selectedEntityType &&
+                      (model.entityTypeScope === "all" || item.source === model.entityTypeScope),
+                  )?.name ??
+                  data.entityTypes.find((item) =>
+                    model.entityTypeScope === "all" ? true : item.source === model.entityTypeScope,
+                  )!.name,
                 cursor: null,
                 ...basisCommandArgs(model),
               }),
@@ -1645,6 +1730,185 @@ const referenceEditorView = (
   );
 };
 
+interface EntityFactDiff {
+  readonly attribute: string;
+  readonly status: "added" | "removed" | "changed" | "unchanged";
+  readonly before: string | null;
+  readonly after: string | null;
+}
+
+const factGroups = (source: string): ReadonlyMap<string, string> => {
+  const parsed = JSON.parse(source) as unknown;
+  if (!Array.isArray(parsed)) throw new Error("Facts must be a JSON array");
+  const grouped = new Map<string, unknown[]>();
+  for (const fact of parsed) {
+    if (typeof fact !== "object" || fact === null || !("attribute" in fact)) {
+      throw new Error("Every fact must include an attribute");
+    }
+    const attribute = fact.attribute;
+    if (typeof attribute !== "string") throw new Error("Fact attributes must be strings");
+    grouped.set(attribute, [...(grouped.get(attribute) ?? []), fact]);
+  }
+  return new Map(
+    [...grouped.entries()].map(([attribute, facts]) => [
+      attribute,
+      JSON.stringify(facts.length === 1 ? facts[0] : facts, null, 2),
+    ]),
+  );
+};
+
+export const diffEntityFacts = (
+  beforeSource: string,
+  afterSource: string,
+): readonly EntityFactDiff[] => {
+  const before = factGroups(beforeSource);
+  const after = factGroups(afterSource);
+  return [...new Set([...before.keys(), ...after.keys()])].sort().map((attribute) => {
+    const previous = before.get(attribute) ?? null;
+    const next = after.get(attribute) ?? null;
+    return {
+      attribute,
+      status:
+        previous === null
+          ? ("added" as const)
+          : next === null
+            ? ("removed" as const)
+            : previous === next
+              ? ("unchanged" as const)
+              : ("changed" as const),
+      before: previous,
+      after: next,
+    };
+  });
+};
+
+const entityDiffView = (model: Model, h: HtmlBuilder<Message>): Html => {
+  try {
+    const rows = diffEntityFacts(model.entityOriginalFacts, model.entityDraftFacts);
+    const changed = rows.filter((row) => row.status !== "unchanged");
+    const tone = (status: EntityFactDiff["status"]): string => {
+      switch (status) {
+        case "added":
+          return "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20";
+        case "removed":
+          return "bg-rose-400/10 text-rose-300 ring-rose-400/20";
+        case "changed":
+          return "bg-amber-400/10 text-amber-300 ring-amber-400/20";
+        case "unchanged":
+          return "bg-white/5 text-slate-400 ring-white/10";
+      }
+    };
+    return h.div(
+      [h.Class("space-y-3")],
+      [
+        h.div(
+          [h.Class("flex items-center justify-between gap-4")],
+          [
+            h.div(
+              [],
+              [
+                h.p([h.Class("text-xs font-semibold text-slate-200")], ["Transaction preview"]),
+                h.p(
+                  [h.Class("mt-1 text-xs text-slate-500")],
+                  [
+                    changed.length === 0
+                      ? "No fact changes yet."
+                      : `${changed.length} attribute${changed.length === 1 ? "" : "s"} will change atomically.`,
+                  ],
+                ),
+              ],
+            ),
+            h.span(
+              [h.Class("rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-slate-400")],
+              [`${rows.length} compared`],
+            ),
+          ],
+        ),
+        ...(rows.length === 0
+          ? [
+              h.div(
+                [
+                  h.Class(
+                    "rounded border border-dashed border-white/15 p-8 text-center text-sm text-slate-500",
+                  ),
+                ],
+                ["Add a fact to see its JSON diff."],
+              ),
+            ]
+          : rows.map((row) =>
+              h.article(
+                [h.Class("overflow-hidden rounded border border-white/10 bg-black/20")],
+                [
+                  h.div(
+                    [
+                      h.Class(
+                        "flex items-center justify-between border-b border-white/10 px-3 py-2",
+                      ),
+                    ],
+                    [
+                      h.code([h.Class("text-[11px] text-blue-300")], [row.attribute]),
+                      h.span(
+                        [
+                          h.Class(
+                            `rounded px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase ring-1 ${tone(row.status)}`,
+                          ),
+                        ],
+                        [row.status],
+                      ),
+                    ],
+                  ),
+                  h.div(
+                    [h.Class("grid md:grid-cols-2")],
+                    [
+                      h.div(
+                        [h.Class("min-w-0 border-b border-white/10 p-3 md:border-r md:border-b-0")],
+                        [
+                          h.p(
+                            [h.Class("mb-2 text-[9px] font-bold text-rose-300 uppercase")],
+                            ["Before"],
+                          ),
+                          h.pre(
+                            [
+                              h.Class(
+                                "overflow-x-auto font-mono text-[10px] leading-4 whitespace-pre-wrap text-slate-400",
+                              ),
+                            ],
+                            [row.before ?? "—"],
+                          ),
+                        ],
+                      ),
+                      h.div(
+                        [h.Class("min-w-0 p-3")],
+                        [
+                          h.p(
+                            [h.Class("mb-2 text-[9px] font-bold text-emerald-300 uppercase")],
+                            ["After"],
+                          ),
+                          h.pre(
+                            [
+                              h.Class(
+                                "overflow-x-auto font-mono text-[10px] leading-4 whitespace-pre-wrap text-slate-200",
+                              ),
+                            ],
+                            [row.after ?? "—"],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            )),
+      ],
+    );
+  } catch (error) {
+    return h.div(
+      [h.Class("rounded border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-200")],
+      [`The JSON cannot be diffed yet: ${errorMessage(error)}`],
+    );
+  }
+};
+
 const entityEditorView = (model: Model, h: HtmlBuilder<Message>): Html =>
   model.entityEditor === "closed"
     ? h.empty
@@ -1755,6 +2019,14 @@ const entityEditorView = (model: Model, h: HtmlBuilder<Message>): Html =>
                               kind: model.entityEditorFormat === "json" ? "primary" : "quiet",
                             },
                           ),
+                          uiButton(
+                            "Diff",
+                            Message.SelectedEntityEditorFormat({ format: "diff" }),
+                            h,
+                            {
+                              kind: model.entityEditorFormat === "diff" ? "primary" : "quiet",
+                            },
+                          ),
                         ],
                       ),
                     ],
@@ -1791,174 +2063,180 @@ const entityEditorView = (model: Model, h: HtmlBuilder<Message>): Html =>
                           ),
                         ],
                       )
-                    : h.div(
-                        [h.Class("space-y-3")],
-                        [
-                          h.div(
-                            [],
-                            [
-                              h.p(
-                                [h.Class("text-xs font-semibold text-slate-300")],
-                                ["Reflected attributes"],
-                              ),
-                              h.p(
-                                [h.Class("mt-1 text-xs leading-5 text-slate-500")],
-                                [
-                                  "Clear omits an attribute from the new entity state. Other current facts remain unchanged unless you edit them.",
-                                ],
-                              ),
-                            ],
-                          ),
-                          ...(model.entityAttributeDrafts.length === 0
-                            ? [
-                                h.div(
+                    : model.entityEditorFormat === "diff"
+                      ? entityDiffView(model, h)
+                      : h.div(
+                          [h.Class("space-y-3")],
+                          [
+                            h.div(
+                              [],
+                              [
+                                h.p(
+                                  [h.Class("text-xs font-semibold text-slate-300")],
+                                  ["Reflected attributes"],
+                                ),
+                                h.p(
+                                  [h.Class("mt-1 text-xs leading-5 text-slate-500")],
                                   [
-                                    h.Class(
-                                      "rounded border border-white/10 bg-white/5 p-4 text-sm text-slate-400",
-                                    ),
-                                  ],
-                                  [
-                                    "No attributes have been observed for this entity type. Use Raw JSON to add its first facts.",
+                                    "Clear omits an attribute from the new entity state. Other current facts remain unchanged unless you edit them.",
                                   ],
                                 ),
-                              ]
-                            : model.entityAttributeDrafts.map((draft) =>
-                                h.div(
-                                  [
-                                    h.Class(
-                                      draft.cleared
-                                        ? "rounded border border-white/8 bg-white/[0.02] p-4 opacity-65"
-                                        : "rounded border border-white/10 bg-white/[0.04] p-4",
-                                    ),
-                                  ],
-                                  [
-                                    h.div(
-                                      [h.Class("flex flex-wrap items-start justify-between gap-3")],
-                                      [
-                                        h.div(
-                                          [h.Class("min-w-0")],
-                                          [
-                                            h.p(
-                                              [h.Class("text-sm font-semibold text-slate-100")],
-                                              [draft.label],
-                                            ),
-                                            h.code(
-                                              [
-                                                h.Class(
-                                                  "mt-1 block break-all text-[11px] text-blue-300",
-                                                ),
-                                              ],
-                                              [draft.attribute],
-                                            ),
-                                            ...(draft.multiple
-                                              ? [
-                                                  h.p(
-                                                    [h.Class("mt-1 text-[11px] text-amber-300")],
-                                                    [
-                                                      "Multiple current values · unchanged unless edited; use Raw JSON for exact control.",
-                                                    ],
+                              ],
+                            ),
+                            ...(model.entityAttributeDrafts.length === 0
+                              ? [
+                                  h.div(
+                                    [
+                                      h.Class(
+                                        "rounded border border-white/10 bg-white/5 p-4 text-sm text-slate-400",
+                                      ),
+                                    ],
+                                    [
+                                      "No attributes have been observed for this entity type. Use Raw JSON to add its first facts.",
+                                    ],
+                                  ),
+                                ]
+                              : model.entityAttributeDrafts.map((draft) =>
+                                  h.div(
+                                    [
+                                      h.Class(
+                                        draft.cleared
+                                          ? "rounded border border-white/8 bg-white/[0.02] p-4 opacity-65"
+                                          : "rounded border border-white/10 bg-white/[0.04] p-4",
+                                      ),
+                                    ],
+                                    [
+                                      h.div(
+                                        [
+                                          h.Class(
+                                            "flex flex-wrap items-start justify-between gap-3",
+                                          ),
+                                        ],
+                                        [
+                                          h.div(
+                                            [h.Class("min-w-0")],
+                                            [
+                                              h.p(
+                                                [h.Class("text-sm font-semibold text-slate-100")],
+                                                [draft.label],
+                                              ),
+                                              h.code(
+                                                [
+                                                  h.Class(
+                                                    "mt-1 block break-all text-[11px] text-blue-300",
                                                   ),
-                                                ]
-                                              : []),
-                                          ],
-                                        ),
-                                        h.div(
-                                          [h.Class("flex items-center gap-2")],
-                                          [
-                                            Select.view(
-                                              {
-                                                id: `entity-type-${draft.attribute}`,
-                                                value: draft.valueType,
-                                                onChange: (valueType) =>
-                                                  Message.ChangedEntityAttributeType({
-                                                    attribute: draft.attribute,
-                                                    valueType,
-                                                  }),
-                                                toView: ({ select }) =>
-                                                  h.select(
-                                                    [
-                                                      ...select,
-                                                      h.Class(
-                                                        "h-8 rounded border border-white/15 bg-[#111b2b] px-2 font-mono text-xs text-slate-200 outline-none",
-                                                      ),
-                                                    ],
-                                                    [
-                                                      "string",
-                                                      "number",
-                                                      "boolean",
-                                                      "datetime",
-                                                      "ref",
-                                                      "json",
-                                                    ].map((valueType) =>
-                                                      h.option([h.Value(valueType)], [valueType]),
+                                                ],
+                                                [draft.attribute],
+                                              ),
+                                              ...(draft.multiple
+                                                ? [
+                                                    h.p(
+                                                      [h.Class("mt-1 text-[11px] text-amber-300")],
+                                                      [
+                                                        "Multiple current values · unchanged unless edited; use Raw JSON for exact control.",
+                                                      ],
                                                     ),
-                                                  ),
-                                              },
-                                              h,
-                                            ),
-                                            uiButton(
-                                              draft.cleared ? "Include" : "Clear",
-                                              draft.cleared
-                                                ? Message.RestoredEntityAttribute({
-                                                    attribute: draft.attribute,
-                                                  })
-                                                : Message.ClearedEntityAttribute({
-                                                    attribute: draft.attribute,
-                                                  }),
-                                              h,
-                                              { kind: "quiet" },
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    draft.valueType === "json"
-                                      ? Textarea.view(
-                                          {
-                                            id: `entity-value-${draft.attribute}`,
-                                            value: draft.value,
-                                            rows: 4,
-                                            onInput: (value) =>
-                                              Message.ChangedEntityAttributeValue({
-                                                attribute: draft.attribute,
-                                                value,
-                                              }),
-                                            toView: ({ textarea }) =>
-                                              h.textarea([
-                                                ...textarea,
-                                                h.Class(
-                                                  "mt-3 block w-full resize-y rounded border border-white/15 bg-black/25 p-3 font-mono text-xs text-slate-100 outline-none focus:border-blue-400",
-                                                ),
-                                              ]),
-                                          },
-                                          h,
-                                        )
-                                      : draft.valueType === "ref"
-                                        ? referenceEditorView(model, draft, h)
-                                        : Input.view(
+                                                  ]
+                                                : []),
+                                            ],
+                                          ),
+                                          h.div(
+                                            [h.Class("flex items-center gap-2")],
+                                            [
+                                              Select.view(
+                                                {
+                                                  id: `entity-type-${draft.attribute}`,
+                                                  value: draft.valueType,
+                                                  onChange: (valueType) =>
+                                                    Message.ChangedEntityAttributeType({
+                                                      attribute: draft.attribute,
+                                                      valueType,
+                                                    }),
+                                                  toView: ({ select }) =>
+                                                    h.select(
+                                                      [
+                                                        ...select,
+                                                        h.Class(
+                                                          "h-8 rounded border border-white/15 bg-[#111b2b] px-2 font-mono text-xs text-slate-200 outline-none",
+                                                        ),
+                                                      ],
+                                                      [
+                                                        "string",
+                                                        "number",
+                                                        "boolean",
+                                                        "datetime",
+                                                        "ref",
+                                                        "json",
+                                                      ].map((valueType) =>
+                                                        h.option([h.Value(valueType)], [valueType]),
+                                                      ),
+                                                    ),
+                                                },
+                                                h,
+                                              ),
+                                              uiButton(
+                                                draft.cleared ? "Include" : "Clear",
+                                                draft.cleared
+                                                  ? Message.RestoredEntityAttribute({
+                                                      attribute: draft.attribute,
+                                                    })
+                                                  : Message.ClearedEntityAttribute({
+                                                      attribute: draft.attribute,
+                                                    }),
+                                                h,
+                                                { kind: "quiet" },
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      draft.valueType === "json"
+                                        ? Textarea.view(
                                             {
                                               id: `entity-value-${draft.attribute}`,
                                               value: draft.value,
+                                              rows: 4,
                                               onInput: (value) =>
                                                 Message.ChangedEntityAttributeValue({
                                                   attribute: draft.attribute,
                                                   value,
                                                 }),
-                                              toView: ({ input }) =>
-                                                h.input([
-                                                  ...input,
+                                              toView: ({ textarea }) =>
+                                                h.textarea([
+                                                  ...textarea,
                                                   h.Class(
-                                                    "mt-3 h-10 w-full rounded border border-white/15 bg-black/25 px-3 font-mono text-sm text-slate-100 outline-none focus:border-blue-400",
+                                                    "mt-3 block w-full resize-y rounded border border-white/15 bg-black/25 p-3 font-mono text-xs text-slate-100 outline-none focus:border-blue-400",
                                                   ),
                                                 ]),
                                             },
                                             h,
-                                          ),
-                                  ],
-                                ),
-                              )),
-                        ],
-                      ),
+                                          )
+                                        : draft.valueType === "ref"
+                                          ? referenceEditorView(model, draft, h)
+                                          : Input.view(
+                                              {
+                                                id: `entity-value-${draft.attribute}`,
+                                                value: draft.value,
+                                                onInput: (value) =>
+                                                  Message.ChangedEntityAttributeValue({
+                                                    attribute: draft.attribute,
+                                                    value,
+                                                  }),
+                                                toView: ({ input }) =>
+                                                  h.input([
+                                                    ...input,
+                                                    h.Class(
+                                                      "mt-3 h-10 w-full rounded border border-white/15 bg-black/25 px-3 font-mono text-sm text-slate-100 outline-none focus:border-blue-400",
+                                                    ),
+                                                  ]),
+                                              },
+                                              h,
+                                            ),
+                                    ],
+                                  ),
+                                )),
+                          ],
+                        ),
                 ],
               ),
               h.footer(
@@ -1987,6 +2265,9 @@ const entityEditorView = (model: Model, h: HtmlBuilder<Message>): Html =>
 
 const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
   const data = model.data!;
+  const entityTypes = data.entityTypes.filter((entityType) =>
+    model.entityTypeScope === "all" ? true : entityType.source === model.entityTypeScope,
+  );
   const page = model.entityTypePage;
   const selectedType = model.selectedEntityType;
   const selectedEntity =
@@ -1998,7 +2279,7 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
       pageHeader(
         "Data",
         "Entities",
-        "Browse reflected types and inspect a stable, cursor-paginated view of their current facts.",
+        "Work in a spreadsheet-like grid across configuration-managed and runtime-discovered entities.",
         model,
         h,
       ),
@@ -2010,7 +2291,10 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
         ],
         [
           h.aside(
-            [h.Class("border-b border-[#d8dbe2] bg-[#f2f3f6] p-2 lg:border-r lg:border-b-0")],
+            [
+              h.AriaLabel("Entity types"),
+              h.Class("border-b border-[#d8dbe2] bg-[#f2f3f6] p-2 lg:border-r lg:border-b-0"),
+            ],
             [
               h.div(
                 [h.Class("px-2 pt-1 pb-2")],
@@ -2018,11 +2302,46 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
                   h.p([h.Class("text-xs font-semibold text-slate-700")], ["Entity types"]),
                   h.p(
                     [h.Class("mt-0.5 text-[11px] text-slate-500")],
-                    [`${data.entityTypes.length} in this database`],
+                    [`${entityTypes.length} of ${data.entityTypes.length} in this database`],
                   ),
                 ],
               ),
-              ...data.entityTypes.map((entityType) =>
+              h.div(
+                [h.Class("mb-2 grid grid-cols-3 gap-0.5 rounded-md bg-slate-200/70 p-0.5")],
+                (["all", "managed", "runtime"] as const).map((scope) =>
+                  Button.view(
+                    {
+                      onClick: Message.SelectedEntityTypeScope({ scope }),
+                      toView: ({ button }) =>
+                        h.button(
+                          [
+                            ...button,
+                            h.Class(
+                              model.entityTypeScope === scope
+                                ? "rounded bg-white px-1.5 py-1.5 text-[10px] font-semibold text-slate-800 shadow-sm"
+                                : "rounded px-1.5 py-1.5 text-[10px] font-medium text-slate-500 hover:text-slate-800",
+                            ),
+                          ],
+                          [scope[0]!.toUpperCase() + scope.slice(1)],
+                        ),
+                    },
+                    h,
+                  ),
+                ),
+              ),
+              ...(entityTypes.length === 0
+                ? [
+                    h.p(
+                      [
+                        h.Class(
+                          "rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-xs text-slate-500",
+                        ),
+                      ],
+                      ["No entity types in this source."],
+                    ),
+                  ]
+                : []),
+              ...entityTypes.map((entityType) =>
                 Button.view(
                   {
                     onClick: Message.SelectedEntityType({ entityType: entityType.name }),
@@ -2032,8 +2351,8 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
                           ...button,
                           h.Class(
                             entityType.name === selectedType
-                              ? "mb-0.5 flex h-9 w-full items-center justify-between rounded-md bg-[#d8e4ff] px-2 text-left text-[#174ea6]"
-                              : "mb-0.5 flex h-9 w-full items-center justify-between rounded-md px-2 text-left transition hover:bg-black/5",
+                              ? "mb-0.5 flex h-11 w-full items-center justify-between rounded-md bg-[#d8e4ff] px-2 text-left text-[#174ea6]"
+                              : "mb-0.5 flex h-11 w-full items-center justify-between rounded-md px-2 text-left transition hover:bg-black/5",
                           ),
                         ],
                         [
@@ -2043,6 +2362,18 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
                               h.p(
                                 [h.Class("flex items-center gap-2 truncate text-sm font-medium")],
                                 [entityType.name],
+                              ),
+                              h.p(
+                                [
+                                  h.Class(
+                                    `mt-0.5 text-[9px] font-semibold uppercase ${
+                                      entityType.source === "managed"
+                                        ? "text-violet-600"
+                                        : "text-slate-400"
+                                    }`,
+                                  ),
+                                ],
+                                [entityType.source],
                               ),
                             ],
                           ),
@@ -2163,6 +2494,14 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
                                         [`${String.fromCharCode(66 + index)}  ${column}`],
                                       ),
                                     ),
+                                    h.th(
+                                      [
+                                        h.Class(
+                                          "sticky top-0 right-0 z-20 w-20 border-b border-l border-[#cfd3dc] bg-[#eef0f4] px-2 py-2 text-center text-[10px] font-medium text-slate-500",
+                                        ),
+                                      ],
+                                      ["Actions"],
+                                    ),
                                   ],
                                 ),
                               ],
@@ -2238,6 +2577,21 @@ const entitiesView = (model: Model, h: HtmlBuilder<Message>): Html => {
                                         [values.length === 0 ? "—" : values.join(", ")],
                                       );
                                     }),
+                                    h.td(
+                                      [
+                                        h.Class(
+                                          "sticky right-0 border-b border-l border-[#d9dce3] bg-white px-2 py-1.5 text-center group-hover:bg-[#edf4ff]",
+                                        ),
+                                      ],
+                                      [
+                                        uiButton(
+                                          "Edit",
+                                          Message.RequestedEditEntityById({ entityId: entity.id }),
+                                          h,
+                                          { kind: "quiet" },
+                                        ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
@@ -4096,10 +4450,8 @@ const content = (model: Model, h: HtmlBuilder<Message>): Html => {
   }
 };
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: `${navItems.find((item) => item.page === model.page)?.label ?? "Explorer"} | Triplex`,
-  lang: "en",
-  body: h.div(
+const bodyView = (model: Model, h: HtmlBuilder<Message>): Html =>
+  h.div(
     [h.Class("triplex-console min-h-screen bg-[#f4f6f9] text-slate-800")],
     [
       h.header(
@@ -4224,5 +4576,13 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
       ),
       ...(model.temporalPanelOpen ? [temporalPanel(model, h)!] : []),
     ],
-  ),
+  );
+
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
+  title: `${navItems.find((item) => item.page === model.page)?.label ?? "Explorer"} | Triplex`,
+  lang: "en",
+  body: bodyView(model, h),
 });
+
+/** Scoped view used when the explorer is hosted inside the documentation site. */
+export const elementView = bodyView;

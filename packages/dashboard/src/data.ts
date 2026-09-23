@@ -759,6 +759,7 @@ export const loadDashboardAt = (
               .filter((reference) => reference.kind === "attribute")
               .map((reference) => reference.key),
           ]).size,
+          source: configured === undefined ? ("runtime" as const) : ("managed" as const),
         };
       });
     const applicationFacts = facts.filter(isApplicationFact);

@@ -8,6 +8,7 @@ import { h } from "vue";
 import "@shikijs/vitepress-twoslash/style.css";
 import "./custom.css";
 import Playground from "./Playground.vue";
+import TriplexExplorer from "./TriplexExplorer.vue";
 
 export default {
   extends: DefaultTheme,
@@ -21,6 +22,7 @@ export default {
     }),
   enhanceApp({ app }) {
     app.component("TriplexPlayground", Playground);
+    app.component("TriplexExplorer", TriplexExplorer);
     app.use(TwoslashFloatingVue, {
       themes: {
         twoslash: {

@@ -55,3 +55,38 @@ test("temporal basis controls", async ({ page }) => {
     fullPage: true,
   });
 });
+
+test("entity grid filters sources and previews a JSON diff", async ({ page }) => {
+  await page.getByRole("button", { name: "Entities", exact: true }).click();
+  const typeBrowser = page.getByRole("complementary", { name: "Entity types" });
+
+  await typeBrowser.getByRole("button", { name: "Runtime", exact: true }).click();
+  await expect(typeBrowser.getByRole("button", { name: /Enrollment/ })).toBeVisible();
+  await expect(typeBrowser.getByRole("button", { name: /Student/ })).toHaveCount(0);
+
+  await typeBrowser.getByRole("button", { name: "Managed", exact: true }).click();
+  await typeBrowser.getByRole("button", { name: /Student/ }).click();
+  await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+
+  const minaRow = page.getByRole("row").filter({ hasText: "Mina Patel" });
+  await minaRow.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Raw JSON", exact: true }).click();
+  const editor = page.getByLabel("Facts (typed JSON)");
+  await editor.fill((await editor.inputValue()).replace("Mina Patel", "Mina Patel (edited)"));
+  await page.getByRole("button", { name: "Diff", exact: true }).click();
+
+  await expect(page.getByText("Transaction preview", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mina Patel (edited)", { exact: false })).toBeVisible();
+  await expect(page.getByText("changed", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Commit transaction", exact: true }).click();
+  await expect(page.getByText(/Updated student:mina-patel/)).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "Mina Patel (edited)" })).toBeVisible();
+});
+
+test("website hosts the same in-memory explorer", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/explorer");
+  await expect(page.getByText("memory://demo-learning", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Entities", exact: true })).toBeVisible();
+  await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+});
