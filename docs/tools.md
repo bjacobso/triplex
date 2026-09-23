@@ -155,10 +155,13 @@ To inspect a persistent database, build and run the local HTTP host:
 pnpm dashboard:serve -- --sqlite /absolute/path/to/triplex.db
 ```
 
-The dashboard includes entity tables and timelines, raw Datalog and query plans, the transaction
-journal, derivation candidates, form previews, and full configuration release/ref/revision history.
-Its footer selects recorded and valid time independently; configuration and journal views remain
-current so the surrounding context stays visible.
+The dashboard includes a spreadsheet-like entity grid with managed/runtime type filters, typed form
+editing, raw JSON editing, and a semantic before/after diff before commit. It also includes entity
+timelines, raw Datalog and query plans, the transaction journal, derivation candidates, form
+previews, and full configuration release/ref/revision history. Its temporal control selects
+recorded and valid time independently; configuration and journal views remain current so the
+surrounding context stays visible. You can also [try the same in-memory explorer in the
+website](/explorer).
 
 The server binds to `127.0.0.1` and has mutation capabilities. It is an operator tool, not an
 authenticated public server. Do not expose it as your application's authorization boundary.

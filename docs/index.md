@@ -28,6 +28,7 @@ experimental. [Read the exact maturity contract](/current-state).
         Get started<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span>
 </a>
 <a class="triplex-home__secondary" href="/playground">Try the playground</a>
+<a class="triplex-home__secondary" href="/explorer">Open the data explorer</a>
 <a class="triplex-home__secondary" href="https://github.com/bjacobso/triplex">GitHub</a>
 </div>
 </header>
@@ -54,6 +55,29 @@ experimental. [Read the exact maturity contract](/current-state).
 </div>
 </div>
 <p class="triplex-home__fit">Built for domains where history and rules matter: compliance, onboarding, eligibility, entitlements, and agent-driven workflows.</p>
+</section>
+
+<section class="triplex-home__section" aria-labelledby="explore-the-database">
+<div class="triplex-home__section-intro">
+<p class="triplex-home__eyebrow">In-memory data explorer</p>
+<h2 id="explore-the-database">Browse Triplex like a spreadsheet.</h2>
+<p>Open a real browser-local database, switch between configuration-managed and runtime-discovered entity types, edit typed facts as a form or JSON, and inspect the semantic diff before committing an attributed transaction.</p>
+<a href="/explorer">Launch the explorer<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+</div>
+<div class="triplex-home__principles">
+<div>
+<h3>Grid-first</h3>
+<p>Scan entity types, rows, and reflected attributes in a dense Airtable-like view with stable cursor pagination.</p>
+</div>
+<div>
+<h3>JSON when you need it</h3>
+<p>Drop into typed JSON for exact intervals, multiple values, blobs, or attributes that have not been configured yet.</p>
+</div>
+<div>
+<h3>Review before commit</h3>
+<p>Compare current and proposed facts by attribute, then write the entire change as one Triplex transaction.</p>
+</div>
+</div>
 </section>
 
 <section class="triplex-home__section triplex-home__code" aria-labelledby="facts-and-queries">
@@ -136,6 +160,7 @@ experimental. [Read the exact maturity contract](/current-state).
 <nav class="triplex-home__guides" aria-label="Guides">
 <a href="/getting-started">Quickstart<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/playground">Playground<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+<a href="/explorer">Data explorer<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/concepts">Core concepts<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/datalog">Datalog<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 <a href="/configuration">Typed configuration<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>

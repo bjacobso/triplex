@@ -35,6 +35,7 @@ export const EntityTypeSummary = Schema.Struct({
   name: Schema.String,
   entityCount: Schema.Number,
   attributeCount: Schema.Number,
+  source: Schema.Literals(["managed", "runtime"]),
 });
 export type EntityTypeSummary = typeof EntityTypeSummary.Type;
 
@@ -226,11 +227,13 @@ export const Model = Schema.Struct({
   selectedEntityId: Schema.NullOr(Schema.String),
   selectedEntityHistory: Schema.Array(TransactionView),
   entityEditor: Schema.Literals(["closed", "create", "edit"]),
-  entityEditorFormat: Schema.Literals(["form", "json"]),
+  entityEditorFormat: Schema.Literals(["form", "json", "diff"]),
   entityAttributeDrafts: Schema.Array(EntityAttributeDraft),
   entityDraftId: Schema.String,
   entityDraftType: Schema.String,
   entityDraftFacts: Schema.String,
+  entityOriginalFacts: Schema.String,
+  entityTypeScope: Schema.Literals(["all", "managed", "runtime"]),
   selectedEntityType: Schema.NullOr(Schema.String),
   entityTypePage: Schema.NullOr(EntityTypePageView),
   entityTypeCursor: Schema.NullOr(Schema.String),

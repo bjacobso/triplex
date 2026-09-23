@@ -15,7 +15,16 @@ import {
   saveEntity,
 } from "./data.js";
 import { DashboardDemoLayer } from "./demo/layer.js";
-import { LoadDashboard, Message, RunQuery, init, initialModel, update, view } from "./main.js";
+import {
+  LoadDashboard,
+  Message,
+  RunQuery,
+  diffEntityFacts,
+  init,
+  initialModel,
+  update,
+  view,
+} from "./main.js";
 
 describe("Triplex dashboard", () => {
   it("loads real Triplex facts, config, journal records, and derivations through a Foldkit command", async () => {
@@ -28,6 +37,12 @@ describe("Triplex dashboard", () => {
     expect(loaded._tag).toBe("SucceededLoadDashboard");
     if (loaded._tag !== "SucceededLoadDashboard") return;
     expect(loaded.data.source).toBe("memory://demo-learning");
+    expect(loaded.data.entityTypes).toContainEqual(
+      expect.objectContaining({ name: "Student", source: "managed" }),
+    );
+    expect(loaded.data.entityTypes).toContainEqual(
+      expect.objectContaining({ name: "Enrollment", source: "runtime" }),
+    );
     expect(loaded.data.basis.recordedAt).toBeNull();
     expect(loaded.data.entities.length).toBeGreaterThanOrEqual(7);
     expect(loaded.data.transactions.length).toBeGreaterThanOrEqual(4);
@@ -310,6 +325,26 @@ describe("Triplex dashboard", () => {
         (fact) => fact.value.type === "string" && fact.value.value === "graduated",
       ),
     ).toBe(true);
+  });
+
+  it("previews semantic fact changes before committing JSON", () => {
+    const before = JSON.stringify([
+      { attribute: ":person/name", value: { type: "string", value: "Mina" } },
+      { attribute: ":student/status", value: { type: "string", value: "active" } },
+    ]);
+    const after = JSON.stringify([
+      { attribute: ":person/name", value: { type: "string", value: "Mina" } },
+      { attribute: ":student/status", value: { type: "string", value: "graduated" } },
+      { attribute: ":student/score", value: { type: "number", value: 97 } },
+    ]);
+
+    expect(
+      diffEntityFacts(before, after).map(({ attribute, status }) => ({ attribute, status })),
+    ).toEqual([
+      { attribute: ":person/name", status: "unchanged" },
+      { attribute: ":student/score", status: "added" },
+      { attribute: ":student/status", status: "changed" },
+    ]);
   });
 
   it("publishes edited config as a new immutable revision and moves live", async () => {

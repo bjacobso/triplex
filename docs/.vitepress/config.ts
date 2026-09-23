@@ -1,8 +1,11 @@
 import { dirname, resolve } from "node:path";
 
 import { transformerTwoslash } from "@shikijs/vitepress-twoslash";
+import tailwindcss from "@tailwindcss/vite";
 import ts from "typescript";
 import { defineConfig } from "vitepress";
+
+import { workspaceAliases } from "../../vitest.workspace-aliases.js";
 
 export default defineConfig({
   lang: "en-US",
@@ -13,14 +16,8 @@ export default defineConfig({
   lastUpdated: true,
   outDir: resolve(import.meta.dirname, "../../dist"),
   vite: {
-    resolve: {
-      alias: [
-        {
-          find: /^@triplex-build\/triplex$/,
-          replacement: resolve(import.meta.dirname, "../../packages/core/src/index.ts"),
-        },
-      ],
-    },
+    plugins: [tailwindcss()],
+    resolve: { alias: workspaceAliases() },
   },
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: "/mark.svg" }],
@@ -63,6 +60,7 @@ export default defineConfig({
     nav: [
       { text: "Get started", link: "/getting-started" },
       { text: "Playground", link: "/playground" },
+      { text: "Explorer", link: "/explorer" },
       { text: "Concepts", link: "/concepts" },
       {
         text: "Reference",
