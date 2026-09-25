@@ -8,4 +8,4 @@
 "@triplex-build/triplex-http": patch
 ---
 
-Validate tokenless npm trusted publishing with a coordinated `next` canary.
+Update the published package READMEs to reflect npm availability and supported installation paths.
