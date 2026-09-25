@@ -92,13 +92,9 @@ outside the normal test matrix.
 
 ## Honest limitations
 
-- The seven public packages are prepared for coordinated publication under the `@triplex-build`
-  organization scope, but no package under that scope is available from npm yet. Stable `0.1.0` has
-  not been published. The GitHub repository is `bjacobso/triplex`, and the local `origin` uses that
-  canonical URL.
+- Seven public packages are published under the `@triplex-build` organization scope. The GitHub
+  repository is `bjacobso/triplex`.
 - The superseded `@bjacobso` bootstrap packages are not the installation path for new consumers.
-  Evaluation uses a current source checkout until the scoped package bootstrap and registry checks
-  pass.
 - `SubscriptionManager` discovers dependencies and reports possible invalidations. It does not
   push result deltas or automatically re-run queries.
 - Entity snapshots, validation results, and derivation materializations are projections. Callers
@@ -123,14 +119,12 @@ outside the normal test matrix.
   restore, provider limit measurements, staged migration/rollout drills, credentialed Alchemy
   reconciliation, and lost-acknowledgement/node-failure exercises remain explicit gates.
 
-## First-release gates
+## Release follow-up
 
-1. Bootstrap the `@triplex-build` package records, configure npm trusted publishing, and verify a
-   registry-only `next` consumer for the whole coordinated package family.
-2. Review and version pending Changesets against the release set. The initial version PR has
-   merged, and the public manifests are already `0.1.0`; that does not mean they are published.
-3. Publish the scoped stable packages together and verify their peer dependency, provenance, CLI,
-   and exports behavior from the registry.
+1. Configure npm trusted publishing for all seven packages and verify a tokenless `next` publish.
+2. Verify the published packages in a clean registry-only consumer, including peer dependencies,
+   provenance, CLI, and exports.
+3. Deprecate the superseded `@bjacobso` canaries with migration guidance.
 
 Cloudflare and FoundationDB are private for the first release. Their source stays in the monorepo
 and continues to compile, but Changesets cannot publish them accidentally.

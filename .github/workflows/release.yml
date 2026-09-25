@@ -68,7 +68,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       - name: Ensure an OIDC-capable npm CLI
         run: npm install --global npm@^11.5.1
       - run: pnpm install --frozen-lockfile
@@ -80,9 +79,6 @@ jobs:
           create-github-releases: true
           push-git-tags: true
         env:
-          # A granular automation token is needed only to bootstrap package creation. Once each
-          # package trusts this workflow, npm uses the GitHub OIDC token instead.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
 
   canary:
@@ -99,7 +95,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       - name: Ensure an OIDC-capable npm CLI
         run: npm install --global npm@^11.5.1
       - run: pnpm install --frozen-lockfile
@@ -107,5 +102,4 @@ jobs:
       - run: pnpm test:postgres:integration
       - run: pnpm release:canary
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"

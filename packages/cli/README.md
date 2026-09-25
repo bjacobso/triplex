@@ -12,8 +12,8 @@ triplex --sqlite ./app.db status
 triplex --sqlite ./app.db entity types
 ```
 
-The new `@triplex-build/triplex-cli` package is not yet published. Use the repository command above
-from a source checkout. After publication, the installed binary will be `triplex`; the unscoped
+Install `@triplex-build/triplex-cli` from npm to use the `triplex` binary. The repository command
+above runs the same CLI from a source checkout. The unscoped
 `triplex` package name on npm belongs to an unrelated project.
 
 ## Agent contract

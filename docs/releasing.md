@@ -5,7 +5,7 @@ GitHub Actions; routine releases should not depend on a maintainer's local npm c
 
 ## Release set
 
-The first public release contains:
+The public release set contains:
 
 - `@triplex-build/triplex`
 - `@triplex-build/triplex-sql`
@@ -19,9 +19,8 @@ The first public release contains:
 packages until they pass the supported backend conformance contract. The dashboard and examples
 are also private.
 
-The initial version PR has merged and the public manifests are `0.1.0`. Manifest versions are
-not evidence of registry publication. Review pending Changesets and the coordinated release set
-before publishing; subsequent versioning can advance those versions.
+The first release published all seven packages in September 2026. Review pending Changesets and
+the coordinated release set before each subsequent publication.
 
 ## Required repository configuration
 
@@ -30,8 +29,7 @@ Create a GitHub environment named `npm-publish` and require maintainer approval 
 Repository Actions settings must allow GitHub Actions to create pull requests so the version job
 can maintain the release PR.
 
-The release workflow uses npm trusted publishing. For each public package, configure this trusted
-publisher after the package exists:
+The release workflow uses npm trusted publishing. Each public package needs this trusted publisher:
 
 | Field       | Value         |
 | ----------- | ------------- |
@@ -45,29 +43,22 @@ Allow direct `npm publish` for this workflow. It runs on a GitHub-hosted runner 
 
 ## One-time npm bootstrap
 
-npm package settings do not exist until the package has first been created. The package family was
-originally tested under the maintainer's scope using pre-stable canaries. The public package family
-now uses the `@triplex-build` organization scope. Bootstrap that scope with a short-lived token,
-then leave GitHub Actions OIDC as the only automation credential.
+npm package settings do not exist until the package has first been created. The seven public
+packages were bootstrapped under `@triplex-build` with a short-lived token. Routine releases use
+GitHub Actions OIDC without an npm token.
 
 For a new package added to the family, repeat the minimal bootstrap sequence:
 
 1. Authenticate as an npm owner of the `@triplex-build` organization and confirm the new name is
    available.
 2. Create a granular token limited to the new package with publish access and the minimum useful
-   lifetime.
-3. Store it as the `NPM_TOKEN` secret on the protected `npm-publish` GitHub environment.
-4. Manually dispatch the **Release** workflow. The canary job publishes snapshot versions under
-   the `next` dist-tag and does not create or push Git tags.
-5. Configure the trusted publisher above for every package.
-6. Delete `NPM_TOKEN`, revoke the bootstrap token, and leave OIDC as the only automation
-   credential.
+   lifetime. Temporarily add token authentication to the protected release job for its first publish.
+3. Publish its first version under the `next` dist-tag and verify the package record exists.
+4. Configure its trusted publisher using the values above.
+5. Remove the temporary token authentication, delete its GitHub secret, and revoke the token.
+6. Verify the next publish uses OIDC.
 
 Do not put an npm token in the repository, a shell command, or a checked-in `.npmrc`.
-
-The new scope currently has no published package records. During bootstrap, verify which dist-tags
-npm assigns and keep consumer checks on explicit `@next` versions until stable `0.1.0` is released;
-do not assume the registry state in documentation before checking it.
 
 The six pre-stable packages under `@bjacobso` are a superseded bootstrap line. After the
 `@triplex-build` stable release is available, deprecate every old version with a message directing
@@ -106,7 +97,7 @@ share the `triplex` stack's `prod` state. Secrets Store Edit is required to bind
 secret when a fresh runner authenticates; Secrets Store Read alone is insufficient. See
 [Cloudflare's Secrets Store permissions](https://developers.cloudflare.com/secrets-store/access-control/).
 
-## Verify the canary after bootstrap
+## Verify a canary
 
 Install from the registry in a clean directory outside this monorepo:
 

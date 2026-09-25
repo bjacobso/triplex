@@ -1,13 +1,12 @@
 # Troubleshooting and FAQ
 
-## Why does npm return 404 for `@triplex-build/*`?
+## Why does npm return 404 for a Triplex package?
 
-The package namespace has moved to `@triplex-build`, but the new package family has not yet been
-published. As of September 10, 2026, registry lookups for core, SQLite, and the CLI return `404`.
-Use the [source-checkout quickstart](/getting-started) until the release gates are complete. Do not
-switch new examples back to the superseded `@bjacobso` namespace.
+The seven public packages use the `@triplex-build` scope. Check the full package name and clear a
+stale local npm cache if a newly published version returns 404. Cloudflare and FoundationDB remain
+private workspace packages. Do not switch new examples back to the superseded `@bjacobso` scope.
 
-After publication, keep every Triplex package on one coordinated release and use the exact Effect
+Keep every Triplex package on one coordinated release and use the exact Effect
 peer version declared by that release. The current source tree targets Node.js 22+ and
 `effect@4.0.0-rc.112`; Effect 3 is incompatible. Multiple Effect copies or an RC mismatch can make
 service tags and runtime types disagree even when imports look correct.

@@ -1,7 +1,7 @@
 # @triplex-build/triplex-http
 
-> **Pre-1.0:** the `@triplex-build` packages are not yet published. Evaluate this workspace package
-> from a source checkout with `effect@4.0.0-rc.112`; Effect 3 is not compatible.
+> **Pre-1.0:** install `@triplex-build/triplex-http` from npm with `effect@4.0.0-rc.112`;
+> Effect 3 is not compatible.
 
 Configuration-derived REST and OpenAPI contracts for Triplex. The package is backend-neutral and
 uses Effect services: hosts provide `Triples`, `ConfigStore`, and an authorization policy, then

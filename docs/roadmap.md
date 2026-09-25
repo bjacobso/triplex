@@ -30,11 +30,10 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
 - Delivered: Cloudflare and FoundationDB are private experimental workspace packages and cannot be
   included in the first release accidentally.
 - Delivered: the GitHub repository cutover to `bjacobso/triplex`.
-- Delivered: the initial version PR; all seven public package manifests are now `0.1.0`.
-- Remaining: bootstrap the `@triplex-build` package records, verify trusted publishing for all
-  seven public packages, and pass a registry-only `next` consumer before stable publication.
-  Earlier canary validation under the superseded maintainer scope does not establish availability
-  under the new scope. Review pending Changesets and verify the coordinated stable release.
+- Delivered: the initial version PR and the first publication of all seven public packages under
+  `@triplex-build`.
+- Remaining: verify trusted publishing for all seven public packages with a tokenless `next`
+  release and test the registry packages in a clean external consumer.
 
 ## Immediate correctness gate: backend parity
 
