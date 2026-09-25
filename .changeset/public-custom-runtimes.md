@@ -3,7 +3,6 @@
 "@triplex-build/triplex-sql": minor
 "@triplex-build/triplex-sqlite": patch
 "@triplex-build/triplex-postgres": patch
-"@triplex-build/triplex-cloudflare": minor
 "@triplex-build/triplex-testkit": minor
 ---
 
