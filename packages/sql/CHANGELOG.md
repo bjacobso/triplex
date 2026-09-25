@@ -1,5 +1,13 @@
 # @triplex-build/triplex-sql
 
+## 0.2.1
+
+### Patch Changes
+
+- 458d699: Update the published package READMEs to reflect npm availability and supported installation paths.
+- Updated dependencies [458d699]
+  - @triplex-build/triplex@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
