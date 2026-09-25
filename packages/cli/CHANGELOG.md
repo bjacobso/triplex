@@ -1,5 +1,16 @@
 # @triplex-build/triplex-cli
 
+## 0.1.2
+
+### Patch Changes
+
+- 458d699: Update the published package READMEs to reflect npm availability and supported installation paths.
+- Updated dependencies [458d699]
+  - @triplex-build/triplex@0.2.1
+  - @triplex-build/triplex-sql@0.2.1
+  - @triplex-build/triplex-sqlite@0.1.2
+  - @triplex-build/triplex-postgres@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

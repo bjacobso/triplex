@@ -1,5 +1,11 @@
 # @triplex-build/triplex
 
+## 0.2.1
+
+### Patch Changes
+
+- 458d699: Update the published package READMEs to reflect npm availability and supported installation paths.
+
 ## 0.2.0
 
 ### Minor Changes
