@@ -1,5 +1,15 @@
 # @triplex-build/triplex-cli
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [34b16bb]
+  - @triplex-build/triplex@0.2.0
+  - @triplex-build/triplex-sql@0.2.0
+  - @triplex-build/triplex-sqlite@0.1.1
+  - @triplex-build/triplex-postgres@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
