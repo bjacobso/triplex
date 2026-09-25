@@ -2,8 +2,8 @@
 
 The PostgreSQL backend for Triplex, built on `@effect/sql-pg`.
 
-The `@triplex-build` packages are not yet published. Evaluate this workspace package from a source
-checkout. It requires Node.js 22 or newer and a PostgreSQL connection URL.
+Install `@triplex-build/triplex-postgres` from npm. It requires Node.js 22 or newer and a
+PostgreSQL connection URL.
 
 ```ts
 import { PgTriples } from "@triplex-build/triplex-postgres";

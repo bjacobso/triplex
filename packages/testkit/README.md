@@ -2,8 +2,8 @@
 
 Reusable backend fixture and capability helpers for testing Triplex adapters.
 
-The `@triplex-build` packages are not yet published. Evaluate this workspace package from a source
-checkout with the repository's locked Node.js, pnpm, and Effect versions.
+Install `@triplex-build/triplex-testkit` from npm with Node.js 22+ and the compatible Effect 4
+release candidate.
 
 `triplesConformanceCases` and `makeTriplesConformanceSuite` define the behavioral contract used by
 the in-memory KV, SQLite, and opt-in PostgreSQL suites. The corpus covers atomic writes, typed

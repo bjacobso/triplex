@@ -8,8 +8,8 @@
 # Triplex
 
 > [!WARNING]
-> Triplex is pre-1.0. The new `@triplex-build` packages are not yet published; use a source checkout
-> for evaluation. The current tree requires `effect@4.0.0-rc.112`; Effect 3 is not compatible. KV
+> Triplex is pre-1.0. The published `@triplex-build` packages require `effect@4.0.0-rc.112`;
+> Effect 3 is not compatible. KV
 > and SQLite are the supported baseline, PostgreSQL is a production candidate, and Cloudflare and
 > FoundationDB are experimental. See [Current state](docs/current-state.md) for the exact maturity
 > contract.
@@ -67,8 +67,13 @@ and never ask about history or provenance. Triplex is a system of record, not a 
 
 ## Installation and evaluation
 
-As of September 10, 2026, npm returns `404` for the new `@triplex-build` package family. Run the
-checked examples from a source checkout until the first release gates are complete:
+Install the core package and its Effect peer dependency from npm:
+
+```sh
+npm install @triplex-build/triplex effect@4.0.0-rc.112
+```
+
+To run the checked repository examples from a source checkout:
 
 ```sh
 git clone https://github.com/bjacobso/triplex.git

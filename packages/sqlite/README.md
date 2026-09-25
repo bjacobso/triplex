@@ -2,8 +2,8 @@
 
 The Node.js SQLite backend for Triplex, built on `@effect/sql-sqlite-node`.
 
-The `@triplex-build` packages are not yet published. Evaluate this workspace package from a source
-checkout with Node.js 22+ and the repository's locked dependencies. See the
+Install `@triplex-build/triplex-sqlite` from npm with Node.js 22+ and the compatible Effect 4
+release candidate. See the
 [quickstart](../../docs/getting-started.md#use-durable-sqlite).
 
 ```ts

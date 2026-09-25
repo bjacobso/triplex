@@ -3,8 +3,8 @@
 Shared SQL migrations, database management, and Datalog execution for Triplex. Most applications
 install this transitively through a concrete backend package.
 
-The `@triplex-build` packages are not yet published. Evaluate this workspace package from a source
-checkout with the repository's locked Node.js, pnpm, and Effect versions.
+Install `@triplex-build/triplex-sql` from npm when building a custom SQL runtime. Use Node.js 22+
+and the compatible Effect 4 release candidate.
 
 The public surface includes the ordered greenfield `migrations`, explicit `runMigrations`, SQL
 query executors, and SQL-backed `DatabaseManager`/registry layers. Use

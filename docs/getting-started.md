@@ -1,13 +1,11 @@
 # Getting started
 
 This guide writes three facts to an in-memory Triplex database, joins them with Datalog, and prints
-the result. It is the shortest complete path from a source checkout to a running program.
+the result. It is the shortest complete path to a running program.
 
-::: warning Package availability
-As of September 10, 2026, the new `@triplex-build` packages are **not yet available from npm**.
-The registry returns `404` for the core, SQLite, and CLI packages. Use the source-checkout path
-below until the [first release gates](/current-state#first-release-gates) are complete. Do not use
-the superseded `@bjacobso` package names for new work.
+::: warning Pre-1.0 packages
+The `@triplex-build` packages are available from npm and require `effect@4.0.0-rc.112`.
+Effect 3 is incompatible. Do not use the superseded `@bjacobso` package names for new work.
 :::
 
 ## Prerequisites
@@ -15,6 +13,12 @@ the superseded `@bjacobso` package names for new work.
 - Git
 - Node.js 22 or newer
 - Corepack and pnpm 10.11.0 (the repository declares the exact package-manager version)
+
+For an application, install the published core package and its Effect peer dependency:
+
+```sh
+npm install @triplex-build/triplex effect@4.0.0-rc.112
+```
 
 ## Run the example
 
@@ -77,9 +81,11 @@ work that intentionally needs the complete result set.
 
 ## Use durable SQLite
 
-SQLite is the supported local persistent backend. Once the scoped packages are published, a
-registry consumer will install the exact compatible releases of core, SQLite, and Effect. Until
-then, use them from this workspace checkout.
+SQLite is the supported local persistent backend. Install it alongside core and Effect:
+
+```sh
+npm install @triplex-build/triplex-sqlite
+```
 
 Replace the in-memory layer with a file-backed layer:
 

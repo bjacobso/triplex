@@ -1,9 +1,8 @@
 # CLI and dashboard
 
-Triplex includes two operator tools in the repository: a JSON-first CLI for repeatable commands and
-a browser dashboard for interactive exploration. Both are pre-1.0. The CLI package is not yet
-available under the new npm scope, and the dashboard is a private workspace package rather than a
-published application.
+Triplex includes two operator tools: a published JSON-first CLI for repeatable commands and a
+browser dashboard for interactive exploration. Both are pre-1.0. The dashboard is a private
+workspace package rather than a published application.
 
 ## Build from the source checkout
 
@@ -15,7 +14,8 @@ pnpm turbo run build --filter=@triplex-build/triplex-cli...
 triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
 ```
 
-The examples below use the repository command so they work before registry publication:
+The examples below use the repository command. Install `@triplex-build/triplex-cli` from npm to
+use the same `triplex` binary in an application:
 
 ```sh
 triplex --sqlite ./app.db describe

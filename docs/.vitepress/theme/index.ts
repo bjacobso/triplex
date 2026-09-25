@@ -16,7 +16,7 @@ export default {
     h(DefaultTheme.Layout, null, {
       "layout-top": () =>
         h("div", { class: "triplex-prerelease", role: "status" }, [
-          "Pre-1.0 · new npm scope not published yet · use source checkout · ",
+          "Pre-1.0 · seven public packages available on npm · ",
           h("a", { href: "/current-state" }, "current state"),
         ]),
     }),

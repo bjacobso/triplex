@@ -8,9 +8,8 @@ and Effect services.
 
 ## Availability
 
-The `@triplex-build` package family is not yet published. Evaluate this package from the repository
-workspace with Node.js 22+, pnpm 10.11.0, and the locked `effect@4.0.0-rc.112` dependency. See the
-[source-checkout quickstart](../../docs/getting-started.md). Do not use the superseded
+Install `@triplex-build/triplex` from npm with Node.js 22+ and its `effect@4.0.0-rc.112` peer
+dependency. See the [quickstart](../../docs/getting-started.md). Do not use the superseded
 `@bjacobso` canaries for new work.
 
 ## In-memory store
@@ -126,11 +125,11 @@ clauses are rejected with typed errors.
 domain-separated SHA-256 `ContentId` values. IDs use the format
 `sha256-<64 lowercase hex characters>`.
 
-The pre-1.0 entity-snapshot hash changed from `fnv1a:<8 hex characters>`. The unpublished
-SQL schema now has one canonical baseline; databases from earlier development builds must
+The pre-1.0 entity-snapshot hash changed from `fnv1a:<8 hex characters>`. The SQL schema now has
+one canonical baseline; databases from earlier development builds must
 be recreated or have their derived snapshots rebuilt from temporal triples.
 
 See the repository [current-state document](../../docs/current-state.md) for backend maturity,
-known limitations, and first-release gates.
+known limitations, and release follow-up.
 
 MIT © 2026 Ben Jacobson.

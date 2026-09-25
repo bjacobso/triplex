@@ -9,8 +9,8 @@ pageClass: triplex-index
 ---
 
 ::: warning Pre-1.0 release candidate
-The new `@triplex-build` packages are not yet published. Run Triplex from a source checkout; the
-current tree requires `effect@4.0.0-rc.112`, and Effect 3 is not compatible. KV and SQLite are the
+The seven public `@triplex-build` packages are available from npm. They require
+`effect@4.0.0-rc.112`; Effect 3 is not compatible. KV and SQLite are the
 supported baseline; PostgreSQL is a production candidate, while Cloudflare and FoundationDB are
 experimental. [Read the exact maturity contract](/current-state).
 :::
