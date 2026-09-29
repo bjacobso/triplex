@@ -1,6 +1,6 @@
 {
   "name": "@triplex-build/triplex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The database that remembers why: an embedded, bitemporal fact database for TypeScript back-office systems, built on Effect.",
   "keywords": [
     "configuration",

@@ -1,5 +1,13 @@
 # @triplex-build/triplex
 
+## 0.2.1
+
+### Patch Changes
+
+- 405f798: Describe Triplex as the database that remembers why, and link the agent modeling guide and the
+  `llms.txt` documentation index from the package README.
+- 458d699: Update the published package READMEs to reflect npm availability and supported installation paths.
+
 ## 0.2.0
 
 ### Minor Changes
