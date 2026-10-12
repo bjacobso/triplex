@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { Triples } from "@triplex-build/triplex";
 import { expect } from "vitest";
 

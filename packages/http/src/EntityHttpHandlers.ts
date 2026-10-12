@@ -3,10 +3,11 @@ import {
   ConstraintViolationError,
   TransactionConflictError,
 } from "@triplex-build/triplex";
-import { Cause, Effect, Encoding, Result } from "effect";
-import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
-import { HttpRouter, HttpServerResponse } from "effect/unstable/http";
-import { HttpApiScalar } from "effect/unstable/httpapi";
+import { Cause, Effect, Result } from "effect";
+import { Base64Url } from "effect/encoding";
+import type { HttpServerRequest } from "effect/http/HttpServerRequest";
+import { HttpRouter, HttpServerResponse } from "effect/http";
+import { HttpApiScalar } from "effect/http-api";
 
 import { HttpAuthorization } from "./Authorization.js";
 import {
@@ -189,8 +190,7 @@ const encodeCursor = (input: {
   readonly snapshotId: string;
   readonly exposureKey: string;
   readonly collection: string;
-}): string =>
-  Encoding.encodeBase64Url(cursorEncoder.encode(JSON.stringify({ version: 1, ...input })));
+}): string => Base64Url.encode(cursorEncoder.encode(JSON.stringify({ version: 1, ...input })));
 
 const decodeCursor = (
   cursor: string,
@@ -201,7 +201,7 @@ const decodeCursor = (
   },
 ): string => {
   try {
-    const bytes = Encoding.decodeBase64Url(cursor);
+    const bytes = Base64Url.decode(cursor);
     if (Result.isFailure(bytes)) throw bytes.failure;
     const value: unknown = JSON.parse(cursorDecoder.decode(bytes.success));
     if (

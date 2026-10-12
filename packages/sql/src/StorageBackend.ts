@@ -6,7 +6,7 @@
  */
 
 import { Context, Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import type { SqlDialect, StorageAdapter } from "@triplex-build/triplex/internal";
 import type { DatabaseId } from "@triplex-build/triplex";
 

@@ -14,7 +14,7 @@ and Effect services.
 
 ## Availability
 
-Install `@triplex-build/triplex` from npm with Node.js 22+ and its `effect@4.0.0-rc.112` peer
+Install `@triplex-build/triplex` from npm with Node.js 22+ and its `effect@4.0.3` peer
 dependency. See the [quickstart](../../docs/getting-started.md). Do not use the superseded
 `@bjacobso` canaries for new work.
 

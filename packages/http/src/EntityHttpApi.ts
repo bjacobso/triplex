@@ -1,11 +1,5 @@
 import { Schema } from "effect";
-import {
-  HttpApi,
-  HttpApiEndpoint,
-  HttpApiGroup,
-  HttpApiSchema,
-  OpenApi,
-} from "effect/unstable/httpapi";
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api";
 
 import type { ConfigApiDescriptor, EntityDescriptor } from "./ConfigApi.js";
 import { inputSchema, outputSchema } from "./EntityCodec.js";

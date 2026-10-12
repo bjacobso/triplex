@@ -8,7 +8,7 @@
 # Triplex
 
 > [!WARNING]
-> Triplex is pre-1.0. The published `@triplex-build` packages require `effect@4.0.0-rc.112`;
+> Triplex is pre-1.0. The published `@triplex-build` packages require `effect@4.0.3`;
 > Effect 3 is not compatible. KV
 > and SQLite are the supported baseline, PostgreSQL is a production candidate, and Cloudflare and
 > FoundationDB are experimental. See [Current state](docs/current-state.md) for the exact maturity
@@ -75,7 +75,7 @@ and never ask about history or provenance. Triplex is a system of record, not a 
 Install the core package and its Effect peer dependency from npm:
 
 ```sh
-npm install @triplex-build/triplex effect@4.0.0-rc.112
+npm install @triplex-build/triplex effect@4.0.3
 ```
 
 To run the checked repository examples from a source checkout:
@@ -89,7 +89,7 @@ pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/getting-start
 ```
 
 Do not use the superseded `@bjacobso` canaries for new work. Triplex is ESM-only, targets Node.js
-22+, and is aligned to `effect@4.0.0-rc.112`. The browser-safe core also runs in modern browsers and
+22+, and is aligned to `effect@4.0.3`. The browser-safe core also runs in modern browsers and
 edge runtimes. The [website quickstart](docs/getting-started.md) includes expected output, Effect
 layer lifetime, and SQLite persistence. The coordinated package publication process is documented
 in [Releasing Triplex](docs/releasing.md).
@@ -507,7 +507,7 @@ This path creates no pool and runs no migration:
 
 ```ts
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { EntityId, Triples, string } from "@triplex-build/triplex";
 import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
 

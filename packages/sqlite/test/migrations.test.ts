@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { migrations, runMigrations } from "@triplex-build/triplex-sql";
 import { makeSqliteLayerUnmigrated } from "../src/SqliteLayer.js";
 

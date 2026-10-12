@@ -1,6 +1,6 @@
 /** Opt-in query benchmark. PG_BENCH_URL must point to a disposable database. */
 import { Effect } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { Triples, type DatalogQuery, type PagedQueryResponse } from "@triplex-build/triplex";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { PgTriples } from "@triplex-build/triplex-postgres";

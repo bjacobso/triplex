@@ -5,7 +5,7 @@
  */
 
 import { Effect, Layer, Scope, Context, pipe, Exit } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import {
   DatabaseRegistry,
   type DatabaseRegistryService,

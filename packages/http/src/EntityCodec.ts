@@ -24,6 +24,13 @@ const valueSchema = (attribute: AttributeDescriptor): Schema.Codec<unknown, unkn
     : scalar;
 };
 
+// Reject undeclared keys in the schema itself: Effect 4 stable no longer
+// applies parseOptions annotations, including inside HttpApi payloads.
+const closedStruct = <const Fields extends Schema.Struct.Fields>(fields: Fields) =>
+  Schema.StructWithRest(Schema.Struct(fields), [
+    Schema.Record(Schema.Union([Schema.String, Schema.Symbol]), Schema.Unknown),
+  ]).check(Schema.isPropertyNames(Schema.Literals(Object.keys(fields))));
+
 export const attributesSchema = (entity: EntityDescriptor): Schema.Codec<unknown, unknown> => {
   const fields = Object.fromEntries(
     entity.attributes.map((attribute) => [
@@ -31,16 +38,14 @@ export const attributesSchema = (entity: EntityDescriptor): Schema.Codec<unknown
       attribute.required ? valueSchema(attribute) : Schema.optional(valueSchema(attribute)),
     ]),
   ) as Schema.Struct.Fields;
-  return Schema.Struct(fields).annotate({
+  return closedStruct(fields).annotate({
     identifier: `${entity.entityType}Attributes`,
-    parseOptions: { onExcessProperty: "error" },
   }) as unknown as Schema.Codec<unknown, unknown>;
 };
 
 export const inputSchema = (entity: EntityDescriptor): Schema.Codec<unknown, unknown> =>
-  Schema.Struct({ attributes: attributesSchema(entity) }).annotate({
+  closedStruct({ attributes: attributesSchema(entity) }).annotate({
     identifier: `${entity.entityType}Input`,
-    parseOptions: { onExcessProperty: "error" },
   }) as Schema.Codec<unknown, unknown>;
 
 export const outputSchema = (entity: EntityDescriptor): Schema.Codec<unknown, unknown> =>

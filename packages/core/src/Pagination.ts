@@ -1,4 +1,5 @@
-import { Encoding, Result, Schema } from "effect";
+import { Result, Schema } from "effect";
+import { Base64Url } from "effect/encoding";
 
 import type { WrappedQueryResult } from "./storage/QueryExecutor.js";
 import type { DatalogQuery, OrderBySpec, WrappedQuery } from "./datalog/types.js";
@@ -147,7 +148,7 @@ const scopeFingerprint = (scope: string): string =>
 const decodeEnvelope = (cursor: string): PaginationCursorEnvelope => {
   let unknown: unknown;
   try {
-    const decoded = Encoding.decodeBase64Url(cursor);
+    const decoded = Base64Url.decode(cursor);
     if (Result.isFailure(decoded)) throw decoded.failure;
     unknown = JSON.parse(textDecoder.decode(decoded.success));
   } catch (cause) {
@@ -297,7 +298,7 @@ export const preparePagination = (input: {
 };
 
 const encodeEnvelope = (envelope: PaginationCursorEnvelope): PaginationCursor =>
-  Encoding.encodeBase64Url(textEncoder.encode(JSON.stringify(envelope))) as PaginationCursor;
+  Base64Url.encode(textEncoder.encode(JSON.stringify(envelope))) as PaginationCursor;
 
 export const finishPagination = (
   prepared: PreparedPagination,

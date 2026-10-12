@@ -97,7 +97,7 @@ A host-owned Effect SQL client can back Triplex without a hidden second pool:
 
 ```ts
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { EntityId, Triples, string } from "@triplex-build/triplex";
 import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
 

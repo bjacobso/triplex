@@ -3,8 +3,8 @@ import { KvTriples } from "@triplex-build/triplex";
 import { ConfigStore } from "@triplex-build/triplex/config";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer, Option, Path, Schema } from "effect";
-import { Command, Flag } from "effect/unstable/cli";
-import { HttpRouter, HttpServer } from "effect/unstable/http";
+import { Command, Flag } from "effect/cli";
+import { HttpRouter, HttpServer } from "effect/http";
 import { createServer } from "node:http";
 
 import { routes } from "./api.js";
@@ -21,15 +21,15 @@ const logDocumentation = Effect.gen(function* () {
 const command = Command.make(
   "triplex-http-api",
   {
-    sqlite: Flag.string("sqlite").pipe(
+    sqlite: Flag.String("sqlite").pipe(
       Flag.withDescription("SQLite filename; omit to use ephemeral in-memory storage"),
       Flag.optional,
     ),
-    host: Flag.string("host").pipe(
+    host: Flag.String("host").pipe(
       Flag.withDescription("Host address to bind"),
       Flag.withDefault("127.0.0.1"),
     ),
-    port: Flag.integer("port").pipe(
+    port: Flag.Int("port").pipe(
       Flag.withDescription("Port to listen on; use 0 to allocate an available port"),
       Flag.withSchema(
         Schema.Number.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(65535)),

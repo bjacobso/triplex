@@ -90,32 +90,30 @@ const go = (expr: TypeExpr.TypeExpr): Schema.Codec<any, any> => {
     case "List":
       return Schema.Array(go(expr.item)) as Schema.Codec<any, any>;
     case "Struct":
-      return Schema.Struct(
-        Object.fromEntries(
-          Object.entries(expr.fields).map(([name, field]) => [
-            name,
-            field.optional
-              ? field.fallback === undefined
-                ? Schema.optional(go(field.type))
-                : // Applied on decode and emitted on encode, so an omitted
-                  // field and an explicitly-defaulted one produce identical
-                  // bytes and therefore an identical content id.
-                  go(field.type).pipe(
-                    Schema.withDecodingDefaultType(Effect.succeed(field.fallback)),
-                  )
-              : go(field.type),
-          ]),
+      return Schema.StructWithRest(
+        Schema.Struct(
+          Object.fromEntries(
+            Object.entries(expr.fields).map(([name, field]) => [
+              name,
+              field.optional
+                ? field.fallback === undefined
+                  ? Schema.optional(go(field.type))
+                  : // Applied on decode and emitted on encode, so an omitted
+                    // field and an explicitly-defaulted one produce identical
+                    // bytes and therefore an identical content id.
+                    go(field.type).pipe(
+                      Schema.withDecodingDefaultType(Effect.succeed(field.fallback)),
+                    )
+                : go(field.type),
+            ]),
+          ),
         ),
-        // Structs are closed, and `TypeSubsumption` decides verdicts on that
-        // basis - dropping a field narrows precisely because a value still
-        // carrying it must be rejected. Effect ignores excess properties by
-        // default, so without this the two halves would disagree: subsumption
-        // would refuse a change the compiler would happily accept. Annotating
-        // the node rather than passing parse options means every caller of
-        // `compile` gets the same semantics, including nested uses.
-      ).annotate({
-        parseOptions: { onExcessProperty: "error" },
-      }) as unknown as Schema.Codec<any, any>;
+        // Preserve excess keys so the property-name check can reject them.
+        // Effect 4 stable no longer applies parseOptions annotations.
+        [Schema.Record(Schema.Union([Schema.String, Schema.Symbol]), Schema.Unknown)],
+      ).check(
+        Schema.isPropertyNames(Schema.Literals(Object.keys(expr.fields))),
+      ) as unknown as Schema.Codec<any, any>;
     case "Union":
       return Schema.Union(expr.members.map(go)) as unknown as Schema.Codec<any, any>;
     case "Constrained":

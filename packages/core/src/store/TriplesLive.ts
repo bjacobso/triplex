@@ -81,13 +81,13 @@ const rowToTriple = (row: TripleRow): Triple => {
       value = { type: "string", value: row.value_string ?? "" };
       break;
     case "number":
-      value = { type: "number", value: row.value_number ?? 0 };
+      value = { type: "number", value: Number(row.value_number ?? 0) };
       break;
     case "boolean":
       value = { type: "boolean", value: row.value_boolean === 1 };
       break;
     case "datetime":
-      value = { type: "datetime", value: row.value_datetime ?? 0 };
+      value = { type: "datetime", value: Number(row.value_datetime ?? 0) };
       break;
     case "ref":
       value = { type: "ref", value: unsafe.entityId(row.value_string ?? "") };

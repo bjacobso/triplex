@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@effect/platform-browser": "catalog:",
     "@effect/platform-node": "catalog:",
     "@foldkit/ui": "catalog:",
     "@fontsource-variable/ibm-plex-sans": "catalog:",
