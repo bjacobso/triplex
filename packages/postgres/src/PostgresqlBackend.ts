@@ -7,7 +7,7 @@
  */
 
 import { Context, Effect, Layer, Redacted } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { PgClient } from "@effect/sql-pg";
 import { createHash } from "node:crypto";
 import type { DatabaseId } from "@triplex-build/triplex";

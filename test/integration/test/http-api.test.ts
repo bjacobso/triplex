@@ -16,7 +16,7 @@ import {
 } from "@triplex-build/triplex-http";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";
-import { HttpRouter } from "effect/unstable/http";
+import { HttpRouter } from "effect/http";
 import { describe, expect, it } from "vitest";
 
 const EmployerName = Attribute.text(":employer/name");

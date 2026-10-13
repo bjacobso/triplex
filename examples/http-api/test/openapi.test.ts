@@ -1,7 +1,7 @@
 import { KvTriples } from "@triplex-build/triplex";
 import { ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Layer } from "effect";
-import { HttpRouter } from "effect/unstable/http";
+import { HttpRouter } from "effect/http";
 import { format } from "oxfmt";
 import { expect, it } from "vitest";
 

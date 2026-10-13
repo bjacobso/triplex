@@ -5,13 +5,14 @@ import {
   InMemoryConfigStore,
   TypeExpr,
 } from "@triplex-build/triplex/config";
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { compile } from "../src/ConfigApi.js";
 import { compileHttpApi } from "../src/EntityHttpApi.js";
 import { HandlerCache } from "../src/HandlerCache.js";
 import * as HandlerCacheModule from "../src/HandlerCache.js";
+import { inputSchema } from "../src/EntityCodec.js";
 
 const snapshot = Effect.gen(function* () {
   const Name = Attribute.text(":employer/name");
@@ -29,6 +30,21 @@ const snapshot = Effect.gen(function* () {
 });
 
 describe("ConfigApi", () => {
+  it("rejects undeclared request and attribute keys with stable Effect schemas", async () => {
+    const descriptor = await Effect.runPromise(
+      snapshot.pipe(Effect.flatMap((release) => compile(release))),
+    );
+    const schema = inputSchema(descriptor.entities[0]!);
+    const decode = Schema.decodeUnknownSync(schema);
+    expect(decode({ attributes: { ":employer/name": "Acme" } })).toEqual({
+      attributes: { ":employer/name": "Acme" },
+    });
+    expect(() => decode({ attributes: { ":employer/name": "Acme" }, extra: true })).toThrow();
+    expect(() =>
+      decode({ attributes: { ":employer/name": "Acme", ":employer/extra": true } }),
+    ).toThrow();
+  });
+
   it("compiles deterministic runtime schemas and OpenAPI from persisted nodes", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {

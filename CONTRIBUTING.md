@@ -48,3 +48,21 @@ OIDC-capable npm CLI.
 
 Keep private packages out of Changeset frontmatter. Changesets cannot version a public release
 when a Changeset mixes private and publishable packages.
+
+## Dependency compatibility
+
+The workspace tests Effect 4.0.3 with Foldkit and `@foldkit/ui` 0.168.0 and
+`@foldkit/vite-plugin` 0.27.1. These Foldkit releases declare exact Effect 4.0.0 peers;
+the plugin also pins the Node adapters to 4.0.0. `pnpm-workspace.yaml` allows only
+4.0.3 for those specific package peers and overrides only the plugin's two adapter
+dependencies. The browser adapter is an explicit catalog dependency of both the
+dashboard and the documentation workspace. Remove these exceptions when upstream
+peer ranges accept the tested patch. Peer checking remains enabled.
+
+Effect 4.0.3's test adapter requires Vitest 5, so the catalog also uses Vitest 5.0.4
+and the compatible Cloudflare test plugin 1.4.0 and Workers types 5.20261006.1.
+The two workerd test configs disable Vitest's host filesystem module cache because
+those paths are unavailable inside the worker. Node test configs keep the default cache.
+Alchemy 2.0.0-beta.80 supplies the stable Effect imports used by the existing stacks.
+Validate dependency changes with a frozen install, `pnpm check`, `pnpm pack:check`,
+and `pnpm test:e2e`; PostgreSQL and FoundationDB retain their integration gates above.

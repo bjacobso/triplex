@@ -1,4 +1,5 @@
-import { Encoding, Result } from "effect";
+import { Result } from "effect";
+import { Base64Url } from "effect/encoding";
 
 import type { TemporalBasis, ResolvedTemporalBasis } from "./Temporal.js";
 import { resolveTemporalBasis } from "./Temporal.js";
@@ -47,7 +48,7 @@ const cursorError = (message: string, cause?: unknown) =>
 
 const decode = (cursor: string): CursorEnvelope => {
   try {
-    const bytes = Encoding.decodeBase64Url(cursor);
+    const bytes = Base64Url.decode(cursor);
     if (Result.isFailure(bytes)) throw bytes.failure;
     const value: unknown = JSON.parse(decoder.decode(bytes.success));
     if (
@@ -152,7 +153,7 @@ export const encodeEntityPageCursor = (
   prepared: PreparedEntityPage,
   after: string,
 ): EntityPageCursor =>
-  Encoding.encodeBase64Url(
+  Base64Url.encode(
     encoder.encode(
       JSON.stringify({
         version: 1,

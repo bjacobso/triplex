@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect";
-import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
+import type { HttpServerRequest } from "effect/http/HttpServerRequest";
 
 import type { AuthorizationError } from "./Errors.js";
 

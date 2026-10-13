@@ -5,7 +5,7 @@ import { PgTriples } from "@triplex-build/triplex-postgres";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Layer, Schema } from "effect";
-import { HttpRouter, HttpServerResponse, HttpStaticServer } from "effect/unstable/http";
+import { HttpRouter, HttpServerResponse, HttpStaticServer } from "effect/http";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

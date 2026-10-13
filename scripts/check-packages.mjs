@@ -146,11 +146,6 @@ try {
           effect: effectVersion,
           typescript: "6.0.2",
         },
-        overrides: {
-          // @effect/sql-sqlite-node 0.49 still declares v11. The workspace
-          // applies the same override because v12 provides Node 24 support.
-          "better-sqlite3": "12.10.0",
-        },
       },
       null,
       2,
@@ -328,11 +323,9 @@ if (
 `,
   );
 
-  // FoundationDB and SQLite both ship native addons. Install every package with
-  // lifecycle scripts disabled so the type-level consumer check is portable,
-  // then build only the SQLite addon exercised by the runtime smoke test.
+  // Skip FoundationDB's native addon install so the type-level check is portable.
+  // Effect 4 stable's SQLite driver uses node:sqlite for the runtime smoke test.
   run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], consumerDir);
-  run("npm", ["rebuild", "better-sqlite3"], consumerDir);
   run("npx", ["tsc", "--project", "tsconfig.json"], consumerDir);
   run("node", ["smoke.mjs"], consumerDir);
 

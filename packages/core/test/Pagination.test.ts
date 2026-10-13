@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Encoding } from "effect";
+import { Base64Url } from "effect/encoding";
 
 import { finishPagination, preparePagination } from "../src/Pagination.js";
 import { PaginationCursorError } from "../src/errors/index.js";
@@ -16,7 +16,7 @@ const query: WrappedQuery = {
 };
 
 const encoded = (value: unknown): string =>
-  Encoding.encodeBase64Url(new TextEncoder().encode(JSON.stringify(value)));
+  Base64Url.encode(new TextEncoder().encode(JSON.stringify(value)));
 
 describe("paged query cursor contract", () => {
   it("defaults to a bounded page and reuses omitted temporal fields from the cursor", () => {
@@ -111,7 +111,7 @@ describe("paged query cursor contract", () => {
 
   it.each([
     ["invalid base64", "%%%"],
-    ["invalid JSON", Encoding.encodeBase64Url(new TextEncoder().encode("{"))],
+    ["invalid JSON", Base64Url.encode(new TextEncoder().encode("{"))],
     ["invalid shape", encoded({ version: 1, queryFingerprint: "x", scopeFingerprint: "y" })],
   ])("rejects %s with a typed error", (_label, cursor) => {
     expect(() =>

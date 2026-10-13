@@ -32,7 +32,7 @@ import {
   Stdio,
   Stream,
 } from "effect";
-import { Argument, Command, Flag } from "effect/unstable/cli";
+import { Argument, Command, Flag } from "effect/cli";
 import {
   execute,
   executeDatabase,
@@ -42,27 +42,27 @@ import {
 
 declare const __TRIPLEX_CLI_VERSION__: string;
 
-const pretty = Flag.boolean("pretty").pipe(
+const pretty = Flag.Boolean("pretty").pipe(
   Flag.withDescription("Pretty-print JSON output"),
   Flag.withDefault(false),
 );
 
-const sqlite = Flag.string("sqlite").pipe(
+const sqlite = Flag.String("sqlite").pipe(
   Flag.withDescription("Standalone SQLite file path; defaults to ./triplex.sqlite"),
   Flag.withDefault("./triplex.sqlite"),
 );
 
-const dataDir = Flag.string("data-dir").pipe(
+const dataDir = Flag.String("data-dir").pipe(
   Flag.withDescription("Directory for managed SQLite databases"),
   Flag.withDefault("./data"),
 );
 
-const postgresUrl = Flag.string("postgres-url").pipe(
+const postgresUrl = Flag.String("postgres-url").pipe(
   Flag.withDescription("PostgreSQL URL; prefer TRIPLEX_POSTGRES_URL to avoid shell history"),
   Flag.optional,
 );
 
-const databaseId = Flag.string("database-id").pipe(
+const databaseId = Flag.String("database-id").pipe(
   Flag.withDescription("Managed database to use for data commands"),
   Flag.withSchema(DatabaseId),
   Flag.optional,
@@ -75,18 +75,18 @@ export const rootCommand = Command.make("triplex").pipe(
   ),
 );
 
-const input = Flag.string("input").pipe(
+const input = Flag.String("input").pipe(
   Flag.withAlias("i"),
   Flag.withDescription("JSON input file, or - for stdin"),
   Flag.withDefault("-"),
 );
 
-const debug = Flag.boolean("debug").pipe(
+const debug = Flag.Boolean("debug").pipe(
   Flag.withDescription("Include backend query diagnostics"),
   Flag.withDefault(false),
 );
 
-const limit = Flag.integer("limit").pipe(
+const limit = Flag.Int("limit").pipe(
   Flag.withAlias("n"),
   Flag.withDescription("Page size (1-1000)"),
   Flag.withSchema(
@@ -98,18 +98,18 @@ const limit = Flag.integer("limit").pipe(
   Flag.withDefault(100),
 );
 
-const includeSystem = Flag.boolean("include-system").pipe(
+const includeSystem = Flag.Boolean("include-system").pipe(
   Flag.withDescription("Include Triplex-owned system entities"),
   Flag.withDefault(false),
 );
 
-const validAt = Flag.integer("valid-at").pipe(
+const validAt = Flag.Int("valid-at").pipe(
   Flag.withDescription("Business-time basis as epoch milliseconds"),
   Flag.withSchema(Schema.Number.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
   Flag.optional,
 );
 
-const recordedAt = Flag.integer("recorded-at").pipe(
+const recordedAt = Flag.Int("recorded-at").pipe(
   Flag.withDescription("Knowledge-time basis as epoch milliseconds"),
   Flag.withSchema(Schema.Number.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
   Flag.optional,
@@ -232,9 +232,9 @@ const entityTypes = Command.make("types", { includeSystem }, ({ includeSystem })
 const entityList = Command.make(
   "list",
   {
-    type: Flag.string("type").pipe(Flag.withDescription("Filter by entity type"), Flag.optional),
+    type: Flag.String("type").pipe(Flag.withDescription("Filter by entity type"), Flag.optional),
     limit,
-    after: Flag.string("after").pipe(
+    after: Flag.String("after").pipe(
       Flag.withDescription("Continue after this entity ID"),
       Flag.withSchema(EntityId),
       Flag.optional,
@@ -259,7 +259,7 @@ const entityList = Command.make(
 const entityGet = Command.make(
   "get",
   {
-    entityId: Argument.string("entity-id").pipe(Argument.withSchema(EntityId)),
+    entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)),
     validAt,
     recordedAt,
   },
@@ -275,7 +275,7 @@ const entityGet = Command.make(
 
 const entityFacts = Command.make(
   "facts",
-  { entityId: Argument.string("entity-id").pipe(Argument.withSchema(EntityId)) },
+  { entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)) },
   ({ entityId }) => emit("entity.facts", { _tag: "entity-facts", entityId }),
 ).pipe(
   Command.withDescription("Read the complete assertion/retraction fact history for an entity"),
@@ -284,13 +284,13 @@ const entityFacts = Command.make(
 const entityHistory = Command.make(
   "history",
   {
-    entityId: Argument.string("entity-id").pipe(Argument.withSchema(EntityId)),
+    entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)),
     limit,
-    snapshotPosition: Flag.integer("snapshot-position").pipe(
+    snapshotPosition: Flag.Int("snapshot-position").pipe(
       Flag.withSchema(Schema.Number.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
       Flag.optional,
     ),
-    beforePosition: Flag.integer("before-position").pipe(
+    beforePosition: Flag.Int("before-position").pipe(
       Flag.withSchema(Schema.Number.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
       Flag.optional,
     ),
@@ -337,7 +337,7 @@ const fact = Command.make("fact").pipe(
 
 const queryRun = Command.make(
   "run",
-  { input, debug, validAt, recordedAt, limit, cursor: Flag.string("cursor").pipe(Flag.optional) },
+  { input, debug, validAt, recordedAt, limit, cursor: Flag.String("cursor").pipe(Flag.optional) },
   ({ input, debug, validAt, recordedAt, limit, cursor }) =>
     Effect.gen(function* () {
       const query = yield* readWith(DatalogQuery, input);
@@ -404,7 +404,7 @@ const transaction = Command.make("transaction").pipe(
 const journalList = Command.make(
   "list",
   {
-    after: Flag.integer("after").pipe(
+    after: Flag.Int("after").pipe(
       Flag.withSchema(Schema.Number.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))),
       Flag.withDefault(0),
     ),
@@ -415,14 +415,14 @@ const journalList = Command.make(
 
 const journalReceipt = Command.make(
   "receipt",
-  { commandId: Argument.string("command-id") },
+  { commandId: Argument.String("command-id") },
   ({ commandId }) => emit("journal.receipt", { _tag: "journal-receipt", commandId }),
 ).pipe(Command.withDescription("Find an idempotent transaction receipt by command ID"));
 
 const journalTransaction = Command.make(
   "transaction",
   {
-    transactionId: Argument.string("transaction-id").pipe(Argument.withSchema(TransactionId)),
+    transactionId: Argument.String("transaction-id").pipe(Argument.withSchema(TransactionId)),
   },
   ({ transactionId }) =>
     emit("journal.transaction", { _tag: "journal-transaction", transactionId }),
@@ -444,11 +444,11 @@ const configReleases = Command.make("releases", {}, () =>
 const configRelease = Command.make(
   "release",
   {
-    snapshotId: Flag.string("snapshot").pipe(
+    snapshotId: Flag.String("snapshot").pipe(
       Flag.withSchema(ContentId.ContentIdSchema),
       Flag.optional,
     ),
-    ref: Flag.string("ref").pipe(Flag.optional),
+    ref: Flag.String("ref").pipe(Flag.optional),
   },
   ({ snapshotId, ref }) => {
     if (Option.isNone(snapshotId) === Option.isNone(ref)) {
@@ -465,8 +465,8 @@ const configRelease = Command.make(
 const configObjects = Command.make(
   "objects",
   {
-    kind: Flag.string("kind").pipe(Flag.optional),
-    activeOnly: Flag.boolean("active-only").pipe(Flag.withDefault(false)),
+    kind: Flag.String("kind").pipe(Flag.optional),
+    activeOnly: Flag.Boolean("active-only").pipe(Flag.withDefault(false)),
   },
   ({ kind, activeOnly }) =>
     emit("config.objects", {
@@ -479,8 +479,8 @@ const configObjects = Command.make(
 const configObject = Command.make(
   "object",
   {
-    kind: Argument.string("kind"),
-    key: Argument.string("key"),
+    kind: Argument.String("kind"),
+    key: Argument.String("key"),
   },
   ({ kind, key }) => emit("config.object", { _tag: "config-object", kind, key }),
 ).pipe(Command.withDescription("Inspect the complete immutable history of one config object"));
@@ -488,15 +488,15 @@ const configObject = Command.make(
 const configSetRef = Command.make(
   "set-ref",
   {
-    name: Argument.string("name"),
-    snapshotId: Argument.string("snapshot-id").pipe(Argument.withSchema(ContentId.ContentIdSchema)),
+    name: Argument.String("name"),
+    snapshotId: Argument.String("snapshot-id").pipe(Argument.withSchema(ContentId.ContentIdSchema)),
   },
   ({ name, snapshotId }) => emit("config.set-ref", { _tag: "config-set-ref", name, snapshotId }),
 ).pipe(Command.withDescription("Atomically move a configuration ref to an existing release"));
 
 const configImpact = Command.make(
   "impact",
-  { kind: Argument.string("kind"), key: Argument.string("key") },
+  { kind: Argument.String("kind"), key: Argument.String("key") },
   ({ kind, key }) => emit("config.impact", { _tag: "config-impact", kind, key }),
 ).pipe(Command.withDescription("Query reverse dependencies and deploy-impact candidates"));
 
@@ -513,13 +513,13 @@ const config = Command.make("config").pipe(
   ]),
 );
 
-const managedDatabaseName = Argument.string("name").pipe(Argument.withSchema(DatabaseId));
+const managedDatabaseName = Argument.String("name").pipe(Argument.withSchema(DatabaseId));
 
 const databaseCreate = Command.make(
   "create",
   {
     name: managedDatabaseName,
-    description: Flag.string("description").pipe(
+    description: Flag.String("description").pipe(
       Flag.withAlias("d"),
       Flag.withDescription("Human-readable database description"),
       Flag.optional,
@@ -545,7 +545,7 @@ const databaseUpdate = Command.make(
   "update",
   {
     name: managedDatabaseName,
-    description: Flag.string("description").pipe(
+    description: Flag.String("description").pipe(
       Flag.withAlias("d"),
       Flag.withDescription("New human-readable database description"),
     ),
@@ -554,7 +554,7 @@ const databaseUpdate = Command.make(
     emitDatabase("db.update", { _tag: "database-update", name, description }),
 ).pipe(Command.withDescription("Update managed database metadata"));
 
-const yes = Flag.boolean("yes").pipe(
+const yes = Flag.Boolean("yes").pipe(
   Flag.withAlias("y"),
   Flag.withDescription("Confirm the destructive operation"),
   Flag.withDefault(false),

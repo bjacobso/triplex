@@ -103,7 +103,7 @@ Install from the registry in a clean directory outside this monorepo:
 
 ```sh
 pnpm init
-pnpm add effect@4.0.0-rc.112 \
+pnpm add effect@4.0.3 \
   @triplex-build/triplex@next \
   @triplex-build/triplex-sqlite@next \
   @triplex-build/triplex-cli@next

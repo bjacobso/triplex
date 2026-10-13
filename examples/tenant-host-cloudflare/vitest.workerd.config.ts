@@ -12,6 +12,8 @@ export default defineConfig({
     alias: workspaceAliases(),
   },
   test: {
+    // Workerd cannot read Vitest 5's transformed modules from the host filesystem.
+    fsModuleCache: false,
     include: ["test/**/*.test.ts"],
     testTimeout: 30_000,
   },

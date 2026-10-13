@@ -14,7 +14,7 @@
 import { numericIndexPlan } from "../../../../test/fixtures/numeric-index.js";
 import { describe, it, expect } from "vitest";
 import { Context, Effect, Layer, Redacted } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import {
   DatabaseId,
   DatabaseManager,

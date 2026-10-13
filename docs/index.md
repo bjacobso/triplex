@@ -31,7 +31,7 @@ pageClass: triplex-index
 <span class="triplex-home__eyebrow">Start in your process</span>
 
 ```sh
-npm install @triplex-build/triplex effect@4.0.0-rc.112
+npm install @triplex-build/triplex effect@4.0.3
 ```
 
 <span class="triplex-home__install-note">Effect 4 required · <a href="/getting-started">First program →</a></span>

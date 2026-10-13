@@ -17,7 +17,7 @@ internal adapter SPI:
 
 ```ts
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql";
+import { SqlClient } from "effect/sql";
 import { Triples } from "@triplex-build/triplex";
 import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
 

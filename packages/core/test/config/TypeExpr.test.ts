@@ -377,6 +377,14 @@ describe("TypeSchema closedness", () => {
     const outer = T.struct({ inner: T.required(type) });
     expect(TypeSchema.is(outer, { inner: { a: "x" } })).toBe(true);
     expect(TypeSchema.is(outer, { inner: { a: "x", b: 1 } })).toBe(false);
+    expect(() =>
+      Schema.decodeUnknownSync(TypeSchema.compile(outer))({ inner: { a: "x", b: 1 } }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TypeSchema.compile(type))({ a: "x", [Symbol("b")]: 1 }),
+    ).toThrow();
+    expect(TypeSchema.is(T.struct({}), {})).toBe(true);
+    expect(TypeSchema.is(T.struct({}), { "": 1 })).toBe(false);
   });
 
   it("makes the Narrows verdict for a dropped field a real one", () => {

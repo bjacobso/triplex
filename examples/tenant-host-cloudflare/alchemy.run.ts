@@ -11,9 +11,9 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
-    const adminToken = yield* Config.redacted("TRIPLEX_HOST_ADMIN_TOKEN");
-    const internalCapability = yield* Config.redacted("TRIPLEX_HOST_INTERNAL_CAPABILITY");
-    const tenantTokens = yield* Config.redacted("TRIPLEX_HOST_TENANT_TOKENS");
+    const adminToken = yield* Config.Redacted("TRIPLEX_HOST_ADMIN_TOKEN");
+    const internalCapability = yield* Config.Redacted("TRIPLEX_HOST_INTERNAL_CAPABILITY");
+    const tenantTokens = yield* Config.Redacted("TRIPLEX_HOST_TENANT_TOKENS");
 
     const worker = yield* Cloudflare.Worker("TenantHost", {
       name: "triplex-tenant-host",

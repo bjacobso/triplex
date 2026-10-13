@@ -32,7 +32,7 @@ export interface SqliteBackendConfig {
 const getDataDir = (config?: SqliteBackendConfig) =>
   config?.dataDir
     ? Effect.succeed(config.dataDir)
-    : Config.string("DATA_DIR").pipe(Config.withDefault("./data"));
+    : Config.String("DATA_DIR").pipe(Config.withDefault("./data"));
 
 const databaseDbPath = (dataDir: string, database: DatabaseId): string =>
   `${dataDir}/${database}.db`;

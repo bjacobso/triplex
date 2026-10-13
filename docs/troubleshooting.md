@@ -12,7 +12,7 @@ private workspace packages. Do not switch new examples back to the superseded `@
 
 Keep every Triplex package on one coordinated release and use the exact Effect
 peer version declared by that release. The current source tree targets Node.js 22+ and
-`effect@4.0.0-rc.112`; Effect 3 is incompatible. Multiple Effect copies or an RC mismatch can make
+`effect@4.0.3`; Effect 3 is incompatible. Multiple Effect copies or a version mismatch can make
 service tags and runtime types disagree even when imports look correct.
 
 ## Why is `Triples` (or another service) missing?
