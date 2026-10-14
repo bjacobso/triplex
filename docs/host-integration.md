@@ -165,9 +165,9 @@ transaction, verify that the index is valid, then run the migration to record it
 `IF NOT EXISTS` checks the name, not the definition or validity: reserve `idx_attr_numeric` for
 Triplex and resolve any conflicting or invalid index before migrating.
 
-Runfold can remove its `runfold_actor_due` DDL after deploying this Triplex version and applying
-the migration to every database. Triplex does not drop that host-owned index; dropping an existing
-redundant index is a separate host migration. Older binaries can read the additive schema, but
+Hosts that added an equivalent index, such as Runfold's `runfold_actor_due`, can remove that DDL
+after deploying this Triplex version and applying the migration to every database. Triplex does
+not drop that host-owned index; dropping an existing redundant index is a separate host migration. Older binaries can read the additive schema, but
 old SQLite bulk-loading code that drops/rebuilds only its known indexes cannot suspend maintenance
 of the new index. Deploy the migration and updated runtime together when using bulk loading.
 See [numeric query plans and indexing scope](/datalog-performance#numeric-ranges-and-actor-due-work).
