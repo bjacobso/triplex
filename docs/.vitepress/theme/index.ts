@@ -10,6 +10,7 @@ import "./blueprint.css";
 import Playground from "./Playground.vue";
 import TriplexExplorer from "./TriplexExplorer.vue";
 import DecisionTrace from "./DecisionTrace.vue";
+import StackMap from "./StackMap.vue";
 
 export default {
   extends: DefaultTheme,
@@ -33,6 +34,7 @@ export default {
   }),
   enhanceApp({ app }) {
     app.component("DecisionTrace", DecisionTrace);
+    app.component("StackMap", StackMap);
     app.component("TriplexPlayground", Playground);
     app.component("TriplexExplorer", TriplexExplorer);
   },

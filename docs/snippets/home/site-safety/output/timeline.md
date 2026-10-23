@@ -1,8 +1,8 @@
-| Position | Actor                  | Command                         | Changes (+ assert, − retract; valid time)                                                                                        |
-| -------- | ---------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1        | `triplex/config-store` | —                               | Release `hr-2026.1`; `live` moved to it                                                                                          |
-| 2        | `user:hr`              | `onboard:maria`                 | + `:site/name` `"Harbor"` from 2026-01-05<br>+ `:worker/name` `"Maria"` from 2026-01-05                                          |
-| 3        | `user:trainer`         | `training:record:maria-harbor`  | + `:worker/trained-for` `site:harbor` [2026-03-01, 2026-06-01)                                                                   |
-| 4        | `user:dana`            | `placement:create:maria-harbor` | + `:placement/worker` `worker:maria` from 2026-03-02<br>+ `:placement/site` `site:harbor` from 2026-03-02                        |
-| 5        | `triplex/config-store` | —                               | Release `hr-2026.2`; `live` moved to it                                                                                          |
-| 6        | `user:auditor`         | `training:correct:maria-harbor` | − `:worker/trained-for` `site:harbor` [2026-03-01, 2026-06-01)<br>+ `:worker/trained-for` `site:harbor` [2026-03-05, 2026-06-01) |
+| Position | Actor                  | Command                         | Changes (+ assert, − retract; valid time)                                                                                          |
+| -------- | ---------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | `triplex/config-store` | —                               | Release `hr-2026.1`; `live` moved to it                                                                                            |
+| 2        | `user:hr`              | `onboard:maria`                 | + `:site/name` `"Harbor"` from 2026-01-05<br>+ `:site/name` `"Pier"` from 2026-01-05<br>+ `:worker/name` `"Maria"` from 2026-01-05 |
+| 3        | `user:trainer`         | `training:record:maria-harbor`  | + `:worker/trained-for` `site:harbor` [2026-03-01, 2026-06-01)                                                                     |
+| 4        | `user:dana`            | `create:placement:maria-harbor` | + `:placement/worker` `worker:maria` from 2026-03-02<br>+ `:placement/site` `site:harbor` from 2026-03-02                          |
+| 5        | `triplex/config-store` | —                               | Release `hr-2026.2`; `live` moved to it                                                                                            |
+| 6        | `user:auditor`         | `training:correct:maria-harbor` | − `:worker/trained-for` `site:harbor` [2026-03-01, 2026-06-01)<br>+ `:worker/trained-for` `site:harbor` [2026-03-05, 2026-06-01)   |

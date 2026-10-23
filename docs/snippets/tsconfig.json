@@ -14,7 +14,8 @@
       "@triplex-build/triplex/derivation": ["packages/core/src/derivation/index.ts"],
       "@triplex-build/triplex-postgres": ["packages/postgres/src/index.ts"],
       "@triplex-build/triplex/internal": ["packages/core/src/internal.ts"],
-      "@triplex-build/triplex-sql": ["packages/sql/src/index.ts"]
+      "@triplex-build/triplex-sql": ["packages/sql/src/index.ts"],
+      "@triplex-build/triplex-http": ["packages/http/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "types": ["node"]

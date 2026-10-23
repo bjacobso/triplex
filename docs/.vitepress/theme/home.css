@@ -476,6 +476,88 @@
   padding-top: 48px;
   border-top: 1px solid var(--vp-c-divider);
 }
+.triplex-home__stack .triplex-home__example-description {
+  position: sticky;
+  top: calc(var(--vp-nav-height) + 24px);
+  align-self: start;
+}
+.triplex-home__journal {
+  margin-top: 48px;
+  padding-top: 40px;
+  border-top: 1px solid var(--vp-c-divider);
+}
+.triplex-home__journal + .triplex-home__example {
+  padding-top: 48px;
+  border-top: 1px solid var(--vp-c-divider);
+}
+.triplex-home__journal > p:last-child {
+  max-width: 780px;
+  margin: 18px 0 0;
+  font-size: 15px;
+}
+.triplex-home .triplex-home__journal > .triplex-home__output-label {
+  margin-top: 0;
+}
+.stack-map {
+  margin: 0 0 8px;
+}
+.stack-map figcaption {
+  margin-bottom: 12px;
+  font: 400 12px/1.6 var(--vp-font-family-mono);
+  color: var(--vp-c-text-2);
+}
+.stack-map figcaption strong {
+  color: var(--home-accent);
+  font-weight: 500;
+}
+.stack-map ol {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1.5px solid #263654;
+  border-radius: 9px;
+  box-shadow: 5px 5px 0 var(--home-brand);
+  overflow: hidden;
+  background: #0f1729;
+}
+.stack-map li {
+  flex-basis: 0;
+  min-width: 104px;
+  margin: 0;
+}
+.stack-map li + li {
+  margin-top: 0;
+  border-left: 1px solid #263654;
+}
+.stack-map a {
+  display: grid;
+  gap: 2px;
+  height: 100%;
+  padding: 14px 14px 12px;
+  color: #e8edf6;
+  text-decoration: none;
+  font-family: var(--vp-font-family-mono);
+  transition: background 0.15s;
+}
+.stack-map a:hover {
+  background: #1b2a4a;
+}
+.stack-map__step {
+  font-size: 10px;
+  color: #a7b5ff;
+}
+.stack-map__label {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.stack-map__lines {
+  font-size: 11px;
+  color: #8fa0bd;
+}
 .triplex-home__example-description p {
   margin: 16px 0;
   font-size: 15px;
@@ -645,6 +727,24 @@
   }
   .triplex-home__example-description {
     max-width: 780px;
+  }
+  .triplex-home__stack .triplex-home__example-description {
+    position: static;
+  }
+  .stack-map ol {
+    flex-wrap: wrap;
+  }
+  .stack-map li {
+    flex: 1 1 30% !important;
+  }
+  .stack-map li + li {
+    border-left: 0;
+  }
+  .stack-map li {
+    border-bottom: 1px solid #263654;
+  }
+  .stack-map__label {
+    white-space: normal;
   }
 }
 @media (max-width: 800px) {

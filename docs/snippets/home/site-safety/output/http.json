@@ -1,0 +1,12 @@
+{
+  "asKnownThen": {
+    "id": "worker:maria",
+    "type": "Worker",
+    "attributes": { ":worker/name": "Maria", ":worker/trained-for": ["site:harbor"] }
+  },
+  "asKnownNow": {
+    "id": "worker:maria",
+    "type": "Worker",
+    "attributes": { ":worker/name": "Maria" }
+  }
+}

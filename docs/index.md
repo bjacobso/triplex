@@ -20,7 +20,7 @@ pageClass: triplex-index
 
 <div class="triplex-home__actions">
 <a class="triplex-home__primary" href="/getting-started">Get started<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
-<a class="triplex-home__secondary triplex-home__button" href="#one-scenario">Follow one decision <span aria-hidden="true">↓</span></a>
+<a class="triplex-home__secondary triplex-home__button" href="#one-scenario">See the whole stack <span aria-hidden="true">↓</span></a>
 </div>
 <p class="triplex-home__status">Pre-1.0 · MIT licensed · In-memory + SQLite supported<br>PostgreSQL is a production candidate · <a href="/current-state">Current state ↗</a></p>
 </div>
@@ -68,75 +68,56 @@ npm install @triplex-build/triplex effect@4.0.3
 
 <section class="triplex-home__section triplex-home__code" aria-labelledby="one-scenario">
 <div class="triplex-home__section-intro">
-<p class="triplex-home__eyebrow">01 / One scenario, start to finish</p>
-<h2 id="one-scenario">Maria, the Harbor site, and a certificate that was wrong.</h2>
-<p>Maria is trained for Harbor from March 1 to June 1 and placed there on March 2 under release <code>hr-2026.1</code>. The rules then change: <code>hr-2026.2</code> requires a supervisor on every placement. Later, an auditor finds that the certificate actually began on March 5.</p>
-<p>Every snippet is type-checked. Every output is produced by <a href="https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety">running this scenario in CI</a>. The database’s own journal reads:</p>
+<p class="triplex-home__eyebrow">01 / The whole stack, top to bottom</p>
+<h2 id="one-scenario">From schema to REST API in one file.</h2>
+<p>Model, versioned rules, a command, an audit, open work, storage, and HTTP. Each block below is the next region of the <a href="https://github.com/bjacobso/triplex/blob/main/docs/snippets/home/site-safety/app.ts">same file</a>, in order. Every block is type-checked, and CI runs the file to produce every output on this page.</p>
+<p>The story: Maria is trained for Harbor from March 1 to June 1 and placed there on March 2 under release <code>hr-2026.1</code>. The rules then change: <code>hr-2026.2</code> requires a supervisor. Later, an auditor finds that the certificate actually began on March 5.</p>
 </div>
 
-<div class="triplex-home__timeline">
+<StackMap />
 
-<!--@include: ./snippets/home/site-safety/output/timeline.md-->
+<div class="triplex-home__stack">
 
-</div>
-
-<article class="triplex-home__example" aria-labelledby="record-a-command">
+<article class="triplex-home__example" aria-labelledby="model">
 <div class="triplex-home__example-description">
-<p class="triplex-home__eyebrow">00 · Record</p>
-<h3 id="record-a-command">One command, one atomic transaction.</h3>
-<p>Dana’s placement records who acted, a command ID that makes retries safe, a correlation ID, and the release that governed the write. The constraints come from that same release and are checked in the same transaction.</p>
-<p>Nothing is overwritten. The auditor’s correction retracts the old belief and asserts the new one, and the journal keeps both.</p>
-<a href="/operational-primitives">Transactions and the journal<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+<p class="triplex-home__eyebrow">01 · Model</p>
+<h3 id="model">Declare the domain once.</h3>
+<p>Attributes are global, typed facts. Entity types say how each one is used: required, cardinality, and references.</p>
+<p>Changing the rules means a new version of the type, not a migration. Old facts stay valid under the release that accepted them.</p>
+<a href="/configuration#ontology-dsl">Typed configuration<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 </div>
 <div class="triplex-home__snippet">
 
-<<< @/snippets/home/site-safety/record.ts#place
-
-</div>
-</article>
-</section>
-
-<section class="triplex-home__section triplex-home__code" aria-labelledby="three-questions">
-<div class="triplex-home__section-intro">
-<p class="triplex-home__eyebrow">02 / Three questions, three queries</p>
-<h2 id="three-questions">Ask what you knew, which rules applied, and what happens next.</h2>
-<p>Each answer below is the real output of the code beside it.</p>
-</div>
-
-<article class="triplex-home__example" aria-labelledby="what-did-we-know">
-<div class="triplex-home__example-description">
-<p class="triplex-home__eyebrow">01 · What did we know?</p>
-<h3 id="what-did-we-know">Two clocks: when it was true, and when you learned it.</h3>
-<p><code>validAt</code> is the day in question. <code>recordedAt</code> is the instant of Dana’s receipt. At that instant, the record said Maria was trained. Today, after the correction, it says she was not.</p>
-<p>Both answers can be proven. Dana acted in good faith on a record that was later corrected.</p>
-<a href="/concepts#recorded-time-and-valid-time">Recorded time and valid time<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
-</div>
-<div class="triplex-home__snippet">
-
-<<< @/snippets/home/site-safety/what-we-knew.ts
-
-<p class="triplex-home__output-label">Output</p>
-
-<<< @/snippets/home/site-safety/output/what-we-knew.json
+<<< @/snippets/home/site-safety/app.ts#model
 
 </div>
 </article>
 
 <article class="triplex-home__example" aria-labelledby="which-rules">
 <div class="triplex-home__example-description">
-<p class="triplex-home__eyebrow">02 · Which rules applied?</p>
-<h3 id="which-rules">Every receipt is pinned to an immutable release.</h3>
-<p>The <code>live</code> ref has moved to <code>hr-2026.2</code>, but Dana’s placement still points at <code>hr-2026.1</code>, the content-addressed release that governed it.</p>
-<p>The same kind of command under today’s rules is rejected atomically. The rejected command writes no facts, no receipt, and no journal entry.</p>
+<p class="triplex-home__eyebrow">02 · Rules</p>
+<h3 id="which-rules">Publish the rules as a release.</h3>
+<p>A release is immutable and content-addressed. The story publishes <code>hr-2026.1</code> with <code>Placement</code>, then <code>hr-2026.2</code> with <code>PlacementV2</code>. Each time, <code>live</code> moves and every earlier release stays exactly as it was.</p>
 <a href="/configuration-versioning">Releases, refs, and rollback<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 </div>
 <div class="triplex-home__snippet">
 
-<<< @/snippets/home/site-safety/which-rules.ts
+<<< @/snippets/home/site-safety/app.ts#release
 
-<p class="triplex-home__output-label">Output</p>
+</div>
+</article>
 
-<<< @/snippets/home/site-safety/output/which-rules.json
+<article class="triplex-home__example" aria-labelledby="record-a-command">
+<div class="triplex-home__example-description">
+<p class="triplex-home__eyebrow">03 · Command</p>
+<h3 id="record-a-command">One command, one atomic transaction.</h3>
+<p>Dana’s placement records who acted, a command ID that makes retries safe, and the release whose constraints were checked in the same transaction.</p>
+<p>Under <code>hr-2026.2</code>, the same command is rejected. It writes no facts, no receipt, and no journal entry.</p>
+<a href="/operational-primitives">Transactions and the journal<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+</div>
+<div class="triplex-home__snippet">
+
+<<< @/snippets/home/site-safety/app.ts#command
 
 <p class="triplex-home__output-label">The same command under <code>hr-2026.2</code></p>
 
@@ -145,30 +126,83 @@ npm install @triplex-build/triplex effect@4.0.3
 </div>
 </article>
 
+<div class="triplex-home__journal">
+<p class="triplex-home__output-label">After the whole story, the journal reads</p>
+<div class="triplex-home__timeline">
+
+<!--@include: ./snippets/home/site-safety/output/timeline.md-->
+
+</div>
+<p>Nothing is overwritten. The auditor’s correction at position 6 retracts the old belief and asserts the new one, and the journal keeps both. The rest of the story is in <a href="https://github.com/bjacobso/triplex/blob/main/docs/snippets/home/site-safety/story.ts">story.ts</a>.</p>
+</div>
+
+<article class="triplex-home__example" aria-labelledby="what-did-we-know">
+<div class="triplex-home__example-description">
+<p class="triplex-home__eyebrow">04 · Audit</p>
+<h3 id="what-did-we-know">Ask what you knew, and under which rules.</h3>
+<p><code>validAt</code> is the day in question. <code>recordedAt</code> is the instant of Dana’s receipt. At that instant, the record said Maria was trained. After the correction, it says she was not.</p>
+<p>Both answers can be proven, and the receipt still points at <code>hr-2026.1</code> even though <code>live</code> has moved.</p>
+<a href="/concepts#recorded-time-and-valid-time">Recorded time and valid time<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+</div>
+<div class="triplex-home__snippet">
+
+<<< @/snippets/home/site-safety/app.ts#ask
+
+<p class="triplex-home__output-label">Output</p>
+
+<<< @/snippets/home/site-safety/output/audit.json
+
+</div>
+</article>
+
 <article class="triplex-home__example" aria-labelledby="what-happens-next">
 <div class="triplex-home__example-description">
-<p class="triplex-home__eyebrow">03 · What needs to happen?</p>
-<h3 id="what-happens-next">Open work is a query over facts.</h3>
-<p>The obligation is a Datalog derivation: a placed worker without current training for that site.</p>
-<p>On March 3, the corrected record exposes a gap, so the task is open. On April 1 nothing is open, and the evaluation reports when that can next change. On June 1 the training expires and the task reopens, even though nobody wrote anything.</p>
-<p><code>recheckOn</code> comes from <code>nextTemporalBoundary</code>. Schedule a wake-up for that date instead of polling.</p>
+<p class="triplex-home__eyebrow">05 · Open work</p>
+<h3 id="what-happens-next">Derive what needs to happen.</h3>
+<p>The obligation is a Datalog query, not a queue. On March 3, the corrected record exposes a gap. On April 1, nothing is open. On June 1, the training expires and the task reopens, even though nobody wrote anything.</p>
+<p><code>recheckAt</code> comes from <code>nextTemporalBoundary</code>. Schedule a wake-up for it instead of polling.</p>
 <a href="/derivations">Derivations and reconciliation<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
 </div>
 <div class="triplex-home__snippet">
 
-<<< @/snippets/home/site-safety/open-work.ts
+<<< @/snippets/home/site-safety/app.ts#derive
 
-<p class="triplex-home__output-label">Output for March 3, April 1, and June 1</p>
+<p class="triplex-home__output-label">Evaluated on March 3, April 1, and June 1</p>
 
 <<< @/snippets/home/site-safety/output/open-work.json
 
 </div>
 </article>
+
+<article class="triplex-home__example" aria-labelledby="runtime">
+<div class="triplex-home__example-description">
+<p class="triplex-home__eyebrow">06 · Storage + HTTP</p>
+<h3 id="runtime">Pick a store. Get an API.</h3>
+<p>Storage is a layer. The same program runs in memory for tests and the browser, on SQLite, or on PostgreSQL.</p>
+<p><code>EntityHttp</code> serves the <code>live</code> release as REST routes with OpenAPI docs. Every read accepts both clocks, so the audit question works over HTTP too.</p>
+<a href="/http-api">Configuration-derived HTTP API<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a>
+</div>
+<div class="triplex-home__snippet">
+
+<<< @/snippets/home/site-safety/app.ts#run
+
+<p class="triplex-home__output-label">Launch it</p>
+
+<<< @/snippets/home/site-safety/serve.ts
+
+<p class="triplex-home__output-label"><code>GET /api/rest/latest/workers/worker:maria?validAt=…</code>, with and without <code>recordedAt</code></p>
+
+<<< @/snippets/home/site-safety/output/http.json
+
+</div>
+</article>
+
+</div>
 </section>
 
 <section class="triplex-home__section" aria-labelledby="work-is-a-query">
 <div class="triplex-home__section-intro">
-<p class="triplex-home__eyebrow">03 / Derived work</p>
+<p class="triplex-home__eyebrow">02 / Derived work</p>
 <h2 id="work-is-a-query">Stop enqueuing obligations. Reconcile them.</h2>
 <p>Most back-office bugs come down to a task that should exist but doesn’t, or one that exists but shouldn’t. Event handlers create work one step at a time and drift out of sync with the data. A derivation states what should be true, and reconciliation reports the difference.</p>
 </div>
@@ -200,7 +234,7 @@ npm install @triplex-build/triplex effect@4.0.3
 
 <section class="triplex-home__section" aria-labelledby="modeling">
 <div class="triplex-home__section-intro">
-<p class="triplex-home__eyebrow">04 / Modeling</p>
+<p class="triplex-home__eyebrow">03 / Modeling</p>
 <h2 id="modeling">From a back-office domain to Triplex primitives.</h2>
 <p>Most back-office systems are built from the same parts. This is where each part goes.</p>
 </div>
@@ -210,24 +244,22 @@ npm install @triplex-build/triplex effect@4.0.3
 | Things: workers, sites, cases, accounts | Stable `EntityId`s and an `EntityType` per kind                        | `worker:maria`, `Worker`         |
 | Properties and relationships            | Global `Attribute` keys, with `Attribute.ref` for relationships        | `:placement/site`                |
 | Schemas, policies, forms                | Config nodes committed as an immutable release, pointed to by `live`   | `hr-2026.1`, `hr-2026.2`         |
-| User and system actions                 | One `transact` per command with `actor`, `commandId`, `configSnapshot` | `placement:create:maria-harbor`  |
+| User and system actions                 | One `transact` per command with `actor`, `commandId`, `configSnapshot` | `create:placement:maria-harbor`  |
 | Evidence that starts or expires         | `validFrom` and `validTo` on the assertion                             | Training valid March 1 to June 1 |
 | Corrections                             | Retract and assert in one transaction; history is kept                 | The auditor’s fix                |
 | Obligations and to-dos                  | A `Derivation` whose candidates you reconcile                          | `task.site-safety-training`      |
 | Tickets, notifications, SLAs            | Your code, driven by reconciliation diffs and wake-up boundaries       | Host-owned                       |
-| Audit questions                         | A temporal basis, command receipts, and the journal                    | Questions 01 and 02              |
+| Audit questions                         | A temporal basis, command receipts, and the journal                    | Step 04, Audit                   |
 
 <p class="triplex-home__fit"><a href="/agents">Read the full modeling guide<span class="vpi-arrow-right triplex-home__link-icon" aria-hidden="true"></span></a></p>
 </section>
 
 <section class="triplex-home__section" aria-labelledby="runs-where">
 <div class="triplex-home__section-intro">
-<p class="triplex-home__eyebrow">05 / Deployment</p>
+<p class="triplex-home__eyebrow">04 / Deployment</p>
 <h2 id="runs-where">A library, not another server.</h2>
-<p>Triplex runs inside your process as Effect layers. Switching storage changes the layer you provide, and the rest of the program stays the same. On PostgreSQL, Triplex can share your application’s transaction, so your own rows, Triplex facts, the journal, and an outbox row commit or roll back together.</p>
+<p>Triplex runs inside your process as Effect layers. Switching storage changes the layer you provide, as in <a href="#runtime">step 06</a>, and the rest of the program stays the same. On PostgreSQL, Triplex can share your application’s transaction, so your own rows, Triplex facts, the journal, and an outbox row commit or roll back together.</p>
 </div>
-
-<<< @/snippets/home/layers.ts
 
 | Runtime                    | Package                           | Status                          |
 | -------------------------- | --------------------------------- | ------------------------------- |
@@ -244,7 +276,7 @@ npm install @triplex-build/triplex effect@4.0.3
 
 <section class="triplex-home__section" aria-labelledby="fit">
 <div class="triplex-home__section-intro">
-<p class="triplex-home__eyebrow">06 / Fit</p>
+<p class="triplex-home__eyebrow">05 / Fit</p>
 <h2 id="fit">When to use Triplex, and when not to.</h2>
 </div>
 <div class="triplex-home__principles">
@@ -264,7 +296,7 @@ npm install @triplex-build/triplex effect@4.0.3
 </section>
 
 <section class="triplex-home__family" aria-labelledby="family-title">
-<p class="triplex-home__eyebrow">07 / Part of the WorldVM family</p>
+<p class="triplex-home__eyebrow">06 / Part of the WorldVM family</p>
 <div class="triplex-home__family-head">
 <h2 id="family-title">A memory for your world.</h2>
 <p>Small experiments in software you can inspect, explain, and build on. Triplex keeps the facts. These projects explore the language and models around them.</p>
