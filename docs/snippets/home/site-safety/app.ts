@@ -29,28 +29,24 @@ export const harbor = EntityId.make("site:harbor");
 // #region model
 // Attributes are global facts. Entity types say how each one is used.
 export const Site = EntityType.make("Site", {
-  attributes: { name: Attribute.use(Attribute.text(":site/name"), { required: true }) },
+  name: Attribute.text(":site/name").required(),
 });
 
 export const Worker = EntityType.make("Worker", {
-  attributes: {
-    name: Attribute.use(Attribute.text(":worker/name"), { required: true }),
-    trainedFor: Attribute.use(Attribute.ref(":worker/trained-for", Site), { cardinality: "many" }),
-  },
+  name: Attribute.text(":worker/name").required(),
+  trainedFor: Attribute.ref(":worker/trained-for", Site).many(),
 });
 
 const placement = {
-  worker: Attribute.use(Attribute.ref(":placement/worker", Worker), { required: true }),
-  site: Attribute.use(Attribute.ref(":placement/site", Site), { required: true }),
+  worker: Attribute.ref(":placement/worker", Worker).required(),
+  site: Attribute.ref(":placement/site", Site).required(),
 };
-export const Placement = EntityType.make("Placement", { attributes: placement });
+export const Placement = EntityType.make("Placement", placement);
 
 // The next version of the rules: every placement needs a supervisor.
 export const PlacementV2 = EntityType.make("Placement", {
-  attributes: {
-    ...placement,
-    supervisor: Attribute.use(Attribute.text(":placement/supervisor"), { required: true }),
-  },
+  ...placement,
+  supervisor: Attribute.text(":placement/supervisor").required(),
 });
 // #endregion model
 
@@ -118,9 +114,8 @@ export const openWork = (configSnapshot: string, validAt: number) =>
       query: {
         find: ["?worker", "?site"],
         where: [
-          ["?placement", Placement.worker.key, "?worker"],
-          ["?placement", Placement.site.key, "?site"],
-          ["not", ["?worker", Worker.trainedFor.key, "?site"]],
+          ...Placement.where("?placement", { worker: "?worker", site: "?site" }),
+          Worker.not("?worker", { trainedFor: "?site" }),
         ],
       },
       identity: ["?worker", "?site"],

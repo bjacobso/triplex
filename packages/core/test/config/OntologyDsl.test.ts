@@ -158,11 +158,11 @@ describe("ontology DSL", () => {
     expect(() => Crew.assert(crew, { name: "Night" }, { validFrom: 2, validTo: 1 })).toThrow(
       /after validFrom/,
     );
-    expect(() =>
-      EntityType.make("Clash", {
-        attributes: { assert: Attribute.use(Attribute.text(":clash/assert")) },
-      }),
-    ).toThrow(/reserved/);
+    for (const alias of ["assert", "where", "not"]) {
+      expect(() =>
+        EntityType.make("Clash", { [alias]: Attribute.text(`:clash/${alias}`) }),
+      ).toThrow(/reserved/);
+    }
   });
 
   it.effect("pins a write to one release and enforces that release's constraints", () =>
@@ -201,6 +201,102 @@ describe("ontology DSL", () => {
       const receipt = yield* triples.transactionByCommand("hire");
       expect(receipt?.configSnapshot).toBe(release.snapshot.id);
     }).pipe(Effect.provide(ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer)))),
+  );
+
+  it.effect("declares uses with attribute modifiers and bare definitions", () =>
+    Effect.gen(function* () {
+      const Name = Attribute.text(":employer/name");
+      expect(Name.required()).toEqual(Attribute.use(Name, { required: true }));
+      expect(Name.required({ unique: true })).toEqual(
+        Attribute.use(Name, { required: true, unique: true }),
+      );
+      expect(Name.many({ required: true })).toEqual(
+        Attribute.use(Name, { required: true, cardinality: "many" }),
+      );
+      expect(Name.unique()).toEqual(Attribute.use(Name, { unique: true }));
+
+      // The concise form compiles to exactly the same configuration graph.
+      const Concise = EntityType.make("Employment", {
+        employer: EmploymentEmployer.required(),
+        worker: EmploymentWorker.required(),
+      });
+      expect((yield* Concise.node).cid).toBe((yield* Employment.node).cid);
+      expect(Concise.constraints.map(({ rule }) => rule)).toEqual(
+        Employment.constraints.map(({ rule }) => rule),
+      );
+
+      const Bare = EntityType.make("EmployerSummary", { name: EmployerName });
+      expect((yield* Bare.node).cid).toBe((yield* EmployerSummary.node).cid);
+      expect(Bare.name.required).toBe(false);
+      expect(Bare.name.cardinality).toBe("one");
+
+      expect(() =>
+        EntityType.make("Broken", { name: "text" } as unknown as Record<string, never>),
+      ).toThrow(/must be an attribute or its use/);
+    }),
+  );
+
+  it("builds Datalog patterns by alias", () => {
+    const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
+    const Crew = EntityType.make("Crew", {
+      sites: Attribute.ref(":crew/site", Site).many(),
+      size: Attribute.integer(":crew/size"),
+      night: Attribute.boolean(":crew/night"),
+      formed: Attribute.instant(":crew/formed"),
+    });
+    const harbor = EntityId.make("site:harbor");
+
+    expect(Crew.where("?crew", { night: true, sites: "?site", size: 4 })).toEqual([
+      ["?crew", ":crew/site", "?site"],
+      ["?crew", ":crew/size", 4],
+      ["?crew", ":crew/night", true],
+    ]);
+    expect(Crew.where(EntityId.make("crew:night"), { sites: harbor })).toEqual([
+      ["crew:night", ":crew/site", { type: "ref", value: "site:harbor" }],
+    ]);
+    expect(Crew.not("?crew", { sites: "?site", night: false })).toEqual([
+      "not",
+      ["?crew", ":crew/site", "?site"],
+      ["?crew", ":crew/night", false],
+    ]);
+
+    const untyped = Crew.where as (entity: string, patterns: object) => unknown;
+    expect(() => untyped("?crew", { title: "?title" })).toThrow(/no attribute alias title/);
+    expect(() => Crew.where("?crew", { formed: 0 })).toThrow(/datetime values/);
+    expect(() => Crew.not("?crew", {})).toThrow(/between one and nine/);
+  });
+
+  it.effect("answers queries written with entity patterns", () =>
+    Effect.gen(function* () {
+      const triples = yield* Triples;
+      const acme = EntityId.make("employer:acme");
+      const ada = EntityId.make("worker:ada");
+      const grace = EntityId.make("worker:grace");
+      yield* triples.transact([
+        ...Employer.assert(acme, { name: "Acme" }),
+        ...Worker.assert(ada, { name: "Ada" }),
+        ...Worker.assert(grace, { name: "Grace" }),
+        ...Employment.assert(EntityId.make("employment:ada"), { employer: acme, worker: ada }),
+      ]);
+
+      const unemployed = yield* triples.queryAll({
+        find: ["?name"],
+        where: [
+          ...Worker.where("?worker", { name: "?name" }),
+          Employment.not("?employment", { worker: "?worker" }),
+        ],
+      });
+      expect(unemployed.results).toEqual([{ "?name": "Grace" }]);
+
+      const employees = yield* triples.queryAll({
+        find: ["?name"],
+        where: [
+          ...Employment.where("?employment", { employer: acme, worker: "?worker" }),
+          ...Worker.where("?worker", { name: "?name" }),
+        ],
+      });
+      expect(employees.results).toEqual([{ "?name": "Ada" }]);
+    }).pipe(Effect.provide(KvTriples.layer)),
   );
 
   it.effect("makes reference targets explicit in the configuration graph", () =>

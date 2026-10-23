@@ -59,7 +59,8 @@ Check these constraints with the people you work for before adopting it:
 - Attribute keys are global keywords of the form `:namespace/name`, matching
   `^:[a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*$`. An attribute owns its identity and value type.
 - An entity type owns how it uses an attribute: `required`, `cardinality` (`"one"` or `"many"`),
-  and `unique`. The same attribute can be required in one type and optional in another.
+  and `unique`. The same attribute can be required in one type and optional in another. Declare a
+  use with `.required()`, `.many()`, or `.unique()`; a bare attribute is optional and single-valued.
 - Model relationships as `Attribute.ref(key, TargetType)`. There are no join tables. Datalog joins
   on shared values.
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
@@ -118,6 +119,7 @@ Read more in [Operational primitives](/operational-primitives) and
 
 - Write the obligation as a Datalog query. Positive patterns describe the situation, and a `not`
   clause describes the missing evidence. Every variable in `not` must be bound outside it.
+  `Type.where(entity, { alias: "?var" })` and `Type.not(...)` build those clauses from aliases.
 - Set `identity` to the variables that name one obligation, such as worker and site. Candidate IDs
   are then stable across re-evaluations.
 - Use `Derivation.evaluate` for reads and previews, and

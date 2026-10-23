@@ -49,26 +49,14 @@ import { Attribute, EntityType } from "@triplex-build/triplex/config";
 export const EmployerName = Attribute.text(":employer/name");
 
 export const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, {
-      required: true,
-      unique: true,
-    }),
-  },
+  name: EmployerName.required({ unique: true }),
 });
 
-export const EmployerSummary = EntityType.make("EmployerSummary", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: false }),
-  },
-});
-
-export const EmploymentEmployer = Attribute.ref(":employment/employer", Employer);
+// A bare attribute is an optional, single-valued use.
+export const EmployerSummary = EntityType.make("EmployerSummary", { name: EmployerName });
 
 export const Employment = EntityType.make("Employment", {
-  attributes: {
-    employer: Attribute.use(EmploymentEmployer, { required: true }),
-  },
+  employer: Attribute.ref(":employment/employer", Employer).required(),
 });
 
 const validFrom = Date.now();
@@ -79,6 +67,11 @@ Employment.attributes.employer.assertion(EntityId.make("employer:acme"), { valid
 
 Requiredness is not inherently true of `:employer/name`; it is true of the way `Employer` uses the
 attribute. Reference attributes follow the same separation.
+
+`.required()`, `.many()`, and `.unique()` describe a use and accept the remaining options, for
+example `.required({ unique: true })` or `.many({ required: true })`. They are shorthands for
+`Attribute.use(attribute, options)`, which remains available. The `{ attributes: { ... } }` form of
+`EntityType.make` is also accepted; both forms compile to the same content-addressed nodes.
 
 `Employer.nodes` yields the independently identified attribute definitions followed by the entity
 schema. `Employer.constraints` yields independently content-addressed required, cardinality,
@@ -102,15 +95,11 @@ import { Effect } from "effect";
 import { EntityId, Triples } from "@triplex-build/triplex";
 import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
 
-const Site = EntityType.make("Site", {
-  attributes: { name: Attribute.use(Attribute.text(":site/name"), { required: true }) },
-});
+const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
 
 const Worker = EntityType.make("Worker", {
-  attributes: {
-    name: Attribute.use(Attribute.text(":worker/name"), { required: true }),
-    trainedFor: Attribute.use(Attribute.ref(":worker/trained-for", Site), { cardinality: "many" }),
-  },
+  name: Attribute.text(":worker/name").required(),
+  trainedFor: Attribute.ref(":worker/trained-for", Site).many(),
 });
 
 const harbor = EntityId.make("site:harbor");
@@ -135,6 +124,27 @@ export const onboard = Effect.gen(function* () {
 Single-attribute handles remain available for hand-built operations:
 `Worker.name.assertion("Maria", { validFrom, validTo })` returns the `attribute`, encoded `value`,
 and valid-time fields to spread into an `assert` operation.
+
+## Querying by alias
+
+`Type.where(entity, patterns)` returns one Datalog pattern clause per alias, and `Type.not(entity,
+patterns)` returns a `not` clause over them. Values are variables or constants typed by the
+attribute; reference constants become typed `ref` constants, so they match exactly. A
+cardinality-many attribute matches one value per pattern.
+
+```ts
+const untrained = {
+  find: ["?worker", "?site"],
+  where: [
+    ...Placement.where("?placement", { worker: "?worker", site: "?site" }),
+    Worker.not("?worker", { trainedFor: "?site" }),
+  ],
+};
+```
+
+The clauses are ordinary Datalog, so they combine with raw patterns, predicates, and rules.
+Datetime, JSON, and blob values are not Datalog constants; bind them to a variable and compare
+with a predicate.
 
 ## Releases and refs
 

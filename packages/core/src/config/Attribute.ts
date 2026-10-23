@@ -37,6 +37,16 @@ export interface Definition<K extends string, V> {
     | Schema.SchemaError
   >;
   readonly encode: (value: V) => TripleValue;
+  /** This attribute's use by an entity type, with every entity required to have it. */
+  readonly required: <const O extends Omit<UseOptions, "required"> = {}>(
+    options?: O,
+  ) => Use<Definition<K, V>, CardinalityOf<O>>;
+  /** This attribute's use by an entity type, with any number of values per entity. */
+  readonly many: (options?: Omit<UseOptions, "cardinality">) => Use<Definition<K, V>, "many">;
+  /** This attribute's use by an entity type, with each value on at most one entity. */
+  readonly unique: <const O extends Omit<UseOptions, "unique"> = {}>(
+    options?: O,
+  ) => Use<Definition<K, V>, CardinalityOf<O>>;
 }
 
 export type Cardinality = "one" | "many";
@@ -94,7 +104,7 @@ const make = <const K extends string, V>(
   refs: ReadonlyArray<ConfigNode.ConfigRef> = [],
 ): Definition<K, V> => {
   const key = validateKey(keyInput);
-  return {
+  const definition: Definition<K, V> = {
     _tag: "Attribute",
     key,
     type,
@@ -106,7 +116,14 @@ const make = <const K extends string, V>(
       attrs: { key, valueType: type },
       refs,
     }),
+    // The spread loses `O`'s literal cardinality, which `CardinalityOf<O>` restores.
+    required: (options) =>
+      use(definition, { ...options, required: true }) as Use<Definition<K, V>, never>,
+    many: (options) => use(definition, { ...options, cardinality: "many" }),
+    unique: (options) =>
+      use(definition, { ...options, unique: true }) as Use<Definition<K, V>, never>,
   };
+  return definition;
 };
 
 export const text = <const K extends string>(key: K): Definition<K, string> =>
