@@ -79,7 +79,7 @@ export const placeWorker = (
       actor: "user:dana",
       commandId: `create:${placement}`, // unique: a retry can never apply twice
       correlationId: "request:7f3a",
-      ...(yield* GraphConstraint.pinned(release)), // pin these rules and enforce them atomically
+      ...(yield* GraphConstraint.pinned(release)), // the rules it answered to, enforced
     });
   });
 // #endregion command
