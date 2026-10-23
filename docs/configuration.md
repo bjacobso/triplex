@@ -82,7 +82,59 @@ attribute. Reference attributes follow the same separation.
 
 `Employer.nodes` yields the independently identified attribute definitions followed by the entity
 schema. `Employer.constraints` yields independently content-addressed required, cardinality,
-uniqueness, and reference-target rules. Handles remain convenient at the application boundary:
+uniqueness, and reference-target rules.
+
+## Writing entities
+
+`Type.assert(id, values, options?)` turns attribute values, keyed by the TypeScript aliases, into
+`assert` operations tagged with the entity type. Values are typed by their attribute, and a
+cardinality-many use takes an array, so `trainedFor: [harbor]` asserts one fact per element.
+Every alias is optional and `undefined` is skipped: requiredness is a property of the entity's
+state after the transaction, which `enforce` checks atomically, not of each write. `validFrom` and
+`validTo` set the half-open business-time interval `[validFrom, validTo)` on every operation; call
+`assert` more than once when facts hold for different intervals.
+
+`GraphConstraint.pinned(release)` returns the `configSnapshot` and `enforce` metadata for one
+release, so a write records and enforces the same rules:
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples } from "@triplex-build/triplex";
+import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
+
+const Site = EntityType.make("Site", {
+  attributes: { name: Attribute.use(Attribute.text(":site/name"), { required: true }) },
+});
+
+const Worker = EntityType.make("Worker", {
+  attributes: {
+    name: Attribute.use(Attribute.text(":worker/name"), { required: true }),
+    trainedFor: Attribute.use(Attribute.ref(":worker/trained-for", Site), { cardinality: "many" }),
+  },
+});
+
+const harbor = EntityId.make("site:harbor");
+const maria = EntityId.make("worker:maria");
+const training = { validFrom: Date.UTC(2026, 2, 1), validTo: Date.UTC(2026, 5, 1) };
+
+export const onboard = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const release = yield* (yield* ConfigStore.ConfigStore).resolveRef("live");
+  if (release === undefined) return yield* Effect.die("no live release");
+  return yield* triples.transact(
+    [
+      ...Site.assert(harbor, { name: "Harbor" }),
+      ...Worker.assert(maria, { name: "Maria" }),
+      ...Worker.assert(maria, { trainedFor: [harbor] }, training),
+    ],
+    { actor: "user:hr", commandId: "onboard:maria", ...(yield* GraphConstraint.pinned(release)) },
+  );
+});
+```
+
+Single-attribute handles remain available for hand-built operations:
+`Worker.name.assertion("Maria", { validFrom, validTo })` returns the `attribute`, encoded `value`,
+and valid-time fields to spread into an `assert` operation.
 
 ## Releases and refs
 

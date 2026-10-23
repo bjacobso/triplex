@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 
+import { EntityId } from "../../src/Branded.js";
 import { KvTriples } from "../../src/kv/layers/KvTriplesLive.js";
 import { Triples } from "../../src/store/Triples.js";
 import * as Attribute from "../../src/config/Attribute.js";
@@ -89,6 +90,118 @@ describe("ontology DSL", () => {
       kind: "Employer",
     });
   });
+
+  it("carries a half-open valid-time interval on assertions", () => {
+    expect(Employer.name.assertion("Acme", { validFrom: 10, validTo: 20 })).toEqual({
+      attribute: ":employer/name",
+      value: { type: "string", value: "Acme" },
+      validFrom: 10,
+      validTo: 20,
+    });
+    expect(() => Employer.name.assertion("Acme", { validTo: Number.NaN })).toThrow(/validTo/);
+    expect(() => Employer.name.assertion("Acme", { validFrom: 20, validTo: 20 })).toThrow(
+      /after validFrom/,
+    );
+  });
+
+  it("builds typed assert operations for a whole entity", () => {
+    const Site = EntityType.make("Site", {
+      attributes: { name: Attribute.use(Attribute.text(":site/name"), { required: true }) },
+    });
+    const Crew = EntityType.make("Crew", {
+      attributes: {
+        name: Attribute.use(Attribute.text(":crew/name"), { required: true }),
+        sites: Attribute.use(Attribute.ref(":crew/site", Site), { cardinality: "many" }),
+        size: Attribute.use(Attribute.integer(":crew/size")),
+      },
+    });
+    const crew = EntityId.make("crew:night");
+    const harbor = EntityId.make("site:harbor");
+    const pier = EntityId.make("site:pier");
+
+    // Declaration order, one operation per many-value, and `undefined` skipped.
+    expect(
+      Crew.assert(
+        crew,
+        { size: 4, sites: [harbor, pier], name: "Night", ...{ size: undefined } },
+        { validFrom: 10, validTo: 20 },
+      ),
+    ).toEqual([
+      {
+        op: "assert",
+        entityId: crew,
+        entityType: "Crew",
+        attribute: ":crew/name",
+        value: { type: "string", value: "Night" },
+        validFrom: 10,
+        validTo: 20,
+      },
+      ...[harbor, pier].map((site) => ({
+        op: "assert",
+        entityId: crew,
+        entityType: "Crew",
+        attribute: ":crew/site",
+        value: { type: "ref", value: site },
+        validFrom: 10,
+        validTo: 20,
+      })),
+    ]);
+    expect(Crew.assert(crew, { sites: [] })).toEqual([]);
+    expect(Crew.assert(crew, { size: 0 })).toEqual([
+      expect.objectContaining({ attribute: ":crew/size", value: { type: "number", value: 0 } }),
+    ]);
+
+    const untyped = Crew.assert as (id: EntityId, values: object) => unknown;
+    expect(() => untyped(crew, { title: "Night" })).toThrow(/no attribute alias title/);
+    expect(() => untyped(crew, { sites: harbor })).toThrow(/cardinality-many; pass an array/);
+    expect(() => untyped(crew, { name: ["Night"] })).toThrow(/cardinality-one; pass a single/);
+    expect(() => Crew.assert(crew, { name: "Night" }, { validFrom: 2, validTo: 1 })).toThrow(
+      /after validFrom/,
+    );
+    expect(() =>
+      EntityType.make("Clash", {
+        attributes: { assert: Attribute.use(Attribute.text(":clash/assert")) },
+      }),
+    ).toThrow(/reserved/);
+  });
+
+  it.effect("pins a write to one release and enforces that release's constraints", () =>
+    Effect.gen(function* () {
+      const triples = yield* Triples;
+      const config = yield* ConfigStore.ConfigStore;
+      const objects = yield* Effect.all([Employer.nodes, Worker.nodes, Employment.nodes]);
+      const release = yield* config.commit({
+        label: "employment v1",
+        objects: objects.flat(),
+        ref: "live",
+      });
+      const pinned = yield* GraphConstraint.pinned(release.snapshot);
+      expect(pinned).toEqual({
+        configSnapshot: release.snapshot.id,
+        enforce: GraphConstraint.enforcement(yield* GraphConstraint.collect(release.snapshot.root)),
+      });
+
+      const acme = EntityId.make("employer:acme");
+      const ada = EntityId.make("worker:ada");
+      const employment = EntityId.make("employment:ada-acme");
+      yield* triples.transact(
+        [...Employer.assert(acme, { name: "Acme" }), ...Worker.assert(ada, { name: "Ada" })],
+        { commandId: "onboard", ...pinned },
+      );
+
+      const missingWorker = yield* triples
+        .transact(Employment.assert(employment, { employer: acme }), pinned)
+        .pipe(Effect.flip);
+      expect(missingWorker._tag).toBe("ConstraintViolationError");
+
+      yield* triples.transact(Employment.assert(employment, { employer: acme, worker: ada }), {
+        commandId: "hire",
+        ...pinned,
+      });
+      const receipt = yield* triples.transactionByCommand("hire");
+      expect(receipt?.configSnapshot).toBe(release.snapshot.id);
+    }).pipe(Effect.provide(ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer)))),
+  );
 
   it.effect("makes reference targets explicit in the configuration graph", () =>
     Effect.gen(function* () {

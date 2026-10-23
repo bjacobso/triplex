@@ -2,7 +2,9 @@
 
 import { Effect } from "effect";
 
+import type { EntityId } from "../Branded.js";
 import * as CanonicalJson from "../content/CanonicalJson.js";
+import type { TransactAssertOp } from "../Triple.js";
 import * as Attribute from "./Attribute.js";
 import * as ConfigNode from "./ConfigNode.js";
 import { ENTITY_SCHEMA_KIND } from "./EntityValidation.js";
@@ -17,6 +19,7 @@ const RESERVED_PROPERTIES = new Set([
   "nodes",
   "attributes",
   "constraints",
+  "assert",
 ]);
 
 type Uses = Readonly<Record<string, Attribute.Use<Attribute.AnyDefinition>>>;
@@ -33,6 +36,26 @@ export interface AttributeHandle<D extends Attribute.AnyDefinition> {
     options?: Attribute.AssertionOptions,
   ) => Attribute.Assertion<D["key"]>;
 }
+
+/** The value one attribute use accepts: an array exactly when the use is cardinality-many. */
+export type UseValue<U> =
+  U extends Attribute.Use<infer D, infer C>
+    ? [C] extends ["many"]
+      ? ReadonlyArray<Attribute.ValueOf<D>>
+      : [C] extends ["one"]
+        ? Attribute.ValueOf<D>
+        : Attribute.ValueOf<D> | ReadonlyArray<Attribute.ValueOf<D>>
+    : never;
+
+/**
+ * Attribute values keyed by an entity type's TypeScript aliases. Every alias is
+ * optional, and `undefined` is skipped, because requiredness is a property of
+ * the entity's post-transaction state that graph-constraint enforcement checks
+ * atomically, not of any single write.
+ */
+export type Values<A extends Uses> = {
+  readonly [P in keyof A]?: UseValue<A[P]> | undefined;
+};
 
 type Handles<A extends Uses> = {
   readonly [P in keyof A]: AttributeHandle<A[P]["attribute"]>;
@@ -51,6 +74,16 @@ export type EntityType<N extends string, A extends Uses> = {
     | CanonicalJson.CanonicalEncodingError
     | import("effect").Schema.SchemaError
   >;
+  /**
+   * Build one `assert` operation per value, tagged with this entity type, in
+   * attribute declaration order. Cardinality-many attributes take an array.
+   * `options` applies the same valid-time interval to every operation.
+   */
+  readonly assert: (
+    entityId: EntityId,
+    values: Values<A>,
+    options?: Attribute.AssertionOptions,
+  ) => ReadonlyArray<TransactAssertOp>;
   /** Attribute definition nodes followed by the entity-schema node. */
   readonly nodes: Effect.Effect<
     ReadonlyArray<ConfigNode.ConfigNode>,
@@ -141,6 +174,38 @@ export const make = <const N extends string, const A extends Uses>(
       .map((attribute) => attribute.node),
     node,
   ]);
+  const assert = (
+    entityId: EntityId,
+    values: Values<A>,
+    options: Attribute.AssertionOptions = {},
+  ): ReadonlyArray<TransactAssertOp> => {
+    const input = values as Readonly<Record<string, unknown>>;
+    for (const property of Object.keys(input)) {
+      if (!Object.prototype.hasOwnProperty.call(handles, property)) {
+        throw new TypeError(`Entity type ${name} has no attribute alias ${property}`);
+      }
+    }
+    const operations: TransactAssertOp[] = [];
+    for (const [property, handle] of Object.entries(handles)) {
+      const value = input[property];
+      if (value === undefined) continue;
+      const many = handle.cardinality === "many";
+      if (Array.isArray(value) !== many) {
+        throw new TypeError(
+          `${name}.${property} is cardinality-${handle.cardinality}; pass ${many ? "an array of values" : "a single value"}`,
+        );
+      }
+      for (const item of many ? (value as ReadonlyArray<unknown>) : [value]) {
+        operations.push({
+          op: "assert",
+          entityId,
+          entityType: name,
+          ...handle.assertion(item, options),
+        });
+      }
+    }
+    return operations;
+  };
   const entity = {
     entityType: name,
     schema,
@@ -148,6 +213,7 @@ export const make = <const N extends string, const A extends Uses>(
     constraints,
     node,
     nodes,
+    assert,
     ...handles,
   };
   return entity as EntityType<N, A>;

@@ -65,6 +65,7 @@ Check these constraints with the people you work for before adopting it:
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
   and `ref`.
 - Set `entityType` on every assertion so type-level reads and constraints can find the entity.
+  `Type.assert(id, values, options?)` does this for you and types each value by its attribute.
 
 <<< @/snippets/home/site-safety/app.ts#model
 
@@ -96,6 +97,7 @@ Follow these rules for every write:
    triggering command or event for causation.
 4. **Pin `configSnapshot` and pass `enforce` from the same release.** Pinning alone only records
    which rules applied. Constraints are checked only when you also pass them with `enforce`.
+   `GraphConstraint.pinned(release)` returns both from one snapshot.
 5. **Put business time on the assertion.** Use `validFrom` and `validTo` when the dates define when
    the fact holds. Intervals are half-open: `[validFrom, validTo)`.
 6. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in

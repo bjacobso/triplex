@@ -208,6 +208,26 @@ export const collect = (
       .sort((left, right) => left.key.localeCompare(right.key));
   });
 
+/**
+ * Transaction metadata that governs a write by one release: `configSnapshot`
+ * records the release id, and `enforce` carries the graph constraints collected
+ * from that same release's root, so the two can never disagree.
+ */
+export const pinned = (release: {
+  readonly id: string;
+  readonly root: ConfigNode.ConfigNode;
+}): Effect.Effect<
+  {
+    readonly configSnapshot: string;
+    readonly enforce: { readonly constraints: ReadonlyArray<Rule> };
+  },
+  InvalidGraphConstraintError | DuplicateGraphConstraintError
+> =>
+  Effect.map(collect(release.root), (definitions) => ({
+    configSnapshot: release.id,
+    enforce: enforcement(definitions),
+  }));
+
 const pathOf = (attribute: string): string => `$[${JSON.stringify(attribute)}]`;
 
 const tripleValueKey = (

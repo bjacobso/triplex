@@ -74,20 +74,13 @@ export const placeWorker = (
 ) =>
   Effect.gen(function* () {
     const triples = yield* Triples;
-    const assert = { op: "assert", entityId: placement, entityType: "Placement" } as const;
-    return yield* triples.transact(
-      [
-        { ...assert, ...Placement.worker.assertion(worker, { validFrom: MAR_2 }) },
-        { ...assert, ...Placement.site.assertion(site, { validFrom: MAR_2 }) },
-      ],
-      {
-        actor: "user:dana",
-        commandId: `create:${placement}`, // unique: a retry can never apply twice
-        correlationId: "request:7f3a",
-        configSnapshot: release.id, // the rules this write answered to
-        enforce: GraphConstraint.enforcement(yield* GraphConstraint.collect(release.root)),
-      },
-    );
+    const facts = Placement.assert(placement, { worker, site }, { validFrom: MAR_2 });
+    return yield* triples.transact(facts, {
+      actor: "user:dana",
+      commandId: `create:${placement}`, // unique: a retry can never apply twice
+      correlationId: "request:7f3a",
+      ...(yield* GraphConstraint.pinned(release)), // pin these rules and enforce them atomically
+    });
   });
 // #endregion command
 
