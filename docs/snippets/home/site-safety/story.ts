@@ -18,19 +18,9 @@ export const onboard = Effect.gen(function* () {
   const since = { validFrom: JAN_5 };
   return yield* triples.transact(
     [
-      {
-        op: "assert",
-        entityId: harbor,
-        entityType: "Site",
-        ...Site.name.assertion("Harbor", since),
-      },
-      { op: "assert", entityId: pier, entityType: "Site", ...Site.name.assertion("Pier", since) },
-      {
-        op: "assert",
-        entityId: maria,
-        entityType: "Worker",
-        ...Worker.name.assertion("Maria", since),
-      },
+      ...Site.assert(harbor, { name: "Harbor" }, since),
+      ...Site.assert(pier, { name: "Pier" }, since),
+      ...Worker.assert(maria, { name: "Maria" }, since),
     ],
     { actor: "user:hr", commandId: "onboard:maria" },
   );
@@ -40,15 +30,7 @@ export const onboard = Effect.gen(function* () {
 export const recordTraining = Effect.gen(function* () {
   const triples = yield* Triples;
   return yield* triples.transact(
-    [
-      {
-        op: "assert",
-        entityId: maria,
-        entityType: "Worker",
-        ...Worker.trainedFor.assertion(harbor, { validFrom: MAR_1 }),
-        validTo: JUN_1,
-      },
-    ],
+    Worker.assert(maria, { trainedFor: [harbor] }, { validFrom: MAR_1, validTo: JUN_1 }),
     { actor: "user:trainer", commandId: "training:record:maria-harbor" },
   );
 });
@@ -82,13 +64,7 @@ export const correctTraining = Effect.gen(function* () {
   return yield* triples.transact(
     [
       { op: "retract", id: wrong.id },
-      {
-        op: "assert",
-        entityId: maria,
-        entityType: "Worker",
-        ...Worker.trainedFor.assertion(harbor, { validFrom: MAR_5 }),
-        validTo: JUN_1,
-      },
+      ...Worker.assert(maria, { trainedFor: [harbor] }, { validFrom: MAR_5, validTo: JUN_1 }),
     ],
     {
       actor: "user:auditor",

@@ -59,12 +59,14 @@ Check these constraints with the people you work for before adopting it:
 - Attribute keys are global keywords of the form `:namespace/name`, matching
   `^:[a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*$`. An attribute owns its identity and value type.
 - An entity type owns how it uses an attribute: `required`, `cardinality` (`"one"` or `"many"`),
-  and `unique`. The same attribute can be required in one type and optional in another.
+  and `unique`. The same attribute can be required in one type and optional in another. Declare a
+  use with `.required()`, `.many()`, or `.unique()`; a bare attribute is optional and single-valued.
 - Model relationships as `Attribute.ref(key, TargetType)`. There are no join tables. Datalog joins
   on shared values.
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
   and `ref`.
 - Set `entityType` on every assertion so type-level reads and constraints can find the entity.
+  `Type.assert(id, values, options?)` does this for you and types each value by its attribute.
 
 <<< @/snippets/home/site-safety/app.ts#model
 
@@ -96,6 +98,7 @@ Follow these rules for every write:
    triggering command or event for causation.
 4. **Pin `configSnapshot` and pass `enforce` from the same release.** Pinning alone only records
    which rules applied. Constraints are checked only when you also pass them with `enforce`.
+   `GraphConstraint.pinned(release)` returns both from one snapshot.
 5. **Put business time on the assertion.** Use `validFrom` and `validTo` when the dates define when
    the fact holds. Intervals are half-open: `[validFrom, validTo)`.
 6. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
@@ -116,6 +119,7 @@ Read more in [Operational primitives](/operational-primitives) and
 
 - Write the obligation as a Datalog query. Positive patterns describe the situation, and a `not`
   clause describes the missing evidence. Every variable in `not` must be bound outside it.
+  `Type.where(entity, { alias: "?var" })` and `Type.not(...)` build those clauses from aliases.
 - Set `identity` to the variables that name one obligation, such as worker and site. Candidate IDs
   are then stable across re-evaluations.
 - Use `Derivation.evaluate` for reads and previews, and

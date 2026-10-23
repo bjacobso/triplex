@@ -49,26 +49,14 @@ import { Attribute, EntityType } from "@triplex-build/triplex/config";
 export const EmployerName = Attribute.text(":employer/name");
 
 export const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, {
-      required: true,
-      unique: true,
-    }),
-  },
+  name: EmployerName.required({ unique: true }),
 });
 
-export const EmployerSummary = EntityType.make("EmployerSummary", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: false }),
-  },
-});
-
-export const EmploymentEmployer = Attribute.ref(":employment/employer", Employer);
+// A bare attribute is an optional, single-valued use.
+export const EmployerSummary = EntityType.make("EmployerSummary", { name: EmployerName });
 
 export const Employment = EntityType.make("Employment", {
-  attributes: {
-    employer: Attribute.use(EmploymentEmployer, { required: true }),
-  },
+  employer: Attribute.ref(":employment/employer", Employer).required(),
 });
 
 const validFrom = Date.now();
@@ -80,9 +68,83 @@ Employment.attributes.employer.assertion(EntityId.make("employer:acme"), { valid
 Requiredness is not inherently true of `:employer/name`; it is true of the way `Employer` uses the
 attribute. Reference attributes follow the same separation.
 
+`.required()`, `.many()`, and `.unique()` describe a use and accept the remaining options, for
+example `.required({ unique: true })` or `.many({ required: true })`. They are shorthands for
+`Attribute.use(attribute, options)`, which remains available. The `{ attributes: { ... } }` form of
+`EntityType.make` is also accepted; both forms compile to the same content-addressed nodes.
+
 `Employer.nodes` yields the independently identified attribute definitions followed by the entity
 schema. `Employer.constraints` yields independently content-addressed required, cardinality,
-uniqueness, and reference-target rules. Handles remain convenient at the application boundary:
+uniqueness, and reference-target rules.
+
+## Writing entities
+
+`Type.assert(id, values, options?)` turns attribute values, keyed by the TypeScript aliases, into
+`assert` operations tagged with the entity type. Values are typed by their attribute, and a
+cardinality-many use takes an array, so `trainedFor: [harbor]` asserts one fact per element.
+Every alias is optional and `undefined` is skipped: requiredness is a property of the entity's
+state after the transaction, which `enforce` checks atomically, not of each write. `validFrom` and
+`validTo` set the half-open business-time interval `[validFrom, validTo)` on every operation; call
+`assert` more than once when facts hold for different intervals.
+
+`GraphConstraint.pinned(release)` returns the `configSnapshot` and `enforce` metadata for one
+release, so a write records and enforces the same rules:
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples } from "@triplex-build/triplex";
+import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
+
+const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
+
+const Worker = EntityType.make("Worker", {
+  name: Attribute.text(":worker/name").required(),
+  trainedFor: Attribute.ref(":worker/trained-for", Site).many(),
+});
+
+const harbor = EntityId.make("site:harbor");
+const maria = EntityId.make("worker:maria");
+const training = { validFrom: Date.UTC(2026, 2, 1), validTo: Date.UTC(2026, 5, 1) };
+
+export const onboard = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const release = yield* (yield* ConfigStore.ConfigStore).resolveRef("live");
+  if (release === undefined) return yield* Effect.die("no live release");
+  return yield* triples.transact(
+    [
+      ...Site.assert(harbor, { name: "Harbor" }),
+      ...Worker.assert(maria, { name: "Maria" }),
+      ...Worker.assert(maria, { trainedFor: [harbor] }, training),
+    ],
+    { actor: "user:hr", commandId: "onboard:maria", ...(yield* GraphConstraint.pinned(release)) },
+  );
+});
+```
+
+Single-attribute handles remain available for hand-built operations:
+`Worker.name.assertion("Maria", { validFrom, validTo })` returns the `attribute`, encoded `value`,
+and valid-time fields to spread into an `assert` operation.
+
+## Querying by alias
+
+`Type.where(entity, patterns)` returns one Datalog pattern clause per alias, and `Type.not(entity,
+patterns)` returns a `not` clause over them. Values are variables or constants typed by the
+attribute; reference constants become typed `ref` constants, so they match exactly. A
+cardinality-many attribute matches one value per pattern.
+
+```ts
+const untrained = {
+  find: ["?worker", "?site"],
+  where: [
+    ...Placement.where("?placement", { worker: "?worker", site: "?site" }),
+    Worker.not("?worker", { trainedFor: "?site" }),
+  ],
+};
+```
+
+The clauses are ordinary Datalog, so they combine with raw patterns, predicates, and rules.
+Datetime, JSON, and blob values are not Datalog constants; bind them to a variable and compare
+with a predicate.
 
 ## Releases and refs
 
