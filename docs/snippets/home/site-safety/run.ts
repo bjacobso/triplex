@@ -9,16 +9,27 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { Effect, Layer } from "effect";
-import { EntityId, KvTriples, Triples, type TransactionChange } from "@triplex-build/triplex";
-import { ConfigStore, GraphConstraint } from "@triplex-build/triplex/config";
+import { HttpRouter } from "effect/http";
+import { EntityId, Triples, type TransactionChange } from "@triplex-build/triplex";
+import { ConfigStore } from "@triplex-build/triplex/config";
 import { ContentId } from "@triplex-build/triplex/content";
 
-import { Placement, PlacementV2, harbor, maria, publish } from "./model.ts";
-import { JUN_1, MAR_2, correctTraining, onboard, placeWorker, recordTraining } from "./record.ts";
-import { openWorkOn } from "./open-work.ts";
-import { placeWorkerOnce } from "./retry.ts";
-import { governingRules } from "./which-rules.ts";
-import { wasMariaTrained } from "./what-we-knew.ts";
+import {
+  Api,
+  InMemory,
+  MAR_2,
+  Placement,
+  PlacementV2,
+  Site,
+  Worker,
+  audit,
+  harbor,
+  maria,
+  openWork,
+  placeWorker,
+  publish,
+} from "./app.ts";
+import { JUN_1, correctTraining, onboard, pier, placeWorkerOnce, recordTraining } from "./story.ts";
 
 const day = (instant: number) => new Date(instant).toISOString().slice(0, 10);
 
@@ -34,47 +45,56 @@ const describe = (change: TransactionChange) => {
 // Recorded time comes from the wall clock; keep each step on a distinct instant.
 const tick = Effect.sleep("5 millis");
 
+// Serve the `Api` layer in process and read Maria as of March 2, as known then and now.
+const readOverHttp = (recordedAt: number) =>
+  Effect.gen(function* () {
+    const database = yield* Effect.context<Triples | ConfigStore.ConfigStore>();
+    const { handler, dispose } = HttpRouter.toWebHandler(
+      Api.pipe(Layer.provide(Layer.succeedContext(database))),
+      { disableLogger: true },
+    );
+    const read = (query: string) =>
+      Effect.promise(async () => {
+        const url = `http://triplex.local/api/rest/latest/workers/${maria}?validAt=${MAR_2}${query}`;
+        const response = await handler(new Request(url));
+        if (!response.ok) throw new Error(`${url} → ${response.status} ${await response.text()}`);
+        return response.json();
+      });
+    const asKnownThen = yield* read(`&recordedAt=${recordedAt}`);
+    const asKnownNow = yield* read("");
+    yield* Effect.promise(dispose);
+    return { asKnownThen, asKnownNow };
+  });
+
 const scenario = Effect.gen(function* () {
   const triples = yield* Triples;
-  const release = yield* publish("hr-2026.1", Placement);
+  const release = yield* publish("hr-2026.1", [Site, Worker, Placement]);
   yield* tick;
   yield* onboard;
   yield* tick;
   yield* recordTraining;
   yield* tick;
-  const placed = yield* placeWorker(release.snapshot);
+  const placed = yield* placeWorker(
+    release.snapshot,
+    EntityId.make("placement:maria-harbor"),
+    maria,
+    harbor,
+  );
   yield* tick;
   const retried = yield* placeWorkerOnce(release.snapshot);
-  if (retried !== placed.position)
+  if (retried !== placed.position) {
     throw new Error("a retried command must return its first receipt");
+  }
   yield* tick;
-  const next = yield* publish("hr-2026.2", PlacementV2);
+  const next = yield* publish("hr-2026.2", [Site, Worker, PlacementV2]);
   yield* tick;
-  // The same kind of command, checked against today's rules, is rejected atomically.
-  const rejected = yield* triples
-    .transact(
-      [
-        {
-          op: "assert",
-          entityId: EntityId.make("placement:maria-pier"),
-          entityType: "Placement",
-          ...PlacementV2.attributes.worker.assertion(maria, { validFrom: MAR_2 }),
-        },
-        {
-          op: "assert",
-          entityId: EntityId.make("placement:maria-pier"),
-          entityType: "Placement",
-          ...PlacementV2.attributes.site.assertion(harbor, { validFrom: MAR_2 }),
-        },
-      ],
-      {
-        actor: "user:dana",
-        commandId: "placement:create:maria-pier",
-        configSnapshot: next.snapshot.id,
-        enforce: GraphConstraint.enforcement(yield* GraphConstraint.collect(next.snapshot.root)),
-      },
-    )
-    .pipe(Effect.flip);
+  // The same command under today's rules is rejected atomically.
+  const rejected = yield* placeWorker(
+    next.snapshot,
+    EntityId.make("placement:maria-pier"),
+    maria,
+    pier,
+  ).pipe(Effect.flip);
   yield* tick;
   yield* correctTraining;
 
@@ -99,32 +119,40 @@ const scenario = Effect.gen(function* () {
   const snapshot = release.snapshot.id;
   return {
     timeline: `${rows.join("\n")}\n`,
-    "what-we-knew": yield* wasMariaTrained,
-    "which-rules": yield* governingRules,
+    audit: yield* audit,
     rejected: {
       error: rejected._tag,
       ...(rejected._tag === "ConstraintViolationError"
         ? { violations: [...new Set(rejected.violations.map((violation) => violation.message))] }
         : {}),
     },
-    "open-work": [
-      yield* openWorkOn(snapshot, Date.UTC(2026, 2, 3)),
-      yield* openWorkOn(snapshot, Date.UTC(2026, 3, 1)),
-      yield* openWorkOn(snapshot, JUN_1),
-    ],
+    "open-work": {
+      [day(Date.UTC(2026, 2, 3))]: yield* openWork(snapshot, Date.UTC(2026, 2, 3)),
+      [day(Date.UTC(2026, 3, 1))]: yield* openWork(snapshot, Date.UTC(2026, 3, 1)),
+      [day(JUN_1)]: yield* openWork(snapshot, JUN_1),
+    },
+    http: yield* readOverHttp(placed.instant),
   };
 });
 
-const AppLayer = ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer));
-const outputs = await Effect.runPromise(scenario.pipe(Effect.provide(AppLayer)));
+const outputs = await Effect.runPromise(scenario.pipe(Effect.provide(InMemory)));
+
+// How long each layer of the stack is, counted from the regions the homepage shows.
+const source = await readFile(resolve(import.meta.dirname, "app.ts"), "utf8");
+const stack: Record<string, number> = {};
+for (const [, name, body] of source.matchAll(/#region (\w+)\n([\s\S]*?)\/\/ #endregion/g)) {
+  stack[name!] = body!.split("\n").filter((line) => line.trim() !== "").length;
+}
+stack["total"] = Object.values(stack).reduce((sum, lines) => sum + lines, 0);
 
 const check = process.argv.includes("--check");
 const files: Record<string, string> = {
+  "stack.json": JSON.stringify(stack),
   "timeline.md": outputs.timeline,
-  "what-we-knew.json": JSON.stringify(outputs["what-we-knew"]),
-  "which-rules.json": JSON.stringify(outputs["which-rules"]),
+  "audit.json": JSON.stringify(outputs.audit),
   "rejected.json": JSON.stringify(outputs.rejected),
   "open-work.json": JSON.stringify(outputs["open-work"]),
+  "http.json": JSON.stringify(outputs.http),
 };
 
 // Format exactly as the repository formatter would, so `pnpm format` never fights `--check`.

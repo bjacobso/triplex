@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import knowledge from "../../snippets/home/site-safety/output/what-we-knew.json";
-import receipt from "../../snippets/home/site-safety/output/which-rules.json";
+import audit from "../../snippets/home/site-safety/output/audit.json";
 
 const corrected = ref(false);
 const trained = computed(() =>
-  corrected.value ? knowledge.knownToday : knowledge.knownAtDecision,
+  corrected.value ? audit.trainedAsKnownNow : audit.trainedAsKnownThen,
 );
 </script>
 
@@ -29,11 +28,11 @@ const trained = computed(() =>
         </div>
         <div>
           <dt>actor</dt>
-          <dd>{{ receipt.actor }}</dd>
+          <dd>{{ audit.actor }}</dd>
         </div>
         <div>
           <dt>governedBy</dt>
-          <dd class="decision-trace__violet">{{ receipt.governedBy }}</dd>
+          <dd class="decision-trace__violet">{{ audit.governedBy }}</dd>
         </div>
       </dl>
       <div class="decision-trace__divider"><span>One date. Two views of the evidence.</span></div>

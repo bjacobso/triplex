@@ -66,7 +66,7 @@ Check these constraints with the people you work for before adopting it:
   and `ref`.
 - Set `entityType` on every assertion so type-level reads and constraints can find the entity.
 
-<<< @/snippets/home/site-safety/model.ts
+<<< @/snippets/home/site-safety/app.ts#model
 
 Read more in [Typed configuration](/configuration#ontology-dsl).
 
@@ -78,6 +78,8 @@ Read more in [Typed configuration](/configuration#ontology-dsl).
   to an earlier release doesn't roll back data.
 - At command time, resolve the release you intend to enforce and keep its snapshot for the whole
   command.
+
+<<< @/snippets/home/site-safety/app.ts#release
 
 Read more in [Releases, refs, and rollback](/configuration-versioning).
 
@@ -101,11 +103,11 @@ Follow these rules for every write:
    `{ _tag: "TripleLive", id }` precondition so a concurrent change fails with a conflict instead
    of being lost.
 
-<<< @/snippets/home/site-safety/record.ts#place
+<<< @/snippets/home/site-safety/app.ts#command
 
 A retry with the same command ID returns the original receipt, and the journal gains no entry:
 
-<<< @/snippets/home/site-safety/retry.ts
+<<< @/snippets/home/site-safety/story.ts#retry
 
 Read more in [Operational primitives](/operational-primitives) and
 [Troubleshooting](/troubleshooting#what-should-happen-on-a-duplicate-command-id).
@@ -126,7 +128,7 @@ Read more in [Operational primitives](/operational-primitives) and
 - A `stale` or `unmaterialized` result doesn't mean there is no work. Rematerialize before
   treating an empty result as current.
 
-<<< @/snippets/home/site-safety/open-work.ts
+<<< @/snippets/home/site-safety/app.ts#derive
 
 The
 [compliance host example](https://github.com/bjacobso/triplex/tree/main/examples/compliance-host)
@@ -144,7 +146,7 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
 - **What was retracted?** `history(entityId)` includes retracted assertions. `entity` and `match`
   show only facts visible at the basis you ask for.
 
-<<< @/snippets/home/site-safety/what-we-knew.ts
+<<< @/snippets/home/site-safety/app.ts#ask
 
 ## 6. Choose a runtime
 
@@ -152,7 +154,7 @@ Construct one layer per database lifetime, at the application boundary. Building
 layer again creates a new empty database, and building a SQL layer per request defeats connection
 sharing.
 
-<<< @/snippets/home/layers.ts
+<<< @/snippets/home/site-safety/app.ts#run
 
 On PostgreSQL, Triplex can join your application's own Effect SQL transaction, so your rows,
 Triplex facts, the journal, and an outbox row commit together. See
