@@ -52,6 +52,34 @@ BENCHMARK_SKIP_FDB=true pnpm --filter triplex-stress benchmark
 
 The generated report includes insertion throughput, update throughput with per-round breakdown, triple-pattern latency (Q1-Q6), and Datalog query latency (D1-D6) with system information and methodology notes.
 
+## In-memory import benchmark
+
+`scripts/memory-import.ts` loads a large account into the in-memory `KvTriples` store and reads it
+back, in a fresh Node process per size with a 4 GB heap (roughly a browser tab):
+
+```bash
+pnpm --filter triplex-stress benchmark:memory
+MEMORY_BENCH_SIZES=16000 MEMORY_BENCH_MODES=transact,chunked pnpm --filter triplex-stress benchmark:memory
+```
+
+The data has 25 scalar attributes and 16 facts per subject, all with valid-time intervals; two
+facts per subject are a closed interval and its successor. The read is one `match` per attribute
+at one `validAt`. Heap is measured after a forced GC.
+
+- `transact`: one `Triples.transact` with every assertion.
+- `chunked`: 4,000 assertions per `transact`, yielding between chunks.
+
+Node 24.22, 4 vCPU Linux VM:
+
+| Build  | Mode     | Facts   | Commit      | µs/fact | Read     | Heap/fact |
+| ------ | -------- | ------- | ----------- | ------- | -------- | --------- |
+| `main` | transact | 16,000  | 4,626 ms    | 289     | 230 ms   | 4,734 B   |
+| `main` | chunked  | 16,000  | 3,957 ms    | 247     | 195 ms   | 4,713 B   |
+| `main` | transact | 80,000  | 54,030 ms   | 675     | 2,193 ms | 4,580 B   |
+| `main` | chunked  | 80,000  | 22,905 ms   | 286     | 984 ms   | 4,548 B   |
+| `main` | transact | 160,000 | out of heap |         |          |           |
+| `main` | chunked  | 160,000 | 45,199 ms   | 282     | 1,540 ms | 4,547 B   |
+
 ## Running Tests
 
 ### SQLite (default)
