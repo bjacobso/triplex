@@ -755,6 +755,22 @@ export class KvTripleStore {
    * Returns null if sync KV operations are not available (caller should fall back).
    */
   getByEntityType(entityType: string): Datom[] | null {
+    return this.getByEntityTypeWhere(entityType, (datom) => datom.retractedAt === null);
+  }
+
+  /**
+   * Datoms of one entity type visible at a bitemporal basis, read from the TYPE
+   * index. Retraction only rewrites META, so the index still names every datom
+   * ever asserted with this type and the basis decides which are visible.
+   */
+  getByEntityTypeTemporal(entityType: string, basis: ResolvedTemporalBasis): Datom[] | null {
+    return this.getByEntityTypeWhere(entityType, (datom) => visibleAt(datom, basis));
+  }
+
+  private getByEntityTypeWhere(
+    entityType: string,
+    keep: (datom: Datom) => boolean,
+  ): Datom[] | null {
     if (!this.kv.getRangeSync) return null;
 
     const { start, end } = typePrefixRange(entityType);
@@ -764,8 +780,7 @@ export class KvTripleStore {
     for (let i = 0; i < entries.length; i++) {
       const tripleId = textDecoder.decode(entries[i]![1]);
       const datom = this.getByIdSync(tripleId);
-      if (datom === null) continue;
-      if (datom.retractedAt !== null) continue;
+      if (datom === null || !keep(datom)) continue;
       results.push(datom);
     }
     return results;
@@ -874,6 +889,21 @@ export class KvTripleStore {
    * Scans the TYPE index, then batch-fetches all META records in one call.
    */
   getByEntityTypeAsync(entityType: string): Effect.Effect<Datom[]> {
+    return this.getByEntityTypeWhereAsync(entityType, (datom) => datom.retractedAt === null);
+  }
+
+  /** Async version of getByEntityTypeTemporal using batched META fetches. */
+  getByEntityTypeTemporalAsync(
+    entityType: string,
+    basis: ResolvedTemporalBasis,
+  ): Effect.Effect<Datom[]> {
+    return this.getByEntityTypeWhereAsync(entityType, (datom) => visibleAt(datom, basis));
+  }
+
+  private getByEntityTypeWhereAsync(
+    entityType: string,
+    keep: (datom: Datom) => boolean,
+  ): Effect.Effect<Datom[]> {
     const { start, end } = typePrefixRange(entityType);
 
     return Effect.gen({ self: this }, function* () {
@@ -889,8 +919,7 @@ export class KvTripleStore {
 
       const results: Datom[] = [];
       for (const datom of datoms) {
-        if (datom === null) continue;
-        if (datom.retractedAt !== null) continue;
+        if (datom === null || !keep(datom)) continue;
         results.push(datom);
       }
       return results;
