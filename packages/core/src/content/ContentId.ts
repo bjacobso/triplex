@@ -49,6 +49,7 @@ export const Domain = {
   derivationRun: "triplex/derivation-run",
   derivationOverlayFact: "triplex/derivation-overlay-fact",
   commandReceipt: "triplex/command-receipt",
+  positionRef: "triplex/position-ref",
   consumerCheckpoint: "triplex/consumer-checkpoint",
   paginationCursor: "triplex/pagination-cursor",
   paginationScope: "triplex/pagination-scope",

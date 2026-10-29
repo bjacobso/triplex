@@ -88,6 +88,17 @@ another cursor update, and repeat forever. These unjournaled system writes still
 positions, so recorded snapshot ordering remains total; application commands remain fully
 journaled.
 
+### Published position refs
+
+`@triplex-build/triplex/operational` also provides `PositionRef`: a named, movable pointer to a
+committed position, stored as a reserved entity. `PositionRef.move` points it at a position in one
+journaled transaction, with compare-and-retract against concurrent moves and an optional
+`expectedPosition` (`null` for "not created yet"). Positions past the latest commit are rejected.
+`PositionRef.basis(triples, name, { validAt })` returns `{ recordedPosition, validAt }`; resolve it
+once and reuse it for every read that must agree, because resolving per read could straddle a
+move. Every move is history, so `PositionRef.get(triples, name, { recordedAt })` says what was
+published at an earlier instant. A move may carry a JSON manifest describing what it published.
+
 ### Snapshot-stable Datalog pages
 
 `Triples.queryPage` returns an opaque, versioned keyset cursor. Its content-addressed fingerprints

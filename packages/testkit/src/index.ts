@@ -26,7 +26,7 @@ import {
   UnboundVariableError,
   EntityId,
 } from "@triplex-build/triplex";
-import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import { ConsumerCheckpoint, PositionRef } from "@triplex-build/triplex/operational";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -2453,6 +2453,103 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
       yield* check(
         page.results.length === 1 && page.results[0]?.["?v"] === 1,
         "paged Datalog must read at the requested position",
+      );
+    }),
+  },
+  {
+    name: "position refs publish commit positions with compare-and-swap",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const name = "conf:ref/live";
+      const attribute = ":conf/ref-value";
+      const write = (value: number) =>
+        t.transact([
+          {
+            op: "assert",
+            entityId: eid("conf:ref:subject"),
+            attribute,
+            value: number(value),
+            validFrom: 0,
+          },
+        ]);
+      const atRef = PositionRef.basis(t, name, { validAt: 1 }).pipe(
+        Effect.flatMap((basis) => t.match({ attribute }, basis)),
+        Effect.map((rows) => rows.map((row) => row.value.value).sort()),
+      );
+
+      const missing = yield* atRef.pipe(Effect.flip);
+      yield* check(
+        missing._tag === "PositionRefNotFoundError" && (yield* PositionRef.get(t, name)) === null,
+        "an unpublished ref must not resolve",
+      );
+
+      const first = yield* write(1);
+      const created = yield* PositionRef.move(t, {
+        name,
+        position: first.position,
+        expectedPosition: null,
+        manifest: { note: "first" },
+      });
+      yield* write(2);
+      yield* check(
+        JSON.stringify(yield* atRef) === "[1]",
+        "readers at the ref must not see commits after the published position",
+      );
+
+      const latest = yield* t.currentPosition();
+      const moved = yield* PositionRef.move(t, {
+        name,
+        position: latest,
+        expectedPosition: first.position,
+      });
+      const record = yield* t.transaction(moved.transaction.txId);
+      yield* check(
+        JSON.stringify(yield* atRef) === "[1,2]" &&
+          moved.transaction.position === latest + 1 &&
+          record !== null &&
+          record.changes.filter((change) => change.op === "assert").length === 1,
+        "moving a ref must be one journaled transaction",
+      );
+
+      const races = yield* Effect.all(
+        [first.position, latest].map((position) =>
+          PositionRef.move(t, { name, position, expectedPosition: latest }).pipe(
+            Effect.match({
+              onFailure: (error) => error._tag,
+              onSuccess: () => "moved",
+            }),
+          ),
+        ),
+        { concurrency: "unbounded" },
+      );
+      const stale = yield* PositionRef.move(t, {
+        name,
+        position: first.position,
+        expectedPosition: 0,
+      }).pipe(Effect.flip);
+      yield* check(
+        races.filter((result) => result === "moved").length === 1 &&
+          races.filter((result) => result === "PositionRefConflictError").length === 1 &&
+          stale._tag === "PositionRefConflictError",
+        "concurrent and stale moves must conflict rather than overwrite",
+      );
+
+      const ahead = yield* PositionRef.move(t, {
+        name,
+        position: (yield* t.currentPosition()) + 1,
+      }).pipe(Effect.flip);
+      yield* check(
+        ahead._tag === "InvalidPositionRefError",
+        "a ref must not point past the latest commit",
+      );
+
+      const before = yield* PositionRef.get(t, name, {
+        recordedPosition: created.transaction.position,
+      });
+      yield* check(
+        before?.position === first.position &&
+          (before.manifest as { readonly note?: string } | undefined)?.note === "first",
+        "reading the ref at an earlier position must return what was published then",
       );
     }),
   },
