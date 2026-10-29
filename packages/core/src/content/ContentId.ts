@@ -51,6 +51,7 @@ export const Domain = {
   commandReceipt: "triplex/command-receipt",
   transactionSummary: "triplex/transaction-summary",
   importManifest: "triplex/import-manifest",
+  segment: "triplex/segment",
   positionRef: "triplex/position-ref",
   consumerCheckpoint: "triplex/consumer-checkpoint",
   paginationCursor: "triplex/pagination-cursor",
