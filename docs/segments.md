@@ -208,6 +208,25 @@ each fact's attachment (its recorded position and transaction) as a column. Read
 report the original recorded time, and history would be unchanged. Derived indexes are rebuildable
 from the columns, so a repack can also change the index set without changing any fact.
 
+## Measurements
+
+Measured with `pnpm --filter triplex-stress benchmark:memory` in Node 24 with a 4 GB heap: 25
+scalar attributes, 16 facts per subject with valid-time intervals, 4,000-fact chunks, and a read of
+every attribute at one `validAt`. Memory counts the V8 heap and array buffers after GC. Full
+tables are in the stress package README.
+
+| 160,000 facts                  | Build (off-thread) |      Commit | First read |     Read | Memory per fact |
+| ------------------------------ | -----------------: | ----------: | ---------: | -------: | --------------: |
+| `main`, one `transact`         |                    | out of heap |            |          |                 |
+| `main`, 4,000-fact `transact`s |                    |      40.7 s |     186 ms | 1,495 ms |          5.2 KB |
+| batched KV writes, `transact`s |                    |       6.8 s |     147 ms | 1,545 ms |          5.0 KB |
+| `Import.run`, summary journal  |                    |       2.8 s |     105 ms | 1,450 ms |          2.5 KB |
+| Segments, built and attached   |             650 ms |       34 ms |     7.5 ms |    93 ms |            80 B |
+| Prebuilt segment image         |                    |       13 ms |     7.0 ms |    85 ms |            79 B |
+
+At 16,000 facts the same segment path builds in 100 ms, attaches in 13 ms and reads everything in
+17 ms. Most of the build is the canonical encoding and SHA-256 of the content.
+
 ## What didn't pan out, and limits
 
 - **Content hashing is the slowest part of building a segment.** The browser-safe SHA-256 now runs

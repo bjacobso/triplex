@@ -64,32 +64,43 @@ MEMORY_BENCH_SIZES=16000 MEMORY_BENCH_MODES=transact,chunked pnpm --filter tripl
 
 The data has 25 scalar attributes and 16 facts per subject, all with valid-time intervals; two
 facts per subject are a closed interval and its successor. The read is one `match` per attribute
-at one `validAt`. Heap is measured after a forced GC.
+at one `validAt`; "first read" is the first of those after loading. Memory is the V8 heap plus
+array buffers after a forced GC, divided by the fact count.
 
 - `transact`: one `Triples.transact` with every assertion.
 - `chunked`: 4,000 assertions per `transact`, yielding between chunks.
 - `import`: `Import.run` with 4,000-fact chunks and the summary journal, then publish a
   `PositionRef`; the read resolves the ref and reads at its position.
+- `segments`: build a `Segment` per 4,000 facts and attach it, yielding between chunks, then
+  publish the ref. Build time is sorting, indexing and hashing, which a host can run in a worker.
+- `image`: one segment of everything, built and encoded ahead of time like a shipped dataset;
+  commit is decoding, attaching and publishing it.
 
-Node 24.22, 4 vCPU Linux VM:
+Node 24.22, 4 vCPU Linux VM, 4 GB heap limit:
 
-| Build                 | Mode     | Facts   | Commit      | µs/fact | Read     | Heap/fact |
-| --------------------- | -------- | ------- | ----------- | ------- | -------- | --------- |
-| `main`                | transact | 16,000  | 4,626 ms    | 289     | 230 ms   | 4,734 B   |
-| `main`                | chunked  | 16,000  | 3,957 ms    | 247     | 195 ms   | 4,713 B   |
-| `main`                | transact | 80,000  | 54,030 ms   | 675     | 2,193 ms | 4,580 B   |
-| `main`                | chunked  | 80,000  | 22,905 ms   | 286     | 984 ms   | 4,548 B   |
-| `main`                | transact | 160,000 | out of heap |         |          |           |
-| `main`                | chunked  | 160,000 | 45,199 ms   | 282     | 1,540 ms | 4,547 B   |
-| batched KV writes     | transact | 16,000  | 986 ms      | 62      | 215 ms   | 4,827 B   |
-| batched KV writes     | chunked  | 16,000  | 775 ms      | 48      | 177 ms   | 4,611 B   |
-| batched KV writes     | transact | 80,000  | 5,489 ms    | 69      | 897 ms   | 4,713 B   |
-| batched KV writes     | chunked  | 80,000  | 3,510 ms    | 44      | 843 ms   | 4,437 B   |
-| batched KV writes     | transact | 160,000 | 9,248 ms    | 58      | 1,644 ms | 4,716 B   |
-| batched KV writes     | chunked  | 160,000 | 7,140 ms    | 45      | 1,742 ms | 4,421 B   |
-| summary journal + ref | import   | 16,000  | 387 ms      | 24      | 176 ms   | 2,474 B   |
-| summary journal + ref | import   | 80,000  | 1,816 ms    | 23      | 770 ms   | 2,331 B   |
-| summary journal + ref | import   | 160,000 | 3,452 ms    | 22      | 1,646 ms | 2,312 B   |
+| Build       | Mode                          |   Facts |  Build |        Commit | First read |     Read | Memory/fact |
+| ----------- | ----------------------------- | ------: | -----: | ------------: | ---------: | -------: | ----------: |
+| `main`      | one `transact`                |  16,000 |        |      4,356 ms |    20.2 ms |   180 ms |     5,391 B |
+| `main`      | 4,000-fact `transact`s        |  16,000 |        |      3,697 ms |    20.8 ms |   181 ms |     5,369 B |
+| `main`      | one `transact`                |  80,000 |        |     43,905 ms |   111.6 ms | 1,132 ms |     5,231 B |
+| `main`      | 4,000-fact `transact`s        |  80,000 |        |     18,506 ms |    89.5 ms |   814 ms |     5,208 B |
+| `main`      | one `transact`                | 160,000 |        | out of memory |            |          |             |
+| `main`      | 4,000-fact `transact`s        | 160,000 |        |     40,731 ms |   186.1 ms | 1,495 ms |     5,205 B |
+| this branch | one `transact`                |  16,000 |        |      1,041 ms |    33.8 ms |   220 ms |     5,437 B |
+| this branch | 4,000-fact `transact`s        |  16,000 |        |        757 ms |    21.5 ms |   167 ms |     5,280 B |
+| this branch | `Import.run`, summary journal |  16,000 |        |        340 ms |    17.4 ms |   173 ms |     2,661 B |
+| this branch | segments, built and attached  |  16,000 | 100 ms |         13 ms |     3.0 ms |    17 ms |       136 B |
+| this branch | prebuilt segment image        |  16,000 |        |         11 ms |     2.7 ms |    16 ms |       138 B |
+| this branch | one `transact`                |  80,000 |        |      5,137 ms |   100.2 ms |   859 ms |     5,342 B |
+| this branch | 4,000-fact `transact`s        |  80,000 |        |      3,515 ms |   192.1 ms |   877 ms |     5,067 B |
+| this branch | `Import.run`, summary journal |  80,000 |        |      1,490 ms |    63.9 ms |   699 ms |     2,532 B |
+| this branch | segments, built and attached  |  80,000 | 472 ms |         33 ms |     7.8 ms |    55 ms |        87 B |
+| this branch | prebuilt segment image        |  80,000 |        |         13 ms |     5.3 ms |    48 ms |        88 B |
+| this branch | one `transact`                | 160,000 |        |      9,726 ms |   171.9 ms | 1,699 ms |     5,346 B |
+| this branch | 4,000-fact `transact`s        | 160,000 |        |      6,776 ms |   146.9 ms | 1,545 ms |     5,043 B |
+| this branch | `Import.run`, summary journal | 160,000 |        |      2,757 ms |   104.7 ms | 1,450 ms |     2,503 B |
+| this branch | segments, built and attached  | 160,000 | 650 ms |         34 ms |     7.5 ms |    93 ms |        80 B |
+| this branch | prebuilt segment image        | 160,000 |        |         13 ms |     7.0 ms |    85 ms |        79 B |
 
 ## Running Tests
 
