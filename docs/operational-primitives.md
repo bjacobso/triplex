@@ -49,7 +49,7 @@ Every successful `transact` persists an `_Transaction` entity with:
 - one `:_tx/change` JSON fact for every asserted or retracted application fact.
 
 `Triples.transaction(txId)` reconstructs the typed envelope. The same facts remain available to
-Datalog for application-specific audit queries. A command ID is an atomically unique idempotency
+Datalog for application-specific audit queries.
 identity within one Triplex database. Concurrent attempts acquire a backend-local claim inside the
 same transaction as the facts and envelope; exactly one commits. A loser receives
 `CommandAlreadyCommittedError` with the original transaction ID, and
@@ -100,9 +100,16 @@ transactions share the same recorded millisecond. Cursor decoding and reuse fail
 ### Bitemporal query basis
 
 Facts carry separate recorded and valid intervals. Direct matching, entity reads, batched reads,
-and Datalog accept the same `{ recordedAt?, validAt? }` basis, so every clause in a join,
-negation, or rule sees one coherent cut. Historical corrections append new facts; they do not
-rewrite the recorded history.
+and Datalog accept the same `{ recordedAt?, recordedPosition?, validAt? }` basis, so every clause
+in a join, negation, or rule sees one coherent cut. Historical corrections append new facts; they
+do not rewrite the recorded history.
+
+`recordedPosition` cuts recorded time at a commit position rather than an instant. Positions are
+the total commit order, so a read at position `p` sees every transaction committed at or before
+`p` and nothing after it, even when commits share a millisecond. With `recordedAt` as well, a fact
+must be visible under both. A position past the latest commit reads the latest state, so only a
+committed position is a stable cut. Paged reads clamp a requested position to the latest commit
+and keep it in their cursor.
 
 ### Portable derivations and pure reconciliation
 

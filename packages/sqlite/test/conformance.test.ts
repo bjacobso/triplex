@@ -4,7 +4,8 @@ import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 
 describe("SQLite Triples conformance", () => {
-  it("matches the shared KV/SQL contract", async () => {
+  // The whole corpus runs serially in one test; it has outgrown Vitest's 5s default under load.
+  it("matches the shared KV/SQL contract", { timeout: 30_000 }, async () => {
     await expect(
       Effect.runPromise(
         makeTriplesConformanceSuite().pipe(

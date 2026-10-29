@@ -2390,6 +2390,73 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
     }),
   },
   {
+    name: "position bases read exact commit cuts",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const entity = eid("conf:position:subject");
+      const first = yield* t.transact([
+        {
+          op: "assert",
+          entityId: entity,
+          attribute: ":conf/position-value",
+          value: number(1),
+          validFrom: 0,
+        },
+      ]);
+      const second = yield* t.transact([
+        { op: "retract", id: first.triples[0]!.id },
+        {
+          op: "assert",
+          entityId: entity,
+          attribute: ":conf/position-value",
+          value: number(2),
+          validFrom: 0,
+        },
+      ]);
+      const values = (rows: readonly { readonly value: { readonly value: unknown } }[]) =>
+        rows.map((row) => row.value.value);
+
+      const atFirst = { recordedPosition: first.position, validAt: 1 };
+      const atSecond = { recordedPosition: second.position, validAt: 1 };
+      yield* check(
+        JSON.stringify(values(yield* t.entity(entity, atFirst))) === "[1]" &&
+          JSON.stringify(values(yield* t.entity(entity, atSecond))) === "[2]" &&
+          (yield* t.entity(entity, { recordedPosition: first.position - 1, validAt: 1 })).length ===
+            0,
+        "entity reads at a position must see exactly the transactions committed by then",
+      );
+      yield* check(
+        JSON.stringify(values(yield* t.match({ attribute: ":conf/position-value" }, atFirst))) ===
+          "[1]" && JSON.stringify(values((yield* t.entities([entity], atFirst))[0]!)) === "[1]",
+        "pattern and batch reads must honour a position basis",
+      );
+      const { results } = yield* t.queryAll(
+        { find: ["?v"], where: [[entity, ":conf/position-value", "?v"]] },
+        { basis: atFirst },
+      );
+      yield* check(
+        results.length === 1 && results[0]?.["?v"] === 1,
+        "Datalog must honour a position basis",
+      );
+      // Both recorded cuts apply: an instant before the first commit hides it.
+      const both = yield* t.entity(entity, {
+        recordedPosition: second.position,
+        recordedAt: first.instant - 1,
+        validAt: 1,
+      });
+      yield* check(both.length === 0, "a fact must be visible under both recorded cuts");
+
+      const page = yield* t.query(
+        { find: ["?v"], where: [[entity, ":conf/position-value", "?v"]] },
+        { basis: atFirst, pageSize: 10 },
+      );
+      yield* check(
+        page.results.length === 1 && page.results[0]?.["?v"] === 1,
+        "paged Datalog must read at the requested position",
+      );
+    }),
+  },
+  {
     name: "consumer checkpoints advance atomically and remain queryable",
     run: Effect.gen(function* () {
       const t = yield* Triples;

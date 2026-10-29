@@ -66,7 +66,10 @@ omitted, it uses the runtime's current time. Setting only one axis does not free
 
 Recorded time is assigned by the Triplex transaction boundary, not supplied as application data.
 Use the journal's ordered commit positions when exact ordering matters; timestamps alone may not
-distinguish commits in the same millisecond.
+distinguish commits in the same millisecond. A basis can cut recorded time by position instead:
+`{ recordedPosition }` reads exactly the transactions committed at or before that position (a
+`TransactionResult.position`). With both `recordedAt` and `recordedPosition`, a fact must be
+visible under both cuts.
 
 ## Datalog asks across relationships
 

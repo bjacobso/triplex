@@ -57,6 +57,7 @@ export const System = {
     sourcePosition: ":triplex/derivation-source-position",
     validAt: ":triplex/derivation-valid-at",
     recordedAt: ":triplex/derivation-recorded-at",
+    recordedPosition: ":triplex/derivation-recorded-position",
     nextTemporalBoundary: ":triplex/derivation-next-temporal-boundary",
   },
 } as const;
@@ -184,7 +185,9 @@ const numberValue = (row: Triple | undefined): number | undefined =>
   row?.value.type === "number" ? row.value.value : undefined;
 
 const basisEqual = (left: EvaluateOptions["basis"], right: EvaluateOptions["basis"]): boolean =>
-  left.validAt === right.validAt && left.recordedAt === right.recordedAt;
+  left.validAt === right.validAt &&
+  left.recordedAt === right.recordedAt &&
+  left.recordedPosition === right.recordedPosition;
 
 const runBody = (input: {
   readonly version: 1 | 2;
@@ -227,6 +230,12 @@ export const currentSourcePosition = (
           const page = yield* triples.transactions({ after, limit: 1_000 });
           for (const transaction of page.transactions) {
             if (basis?.recordedAt !== undefined && transaction.instant > basis.recordedAt) continue;
+            if (
+              basis?.recordedPosition !== undefined &&
+              transaction.position > basis.recordedPosition
+            ) {
+              continue;
+            }
             if (transactionIsRelevant(definition, transaction)) latest = transaction.position;
           }
           if (page.next === undefined || page.next <= after || page.transactions.length < 1_000) {
@@ -337,6 +346,7 @@ const loadRuns = (
       const sourcePosition = numberValue(rowsAt(rows, System.attribute.sourcePosition)[0]);
       const validAt = numberValue(rowsAt(rows, System.attribute.validAt)[0]);
       const recordedAt = numberValue(rowsAt(rows, System.attribute.recordedAt)[0]);
+      const recordedPosition = numberValue(rowsAt(rows, System.attribute.recordedPosition)[0]);
       const formatVersion = numberValue(rowsAt(rows, System.attribute.formatVersion)[0]) ?? 1;
       const nextTemporalBoundary = numberValue(
         rowsAt(rows, System.attribute.nextTemporalBoundary)[0],
@@ -356,7 +366,11 @@ const loadRuns = (
           message: `Stored derivation run ${runEntity} is missing required metadata`,
         });
       }
-      const basis = { validAt, ...(recordedAt === undefined ? {} : { recordedAt }) };
+      const basis = {
+        validAt,
+        ...(recordedAt === undefined ? {} : { recordedAt }),
+        ...(recordedPosition === undefined ? {} : { recordedPosition }),
+      };
       const candidateEntities = [
         ...new Set(
           rowsAt(rows, System.attribute.runCandidate)
@@ -516,6 +530,14 @@ export const materialize = (
               assertOp(runEntity, System.entityType.run, System.attribute.recordedAt, {
                 type: "number",
                 value: options.basis.recordedAt,
+              }),
+            ]),
+        ...(options.basis.recordedPosition === undefined
+          ? []
+          : [
+              assertOp(runEntity, System.entityType.run, System.attribute.recordedPosition, {
+                type: "number",
+                value: options.basis.recordedPosition,
               }),
             ]),
         ...(evaluation.nextTemporalBoundary === undefined
