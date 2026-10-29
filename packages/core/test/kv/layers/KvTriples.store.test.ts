@@ -416,3 +416,26 @@ describe("KvTriplesLive - value types", () => {
     );
   });
 });
+
+describe("KvTriplesLive - batched asserts within a transaction", () => {
+  it("lets a later retraction in the same transaction see earlier asserts", async () => {
+    const result = await runTest(
+      Effect.gen(function* () {
+        const t = yield* Triples;
+        const e = "batch:1" as EntityId;
+        const committed = yield* t.transact([
+          { op: "assert", entityId: e, attribute: ":a", value: num(1) },
+          { op: "assert", entityId: e, attribute: ":b", value: num(2) },
+          { op: "retract-pattern", pattern: { entityId: e, attribute: ":a" } },
+          { op: "assert", entityId: e, attribute: ":c", value: num(3) },
+        ]);
+        const live = yield* t.entity(e);
+        const history = yield* t.history(e);
+        return { committed, live, history };
+      }),
+    );
+    expect(result.committed.retracted).toBe(1);
+    expect(result.live.map((triple) => triple.attribute).sort()).toEqual([":b", ":c"]);
+    expect(result.history).toHaveLength(3);
+  });
+});

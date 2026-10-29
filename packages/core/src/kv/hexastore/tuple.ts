@@ -305,23 +305,14 @@ export const decodeTuple = (bytes: Uint8Array): TuplePart[] => {
  * Mirror of `encodeString` but produces a string instead of Uint8Array.
  */
 const encodeStringToStr = (s: string): string => {
-  // For ASCII-only strings (the common case), we can use a fast path
-  // that avoids textEncoder entirely. Entity IDs like "emp:42" and
-  // attributes like ":name" are always ASCII.
-  let result = "";
+  // Entity IDs, attributes and triple IDs are almost always ASCII without NUL,
+  // which encode as themselves: check once, then append the terminator.
   for (let i = 0; i < s.length; i++) {
     const code = s.charCodeAt(i);
-    if (code === 0) {
-      result += "\x00\xff";
-    } else if (code < 0x80) {
-      result += s[i];
-    } else {
-      // Non-ASCII: fall back to TextEncoder for correct UTF-8
-      return encodeStringToStrSlow(s);
-    }
+    if (code === 0 || code >= 0x80) return encodeStringToStrSlow(s);
   }
   // Null terminator [0x00, 0x00]
-  return result + "\x00\x00";
+  return s + "\x00\x00";
 };
 
 /**

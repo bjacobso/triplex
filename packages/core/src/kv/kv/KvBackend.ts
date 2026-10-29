@@ -33,6 +33,18 @@ export interface KvTransaction {
   readonly set: (key: Uint8Array, value: Uint8Array) => Effect.Effect<void>;
   readonly delete: (key: Uint8Array) => Effect.Effect<void>;
   readonly getRange: (options: RangeOptions) => Stream.Stream<KvEntry>;
+  /**
+   * Buffer many writes in one effect. Optional: callers fall back to one
+   * `set` per entry.
+   */
+  readonly setAll?: (
+    entries: ReadonlyArray<readonly [Uint8Array, Uint8Array]>,
+  ) => Effect.Effect<void>;
+  /**
+   * Buffer writes keyed by pre-built latin1 strings, synchronously. Only the
+   * in-memory backend implements it; see `KvBackendService.setAllStr`.
+   */
+  readonly setAllStr?: (entries: ReadonlyArray<readonly [string, Uint8Array]>) => void;
 }
 
 /** The KV backend service interface. */

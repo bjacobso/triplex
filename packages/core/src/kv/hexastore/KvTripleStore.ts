@@ -585,13 +585,7 @@ export class KvTripleStore {
    * Values are still Uint8Array (META serialization).
    */
   private assertBatchStr(datoms: readonly Datom[]): Effect.Effect<void> {
-    // Pre-allocate: each datom produces ~5 entries (EAVT+AEVT+AVET+META+TYPE),
-    // +1 for VAET on ref values. 6 is a good estimate.
-    const entries: Array<readonly [string, Uint8Array]> = Array.from(
-      { length: datoms.length * 6 },
-      (): readonly [string, Uint8Array] => ["", new Uint8Array(0)],
-    );
-    let idx = 0;
+    const entries: Array<readonly [string, Uint8Array]> = [];
 
     for (const datom of datoms) {
       // Encode each part once — reused across EAVT, AEVT, AVET, VAET keys
@@ -603,26 +597,26 @@ export class KvTripleStore {
       const tripleIdValue = asciiToBytes(datom.tripleId);
       const tripleIdStr = encodeStringStr(datom.tripleId);
 
-      entries[idx++] = [eavtKeyStr(eStr, aStr, vStr, txStr, tripleIdStr), tripleIdValue];
-      entries[idx++] = [aevtKeyStr(aStr, eStr, vStr, txStr, tripleIdStr), tripleIdValue];
-      entries[idx++] = [avetKeyStr(aStr, vStr, eStr, txStr, tripleIdStr), tripleIdValue];
+      entries.push(
+        [eavtKeyStr(eStr, aStr, vStr, txStr, tripleIdStr), tripleIdValue],
+        [aevtKeyStr(aStr, eStr, vStr, txStr, tripleIdStr), tripleIdValue],
+        [avetKeyStr(aStr, vStr, eStr, txStr, tripleIdStr), tripleIdValue],
+      );
 
       if (datom.value.type === "ref") {
-        entries[idx++] = [vaetKeyStr(vStr, aStr, eStr, txStr, tripleIdStr), tripleIdValue];
+        entries.push([vaetKeyStr(vStr, aStr, eStr, txStr, tripleIdStr), tripleIdValue]);
       }
 
-      entries[idx++] = [metaKeyStr(tripleIdStr), serializeDatom(datom)];
+      entries.push([metaKeyStr(tripleIdStr), serializeDatom(datom)]);
 
       if (datom.entityType !== null) {
         const etStr = encodeStringStr(datom.entityType);
-        entries[idx++] = [typeKeyStr(etStr, tripleIdStr), tripleIdValue];
+        entries.push([typeKeyStr(etStr, tripleIdStr), tripleIdValue]);
       }
 
       this.datomCache.set(datom.tripleId, datom);
     }
 
-    // Trim to actual size (pre-allocation may have over-allocated)
-    entries.length = idx;
     this.kv.setAllStr!(entries);
     return Effect.void;
   }

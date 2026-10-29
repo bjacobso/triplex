@@ -257,8 +257,10 @@ const transactionBackend = (tx: KvTransaction): KvBackendService => ({
   delete: tx.delete,
   getRange: tx.getRange,
   transact: (effect) => effect(tx),
-  setAll: (entries) =>
-    Effect.forEach(entries, ([key, value]) => tx.set(key, value), { discard: true }),
+  setAll:
+    tx.setAll ??
+    ((entries) => Effect.forEach(entries, ([key, value]) => tx.set(key, value), { discard: true })),
+  ...(tx.setAllStr ? { setAllStr: tx.setAllStr } : {}),
   getMany: (keys) =>
     Effect.forEach(keys, (key) => tx.get(key).pipe(Effect.map((value) => [key, value] as const))),
   clear: () => Effect.die("KvTripleStore.clear is not supported inside a transaction"),
@@ -524,8 +526,16 @@ const makeKvTriplesService = Effect.gen(function* () {
             const asserted: Triple[] = [];
             const changes: import("../../store/Triples.js").TransactionChange[] = [];
             let retractedCount = 0;
+            // Asserts are written in one batch. Flush before anything that reads,
+            // so a retraction in the same transaction still sees earlier asserts.
+            const pending: Datom[] = [];
+            const flush = () =>
+              pending.length === 0
+                ? Effect.void
+                : transactionStore.assertBatch(pending.splice(0, pending.length));
 
             for (const op of operations) {
+              if (op.op !== "assert") yield* flush();
               switch (op.op) {
                 case "assert": {
                   const datom = tripleInputToDatom(
@@ -543,7 +553,7 @@ const makeKvTriplesService = Effect.gen(function* () {
                     now,
                     position,
                   );
-                  yield* transactionStore.assert(datom);
+                  pending.push(datom);
                   const triple = datomToTriple(datom);
                   asserted.push(triple);
                   changes.push(transactionChangeFromTriple("assert", triple, txId, now));
@@ -610,11 +620,12 @@ const makeKvTriplesService = Effect.gen(function* () {
 
             if (!isJournalSuppressed(meta)) {
               for (const input of metadataInputs(txId, position, now, meta, changes)) {
-                yield* transactionStore.assert(
+                pending.push(
                   tripleInputToDatom(input, yield* runtime.nextTripleId, txId, now, position),
                 );
               }
             }
+            yield* flush();
 
             return {
               txId,
