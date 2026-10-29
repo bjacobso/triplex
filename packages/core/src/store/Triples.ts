@@ -132,9 +132,14 @@ export interface TransactionSummary {
    * `ContentId` over the changes in commit order: entity, attribute, value,
    * valid interval and entity type for each assertion, and triple ID for each
    * retraction. Generated triple IDs are excluded, so loading the same input
-   * again produces the same digest.
+   * again produces the same digest. For a segment attachment, the segment's ID.
    */
   readonly digest: string;
+  /**
+   * Segments this transaction attached. Their facts are the transaction's
+   * assertions; `Triples.transaction` derives the per-fact changes from them.
+   */
+  readonly segments?: readonly string[];
 }
 
 export interface TransactionRecord {

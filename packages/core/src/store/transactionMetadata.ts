@@ -119,12 +119,18 @@ const decodeSummary = (value: unknown): TransactionSummary | undefined => {
     count(candidate["retracted"]) &&
     Array.isArray(candidate["attributes"]) &&
     candidate["attributes"].every((attribute) => typeof attribute === "string") &&
-    typeof candidate["digest"] === "string"
+    typeof candidate["digest"] === "string" &&
+    (candidate["segments"] === undefined ||
+      (Array.isArray(candidate["segments"]) &&
+        candidate["segments"].every((segment) => typeof segment === "string")))
     ? {
         asserted: candidate["asserted"],
         retracted: candidate["retracted"],
         attributes: candidate["attributes"] as string[],
         digest: candidate["digest"],
+        ...(candidate["segments"] === undefined
+          ? {}
+          : { segments: candidate["segments"] as string[] }),
       }
     : undefined;
 };
@@ -240,6 +246,13 @@ export const transactionRecordsFromTriples = (
     })
     .sort((left, right) => left.position - right.position);
 };
+
+/**
+ * True for a record whose journal is a summary alone, with no per-fact
+ * changes: consumers that need changes fall back to the submitted operations.
+ */
+export const isSummaryOnly = (record: TransactionRecord): boolean =>
+  record.summary !== undefined && record.changes.length === 0;
 
 export const livePreconditionIds = (meta?: TransactionMeta): ReadonlySet<string> =>
   new Set(

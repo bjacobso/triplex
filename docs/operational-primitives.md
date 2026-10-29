@@ -121,6 +121,11 @@ the ref see the previous publication until that move and the whole import after 
 latest state see chunks as they commit. A failed import leaves its committed chunks in place,
 unpublished.
 
+With `store: "segments"`, each chunk is built into an immutable, content-addressed `Segment` and
+attached in one small transaction instead of being transacted fact by fact. Reads merge attached
+segments with indexed facts at any basis. This is an in-memory-only prototype; see
+[Import segments](/segments) for the format, journal shape, and audit trade-offs.
+
 ### Snapshot-stable Datalog pages
 
 `Triples.queryPage` returns an opaque, versioned keyset cursor. Its content-addressed fingerprints

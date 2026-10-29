@@ -29,6 +29,7 @@ import {
   type KvTransaction,
   type RangeOptions,
 } from "./KvBackend.js";
+import type { Segment } from "../../segment/Segment.js";
 
 /**
  * Convert a Uint8Array key to a latin1 string.
@@ -282,6 +283,7 @@ class InMemoryStore {
 const makeInMemoryKvBackend = (): KvBackendService => {
   const store = new InMemoryStore();
   const transactionMutex = Semaphore.makeUnsafe(1);
+  const segments = new Map<string, Segment>();
 
   const service: KvBackendService = {
     get: (key) => Effect.sync(() => store.get(key)),
@@ -384,7 +386,18 @@ const makeInMemoryKvBackend = (): KvBackendService => {
 
     getMany: (keys) => Effect.sync(() => keys.map((key) => [key, store.get(key)] as const)),
 
-    clear: () => Effect.sync(() => store.clear()),
+    clear: () =>
+      Effect.sync(() => {
+        store.clear();
+        segments.clear();
+      }),
+
+    segments: {
+      put: (segment) => {
+        if (!segments.has(segment.id)) segments.set(segment.id, segment);
+      },
+      get: (id) => segments.get(id),
+    },
 
     // ─── Synchronous fast path ─────────────────────────────────────────
     getSync: (key) => store.get(key),

@@ -108,6 +108,9 @@ outside the normal test matrix.
   are rejected where a complete explanation cannot be preserved.
 - Config decision verification proves internal content integrity given a trusted decision root. It
   does not independently prove that an external actor chose the right rule or answer.
+- Import segments (`Segment.attach`, `Import.run` with `store: "segments"`) are an experimental
+  prototype for the in-memory KV backend only; SQL backends reject them. See
+  [Import segments](/segments).
 - Constraint enforcement is opt-in and serialized through the commit-position boundary. Direct
   adapter writes, authorization, general Datalog invariants, inbox/outbox delivery, timers, retries,
   and application workflow lifecycle are host responsibilities.

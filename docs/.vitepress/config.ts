@@ -33,6 +33,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     items: [
       { text: "Configuration", link: "/configuration" },
       { text: "Operational primitives", link: "/operational-primitives" },
+      { text: "Import segments", link: "/segments" },
       { text: "Configuration HTTP API", link: "/http-api" },
       { text: "Performance", link: "/performance" },
       {

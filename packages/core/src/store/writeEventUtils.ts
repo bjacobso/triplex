@@ -7,6 +7,7 @@
 
 import { Effect, Option, pipe } from "effect";
 import type { TriplesService } from "./Triples.js";
+import { isSummaryOnly } from "./transactionMetadata.js";
 import type { ChangeEvent, TripleChange } from "./ChangeEmitter.js";
 
 // =============================================================================
@@ -140,7 +141,7 @@ export const makeWriteInterceptors = (
       const record = yield* inner.transaction(result.txId);
       // A summary-journaled record has no change list; fall back to the operations.
       const changes: TripleChange[] =
-        record && record.summary === undefined
+        record && !isSummaryOnly(record)
           ? record.changes.map((change) => ({
               operation: change.op,
               entityId: change.entityId,

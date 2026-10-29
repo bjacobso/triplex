@@ -33,7 +33,20 @@ import {
   metaKeyStr,
   typeKeyStr,
 } from "./indexes.js";
-import { tString, encodeStringStr } from "./tuple.js";
+import { tString, encodeStringStr, TAG_STRING } from "./tuple.js";
+import { concat } from "../kv/encoding.js";
+import { META_PREFIX } from "./indexes.js";
+import * as Segment from "../../segment/Segment.js";
+import {
+  ATTACHMENT_RANGE,
+  attachmentVisible,
+  datomAt,
+  decodeAttachment,
+  parseTripleId,
+  tripleId as segmentTripleId,
+  validAt as segmentValidAt,
+  type Attachment,
+} from "./segments.js";
 import { valueToTuplePart, type ScanPattern, patternToScan, valueToPartStr } from "./scan.js";
 
 // ─── Datom: The fundamental unit of data ───────────────────────────────────
@@ -497,6 +510,169 @@ export class KvTripleStore {
   /** Drop decoded datoms after an external/backend transaction commits. */
   clearCache(): void {
     this.datomCache.clear();
+    this.attachmentsCache = null;
+    this.overlayCache.clear();
+  }
+
+  // ─── Attached segments ──────────────────────────────────────────────────
+  //
+  // Every read merges the facts of attached segments with the indexed ones.
+  // A backend without a segment store can't have attachments, so it pays
+  // nothing for this.
+
+  private attachmentsCache: Attachment[] | null = null;
+  /** Retracted segment facts (their META records), per attachment position. */
+  private readonly overlayCache = new Map<number, Map<string, Datom>>();
+
+  private attachmentsSync(): Attachment[] | null {
+    if (this.attachmentsCache !== null) return this.attachmentsCache;
+    if (this.kv.segments === undefined) return (this.attachmentsCache = []);
+    if (!this.kv.getRangeSync) return null;
+    return (this.attachmentsCache = this.kv
+      .getRangeSync(ATTACHMENT_RANGE)
+      .map(([key, value]) => decodeAttachment(key, value, this.kv.segments)));
+  }
+
+  /** Attached segments, in position order. */
+  attachments(): Effect.Effect<Attachment[]> {
+    const sync = this.attachmentsSync();
+    if (sync !== null) return Effect.succeed(sync);
+    return Stream.runCollect(this.kv.getRange(ATTACHMENT_RANGE)).pipe(
+      Effect.map(
+        (entries) =>
+          (this.attachmentsCache = Array.from(entries, ([key, value]) =>
+            decodeAttachment(key, value, this.kv.segments),
+          )),
+      ),
+    );
+  }
+
+  private overlayRange(attachment: Attachment) {
+    const start = concat(
+      META_PREFIX,
+      new Uint8Array([TAG_STRING]),
+      asciiToBytes(attachment.idPrefix),
+    );
+    return { start, end: concat(start, new Uint8Array([0xff])) };
+  }
+
+  private overlaysSync(attachment: Attachment): Map<string, Datom> | null {
+    const cached = this.overlayCache.get(attachment.position);
+    if (cached !== undefined) return cached;
+    if (!this.kv.getRangeSync) return null;
+    const overlay = new Map<string, Datom>();
+    for (const [, value] of this.kv.getRangeSync(this.overlayRange(attachment))) {
+      const datom = deserializeDatom(value);
+      overlay.set(datom.tripleId, datom);
+    }
+    this.overlayCache.set(attachment.position, overlay);
+    return overlay;
+  }
+
+  private overlays(attachment: Attachment): Effect.Effect<Map<string, Datom>> {
+    const sync = this.overlaysSync(attachment);
+    if (sync !== null) return Effect.succeed(sync);
+    return Stream.runCollect(this.kv.getRange(this.overlayRange(attachment))).pipe(
+      Effect.map((entries) => {
+        const overlay = new Map<string, Datom>();
+        for (const [, value] of entries) {
+          const datom = deserializeDatom(value);
+          overlay.set(datom.tripleId, datom);
+        }
+        this.overlayCache.set(attachment.position, overlay);
+        return overlay;
+      }),
+    );
+  }
+
+  /**
+   * Segment facts matching `pattern`. With a basis, skip attachments recorded
+   * after it and facts not valid at it before decoding them; callers still
+   * apply the full visibility check.
+   */
+  private collectSegments(
+    attachments: readonly Attachment[],
+    overlays: ReadonlyMap<number, ReadonlyMap<string, Datom>>,
+    pattern: ScanPattern & { readonly entityType?: string },
+    includeRetracted: boolean,
+    basis?: ResolvedTemporalBasis,
+  ): Datom[] {
+    const results: Datom[] = [];
+    for (const attachment of attachments) {
+      if (basis !== undefined && !attachmentVisible(attachment, basis)) continue;
+      const overlay = overlays.get(attachment.position)!;
+      const ordinals = Segment.lookup(attachment.segment, pattern);
+      for (let k = 0; k < ordinals.length; k++) {
+        const ordinal = ordinals[k]!;
+        if (basis !== undefined && !segmentValidAt(attachment, ordinal, basis.validAt)) continue;
+        const datom =
+          (overlay.size === 0 ? undefined : overlay.get(segmentTripleId(attachment, ordinal))) ??
+          datomAt(attachment, ordinal);
+        if (!includeRetracted && datom.retractedAt !== null) continue;
+        if (!matchesPattern(datom, pattern)) continue;
+        if (pattern.entityType !== undefined && datom.entityType !== pattern.entityType) continue;
+        results.push(datom);
+      }
+    }
+    return results;
+  }
+
+  private segmentsSync(
+    pattern: ScanPattern & { readonly entityType?: string },
+    includeRetracted: boolean,
+    basis?: ResolvedTemporalBasis,
+  ): Datom[] | null {
+    const attachments = this.attachmentsSync();
+    if (attachments === null) return null;
+    if (attachments.length === 0) return [];
+    const overlays = new Map<number, Map<string, Datom>>();
+    for (const attachment of attachments) {
+      const overlay = this.overlaysSync(attachment);
+      if (overlay === null) return null;
+      overlays.set(attachment.position, overlay);
+    }
+    return this.collectSegments(attachments, overlays, pattern, includeRetracted, basis);
+  }
+
+  private segmentsAsync(
+    pattern: ScanPattern & { readonly entityType?: string },
+    includeRetracted: boolean,
+    basis?: ResolvedTemporalBasis,
+  ): Effect.Effect<Datom[]> {
+    const sync = this.segmentsSync(pattern, includeRetracted, basis);
+    if (sync !== null) return Effect.succeed(sync);
+    return Effect.gen({ self: this }, function* () {
+      const attachments = yield* this.attachments();
+      const overlays = new Map<number, Map<string, Datom>>();
+      for (const attachment of attachments) {
+        overlays.set(attachment.position, yield* this.overlays(attachment));
+      }
+      return this.collectSegments(attachments, overlays, pattern, includeRetracted, basis);
+    });
+  }
+
+  /** The unretracted segment datom for a segment triple ID; undefined if it isn't one. */
+  private segmentDatom(tripleId: string): Effect.Effect<Datom | null | undefined> {
+    const location = parseTripleId(tripleId);
+    if (location === undefined || this.kv.segments === undefined) return Effect.succeed(undefined);
+    return this.attachments().pipe(
+      Effect.map((attachments) => {
+        const attachment = attachments.find((a) => a.position === location.position);
+        return attachment === undefined || location.ordinal >= attachment.segment.count
+          ? null
+          : datomAt(attachment, location.ordinal);
+      }),
+    );
+  }
+
+  private segmentDatomSync(tripleId: string): Datom | null | undefined {
+    const location = parseTripleId(tripleId);
+    if (location === undefined) return undefined;
+    const attachments = this.attachmentsSync();
+    const attachment = attachments?.find((a) => a.position === location.position);
+    return attachment === undefined || location.ordinal >= attachment.segment.count
+      ? null
+      : datomAt(attachment, location.ordinal);
   }
 
   /**
@@ -637,8 +813,14 @@ export class KvTripleStore {
       let datom = this.datomCache.get(tripleId);
       if (!datom) {
         const existing = yield* this.kv.get(key);
-        if (existing === null) return false;
-        datom = deserializeDatom(existing);
+        if (existing === null) {
+          // A segment fact: its retraction becomes a META record overriding the segment.
+          const fromSegment = yield* this.segmentDatom(tripleId);
+          if (!fromSegment) return false;
+          datom = fromSegment;
+        } else {
+          datom = deserializeDatom(existing);
+        }
       }
       if (datom.retractedAt !== null) return false; // Already retracted
 
@@ -666,7 +848,7 @@ export class KvTripleStore {
 
     return Effect.gen({ self: this }, function* () {
       const bytes = yield* this.kv.get(metaKey(tripleId));
-      if (bytes === null) return null;
+      if (bytes === null) return (yield* this.segmentDatom(tripleId)) ?? null;
       const datom = deserializeDatom(bytes);
       this.datomCache.set(tripleId, datom);
       return datom;
@@ -683,7 +865,7 @@ export class KvTripleStore {
 
     if (this.kv.getSync) {
       const bytes = this.kv.getSync(metaKey(tripleId));
-      if (bytes === null) return null;
+      if (bytes === null) return this.segmentDatomSync(tripleId) ?? null;
       const datom = deserializeDatom(bytes);
       this.datomCache.set(tripleId, datom);
       return datom;
@@ -713,6 +895,7 @@ export class KvTripleStore {
       Stream.filter((datom) => includeRetracted || datom.retractedAt === null),
       // Verify pattern match (for components not covered by the index prefix)
       Stream.filter((datom) => matchesPattern(datom, pattern)),
+      Stream.concat(Stream.fromIterableEffect(this.segmentsAsync(pattern, includeRetracted))),
     );
   }
 
@@ -722,7 +905,10 @@ export class KvTripleStore {
    * Only works when the KV backend supports synchronous operations (InMemoryKvBackend).
    * Falls back to null if sync is not available.
    */
-  scanCollect(pattern: ScanPattern, options?: { includeRetracted?: boolean }): Datom[] | null {
+  scanCollect(
+    pattern: ScanPattern,
+    options?: { includeRetracted?: boolean; basis?: ResolvedTemporalBasis },
+  ): Datom[] | null {
     if (!this.kv.getRangeSync) return null;
 
     const { start, end } = patternToScan(pattern);
@@ -739,6 +925,9 @@ export class KvTripleStore {
       results.push(datom);
     }
 
+    const segments = this.segmentsSync(pattern, includeRetracted, options?.basis);
+    if (segments === null) return null;
+    for (const datom of segments) results.push(datom);
     return results;
   }
 
@@ -762,6 +951,9 @@ export class KvTripleStore {
       if (datom.retractedAt !== null) continue;
       results.push(datom);
     }
+    const segments = this.segmentsSync({ entityType }, false);
+    if (segments === null) return null;
+    for (const datom of segments) results.push(datom);
     return results;
   }
 
@@ -803,7 +995,7 @@ export class KvTripleStore {
           this.datomCache.set(tripleIds[idx]!, datom);
           results[idx] = datom;
         } else {
-          results[idx] = null;
+          results[idx] = (yield* this.segmentDatom(tripleIds[idx]!)) ?? null;
         }
       }
       return results;
@@ -817,7 +1009,7 @@ export class KvTripleStore {
    */
   scanCollectAsync(
     pattern: ScanPattern,
-    options?: { includeRetracted?: boolean },
+    options?: { includeRetracted?: boolean; basis?: ResolvedTemporalBasis },
   ): Effect.Effect<Datom[]> {
     const { start, end } = patternToScan(pattern);
     const includeRetracted = options?.includeRetracted ?? false;
@@ -830,10 +1022,8 @@ export class KvTripleStore {
         tripleIds.push(textDecoder.decode(value));
       }
 
-      if (tripleIds.length === 0) return [];
-
       // 2. Batch fetch all META records
-      const datoms = yield* this.batchFetchMeta(tripleIds);
+      const datoms = tripleIds.length === 0 ? [] : yield* this.batchFetchMeta(tripleIds);
 
       // 3. Filter and return
       const results: Datom[] = [];
@@ -843,13 +1033,16 @@ export class KvTripleStore {
         if (!matchesPattern(datom, pattern)) continue;
         results.push(datom);
       }
+      for (const datom of yield* this.segmentsAsync(pattern, includeRetracted, options?.basis)) {
+        results.push(datom);
+      }
       return results;
     });
   }
 
   /** Synchronous bitemporal scan, when the backend supports it. */
   scanCollectTemporal(pattern: ScanPattern, basis: ResolvedTemporalBasis): Datom[] | null {
-    const datoms = this.scanCollect(pattern, { includeRetracted: true });
+    const datoms = this.scanCollect(pattern, { includeRetracted: true, basis });
     return datoms === null ? null : datoms.filter((datom) => visibleAt(datom, basis));
   }
 
@@ -858,7 +1051,7 @@ export class KvTripleStore {
     pattern: ScanPattern,
     basis: ResolvedTemporalBasis,
   ): Effect.Effect<Datom[]> {
-    return this.scanCollectAsync(pattern, { includeRetracted: true }).pipe(
+    return this.scanCollectAsync(pattern, { includeRetracted: true, basis }).pipe(
       Effect.map((datoms) => datoms.filter((datom) => visibleAt(datom, basis))),
     );
   }
@@ -877,9 +1070,7 @@ export class KvTripleStore {
         tripleIds.push(textDecoder.decode(value));
       }
 
-      if (tripleIds.length === 0) return [];
-
-      const datoms = yield* this.batchFetchMeta(tripleIds);
+      const datoms = tripleIds.length === 0 ? [] : yield* this.batchFetchMeta(tripleIds);
 
       const results: Datom[] = [];
       for (const datom of datoms) {
@@ -887,6 +1078,7 @@ export class KvTripleStore {
         if (datom.retractedAt !== null) continue;
         results.push(datom);
       }
+      for (const datom of yield* this.segmentsAsync({ entityType }, false)) results.push(datom);
       return results;
     });
   }
@@ -901,6 +1093,13 @@ export class KvTripleStore {
       Stream.filter((datom): datom is Datom => datom !== null),
       Stream.filter((datom) => visibleAt(datom, basis)),
       Stream.filter((datom) => matchesPattern(datom, pattern)),
+      Stream.concat(
+        Stream.fromIterableEffect(
+          this.segmentsAsync(pattern, true, basis).pipe(
+            Effect.map((datoms) => datoms.filter((datom) => visibleAt(datom, basis))),
+          ),
+        ),
+      ),
     );
   }
 

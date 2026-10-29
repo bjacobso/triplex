@@ -11,6 +11,7 @@
 import { Effect, Option, pipe } from "effect";
 import type { StoreCapability } from "../store/StoreCapability.js";
 import type { TriplesService } from "../store/Triples.js";
+import { isSummaryOnly } from "../store/transactionMetadata.js";
 import type { SnapshotWriterShape } from "./SnapshotService.js";
 import type { Triple, EntityId } from "../Triple.js";
 import { generateTransactionId, SystemPrefixes, TxAttributes } from "../utils/id.js";
@@ -238,7 +239,7 @@ export const makeEntitySnapshotsCapability = (writer: SnapshotWriterShape): Stor
         // The journal includes the exact retract-pattern matches from the atomic
         // write, including patterns that did not name an entity explicitly.
         // A summary-journaled record has no change list; keep the operations' entities.
-        if (record && record.summary === undefined) {
+        if (record && !isSummaryOnly(record)) {
           entityIds.clear();
           for (const change of record.changes) entityIds.add(change.entityId);
         }

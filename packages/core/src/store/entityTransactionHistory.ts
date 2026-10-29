@@ -18,6 +18,15 @@ interface EntityTransactionReader {
   readonly transaction: (
     transactionId: TransactionId,
   ) => Effect.Effect<TransactionRecord | null, ReadError>;
+  /**
+   * Transactions that changed the entity without indexing it in the journal
+   * (segment attachments), at or before `snapshotPosition`.
+   */
+  readonly segmentTransactions?: (
+    snapshotPosition: number,
+  ) => Effect.Effect<
+    readonly { readonly transactionId: TransactionId; readonly position: number }[]
+  >;
 }
 
 const invalidPage = (message: string) => Effect.fail(new ReadError({ message }));
@@ -91,7 +100,17 @@ export const transactionsForEntity = (
           new ReadError({ message: "Corrupt entity transaction journal index", cause }),
       }),
     );
-    const selected = indexed.slice(0, limit);
+    const attached = reader.segmentTransactions
+      ? (yield* reader.segmentTransactions(snapshotPosition)).filter(
+          ({ position }) =>
+            request.beforePosition === undefined || position < request.beforePosition,
+        )
+      : [];
+    const merged =
+      attached.length === 0
+        ? indexed
+        : [...indexed, ...attached].sort((left, right) => right.position - left.position);
+    const selected = merged.slice(0, limit);
     const records = yield* Effect.forEach(selected, ({ transactionId, position }) =>
       reader.transaction(transactionId).pipe(
         Effect.flatMap((record) =>
@@ -109,9 +128,7 @@ export const transactionsForEntity = (
     return {
       transactions: records,
       snapshotPosition,
-      ...(indexed.length > limit && last !== undefined
-        ? { nextBeforePosition: last.position }
-        : {}),
+      ...(merged.length > limit && last !== undefined ? { nextBeforePosition: last.position } : {}),
     };
   });
 };

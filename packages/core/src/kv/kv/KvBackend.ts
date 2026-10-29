@@ -11,6 +11,7 @@
  */
 
 import { Context, Effect, Stream } from "effect";
+import type { Segment } from "../../segment/Segment.js";
 
 /** A key-value pair from the store. */
 export type KvEntry = readonly [key: Uint8Array, value: Uint8Array];
@@ -109,6 +110,20 @@ export interface KvBackendService {
    * allocations per triple during bulk insertion. Only implemented by InMemoryKvBackend.
    */
   readonly setAllStr?: (entries: ReadonlyArray<readonly [string, Uint8Array]>) => void;
+
+  /**
+   * Immutable segment bodies by content ID. Optional; only the in-memory
+   * backend stores them today. A body is content-addressed and invisible until
+   * a transaction writes an attachment record naming it, so storing one
+   * outside a transaction is safe, like writing a git object before the
+   * commit that references it.
+   */
+  readonly segments?: SegmentStore;
+}
+
+export interface SegmentStore {
+  readonly put: (segment: Segment) => void;
+  readonly get: (id: string) => Segment | undefined;
 }
 
 /** Effect service tag for dependency injection. */

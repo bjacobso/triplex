@@ -34,10 +34,18 @@ import { transactionChangeFromTriple, transactionSummary } from "../store/transa
 import type { TransactOp, TripleInput } from "../Triple.js";
 import { generateId } from "../utils/id.js";
 import * as PositionRef from "./PositionRef.js";
+import * as Segment from "./Segment.js";
 
 export interface Options<PE = never, PR = never> {
   /** Assertions per transaction. Defaults to 2,000. */
   readonly chunkSize?: number;
+  /**
+   * How each chunk is committed. `"transactions"` (the default) asserts its
+   * facts with `transact`. `"segments"` builds each chunk into an immutable
+   * `Segment` and attaches it in one transaction; only the in-memory KV
+   * backend supports it. See `Segment.attach`.
+   */
+  readonly store?: "transactions" | "segments";
   /**
    * Journal shape for each chunk's transaction. Defaults to `"summary"`: one
    * compact entry per chunk instead of one per fact. See `TransactionMeta.journal`.
@@ -155,8 +163,16 @@ export const run = <E = never, R = never, PE = never, PR = never>(
 
     const commit = (chunk: readonly TripleInput[]) =>
       Effect.gen(function* () {
-        const operations = chunk.map((fact): TransactOp => ({ ...fact, op: "assert" }));
-        const result = yield* triples.transact(operations, meta);
+        const result =
+          options.store === "segments"
+            ? yield* Segment.attach(triples, Segment.build(chunk), {
+                ...options.meta,
+                correlationId: importId,
+              })
+            : yield* triples.transact(
+                chunk.map((fact): TransactOp => ({ ...fact, op: "assert" })),
+                meta,
+              );
         transactions.push(result.txId);
         digests.push(summaryOf(result).digest);
         factCount += chunk.length;
