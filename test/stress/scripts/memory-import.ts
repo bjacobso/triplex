@@ -11,6 +11,8 @@
  * Modes:
  * - `transact`: one `Triples.transact` with every assert (what WorldVM does today).
  * - `chunked`:  `MEMORY_BENCH_CHUNK` asserts per `transact`, yielding between chunks.
+ * - `import`:   `Import.run` with the summary journal, publishing a `PositionRef`; the read
+ *               resolves the ref and reads at its position. Needs a build with `Import`.
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -22,7 +24,7 @@ import {
   number,
   string,
   type EntityId,
-  type TransactOp,
+  type TransactAssertOp,
   type TripleValue,
 } from "@triplex-build/triplex";
 
@@ -32,8 +34,8 @@ const DAY = 86_400_000;
 const EPOCH = Date.UTC(2020, 0, 1);
 const READ_AT = Date.UTC(2024, 6, 1);
 
-type Mode = "transact" | "chunked";
-const MODES: readonly Mode[] = ["transact", "chunked"];
+type Mode = "transact" | "chunked" | "import";
+const MODES: readonly Mode[] = ["transact", "chunked", "import"];
 
 interface Result {
   readonly mode: Mode;
@@ -58,9 +60,9 @@ const valueFor = (subject: number, attr: number, version: number): TripleValue =
       : boolean((subject + attr + version) % 2 === 0);
 
 /** 14 attributes per subject; the first two get a closed interval and its successor. */
-export const generate = (facts: number): readonly TransactOp[] => {
+export const generate = (facts: number): readonly TransactAssertOp[] => {
   const subjects = Math.ceil(facts / FACTS_PER_SUBJECT);
-  const ops: TransactOp[] = [];
+  const ops: TransactAssertOp[] = [];
   for (let s = 0; s < subjects; s++) {
     const entityId = `worker:${String(s).padStart(6, "0")}` as EntityId;
     const start = EPOCH + (s % 1_000) * DAY;
@@ -114,9 +116,27 @@ const runOne = async (mode: Mode, facts: number, chunk: number): Promise<Result>
   const triples = await runtime.runPromise(Effect.service(Triples));
   const heapBeforeMb = heapMb();
 
+  // Loaded lazily so the same script still measures builds without `Import`.
+  const operational: Partial<typeof import("@triplex-build/triplex/operational")> =
+    await import("@triplex-build/triplex/operational");
   const started = performance.now();
   let transactions = 0;
-  if (mode === "transact") {
+  let basis: { readonly validAt?: number; readonly recordedPosition?: number } = {
+    validAt: READ_AT,
+  };
+  if (mode === "import") {
+    const { Import, PositionRef } = operational;
+    if (Import === undefined || PositionRef === undefined) {
+      throw new Error("This build has no Import module");
+    }
+    const result = await runtime.runPromise(
+      Import.run(triples, ops, { chunkSize: chunk, ref: "bench/live", meta: { actor: "bench" } }),
+    );
+    transactions = result.chunks + 1;
+    basis = await runtime.runPromise(
+      PositionRef.basis(triples, "bench/live", { validAt: READ_AT }),
+    );
+  } else if (mode === "transact") {
     await runtime.runPromise(triples.transact(ops, { actor: "bench" }));
     transactions = 1;
   } else {
@@ -134,9 +154,7 @@ const runOne = async (mode: Mode, facts: number, chunk: number): Promise<Result>
   const readStarted = performance.now();
   let readFacts = 0;
   for (let a = 0; a < ATTRIBUTES; a++) {
-    const rows = await runtime.runPromise(
-      triples.match({ attribute: attribute(a) }, { validAt: READ_AT }),
-    );
+    const rows = await runtime.runPromise(triples.match({ attribute: attribute(a) }, basis));
     readFacts += rows.length;
   }
   const readMs = performance.now() - readStarted;

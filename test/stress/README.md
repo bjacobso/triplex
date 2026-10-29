@@ -68,23 +68,28 @@ at one `validAt`. Heap is measured after a forced GC.
 
 - `transact`: one `Triples.transact` with every assertion.
 - `chunked`: 4,000 assertions per `transact`, yielding between chunks.
+- `import`: `Import.run` with 4,000-fact chunks and the summary journal, then publish a
+  `PositionRef`; the read resolves the ref and reads at its position.
 
 Node 24.22, 4 vCPU Linux VM:
 
-| Build             | Mode     | Facts   | Commit      | µs/fact | Read     | Heap/fact |
-| ----------------- | -------- | ------- | ----------- | ------- | -------- | --------- |
-| `main`            | transact | 16,000  | 4,626 ms    | 289     | 230 ms   | 4,734 B   |
-| `main`            | chunked  | 16,000  | 3,957 ms    | 247     | 195 ms   | 4,713 B   |
-| `main`            | transact | 80,000  | 54,030 ms   | 675     | 2,193 ms | 4,580 B   |
-| `main`            | chunked  | 80,000  | 22,905 ms   | 286     | 984 ms   | 4,548 B   |
-| `main`            | transact | 160,000 | out of heap |         |          |           |
-| `main`            | chunked  | 160,000 | 45,199 ms   | 282     | 1,540 ms | 4,547 B   |
-| batched KV writes | transact | 16,000  | 986 ms      | 62      | 215 ms   | 4,827 B   |
-| batched KV writes | chunked  | 16,000  | 775 ms      | 48      | 177 ms   | 4,611 B   |
-| batched KV writes | transact | 80,000  | 5,489 ms    | 69      | 897 ms   | 4,713 B   |
-| batched KV writes | chunked  | 80,000  | 3,510 ms    | 44      | 843 ms   | 4,437 B   |
-| batched KV writes | transact | 160,000 | 9,248 ms    | 58      | 1,644 ms | 4,716 B   |
-| batched KV writes | chunked  | 160,000 | 7,140 ms    | 45      | 1,742 ms | 4,421 B   |
+| Build                 | Mode     | Facts   | Commit      | µs/fact | Read     | Heap/fact |
+| --------------------- | -------- | ------- | ----------- | ------- | -------- | --------- |
+| `main`                | transact | 16,000  | 4,626 ms    | 289     | 230 ms   | 4,734 B   |
+| `main`                | chunked  | 16,000  | 3,957 ms    | 247     | 195 ms   | 4,713 B   |
+| `main`                | transact | 80,000  | 54,030 ms   | 675     | 2,193 ms | 4,580 B   |
+| `main`                | chunked  | 80,000  | 22,905 ms   | 286     | 984 ms   | 4,548 B   |
+| `main`                | transact | 160,000 | out of heap |         |          |           |
+| `main`                | chunked  | 160,000 | 45,199 ms   | 282     | 1,540 ms | 4,547 B   |
+| batched KV writes     | transact | 16,000  | 986 ms      | 62      | 215 ms   | 4,827 B   |
+| batched KV writes     | chunked  | 16,000  | 775 ms      | 48      | 177 ms   | 4,611 B   |
+| batched KV writes     | transact | 80,000  | 5,489 ms    | 69      | 897 ms   | 4,713 B   |
+| batched KV writes     | chunked  | 80,000  | 3,510 ms    | 44      | 843 ms   | 4,437 B   |
+| batched KV writes     | transact | 160,000 | 9,248 ms    | 58      | 1,644 ms | 4,716 B   |
+| batched KV writes     | chunked  | 160,000 | 7,140 ms    | 45      | 1,742 ms | 4,421 B   |
+| summary journal + ref | import   | 16,000  | 387 ms      | 24      | 176 ms   | 2,474 B   |
+| summary journal + ref | import   | 80,000  | 1,816 ms    | 23      | 770 ms   | 2,331 B   |
+| summary journal + ref | import   | 160,000 | 3,452 ms    | 22      | 1,646 ms | 2,312 B   |
 
 ## Running Tests
 

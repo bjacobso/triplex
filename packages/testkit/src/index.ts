@@ -26,7 +26,7 @@ import {
   UnboundVariableError,
   EntityId,
 } from "@triplex-build/triplex";
-import { ConsumerCheckpoint, PositionRef } from "@triplex-build/triplex/operational";
+import { ConsumerCheckpoint, Import, PositionRef } from "@triplex-build/triplex/operational";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -2598,6 +2598,101 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
         before?.position === first.position &&
           (before.manifest as { readonly note?: string } | undefined)?.note === "first",
         "reading the ref at an earlier position must return what was published then",
+      );
+    }),
+  },
+  {
+    name: "imports commit in chunks and publish atomically through a position ref",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const name = "conf:import/live";
+      const attribute = ":conf/import-value";
+      const facts = (generation: number) =>
+        Array.from({ length: 25 }, (_, index) => ({
+          entityId: eid(`conf:import:${index}`),
+          attribute,
+          value: number(generation * 100 + index),
+          validFrom: 0,
+        }));
+      const atRef = Effect.gen(function* () {
+        const basis = yield* PositionRef.basis(t, name, { validAt: 1 });
+        return yield* t.match({ attribute }, basis);
+      });
+
+      const empty = yield* PositionRef.get(t, name);
+      yield* check(empty === null, "a ref must not exist before its first publication");
+
+      const seen: number[] = [];
+      const first = yield* Import.run(t, facts(1), {
+        chunkSize: 10,
+        ref: name,
+        expectedRefPosition: null,
+        meta: { actor: "conf-importer" },
+        onProgress: (progress) =>
+          Effect.gen(function* () {
+            // Before the first publication there is nothing to read at the ref.
+            const visible = yield* atRef.pipe(
+              Effect.catchTag("PositionRefNotFoundError", () => Effect.succeed([])),
+            );
+            seen.push(visible.length);
+            yield* check(progress.facts <= 25, "progress must count committed facts");
+          }),
+      });
+      yield* check(
+        first.chunks === 3 &&
+          first.facts === 25 &&
+          first.ref?.position === first.lastPosition &&
+          seen.every((count) => count === 0),
+        "readers at the ref must not see an import before it is published",
+      );
+      yield* check((yield* atRef).length === 25, "the published import must be visible in full");
+
+      const publishedAt = yield* t.currentPosition();
+      const moveRecord = (yield* t.transactions({ after: first.lastPosition, limit: 10 }))
+        .transactions;
+      yield* check(
+        moveRecord.length === 1 &&
+          moveRecord[0]!.position === publishedAt &&
+          moveRecord[0]!.correlationId === first.importId,
+        "publishing must be exactly one journaled transaction after the last chunk",
+      );
+      const chunkRecords = (yield* t.transactions({ after: first.firstPosition - 1, limit: 3 }))
+        .transactions;
+      yield* check(
+        chunkRecords.every(
+          (record) =>
+            record.summary?.asserted !== undefined &&
+            record.changes.length === 0 &&
+            record.correlationId === first.importId,
+        ),
+        "each chunk must be one summary-journaled transaction linked by the import ID",
+      );
+
+      // A second generation: readers at the ref keep seeing the first until it is published.
+      const midway: number[] = [];
+      yield* Import.run(t, facts(2), {
+        chunkSize: 10,
+        ref: name,
+        expectedRefPosition: first.lastPosition,
+        yieldBetweenChunks: Effect.void,
+        onProgress: () =>
+          atRef.pipe(
+            Effect.map((rows) => {
+              midway.push(rows.filter((row) => (row.value.value as number) >= 200).length);
+            }),
+          ),
+      });
+      yield* check(
+        midway.every((count) => count === 0) && (yield* atRef).length === 50,
+        "readers at the ref must never see a partial second import",
+      );
+
+      // History: the ref as it stood when the first import was published.
+      const earlier = yield* PositionRef.get(t, name, { recordedPosition: publishedAt });
+      yield* check(
+        earlier?.position === first.lastPosition &&
+          (earlier.manifest as { readonly digest?: string } | undefined)?.digest === first.digest,
+        "the ref's history must record each publication and its manifest",
       );
     }),
   },

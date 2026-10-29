@@ -110,6 +110,17 @@ once and reuse it for every read that must agree, because resolving per read cou
 move. Every move is history, so `PositionRef.get(triples, name, { recordedAt })` says what was
 published at an earlier instant. A move may carry a JSON manifest describing what it published.
 
+### Incremental imports
+
+`Import.run(triples, facts, { ref, chunkSize })` commits a large dataset as many transactions
+and yields to the host's event loop between them, so a browser keeps painting and a server keeps
+serving. Chunks default to the summary journal and share the import ID as their correlation ID.
+With `ref`, one final transaction moves the ref to the last chunk's position and stores the import
+manifest: fact and chunk counts, position range, and a digest over the chunk digests. Readers at
+the ref see the previous publication until that move and the whole import after it. Readers at the
+latest state see chunks as they commit. A failed import leaves its committed chunks in place,
+unpublished.
+
 ### Snapshot-stable Datalog pages
 
 `Triples.queryPage` returns an opaque, versioned keyset cursor. Its content-addressed fingerprints

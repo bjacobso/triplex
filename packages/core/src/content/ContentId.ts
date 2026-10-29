@@ -50,6 +50,7 @@ export const Domain = {
   derivationOverlayFact: "triplex/derivation-overlay-fact",
   commandReceipt: "triplex/command-receipt",
   transactionSummary: "triplex/transaction-summary",
+  importManifest: "triplex/import-manifest",
   positionRef: "triplex/position-ref",
   consumerCheckpoint: "triplex/consumer-checkpoint",
   paginationCursor: "triplex/pagination-cursor",
