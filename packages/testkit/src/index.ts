@@ -2457,6 +2457,54 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
     }),
   },
   {
+    name: "summary-journaled transactions keep their facts, entity index, and digest",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const facts = [1, 2, 3].map((index) => ({
+        op: "assert" as const,
+        entityId: eid(`conf:summary:${index}`),
+        attribute: index === 3 ? ":conf/summary-b" : ":conf/summary-a",
+        value: number(index),
+        validFrom: 10,
+      }));
+      const committed = yield* t.transact(facts, { journal: "summary", actor: "importer" });
+      const again = yield* t.transact(facts, { journal: "summary" });
+      const record = yield* t.transaction(committed.txId);
+      yield* check(
+        record !== null &&
+          record.changes.length === 0 &&
+          record.actor === "importer" &&
+          record.summary?.asserted === 3 &&
+          record.summary.retracted === 0 &&
+          JSON.stringify(record.summary.attributes) ===
+            JSON.stringify([":conf/summary-a", ":conf/summary-b"]) &&
+          record.summary.digest === committed.summary?.digest &&
+          committed.summary.digest === again.summary?.digest,
+        "the record must carry a summary whose digest depends only on the content",
+      );
+      const feed = yield* t.transactions({ after: committed.position - 1, limit: 1 });
+      yield* check(
+        feed.transactions[0]?.summary?.digest === committed.summary?.digest,
+        "the ordered feed must expose the summary",
+      );
+      const history = yield* t.transactionsForEntity(eid("conf:summary:2"));
+      yield* check(
+        history.transactions.map((tx) => tx.txId).join() === [again.txId, committed.txId].join(),
+        "the changed-entity index must still list summary-journaled transactions",
+      );
+      const retracted = yield* t.transact([{ op: "retract", id: committed.triples[0]!.id }], {
+        journal: "summary",
+      });
+      yield* check(
+        retracted.summary?.retracted === 1 &&
+          (yield* t.history(eid("conf:summary:1"))).some(
+            (fact) => fact.id === committed.triples[0]!.id && fact.retractedAt._tag === "Some",
+          ),
+        "retraction must stay history under a summary journal",
+      );
+    }),
+  },
+  {
     name: "position refs publish commit positions with compare-and-swap",
     run: Effect.gen(function* () {
       const t = yield* Triples;

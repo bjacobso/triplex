@@ -60,6 +60,8 @@ export interface TransactionResult {
   readonly instant: number;
   readonly triples: readonly Triple[];
   readonly retracted: number;
+  /** The journal summary, when the transaction was committed with `journal: "summary"`. */
+  readonly summary?: TransactionSummary;
 }
 
 /**
@@ -86,6 +88,16 @@ export interface TransactionMeta {
    * `TransactionConflictError`.
    */
   readonly preconditions?: readonly TransactionPrecondition[];
+  /**
+   * How the journal describes this transaction's fact changes. `"changes"`
+   * (the default) records one `:_tx/change` per asserted or retracted fact.
+   * `"summary"` records one `:_tx/summary` instead: counts, the changed
+   * attributes, and a content digest. The facts themselves keep their full
+   * history either way, and `:_tx/changed-entity` still indexes every changed
+   * entity, but the transaction's record has an empty `changes` list. Use it
+   * for bulk loads; see `TransactionSummary`.
+   */
+  readonly journal?: "changes" | "summary";
 }
 
 export interface TransactionChange {
@@ -105,6 +117,26 @@ export interface TransactionChange {
   readonly retractionTxId?: TransactionId;
 }
 
+/**
+ * The compact journal entry of a transaction committed with
+ * `journal: "summary"`. It says how much changed and where, not what: replaying
+ * the journal can't rebuild these facts, but reading the facts at the
+ * transaction's position can, and the digest checks them against their source.
+ */
+export interface TransactionSummary {
+  readonly asserted: number;
+  readonly retracted: number;
+  /** Distinct changed attributes, sorted. */
+  readonly attributes: readonly string[];
+  /**
+   * `ContentId` over the changes in commit order: entity, attribute, value,
+   * valid interval and entity type for each assertion, and triple ID for each
+   * retraction. Generated triple IDs are excluded, so loading the same input
+   * again produces the same digest.
+   */
+  readonly digest: string;
+}
+
 export interface TransactionRecord {
   readonly txId: TransactionId;
   readonly position: number;
@@ -114,7 +146,10 @@ export interface TransactionRecord {
   readonly correlationId?: string;
   readonly causationId?: string;
   readonly configSnapshot?: string;
+  /** Empty when the transaction was committed with `journal: "summary"`. */
   readonly changes: readonly TransactionChange[];
+  /** Present when the transaction was committed with `journal: "summary"`. */
+  readonly summary?: TransactionSummary;
 }
 
 export interface TransactionPageRequest {

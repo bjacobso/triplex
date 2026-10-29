@@ -79,6 +79,7 @@ export {
   type TransactionMeta,
   type TransactionChange,
   type TransactionRecord,
+  type TransactionSummary,
   type TransactionPageRequest,
   type TransactionPage,
   type EntityTransactionPageRequest,

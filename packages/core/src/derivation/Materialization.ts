@@ -211,8 +211,13 @@ const runBody = (input: {
 const transactionIsRelevant = (definition: Definition, transaction: TransactionRecord): boolean => {
   if (transaction.actor === "triplex/derivation-materializer") return false;
   const attributes = new Set(definition.dependencies.attributes);
-  return transaction.changes.some(
-    (change) => definition.dependencies.hasDynamicAttributes || attributes.has(change.attribute),
+  return (
+    transaction.changes.some(
+      (change) => definition.dependencies.hasDynamicAttributes || attributes.has(change.attribute),
+    ) ||
+    (transaction.summary !== undefined &&
+      (definition.dependencies.hasDynamicAttributes ||
+        transaction.summary.attributes.some((attribute) => attributes.has(attribute))))
   );
 };
 

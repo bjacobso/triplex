@@ -41,6 +41,8 @@ export const TxAttributes = {
   CHANGE: ":_tx/change",
   /** Indexed reference from a transaction envelope to every changed entity. */
   CHANGED_ENTITY: ":_tx/changed-entity",
+  /** Compact description of every change, for transactions journaled as a summary. */
+  SUMMARY: ":_tx/summary",
 } as const;
 
 /**

@@ -46,6 +46,7 @@ import {
   invalidCommandId,
   livePreconditionIds,
   metadataInputs,
+  transactionSummary,
   transactionRecordFromTriples,
   transactionRecordsFromTriples,
   transactionChangeFromTriple,
@@ -618,8 +619,9 @@ const makeKvTriplesService = Effect.gen(function* () {
               }
             }
 
+            const summary = meta?.journal === "summary" ? transactionSummary(changes) : undefined;
             if (!isJournalSuppressed(meta)) {
-              for (const input of metadataInputs(txId, position, now, meta, changes)) {
+              for (const input of metadataInputs(txId, position, now, meta, changes, summary)) {
                 pending.push(
                   tripleInputToDatom(input, yield* runtime.nextTripleId, txId, now, position),
                 );
@@ -633,6 +635,7 @@ const makeKvTriplesService = Effect.gen(function* () {
               instant: now,
               triples: asserted,
               retracted: retractedCount,
+              ...(summary === undefined ? {} : { summary }),
             } satisfies TransactionResult;
           });
         })

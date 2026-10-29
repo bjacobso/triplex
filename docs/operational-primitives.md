@@ -50,6 +50,17 @@ Every successful `transact` persists an `_Transaction` entity with:
 
 `Triples.transaction(txId)` reconstructs the typed envelope. The same facts remain available to
 Datalog for application-specific audit queries.
+
+A transaction committed with `journal: "summary"` records one `:_tx/summary` instead of one
+`:_tx/change` per fact: assertion and retraction counts, the sorted changed attributes, and a
+`ContentId` digest of the changes (entity, attribute, value, valid interval and entity type per
+assertion; triple ID per retraction; generated IDs excluded). It keeps the envelope, the commit
+position, and every `:_tx/changed-entity` reference, so the feed, command receipts, and
+`transactionsForEntity` behave as before. Its record has an empty `changes` list and a `summary`.
+The facts keep their full bitemporal history, so what changed is still readable at the
+transaction's position; what is lost is replaying the journal alone to rebuild those facts.
+Derivation relevance uses the summary's attributes, and change emission and entity snapshots fall
+back to the submitted operations for such transactions. A command ID is an atomically unique idempotency
 identity within one Triplex database. Concurrent attempts acquire a backend-local claim inside the
 same transaction as the facts and envelope; exactly one commits. A loser receives
 `CommandAlreadyCommittedError` with the original transaction ID, and

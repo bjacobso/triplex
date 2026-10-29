@@ -237,7 +237,8 @@ export const makeEntitySnapshotsCapability = (writer: SnapshotWriterShape): Stor
 
         // The journal includes the exact retract-pattern matches from the atomic
         // write, including patterns that did not name an entity explicitly.
-        if (record) {
+        // A summary-journaled record has no change list; keep the operations' entities.
+        if (record && record.summary === undefined) {
           entityIds.clear();
           for (const change of record.changes) entityIds.add(change.entityId);
         }
