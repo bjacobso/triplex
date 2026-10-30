@@ -281,16 +281,21 @@ const makeKvTriplesService = Effect.gen(function* () {
     basis?: ResolvedTemporalBasis,
   ): Effect.Effect<readonly Triple[], ReadError> =>
     Effect.gen(function* () {
-      // Fast path: entityType-only query uses the KV TYPE index
+      // Fast path: entityType-only query uses the KV TYPE index, at any basis.
+      // Public reads always arrive with a resolved basis, so without the
+      // temporal variant every entity-type read scanned the whole store.
       if (pattern.entityType && !pattern.entityId && !pattern.attribute && !pattern.value) {
-        const datoms = basis === undefined ? hexaStore.getByEntityType(pattern.entityType) : null;
+        const datoms =
+          basis === undefined
+            ? hexaStore.getByEntityType(pattern.entityType)
+            : hexaStore.getByEntityTypeTemporal(pattern.entityType, basis);
         if (datoms !== null) {
           return datoms.map(datomToTriple);
         }
         const asyncDatoms =
           basis === undefined
             ? yield* hexaStore.getByEntityTypeAsync(pattern.entityType)
-            : yield* hexaStore.scanCollectTemporalAsync({}, basis);
+            : yield* hexaStore.getByEntityTypeTemporalAsync(pattern.entityType, basis);
         return asyncDatoms
           .filter((datom) => datom.entityType === pattern.entityType)
           .map(datomToTriple);

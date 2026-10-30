@@ -5,6 +5,13 @@
  * Git-style refs are the only moving records. The pure InMemoryConfigStore is
  * used to calculate and validate each transition, keeping one semantic model
  * for dangling refs, duplicate objects, revision reuse, and `validUnder`.
+ *
+ * Reads are targeted rather than whole-store: resolving a ref reads the ref,
+ * then only the objects reachable from its snapshot, and commits read only
+ * what the transition consults. Immutable records are cached by identity for
+ * the life of the service. Decoded snapshot trees are cached until
+ * `:triplex/valid-under` changes, because a node's `type` is chosen from the
+ * schemas its body is known to satisfy, and later releases can add to them.
  */
 
 import { Context, Data, Effect, Layer } from "effect";
@@ -23,9 +30,10 @@ import { transactSystem } from "../store/systemNamespace.js";
 import type { Triple, TransactOp } from "../Triple.js";
 import type { TripleValue } from "../Value.js";
 import * as CanonicalJson from "../content/CanonicalJson.js";
-import type * as ConfigNode from "./ConfigNode.js";
+import * as ConfigNode from "./ConfigNode.js";
+import type { ContentId } from "../content/ContentId.js";
 import * as InMemoryConfigStore from "./InMemoryConfigStore.js";
-import type * as TypeExpr from "./TypeExpr.js";
+import * as TypeExpr from "./TypeExpr.js";
 import { unsafe, type EntityId } from "../Branded.js";
 
 export type {
@@ -96,7 +104,12 @@ export interface CommitInput {
   readonly ref?: string;
 }
 
-export interface CommitResult extends InMemoryConfigStore.CommitResult {
+/**
+ * The committed snapshot and the revisions it minted. Unlike the pure
+ * `InMemoryConfigStore.commit`, it carries no complete store: the commit reads
+ * only what it needs. Call `load()` for the whole store.
+ */
+export interface CommitResult extends Omit<InMemoryConfigStore.CommitResult, "store"> {
   readonly transaction: TransactionResult;
 }
 
@@ -331,14 +344,302 @@ const makeService = Effect.gen(function* () {
     }),
   ];
 
+  // ─── Targeted reads and caches ─────────────────────────────────────────────
+
+  /** Object bodies and kinds by content ID: immutable. */
+  const bodies = new Map<
+    ContentId,
+    { readonly kind: string; readonly body: CanonicalJson.CanonicalValue }
+  >();
+  /** Type expressions by content ID: immutable. */
+  const types = new Map<ContentId, TypeExpr.TypeExpr>();
+  /** Snapshot records by snapshot ID: immutable. */
+  const snapshotRecords = new Map<string, SnapshotRecord>();
+  /**
+   * What depends on `validUnder`, valid while `:triplex/valid-under` hasn't
+   * changed since `position`: each object's known schemas, and the nodes and
+   * snapshots decoded from them.
+   */
+  let decoded = {
+    position: -1,
+    validUnder: new Map<ContentId, ReadonlyArray<ContentId>>(),
+    nodes: new Map<ContentId, ConfigNode.ConfigNode>(),
+    snapshots: new Map<string, InMemoryConfigStore.ConfigSnapshot>(),
+  };
+
+  const refreshDecoded = Effect.gen(function* () {
+    const { sourcePosition } = yield* triples.dependencyState([System.attribute.validUnder]);
+    if (sourcePosition !== decoded.position) {
+      decoded = {
+        position: sourcePosition,
+        validUnder: new Map(),
+        nodes: new Map(),
+        snapshots: new Map(),
+      };
+    }
+    return decoded;
+  });
+
+  /** Stored objects by content ID; absent IDs are not in the store. */
+  const fetchObjects = (cids: ReadonlyArray<ContentId>, state: typeof decoded) =>
+    Effect.gen(function* () {
+      const missing = cids.filter((cid) => !bodies.has(cid) || !state.validUnder.has(cid));
+      if (missing.length > 0) {
+        const rows = yield* triples.entities(missing.map((cid) => entityId.object(cid)));
+        for (const [index, objectRows] of rows.entries()) {
+          if (objectRows.length === 0) continue;
+          const id = entityId.object(missing[index]!);
+          const cid = stringValue(latest(objectRows, System.attribute.contentId));
+          const kind = stringValue(latest(objectRows, System.attribute.kind));
+          const body = jsonValue<CanonicalJson.CanonicalValue>(
+            latest(objectRows, System.attribute.data),
+          );
+          if (cid !== missing[index] || !kind || body === undefined) {
+            return yield* corrupt(id, "missing object data");
+          }
+          bodies.set(cid as ContentId, { kind, body });
+          state.validUnder.set(
+            cid as ContentId,
+            objectRows
+              .filter((row) => row.attribute === System.attribute.validUnder)
+              .map((row) => stringValue(row))
+              .filter((value): value is ContentId => value !== undefined)
+              .sort(),
+          );
+        }
+      }
+      const found = new Map<ContentId, InMemoryConfigStore.StoredObject>();
+      for (const cid of cids) {
+        const stored = bodies.get(cid);
+        const validUnder = state.validUnder.get(cid);
+        if (stored && validUnder) found.set(cid, { cid, ...stored, validUnder });
+      }
+      return found;
+    });
+
+  /** Type expressions by content ID; absent IDs are not in the store. */
+  const fetchTypes = (cids: Iterable<ContentId>) =>
+    Effect.gen(function* () {
+      const missing = [...new Set(cids)].filter((cid) => !types.has(cid));
+      if (missing.length > 0) {
+        const rows = yield* triples.entities(missing.map((cid) => entityId.type(cid)));
+        for (const [index, typeRows] of rows.entries()) {
+          if (typeRows.length === 0) continue;
+          const id = entityId.type(missing[index]!);
+          const cid = stringValue(latest(typeRows, System.attribute.contentId));
+          const type = jsonValue<TypeExpr.TypeExpr>(latest(typeRows, System.attribute.data));
+          if (cid !== missing[index] || type === undefined) {
+            return yield* corrupt(id, "missing type data");
+          }
+          types.set(cid as ContentId, type);
+        }
+      }
+      return types;
+    });
+
+  type NodeBody = {
+    readonly kind: string;
+    readonly key: string;
+    readonly attrs: CanonicalJson.CanonicalValue;
+    readonly children: ReadonlyArray<{ readonly rel: string; readonly cid: ContentId }>;
+    readonly refs: ReadonlyArray<ConfigNode.ConfigRef>;
+  };
+
+  /** Decode the tree under `rootCid`, reading only the objects it reaches. */
+  const decodeTree = (rootCid: ContentId, state: typeof decoded) =>
+    Effect.gen(function* () {
+      // Fetch level by level, one batched read per level.
+      let frontier = [rootCid];
+      const seen = new Set<ContentId>(frontier);
+      const objects = new Map<ContentId, InMemoryConfigStore.StoredObject>();
+      while (frontier.length > 0) {
+        const fetched = yield* fetchObjects(frontier, state);
+        const next: ContentId[] = [];
+        for (const cid of frontier) {
+          const stored = fetched.get(cid);
+          if (!stored)
+            return yield* corrupt(entityId.object(cid), "snapshot references a missing node");
+          objects.set(cid, stored);
+          for (const child of (stored.body as unknown as NodeBody).children) {
+            if (!seen.has(child.cid)) {
+              seen.add(child.cid);
+              next.push(child.cid);
+            }
+          }
+        }
+        frontier = next;
+      }
+      const schemas = yield* fetchTypes([...objects.values()].flatMap((o) => o.validUnder));
+
+      const build = (cid: ContentId, visiting: ReadonlySet<string>): ConfigNode.ConfigNode => {
+        const cached = state.nodes.get(cid);
+        if (cached) return cached;
+        const stored = objects.get(cid)!;
+        if (visiting.has(cid)) throw corrupt(entityId.object(cid), "child graph contains a cycle");
+        const body = stored.body as unknown as NodeBody;
+        const nested = new Set(visiting).add(cid);
+        const type = stored.validUnder
+          .map((id) => schemas.get(id))
+          .find((value) => value !== undefined);
+        const node: ConfigNode.ConfigNode = {
+          kind: body.kind,
+          key: body.key,
+          attrs: body.attrs,
+          children: body.children.map((child) => ({
+            rel: child.rel,
+            node: build(child.cid, nested),
+          })),
+          refs: body.refs,
+          cid,
+          ...(type !== undefined && { type }),
+        };
+        state.nodes.set(cid, node);
+        return node;
+      };
+      return yield* Effect.try({
+        try: () => build(rootCid, new Set()),
+        catch: (error) =>
+          error instanceof CorruptConfigStoreError ? error : corrupt("<snapshot>", String(error)),
+      });
+    });
+
+  const snapshotRecord = (id: string) =>
+    Effect.gen(function* () {
+      const cached = snapshotRecords.get(id);
+      if (cached) return cached;
+      const rows = yield* triples.match({ entityId: entityId.snapshot(id) });
+      if (rows.length === 0) return undefined;
+      const record = jsonValue<SnapshotRecord>(latest(rows, System.attribute.data));
+      if (!record || record.id !== id) {
+        return yield* corrupt(entityId.snapshot(id), "missing snapshot data");
+      }
+      snapshotRecords.set(id, record);
+      return record;
+    });
+
+  const snapshotById: ConfigStoreService["snapshotById"] = (id) =>
+    Effect.gen(function* () {
+      const state = yield* refreshDecoded;
+      const cached = state.snapshots.get(id);
+      if (cached) return cached;
+      const record = yield* snapshotRecord(id);
+      if (!record) return undefined;
+      const snapshot = { ...record, root: yield* decodeTree(record.rootCid, state) };
+      state.snapshots.set(id, snapshot);
+      return snapshot;
+    });
+
+  const snapshotPrefix = entityId.snapshot("");
+
+  const resolveRef: ConfigStoreService["resolveRef"] = (name) =>
+    Effect.gen(function* () {
+      const target = stringValue(yield* currentRefTriple(name));
+      if (target === undefined) return undefined;
+      if (!target.startsWith(snapshotPrefix)) {
+        return yield* corrupt(entityId.ref(name), `points to unknown snapshot ${target}`);
+      }
+      const snapshot = yield* snapshotById(
+        decodeURIComponent(target.slice(snapshotPrefix.length)) as ContentId,
+      );
+      if (!snapshot) {
+        return yield* corrupt(entityId.ref(name), `points to unknown snapshot ${target}`);
+      }
+      return snapshot;
+    });
+
+  /** The latest snapshot record, which also carries the store's sequence number. */
+  const latestSnapshotRecord = Effect.gen(function* () {
+    let head: SnapshotRecord | undefined;
+    for (const [id, rows] of groupByEntity(yield* records(System.entityType.snapshot))) {
+      const record = jsonValue<SnapshotRecord>(latest(rows, System.attribute.data));
+      if (!record) return yield* corrupt(id, "missing snapshot data");
+      snapshotRecords.set(record.id, record);
+      if (!head || record.seq > head.seq || (record.seq === head.seq && record.id > head.id)) {
+        head = record;
+      }
+    }
+    return head;
+  });
+
+  /** Every revision of the given logical objects. */
+  const revisionsOf = (objects: ReadonlyArray<InMemoryConfigStore.ObjectKey>) =>
+    Effect.gen(function* () {
+      const keys = [...new Set(objects.map((object) => object.key))];
+      const matches = yield* Effect.forEach(keys, (key) =>
+        triples.match({
+          attribute: System.attribute.key,
+          value: { type: "string", value: key },
+          entityType: System.entityType.revision,
+        }),
+      );
+      const ids = [...new Set(matches.flat().map((row) => row.entityId))];
+      const slots = new Set(objects.map((object) => `${object.kind} ${object.key}`));
+      return (yield* revisionRecords(ids)).filter((revision) =>
+        slots.has(`${revision.kind} ${revision.key}`),
+      );
+    });
+
+  const revisionRecords = (ids: ReadonlyArray<EntityId>) =>
+    Effect.gen(function* () {
+      const rows = yield* triples.entities(ids);
+      const revisions: InMemoryConfigStore.Revision[] = [];
+      for (const [index, revisionRows] of rows.entries()) {
+        const revision = jsonValue<InMemoryConfigStore.Revision>(
+          latest(revisionRows, System.attribute.data),
+        );
+        if (!revision) return yield* corrupt(ids[index]!, "missing revision data");
+        revisions.push(revision);
+      }
+      return revisions.sort((a, b) => a.seq - b.seq || a.id.localeCompare(b.id));
+    });
+
+  /**
+   * The part of the store a commit of `objects` consults: their stored nodes
+   * and schemas, their revision histories, and the latest snapshot.
+   */
+  const commitBase = (objects: ReadonlyArray<ConfigNode.ConfigNode>) =>
+    Effect.gen(function* () {
+      const state = yield* refreshDecoded;
+      const nodes = objects.flatMap((object) =>
+        [...ConfigNode.walk(object)].map(({ node }) => node),
+      );
+      const stored = yield* fetchObjects([...new Set(nodes.map((node) => node.cid))], state);
+      const schemaIds = [
+        ...[...stored.values()].flatMap((object) => object.validUnder),
+        ...nodes.flatMap((node) => (node.type ? [TypeExpr.id(node.type)] : [])),
+      ];
+      const known = yield* fetchTypes(schemaIds);
+      const schemas = new Map<ContentId, TypeExpr.TypeExpr>();
+      for (const id of schemaIds) {
+        const type = known.get(id);
+        if (type) schemas.set(id, type);
+      }
+      const revisions = yield* revisionsOf(objects);
+      const head = yield* latestSnapshotRecord;
+      const parent = head ? yield* snapshotById(head.id) : undefined;
+      const store: InMemoryConfigStore.InMemoryConfigStore = {
+        objects: stored,
+        schemas,
+        revisions,
+        snapshots: parent ? [parent] : [],
+        refs: new Map(),
+        seq: Math.max(0, head?.seq ?? 0, ...revisions.map((revision) => revision.seq)),
+      };
+      return { store, state };
+    });
+
   const commit: ConfigStoreService["commit"] = (input) =>
     Effect.gen(function* () {
-      const before = yield* load();
+      const { store: before, state } = yield* commitBase(input.objects);
       const committed = yield* InMemoryConfigStore.commit(before, input);
+      // The commit may also mint objects outside the inputs (the snapshot root),
+      // which an earlier identical release may already have stored.
+      const minted = [...committed.store.objects.keys()].filter((cid) => !before.objects.has(cid));
+      const existing = yield* fetchObjects(minted, state);
       const operations: TransactOp[] = [];
 
       for (const [cid, stored] of committed.store.objects) {
-        const previous = before.objects.get(cid);
+        const previous = before.objects.get(cid) ?? existing.get(cid);
         if (!previous) {
           operations.push(
             assertOp(entityId.object(cid), System.entityType.object, System.attribute.contentId, {
@@ -428,32 +729,32 @@ const makeService = Effect.gen(function* () {
           configSnapshot: committed.snapshot.id,
           ...(current ? { preconditions: [{ _tag: "TripleLive" as const, id: current.id }] } : {}),
         });
-        const store = yield* InMemoryConfigStore.setRef(
-          committed.store,
-          input.ref,
-          committed.snapshot.id,
-        );
-        return { ...committed, store, transaction };
+        return { snapshot: committed.snapshot, created: committed.created, transaction };
       }
 
       const transaction = yield* transactSystem(triples, operations, {
         actor: "triplex/config-store",
         configSnapshot: committed.snapshot.id,
       });
-      return { ...committed, store: committed.store, transaction };
+      return { snapshot: committed.snapshot, created: committed.created, transaction };
     });
 
   const setRef: ConfigStoreService["setRef"] = (name, snapshotId) =>
     Effect.gen(function* () {
-      const store = yield* load();
-      const next = yield* InMemoryConfigStore.setRef(store, name, snapshotId);
+      const snapshot = yield* snapshotById(snapshotId);
+      if (!snapshot) {
+        return yield* new InMemoryConfigStore.UnknownSnapshotError({
+          id: snapshotId,
+          message: `Cannot point ref "${name}" at unknown snapshot ${snapshotId}`,
+        });
+      }
       const current = yield* currentRefTriple(name);
       yield* transactSystem(triples, refOps(name, snapshotId, current), {
         actor: "triplex/config-store",
         configSnapshot: snapshotId,
         ...(current ? { preconditions: [{ _tag: "TripleLive" as const, id: current.id }] } : {}),
       });
-      return InMemoryConfigStore.resolveRef(next, name)!;
+      return snapshot;
     });
 
   const reverseDependencies: ConfigStoreService["reverseDependencies"] = (object) =>
@@ -468,23 +769,22 @@ const makeService = Effect.gen(function* () {
           ],
         ],
       });
-      const ids = new Set(
-        response.results
-          .map((row) => row["?revision"])
-          .filter((value): value is string => typeof value === "string"),
-      );
-      const store = yield* load();
-      return store.revisions.filter((revision) => ids.has(entityId.revision(revision.id)));
+      const ids = [
+        ...new Set(
+          response.results
+            .map((row) => row["?revision"])
+            .filter((value): value is string => typeof value === "string"),
+        ),
+      ].map(unsafe.entityId);
+      return yield* revisionRecords(ids);
     });
 
   return {
     load,
     commit,
     setRef,
-    resolveRef: (name: string) =>
-      load().pipe(Effect.map((store) => InMemoryConfigStore.resolveRef(store, name))),
-    snapshotById: (id: string) =>
-      load().pipe(Effect.map((store) => InMemoryConfigStore.snapshotById(store, id))),
+    resolveRef,
+    snapshotById,
     reverseDependencies,
     impactCandidates: reverseDependencies,
     recheck: (input: { readonly kind: string; readonly type: TypeExpr.TypeExpr }) =>
