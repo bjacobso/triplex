@@ -49,7 +49,11 @@ hosts typed configuration as a modular layer over the same core.
 - `ConfigStore` records reserved `_triplex/config/*` entities and `:triplex/*` attributes through
   the `Triples` transaction boundary. Release creation and an optional ref move are atomic;
   reverse-dependency and impact-candidate discovery use Datalog, while content identity and proof
-  verification remain Merkle operations.
+  verification remain Merkle operations. Reads are targeted: resolving a ref reads the ref and the
+  objects reachable from its snapshot, and a commit reads only the records its transition consults.
+  Immutable records are cached by identity; decoded snapshot trees are cached until
+  `:triplex/valid-under` changes, checked through `dependencyState`. `load()` remains the
+  whole-store view.
 - `ConfigRuntime` is the narrow execution bridge between the models. It resolves a config ref,
   derives a catalog from that immutable release, materializes only the current or historical
   Triple facts statically reachable by the rule, and invokes the pure evaluator. It rejects
