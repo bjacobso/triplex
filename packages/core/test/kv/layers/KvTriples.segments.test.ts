@@ -172,6 +172,33 @@ describe("segment attachments", () => {
     );
   });
 
+  it("answer entity-type reads at a basis from the segment's type index", async () => {
+    await run(
+      Effect.gen(function* () {
+        const t = yield* Triples;
+        const before = yield* t.currentPosition();
+        const attached = yield* Segment.attach(t, Segment.build(facts));
+        const names = (basis: Parameters<typeof t.match>[1]) =>
+          t.match({ entityType: "Worker" }, basis).pipe(Effect.map(values));
+
+        expect(yield* names({ validAt: 1 })).toEqual(["Ada", "Bo"]);
+        expect(yield* names({ recordedPosition: before, validAt: 1 })).toEqual([]);
+
+        const [bo] = yield* t.match({ entityId: eid("w:2"), attribute: ":w/name" }, { validAt: 1 });
+        const retraction = yield* t.transact([{ op: "retract", id: bo!.id }]);
+        expect(yield* names({ validAt: 1 })).toEqual(["Ada"]);
+        // Retracted later, so still visible at the attachment's position.
+        expect(yield* names({ recordedPosition: attached.position, validAt: 1 })).toEqual([
+          "Ada",
+          "Bo",
+        ]);
+        expect(retraction.retracted).toBe(1);
+        // Untyped facts never match a type.
+        expect((yield* t.match({ entityType: "Site" }, { validAt: 1 })).length).toBe(0);
+      }),
+    );
+  });
+
   it("journal one attach record and derive its changes on demand", async () => {
     await run(
       Effect.gen(function* () {
@@ -212,6 +239,12 @@ describe("segment attachments", () => {
         expect(entityHistory.transactions.map((tx) => tx.txId)).toEqual([
           attached.txId,
           ordinary.txId,
+        ]);
+        // An entity's history lists only its own facts from the segment.
+        expect(entityHistory.transactions[0]!.changes.map((change) => change.entityId)).toEqual([
+          "w:1",
+          "w:1",
+          "w:1",
         ]);
         const paged = yield* t.transactionsForEntity(eid("w:1"), { limit: 1 });
         expect(paged.transactions.map((tx) => tx.txId)).toEqual([attached.txId]);

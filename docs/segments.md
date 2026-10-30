@@ -109,9 +109,12 @@ Every read path (`match`, `entity`, `entities`, `entityPage`, `history`, tempora
 3. Decode the surviving facts.
 4. Apply the same pattern and visibility checks as indexed facts.
 
+Entity-type reads, including those at a basis, use the segment's type index the same way the KV
+store uses its TYPE index.
+
 The cost is O(attachments × log n) to locate the ranges, plus the matching facts. There is no
 per-fact index lookup and no META decode. At 160,000 facts, reading every attribute at one `validAt`
-takes 0.15 s from segments, against 1.4–1.7 s through the KV indexes.
+takes about 90 ms from segments, against 1.4–1.7 s through the KV indexes.
 
 Order across indexed and segment facts is unspecified, as it already was for `match`.
 
@@ -136,13 +139,13 @@ plus a `:_tx/summary` with:
 It writes no `:_tx/change` and no `:_tx/changed-entity` per fact or entity. Each read derives
 what it needs from the segment instead:
 
-| Read                            | What a segment attachment returns                                                                |
-| ------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `transactions()`                | One record with the summary and an empty `changes` list. Paging the feed stays cheap.            |
-| `transaction(txId)`             | The same record, with every fact as an `assert` change, derived from the segment on demand.      |
-| `transactionsForEntity(entity)` | The attachments whose segment contains the entity, merged by position with indexed transactions. |
-| `transactionByCommand`          | As for any transaction.                                                                          |
-| `history(entity)`               | Every segment fact for the entity, and any retractions of them.                                  |
+| Read                            | What a segment attachment returns                                                                                                                   |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transactions()`                | One record with the summary and an empty `changes` list. Paging the feed stays cheap.                                                               |
+| `transaction(txId)`             | The same record, with every fact as an `assert` change, derived from the segment on demand.                                                         |
+| `transactionsForEntity(entity)` | The attachments whose segment contains the entity, merged by position with indexed transactions; each attach record lists only that entity's facts. |
+| `transactionByCommand`          | As for any transaction.                                                                                                                             |
+| `history(entity)`               | Every segment fact for the entity, and any retractions of them.                                                                                     |
 
 Compared with loading the same facts through `transact`, audit keeps:
 

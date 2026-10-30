@@ -63,7 +63,7 @@ import { resolveTemporalBasis, type ResolvedTemporalBasis } from "../../Temporal
 import { TxAttributes } from "../../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../../Pagination.js";
 import * as ContentIds from "../../content/ContentId.js";
-import { unsafe } from "../../Branded.js";
+import { unsafe, type TransactionId } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
 import * as Segment from "../../segment/Segment.js";
@@ -390,6 +390,38 @@ const makeKvTriplesService = Effect.gen(function* () {
     }).pipe(
       Effect.catch((e) =>
         Effect.fail(new ReadError({ message: `Query failed: ${String(e)}`, cause: e })),
+      ),
+    );
+
+  /**
+   * A transaction's record. An attachment stores no per-fact changes, so they
+   * are derived from its segment: all of them, or only `entity`'s.
+   */
+  const readTransaction = (txId: TransactionId, entity?: string) =>
+    Effect.gen(function* () {
+      const datoms = yield* hexaStore.scanCollectAsync({ entity: txId });
+      const record = transactionRecordFromTriples(txId, datoms.map(datomToTriple));
+      if (record?.summary?.segments === undefined) return record;
+      const attachment = (yield* hexaStore.attachments()).find(
+        (candidate) => candidate.position === record.position,
+      );
+      if (attachment === undefined) return record;
+      const ordinals =
+        entity === undefined
+          ? Array.from({ length: attachment.segment.count }, (_, ordinal) => ordinal)
+          : Segment.lookup(attachment.segment, { entity });
+      const changes = Array.from(ordinals, (ordinal) =>
+        transactionChangeFromTriple(
+          "assert",
+          datomToTriple(datomAt(attachment, ordinal)),
+          txId,
+          record.instant,
+        ),
+      );
+      return { ...record, changes };
+    }).pipe(
+      Effect.catch((e) =>
+        Effect.fail(new ReadError({ message: `Transaction read failed: ${String(e)}`, cause: e })),
       ),
     );
 
@@ -845,32 +877,7 @@ const makeKvTriplesService = Effect.gen(function* () {
         ),
       ),
 
-    transaction: (txId) =>
-      Effect.gen(function* () {
-        const datoms = yield* hexaStore.scanCollectAsync({ entity: txId });
-        const record = transactionRecordFromTriples(txId, datoms.map(datomToTriple));
-        if (record?.summary?.segments === undefined) return record;
-        // An attachment stores no per-fact changes: derive them from the segment.
-        const attachment = (yield* hexaStore.attachments()).find(
-          (candidate) => candidate.position === record.position,
-        );
-        if (attachment === undefined) return record;
-        const changes = Array.from({ length: attachment.segment.count }, (_, ordinal) =>
-          transactionChangeFromTriple(
-            "assert",
-            datomToTriple(datomAt(attachment, ordinal)),
-            txId,
-            record.instant,
-          ),
-        );
-        return { ...record, changes };
-      }).pipe(
-        Effect.catch((e) =>
-          Effect.fail(
-            new ReadError({ message: `Transaction read failed: ${String(e)}`, cause: e }),
-          ),
-        ),
-      ),
+    transaction: (txId) => readTransaction(txId),
 
     transactionByCommand: (commandId) =>
       Effect.gen(function* () {
@@ -925,6 +932,8 @@ const makeKvTriplesService = Effect.gen(function* () {
         {
           ...service,
           query: service.queryAll,
+          // An attachment's record lists only this entity's facts, not the whole segment.
+          transaction: (txId) => readTransaction(txId, entityId),
           // Attachments don't index their entities in the journal; their segments do.
           segmentTransactions: (snapshotPosition) =>
             hexaStore.attachments().pipe(

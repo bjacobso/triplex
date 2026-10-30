@@ -947,12 +947,13 @@ export class KvTripleStore {
    * ever asserted with this type and the basis decides which are visible.
    */
   getByEntityTypeTemporal(entityType: string, basis: ResolvedTemporalBasis): Datom[] | null {
-    return this.getByEntityTypeWhere(entityType, (datom) => visibleAt(datom, basis));
+    return this.getByEntityTypeWhere(entityType, (datom) => visibleAt(datom, basis), basis);
   }
 
   private getByEntityTypeWhere(
     entityType: string,
     keep: (datom: Datom) => boolean,
+    basis?: ResolvedTemporalBasis,
   ): Datom[] | null {
     if (!this.kv.getRangeSync) return null;
 
@@ -966,9 +967,9 @@ export class KvTripleStore {
       if (datom === null || !keep(datom)) continue;
       results.push(datom);
     }
-    const segments = this.segmentsSync({ entityType }, false);
+    const segments = this.segmentsSync({ entityType }, true, basis);
     if (segments === null) return null;
-    for (const datom of segments) results.push(datom);
+    for (const datom of segments) if (keep(datom)) results.push(datom);
     return results;
   }
 
@@ -1084,12 +1085,13 @@ export class KvTripleStore {
     entityType: string,
     basis: ResolvedTemporalBasis,
   ): Effect.Effect<Datom[]> {
-    return this.getByEntityTypeWhereAsync(entityType, (datom) => visibleAt(datom, basis));
+    return this.getByEntityTypeWhereAsync(entityType, (datom) => visibleAt(datom, basis), basis);
   }
 
   private getByEntityTypeWhereAsync(
     entityType: string,
     keep: (datom: Datom) => boolean,
+    basis?: ResolvedTemporalBasis,
   ): Effect.Effect<Datom[]> {
     const { start, end } = typePrefixRange(entityType);
 
@@ -1107,7 +1109,9 @@ export class KvTripleStore {
         if (datom === null || !keep(datom)) continue;
         results.push(datom);
       }
-      for (const datom of yield* this.segmentsAsync({ entityType }, false)) results.push(datom);
+      for (const datom of yield* this.segmentsAsync({ entityType }, true, basis)) {
+        if (keep(datom)) results.push(datom);
+      }
       return results;
     });
   }
