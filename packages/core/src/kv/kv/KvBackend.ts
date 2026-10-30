@@ -11,6 +11,7 @@
  */
 
 import { Context, Effect, Stream } from "effect";
+import type { Segment } from "../../segment/Segment.js";
 
 /** A key-value pair from the store. */
 export type KvEntry = readonly [key: Uint8Array, value: Uint8Array];
@@ -33,6 +34,18 @@ export interface KvTransaction {
   readonly set: (key: Uint8Array, value: Uint8Array) => Effect.Effect<void>;
   readonly delete: (key: Uint8Array) => Effect.Effect<void>;
   readonly getRange: (options: RangeOptions) => Stream.Stream<KvEntry>;
+  /**
+   * Buffer many writes in one effect. Optional: callers fall back to one
+   * `set` per entry.
+   */
+  readonly setAll?: (
+    entries: ReadonlyArray<readonly [Uint8Array, Uint8Array]>,
+  ) => Effect.Effect<void>;
+  /**
+   * Buffer writes keyed by pre-built latin1 strings, synchronously. Only the
+   * in-memory backend implements it; see `KvBackendService.setAllStr`.
+   */
+  readonly setAllStr?: (entries: ReadonlyArray<readonly [string, Uint8Array]>) => void;
 }
 
 /** The KV backend service interface. */
@@ -97,6 +110,20 @@ export interface KvBackendService {
    * allocations per triple during bulk insertion. Only implemented by InMemoryKvBackend.
    */
   readonly setAllStr?: (entries: ReadonlyArray<readonly [string, Uint8Array]>) => void;
+
+  /**
+   * Immutable segment bodies by content ID. Optional; only the in-memory
+   * backend stores them today. A body is content-addressed and invisible until
+   * a transaction writes an attachment record naming it, so storing one
+   * outside a transaction is safe, like writing a git object before the
+   * commit that references it.
+   */
+  readonly segments?: SegmentStore;
+}
+
+export interface SegmentStore {
+  readonly put: (segment: Segment) => void;
+  readonly get: (id: string) => Segment | undefined;
 }
 
 /** Effect service tag for dependency injection. */

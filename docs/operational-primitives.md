@@ -49,7 +49,18 @@ Every successful `transact` persists an `_Transaction` entity with:
 - one `:_tx/change` JSON fact for every asserted or retracted application fact.
 
 `Triples.transaction(txId)` reconstructs the typed envelope. The same facts remain available to
-Datalog for application-specific audit queries. A command ID is an atomically unique idempotency
+Datalog for application-specific audit queries.
+
+A transaction committed with `journal: "summary"` records one `:_tx/summary` instead of one
+`:_tx/change` per fact: assertion and retraction counts, the sorted changed attributes, and a
+`ContentId` digest of the changes (entity, attribute, value, valid interval and entity type per
+assertion; triple ID per retraction; generated IDs excluded). It keeps the envelope, the commit
+position, and every `:_tx/changed-entity` reference, so the feed, command receipts, and
+`transactionsForEntity` behave as before. Its record has an empty `changes` list and a `summary`.
+The facts keep their full bitemporal history, so what changed is still readable at the
+transaction's position; what is lost is replaying the journal alone to rebuild those facts.
+Derivation relevance uses the summary's attributes, and change emission and entity snapshots fall
+back to the submitted operations for such transactions. A command ID is an atomically unique idempotency
 identity within one Triplex database. Concurrent attempts acquire a backend-local claim inside the
 same transaction as the facts and envelope; exactly one commits. A loser receives
 `CommandAlreadyCommittedError` with the original transaction ID, and
@@ -88,6 +99,33 @@ another cursor update, and repeat forever. These unjournaled system writes still
 positions, so recorded snapshot ordering remains total; application commands remain fully
 journaled.
 
+### Published position refs
+
+`@triplex-build/triplex/operational` also provides `PositionRef`: a named, movable pointer to a
+committed position, stored as a reserved entity. `PositionRef.move` points it at a position in one
+journaled transaction, with compare-and-retract against concurrent moves and an optional
+`expectedPosition` (`null` for "not created yet"). Positions past the latest commit are rejected.
+`PositionRef.basis(triples, name, { validAt })` returns `{ recordedPosition, validAt }`; resolve it
+once and reuse it for every read that must agree, because resolving per read could straddle a
+move. Every move is history, so `PositionRef.get(triples, name, { recordedAt })` says what was
+published at an earlier instant. A move may carry a JSON manifest describing what it published.
+
+### Incremental imports
+
+`Import.run(triples, facts, { ref, chunkSize })` commits a large dataset as many transactions
+and yields to the host's event loop between them, so a browser keeps painting and a server keeps
+serving. Chunks default to the summary journal and share the import ID as their correlation ID.
+With `ref`, one final transaction moves the ref to the last chunk's position and stores the import
+manifest: fact and chunk counts, position range, and a digest over the chunk digests. Readers at
+the ref see the previous publication until that move and the whole import after it. Readers at the
+latest state see chunks as they commit. A failed import leaves its committed chunks in place,
+unpublished.
+
+With `store: "segments"`, each chunk is built into an immutable, content-addressed `Segment` and
+attached in one small transaction instead of being transacted fact by fact. Reads merge attached
+segments with indexed facts at any basis. This is an in-memory-only prototype; see
+[Import segments](/segments) for the format, journal shape, and audit trade-offs.
+
 ### Snapshot-stable Datalog pages
 
 `Triples.queryPage` returns an opaque, versioned keyset cursor. Its content-addressed fingerprints
@@ -100,9 +138,16 @@ transactions share the same recorded millisecond. Cursor decoding and reuse fail
 ### Bitemporal query basis
 
 Facts carry separate recorded and valid intervals. Direct matching, entity reads, batched reads,
-and Datalog accept the same `{ recordedAt?, validAt? }` basis, so every clause in a join,
-negation, or rule sees one coherent cut. Historical corrections append new facts; they do not
-rewrite the recorded history.
+and Datalog accept the same `{ recordedAt?, recordedPosition?, validAt? }` basis, so every clause
+in a join, negation, or rule sees one coherent cut. Historical corrections append new facts; they
+do not rewrite the recorded history.
+
+`recordedPosition` cuts recorded time at a commit position rather than an instant. Positions are
+the total commit order, so a read at position `p` sees every transaction committed at or before
+`p` and nothing after it, even when commits share a millisecond. With `recordedAt` as well, a fact
+must be visible under both. A position past the latest commit reads the latest state, so only a
+committed position is a stable cut. Paged reads clamp a requested position to the latest commit
+and keep it in their cursor.
 
 ### Portable derivations and pure reconciliation
 

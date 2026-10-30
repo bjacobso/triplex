@@ -22,7 +22,8 @@ const provide = <A, E>(effect: Effect.Effect<A, E, Triples>): Promise<A> =>
   Effect.runPromise(effect.pipe(Effect.provide(SqliteTriples.layerMemory)));
 
 describe("SqliteTriples convenience layer", () => {
-  it("passes the full Triples conformance suite", async () => {
+  // The whole corpus runs serially in one test; it has outgrown Vitest's 5s default under load.
+  it("passes the full Triples conformance suite", { timeout: 30_000 }, async () => {
     await provide(makeTriplesConformanceSuite());
   });
 

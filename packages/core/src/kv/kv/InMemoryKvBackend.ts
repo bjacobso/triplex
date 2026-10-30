@@ -8,12 +8,13 @@
  * - get: O(1) via Map lookup
  * - set: O(1) via Map insertion (invalidates sorted cache)
  * - delete: O(1) via Map deletion (invalidates sorted cache)
- * - getRange: O(n log n) on first call after mutation (sorts), then O(log n + k)
- * - setAll: O(k) direct Map insertion (invalidates sorted cache once)
+ * - getRange: O(log n + k), after merging keys added since the last scan
+ *   (O(n + a log a) for a added keys; a full O(n log n) sort only after a delete)
+ * - setAll: O(k) direct Map insertion
  * - transact: buffered writes, committed on success, discarded on error
  *
  * Bulk insertion is extremely fast because it never sorts during writes.
- * The sorted array is only rebuilt lazily when the first range scan is requested.
+ * New keys are merged into the sorted array lazily, on the next range scan.
  *
  * Key insight: latin1 string encoding preserves byte order, so we store keys
  * as latin1 strings and sort natively (faster than byte-by-byte comparison).
@@ -28,6 +29,7 @@ import {
   type KvTransaction,
   type RangeOptions,
 } from "./KvBackend.js";
+import type { Segment } from "../../segment/Segment.js";
 
 /**
  * Convert a Uint8Array key to a latin1 string.
@@ -52,8 +54,8 @@ const stringToKey = (s: string): Uint8Array => {
  * Binary search for the insertion index of a key (as string) in the sorted keys array.
  * Uses native string comparison which preserves byte order for latin1 strings.
  */
-const bisectStr = (keys: readonly string[], target: string): number => {
-  let lo = 0;
+const bisectStr = (keys: readonly string[], target: string, from = 0): number => {
+  let lo = from;
   let hi = keys.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
@@ -66,28 +68,75 @@ const bisectStr = (keys: readonly string[], target: string): number => {
   return lo;
 };
 
-// ─── Partition: a single Map + sorted cache ────────────────────────────────
+// ─── Partition: a single Map + sorted keys ─────────────────────────────────
+//
+// Keys are kept sorted incrementally: new keys are collected on write and
+// merged into the sorted array on the next range scan, so a scan after a small
+// commit costs O(n + k log k) rather than a full O(n log n) re-sort. Overwriting
+// an existing key (a retraction rewriting META, the commit-position counter)
+// doesn't change the order at all. Only a delete forces a rebuild.
+
+const mergeSorted = (left: readonly string[], right: readonly string[]): string[] => {
+  const merged = Array.from<string>({ length: left.length + right.length });
+  let i = 0;
+  let k = 0;
+  if (right.length * 16 < left.length) {
+    // A few new keys into many: find each one's place by binary search and copy
+    // the runs between them without comparing. Keys share long prefixes, so a
+    // comparison per element would dominate.
+    for (const key of right) {
+      const at = bisectStr(left, key, i);
+      while (i < at) merged[k++] = left[i++]!;
+      merged[k++] = key;
+    }
+  } else {
+    let j = 0;
+    while (i < left.length && j < right.length) {
+      merged[k++] = left[i]! < right[j]! ? left[i++]! : right[j++]!;
+    }
+    while (j < right.length) merged[k++] = right[j++]!;
+  }
+  while (i < left.length) merged[k++] = left[i++]!;
+  return merged;
+};
 
 class Partition {
   readonly map = new Map<string, Uint8Array>();
-  sortedKeysCache: string[] | null = [];
+  /** Sorted keys, or null when a delete requires a full rebuild. */
+  private sortedKeys: string[] | null = [];
+  /** Keys added since `sortedKeys` was last brought up to date. */
+  private addedKeys: string[] = [];
 
-  ensureSortedKeys(): string[] {
-    if (this.sortedKeysCache === null) {
-      const keys = Array.from(this.map.keys());
-      keys.sort(); // Native string sort == byte-order sort for latin1
-      this.sortedKeysCache = keys;
-    }
-    return this.sortedKeysCache;
+  set(ks: string, value: Uint8Array): void {
+    const size = this.map.size;
+    this.map.set(ks, value);
+    if (this.map.size !== size && this.sortedKeys !== null) this.addedKeys.push(ks);
   }
 
-  invalidateCache(): void {
-    this.sortedKeysCache = null;
+  delete(ks: string): void {
+    if (this.map.delete(ks)) {
+      this.sortedKeys = null;
+      this.addedKeys = [];
+    }
+  }
+
+  ensureSortedKeys(): string[] {
+    if (this.sortedKeys === null) {
+      const keys = Array.from(this.map.keys());
+      keys.sort(); // Native string sort == byte-order sort for latin1
+      this.sortedKeys = keys;
+    } else if (this.addedKeys.length > 0) {
+      const added = this.addedKeys.sort();
+      this.addedKeys = [];
+      this.sortedKeys = this.sortedKeys.length === 0 ? added : mergeSorted(this.sortedKeys, added);
+    }
+    return this.sortedKeys;
   }
 
   clear(): void {
     this.map.clear();
-    this.sortedKeysCache = [];
+    this.sortedKeys = [];
+    this.addedKeys = [];
   }
 }
 
@@ -103,17 +152,12 @@ class Partition {
 
 class InMemoryStore {
   /** Partitions indexed by first byte of key string (charCode). */
-  private readonly partitions = new Map<number, Partition>();
+  private partitions: Array<Partition | undefined> = [];
 
   /** Get or create the partition for a key string. */
   private partitionFor(ks: string): Partition {
     const prefix = ks.charCodeAt(0);
-    let p = this.partitions.get(prefix);
-    if (p === undefined) {
-      p = new Partition();
-      this.partitions.set(prefix, p);
-    }
-    return p;
+    return (this.partitions[prefix] ??= new Partition());
   }
 
   get(key: Uint8Array): Uint8Array | null {
@@ -123,17 +167,12 @@ class InMemoryStore {
 
   set(key: Uint8Array, value: Uint8Array): void {
     const ks = keyToString(key);
-    const p = this.partitionFor(ks);
-    p.map.set(ks, value);
-    p.invalidateCache();
+    this.partitionFor(ks).set(ks, value);
   }
 
   delete(key: Uint8Array): void {
     const ks = keyToString(key);
-    const p = this.partitionFor(ks);
-    if (p.map.delete(ks)) {
-      p.invalidateCache();
-    }
+    this.partitionFor(ks).delete(ks);
   }
 
   getRange(options: RangeOptions): KvEntry[] {
@@ -148,7 +187,7 @@ class InMemoryStore {
 
     // Common case: same prefix → single partition scan
     if (startPrefix === endPrefix) {
-      const p = this.partitions.get(startPrefix);
+      const p = this.partitions[startPrefix];
       if (!p) return [];
       return this.scanPartition(p, startStr, endStr, limit, reverse);
     }
@@ -156,13 +195,13 @@ class InMemoryStore {
     // Cross-partition scan (rare, e.g. full store scan).
     // Merge sorted keys across all partitions in range.
     const results: KvEntry[] = [];
-    const sortedPrefixes = Array.from(this.partitions.keys()).sort((a, b) => a - b);
+    const sortedPrefixes = this.partitions.flatMap((p, prefix) => (p ? [prefix] : []));
 
     if (reverse) {
       for (let pi = sortedPrefixes.length - 1; pi >= 0; pi--) {
         const prefix = sortedPrefixes[pi]!;
         if (prefix < startPrefix || prefix > endPrefix) continue;
-        const p = this.partitions.get(prefix)!;
+        const p = this.partitions[prefix]!;
         const partResults = this.scanPartition(
           p,
           startStr,
@@ -176,7 +215,7 @@ class InMemoryStore {
     } else {
       for (const prefix of sortedPrefixes) {
         if (prefix < startPrefix || prefix > endPrefix) continue;
-        const p = this.partitions.get(prefix)!;
+        const p = this.partitions[prefix]!;
         const partResults = this.scanPartition(
           p,
           startStr,
@@ -225,48 +264,29 @@ class InMemoryStore {
     return results;
   }
 
-  /**
-   * Set a key-value pair using pre-computed string key.
-   * Does NOT invalidate cache — caller must call invalidateCache() after batch.
-   */
+  /** Set a key-value pair using a pre-computed latin1 string key. */
   setDirect(ks: string, value: Uint8Array): void {
-    this.partitionFor(ks).map.set(ks, value);
-  }
-
-  /** Invalidate all partition caches. */
-  invalidateCache(): void {
-    for (const p of this.partitions.values()) {
-      p.invalidateCache();
-    }
+    this.partitionFor(ks).set(ks, value);
   }
 
   /**
    * Apply buffered writes directly from the transaction write buffer.
    */
   applyWriteBuffer(buffer: ReadonlyMap<string, Uint8Array | null>): void {
-    if (buffer.size === 0) return;
-
-    const dirtyPartitions = new Set<Partition>();
     for (const [ks, value] of buffer) {
       const p = this.partitionFor(ks);
-      if (value === null) {
-        if (p.map.delete(ks)) dirtyPartitions.add(p);
-      } else {
-        p.map.set(ks, value);
-        dirtyPartitions.add(p);
-      }
+      if (value === null) p.delete(ks);
+      else p.set(ks, value);
     }
-    for (const p of dirtyPartitions) p.invalidateCache();
   }
 
   clear(): void {
-    for (const p of this.partitions.values()) p.clear();
-    this.partitions.clear();
+    this.partitions = [];
   }
 
   get size(): number {
     let total = 0;
-    for (const p of this.partitions.values()) total += p.map.size;
+    for (const p of this.partitions) total += p?.map.size ?? 0;
     return total;
   }
 }
@@ -274,6 +294,7 @@ class InMemoryStore {
 const makeInMemoryKvBackend = (): KvBackendService => {
   const store = new InMemoryStore();
   const transactionMutex = Semaphore.makeUnsafe(1);
+  const segments = new Map<string, Segment>();
 
   const service: KvBackendService = {
     get: (key) => Effect.sync(() => store.get(key)),
@@ -290,10 +311,22 @@ const makeInMemoryKvBackend = (): KvBackendService => {
       return transactionMutex.withPermit(
         Effect.gen(function* () {
           const writeBuffer = new Map<string, Uint8Array | null>();
+          // Batches from `setAllStr`, kept as given so each key is hashed once, at
+          // commit. Folded into `writeBuffer` before any other access to it, so
+          // whatever is left here at commit is newer than everything in the map.
+          let bulk: Array<ReadonlyArray<readonly [string, Uint8Array]>> = [];
+          const fold = () => {
+            if (bulk.length === 0) return;
+            for (const batch of bulk) {
+              for (let i = 0; i < batch.length; i++) writeBuffer.set(batch[i]![0], batch[i]![1]);
+            }
+            bulk = [];
+          };
 
           const tx: KvTransaction = {
             get: (key) =>
               Effect.sync(() => {
+                fold();
                 const ks = keyToString(key);
                 if (writeBuffer.has(ks)) {
                   return writeBuffer.get(ks) ?? null;
@@ -302,13 +335,24 @@ const makeInMemoryKvBackend = (): KvBackendService => {
               }),
             set: (key, value) =>
               Effect.sync(() => {
+                fold();
                 writeBuffer.set(keyToString(key), value);
               }),
             delete: (key) =>
               Effect.sync(() => {
+                fold();
                 writeBuffer.set(keyToString(key), null);
               }),
+            setAll: (entries) =>
+              Effect.sync(() => {
+                fold();
+                for (const [key, value] of entries) writeBuffer.set(keyToString(key), value);
+              }),
+            setAllStr: (entries) => {
+              if (entries.length > 0) bulk.push(entries);
+            },
             getRange: (options) => {
+              fold();
               const start = keyToString(options.start);
               const end = keyToString(options.end);
               const visible = new Map(
@@ -335,6 +379,9 @@ const makeInMemoryKvBackend = (): KvBackendService => {
           // Commit: apply buffered writes on success.
           // If fn fails, the yield* above propagates the error and we never reach here.
           store.applyWriteBuffer(writeBuffer);
+          for (const batch of bulk) {
+            for (let i = 0; i < batch.length; i++) store.setDirect(batch[i]![0], batch[i]![1]);
+          }
           return result;
         }),
       ) as Effect.Effect<A, E>;
@@ -346,12 +393,22 @@ const makeInMemoryKvBackend = (): KvBackendService => {
         for (const [key, value] of entries) {
           store.setDirect(keyToString(key), value);
         }
-        store.invalidateCache();
       }),
 
     getMany: (keys) => Effect.sync(() => keys.map((key) => [key, store.get(key)] as const)),
 
-    clear: () => Effect.sync(() => store.clear()),
+    clear: () =>
+      Effect.sync(() => {
+        store.clear();
+        segments.clear();
+      }),
+
+    segments: {
+      put: (segment) => {
+        if (!segments.has(segment.id)) segments.set(segment.id, segment);
+      },
+      get: (id) => segments.get(id),
+    },
 
     // ─── Synchronous fast path ─────────────────────────────────────────
     getSync: (key) => store.get(key),
@@ -363,7 +420,6 @@ const makeInMemoryKvBackend = (): KvBackendService => {
       for (let i = 0; i < entries.length; i++) {
         store.setDirect(entries[i]![0], entries[i]![1]);
       }
-      store.invalidateCache();
     },
   };
 

@@ -9,7 +9,7 @@ import type { TemporalBasis } from "../Temporal.js";
 import type { Triple } from "../Triple.js";
 import type { TransactionRecord, TriplesService } from "../store/Triples.js";
 import type { TripleValue } from "../Value.js";
-import type { DatalogQueryError, ReadError } from "../errors/index.js";
+import { ReadError, type DatalogQueryError } from "../errors/index.js";
 import { extractDependencies } from "../subscriptions/extract-dependencies.js";
 import * as TypeExpr from "../config/TypeExpr.js";
 import * as TypeSchema from "../config/TypeSchema.js";
@@ -224,8 +224,13 @@ export interface Reader extends Pick<TriplesService, "match" | "queryAll" | "tra
 const transactionIsRelevant = (definition: Definition, transaction: TransactionRecord): boolean => {
   if (transaction.actor === "triplex/derivation-materializer") return false;
   const attributes = new Set(definition.dependencies.attributes);
-  return transaction.changes.some(
-    (change) => definition.dependencies.hasDynamicAttributes || attributes.has(change.attribute),
+  return (
+    transaction.changes.some(
+      (change) => definition.dependencies.hasDynamicAttributes || attributes.has(change.attribute),
+    ) ||
+    (transaction.summary !== undefined &&
+      (definition.dependencies.hasDynamicAttributes ||
+        transaction.summary.attributes.some((attribute) => attributes.has(attribute))))
   );
 };
 
@@ -252,12 +257,22 @@ const temporalBoundaryFromJournal = (
 
     const attributes = new Set(definition.dependencies.attributes);
     const live = new Map<string, { readonly validFrom?: number; readonly validTo?: number }>();
+    // A summary-journaled transaction names its attributes but not its facts.
+    const summarized = new Set<string>();
     let after = 0;
     while (true) {
       const page = yield* triples.transactions({ after, limit: 1_000 });
       for (const transaction of page.transactions) {
         if (basis.recordedAt !== undefined && transaction.instant > basis.recordedAt) continue;
+        if (basis.recordedPosition !== undefined && transaction.position > basis.recordedPosition) {
+          continue;
+        }
         if (!transactionIsRelevant(definition, transaction)) continue;
+        for (const attribute of transaction.summary?.attributes ?? []) {
+          if (definition.dependencies.hasDynamicAttributes || attributes.has(attribute)) {
+            summarized.add(attribute);
+          }
+        }
         for (const change of transaction.changes) {
           if (!definition.dependencies.hasDynamicAttributes && !attributes.has(change.attribute)) {
             continue;
@@ -281,6 +296,17 @@ const temporalBoundaryFromJournal = (
         (value): value is number => value !== undefined && value > basis.validAt,
       ),
     );
+    if (summarized.size > 0) {
+      // Their facts' valid intervals aren't in the journal; read them from the attribute index.
+      if (!triples.dependencyState) {
+        return yield* new ReadError({
+          message:
+            "Summary-journaled transactions need dependencyState to find valid-time boundaries",
+        });
+      }
+      const state = yield* triples.dependencyState([...summarized], basis);
+      if (state.nextTemporalBoundary !== undefined) boundaries.push(state.nextTemporalBoundary);
+    }
     return boundaries.length === 0 ? undefined : Math.min(...boundaries);
   });
 

@@ -211,6 +211,74 @@ describe("InMemoryKvBackend", () => {
     });
   });
 
+  describe("incremental ordering", () => {
+    const latin1 = (k: Uint8Array) => String.fromCharCode(...k);
+
+    it("keeps range scans sorted across interleaved writes, overwrites and deletes", async () => {
+      const kv = makeTestKvBackend();
+      const model = new Map<string, Uint8Array>();
+      let seed = 7;
+      const random = () => (seed = (seed * 48_271) % 2_147_483_647) / 2_147_483_647;
+      const key = () => {
+        const bytes = new Uint8Array(1 + Math.floor(random() * 4));
+        bytes[0] = 0x01 + Math.floor(random() * 2);
+        for (let i = 1; i < bytes.length; i++) bytes[i] = Math.floor(random() * 256);
+        return bytes;
+      };
+      for (let round = 0; round < 40; round++) {
+        for (let i = 0; i < 25; i++) {
+          const k = key();
+          const value = enc(String(round));
+          if (random() < 0.1) {
+            await run(kv.delete(k));
+            model.delete(latin1(k));
+          } else {
+            await run(kv.set(k, value));
+            model.set(latin1(k), value);
+          }
+        }
+        const scanned = await run(
+          Stream.runCollect(
+            kv.getRange({ start: new Uint8Array([0x01]), end: new Uint8Array([0x03]) }),
+          ),
+        );
+        const expected = [...model.keys()].sort();
+        expect(Array.from(scanned, ([k]) => latin1(k))).toEqual(expected);
+        expect(Array.from(scanned, ([, v]) => v)).toEqual(expected.map((k) => model.get(k)));
+      }
+    });
+
+    it("applies string-keyed bulk writes in order with the transaction's other writes", async () => {
+      const kv = makeTestKvBackend();
+      await run(
+        kv.transact((tx) =>
+          Effect.gen(function* () {
+            tx.setAllStr!([
+              ["\x01a", enc("bulk-1")],
+              ["\x01b", enc("bulk-1")],
+            ]);
+            // A later per-key write must win over the earlier bulk write ...
+            yield* tx.set(enc("\x01a"), enc("set"));
+            expect(yield* tx.get(enc("\x01b"))).toEqual(enc("bulk-1"));
+            // ... and a later bulk write over an earlier delete.
+            yield* tx.delete(enc("\x01c"));
+            tx.setAllStr!([["\x01c", enc("bulk-2")]]);
+          }),
+        ),
+      );
+      const entries = await run(
+        Stream.runCollect(
+          kv.getRange({ start: new Uint8Array([0x01]), end: new Uint8Array([0x02]) }),
+        ),
+      );
+      expect(Array.from(entries, ([k, v]) => [latin1(k), new TextDecoder().decode(v)])).toEqual([
+        ["\x01a", "set"],
+        ["\x01b", "bulk-1"],
+        ["\x01c", "bulk-2"],
+      ]);
+    });
+  });
+
   describe("clear", () => {
     it("removes all entries", async () => {
       const kv = makeTestKvBackend();

@@ -53,12 +53,14 @@ import {
   invalidCommandId,
   livePreconditionIds,
   metadataInputs,
+  transactionSummary,
   transactionRecordFromTriples,
   transactionRecordsFromTriples,
   transactionChangeFromTriple,
   validatePreconditions,
 } from "./transactionMetadata.js";
 import {
+  attachedSegment,
   isJournalSuppressed,
   isSystemWriteAuthorized,
   reservedAssertError,
@@ -258,6 +260,12 @@ export const TriplesLive = Layer.effect(
     > =>
       adapter.withTransaction(
         Effect.gen(function* () {
+          if (attachedSegment(meta) !== undefined) {
+            // See docs/segments.md for how a SQL backend would store one.
+            return yield* new WriteError({
+              message: "Segment attachments are only supported by the in-memory KV backend",
+            });
+          }
           if (!isSystemWriteAuthorized(meta)) {
             const reserved = reservedAssertError(operations);
             if (reserved) return yield* Effect.fail(reserved);
@@ -460,13 +468,21 @@ export const TriplesLive = Layer.effect(
             );
           }
 
+          const summary = meta?.journal === "summary" ? transactionSummary(changes) : undefined;
           if (!isJournalSuppressed(meta)) {
-            for (const input of metadataInputs(txId, position, timestamp, meta, changes)) {
+            for (const input of metadataInputs(txId, position, timestamp, meta, changes, summary)) {
               yield* adapter.insert(input, txId, timestamp, yield* nextTripleId, position);
             }
           }
 
-          return { txId, position, instant: timestamp, triples, retracted: retractedCount };
+          return {
+            txId,
+            position,
+            instant: timestamp,
+            triples,
+            retracted: retractedCount,
+            ...(summary === undefined ? {} : { summary }),
+          };
         }),
       );
 

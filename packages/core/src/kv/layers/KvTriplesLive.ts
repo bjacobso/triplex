@@ -46,12 +46,14 @@ import {
   invalidCommandId,
   livePreconditionIds,
   metadataInputs,
+  transactionSummary,
   transactionRecordFromTriples,
   transactionRecordsFromTriples,
   transactionChangeFromTriple,
   validatePreconditions,
 } from "../../store/transactionMetadata.js";
 import {
+  attachedSegment,
   isJournalSuppressed,
   isSystemWriteAuthorized,
   reservedAssertError,
@@ -61,9 +63,11 @@ import { resolveTemporalBasis, type ResolvedTemporalBasis } from "../../Temporal
 import { TxAttributes } from "../../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../../Pagination.js";
 import * as ContentIds from "../../content/ContentId.js";
-import { unsafe } from "../../Branded.js";
+import { unsafe, type TransactionId } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
+import * as Segment from "../../segment/Segment.js";
+import { attachmentKey, datomAt, encodeAttachment } from "../hexastore/segments.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
 const COMMAND_RECEIPT_PREFIX = 0x22;
@@ -251,18 +255,68 @@ const makeKvMetrics = (query: DatalogQuery): QueryMetrics => ({
 });
 
 /** Adapt a backend transaction to the interface consumed by KvTripleStore. */
-const transactionBackend = (tx: KvTransaction): KvBackendService => ({
+const transactionBackend = (
+  tx: KvTransaction,
+  segments: KvBackendService["segments"],
+): KvBackendService => ({
+  ...(segments ? { segments } : {}),
   get: tx.get,
   set: tx.set,
   delete: tx.delete,
   getRange: tx.getRange,
   transact: (effect) => effect(tx),
-  setAll: (entries) =>
-    Effect.forEach(entries, ([key, value]) => tx.set(key, value), { discard: true }),
+  setAll:
+    tx.setAll ??
+    ((entries) => Effect.forEach(entries, ([key, value]) => tx.set(key, value), { discard: true })),
+  ...(tx.setAllStr ? { setAllStr: tx.setAllStr } : {}),
   getMany: (keys) =>
     Effect.forEach(keys, (key) => tx.get(key).pipe(Effect.map((value) => [key, value] as const))),
   clear: () => Effect.die("KvTripleStore.clear is not supported inside a transaction"),
 });
+
+/** Why a segment can't be attached in this transaction, if it can't. */
+const invalidAttachment = (
+  segment: Segment.Segment,
+  operations: readonly TransactOp[],
+  meta: TransactionMeta | undefined,
+  backend: KvBackendService,
+): WriteError | undefined => {
+  if (backend.segments === undefined) {
+    return new WriteError({ message: "This KV backend has no segment store" });
+  }
+  if (operations.length > 0) {
+    return new WriteError({ message: "A segment attachment can't carry other operations" });
+  }
+  if (meta?.enforce !== undefined) {
+    return new WriteError({ message: "Constraint enforcement doesn't cover segment attachments" });
+  }
+  if (!isSystemWriteAuthorized(meta)) {
+    const entityTypes = new Set<number>();
+    for (let i = 0; i < segment.count; i++) {
+      if (i === 0 || segment.entity[i] !== segment.entity[i - 1]) {
+        const reserved = reservedWriteError({
+          entityId: segment.strings[segment.entity[i]!]!,
+          attribute: ":",
+        });
+        if (reserved) return reserved;
+      }
+      if (segment.entityType[i]! >= 0) entityTypes.add(segment.entityType[i]!);
+    }
+    for (const attribute of segment.attributes) {
+      const reserved = reservedWriteError({ entityId: "-", attribute });
+      if (reserved) return reserved;
+    }
+    for (const entityType of entityTypes) {
+      const reserved = reservedWriteError({
+        entityId: "-",
+        attribute: ":",
+        entityType: segment.strings[entityType]!,
+      });
+      if (reserved) return reserved;
+    }
+  }
+  return undefined;
+};
 
 // ─── Service implementation ────────────────────────────────────────────────
 
@@ -281,16 +335,21 @@ const makeKvTriplesService = Effect.gen(function* () {
     basis?: ResolvedTemporalBasis,
   ): Effect.Effect<readonly Triple[], ReadError> =>
     Effect.gen(function* () {
-      // Fast path: entityType-only query uses the KV TYPE index
+      // Fast path: entityType-only query uses the KV TYPE index, at any basis.
+      // Public reads always arrive with a resolved basis, so without the
+      // temporal variant every entity-type read scanned the whole store.
       if (pattern.entityType && !pattern.entityId && !pattern.attribute && !pattern.value) {
-        const datoms = basis === undefined ? hexaStore.getByEntityType(pattern.entityType) : null;
+        const datoms =
+          basis === undefined
+            ? hexaStore.getByEntityType(pattern.entityType)
+            : hexaStore.getByEntityTypeTemporal(pattern.entityType, basis);
         if (datoms !== null) {
           return datoms.map(datomToTriple);
         }
         const asyncDatoms =
           basis === undefined
             ? yield* hexaStore.getByEntityTypeAsync(pattern.entityType)
-            : yield* hexaStore.scanCollectTemporalAsync({}, basis);
+            : yield* hexaStore.getByEntityTypeTemporalAsync(pattern.entityType, basis);
         return asyncDatoms
           .filter((datom) => datom.entityType === pattern.entityType)
           .map(datomToTriple);
@@ -331,6 +390,38 @@ const makeKvTriplesService = Effect.gen(function* () {
     }).pipe(
       Effect.catch((e) =>
         Effect.fail(new ReadError({ message: `Query failed: ${String(e)}`, cause: e })),
+      ),
+    );
+
+  /**
+   * A transaction's record. An attachment stores no per-fact changes, so they
+   * are derived from its segment: all of them, or only `entity`'s.
+   */
+  const readTransaction = (txId: TransactionId, entity?: string) =>
+    Effect.gen(function* () {
+      const datoms = yield* hexaStore.scanCollectAsync({ entity: txId });
+      const record = transactionRecordFromTriples(txId, datoms.map(datomToTriple));
+      if (record?.summary?.segments === undefined) return record;
+      const attachment = (yield* hexaStore.attachments()).find(
+        (candidate) => candidate.position === record.position,
+      );
+      if (attachment === undefined) return record;
+      const ordinals =
+        entity === undefined
+          ? Array.from({ length: attachment.segment.count }, (_, ordinal) => ordinal)
+          : Segment.lookup(attachment.segment, { entity });
+      const changes = Array.from(ordinals, (ordinal) =>
+        transactionChangeFromTriple(
+          "assert",
+          datomToTriple(datomAt(attachment, ordinal)),
+          txId,
+          record.instant,
+        ),
+      );
+      return { ...record, changes };
+    }).pipe(
+      Effect.catch((e) =>
+        Effect.fail(new ReadError({ message: `Transaction read failed: ${String(e)}`, cause: e })),
       ),
     );
 
@@ -422,11 +513,16 @@ const makeKvTriplesService = Effect.gen(function* () {
     transact: (transactService = (operations: readonly TransactOp[], meta?: TransactionMeta) =>
       kvBackend
         .transact((tx) => {
-          const transactionStore = createKvTripleStore(transactionBackend(tx));
+          const transactionStore = createKvTripleStore(transactionBackend(tx, kvBackend.segments));
           return Effect.gen(function* () {
             if (!isSystemWriteAuthorized(meta)) {
               const reserved = reservedAssertError(operations);
               if (reserved) return yield* Effect.fail(reserved);
+            }
+            const segment = attachedSegment(meta);
+            if (segment !== undefined) {
+              const invalid = invalidAttachment(segment, operations, meta, kvBackend);
+              if (invalid !== undefined) return yield* Effect.fail(invalid);
             }
             const invalidCondition = validatePreconditions(operations, meta);
             if (invalidCondition) {
@@ -524,8 +620,16 @@ const makeKvTriplesService = Effect.gen(function* () {
             const asserted: Triple[] = [];
             const changes: import("../../store/Triples.js").TransactionChange[] = [];
             let retractedCount = 0;
+            // Asserts are written in one batch. Flush before anything that reads,
+            // so a retraction in the same transaction still sees earlier asserts.
+            const pending: Datom[] = [];
+            const flush = () =>
+              pending.length === 0
+                ? Effect.void
+                : transactionStore.assertBatch(pending.splice(0, pending.length));
 
             for (const op of operations) {
+              if (op.op !== "assert") yield* flush();
               switch (op.op) {
                 case "assert": {
                   const datom = tripleInputToDatom(
@@ -543,7 +647,7 @@ const makeKvTriplesService = Effect.gen(function* () {
                     now,
                     position,
                   );
-                  yield* transactionStore.assert(datom);
+                  pending.push(datom);
                   const triple = datomToTriple(datom);
                   asserted.push(triple);
                   changes.push(transactionChangeFromTriple("assert", triple, txId, now));
@@ -608,13 +712,44 @@ const makeKvTriplesService = Effect.gen(function* () {
               }
             }
 
+            let summary = meta?.journal === "summary" ? transactionSummary(changes) : undefined;
+            let journalMeta = meta;
+            if (segment !== undefined) {
+              // The body is content-addressed and inert until this record names it.
+              kvBackend.segments!.put(segment);
+              yield* tx.set(
+                attachmentKey(position),
+                encodeAttachment({
+                  segment: segment.id,
+                  txId,
+                  instant: now,
+                  actor: actor ?? null,
+                }),
+              );
+              summary = {
+                asserted: segment.count,
+                retracted: 0,
+                attributes: segment.attributes,
+                digest: segment.id,
+                segments: [segment.id],
+              };
+              journalMeta = { ...meta, journal: "summary" };
+            }
             if (!isJournalSuppressed(meta)) {
-              for (const input of metadataInputs(txId, position, now, meta, changes)) {
-                yield* transactionStore.assert(
+              for (const input of metadataInputs(
+                txId,
+                position,
+                now,
+                journalMeta,
+                changes,
+                summary,
+              )) {
+                pending.push(
                   tripleInputToDatom(input, yield* runtime.nextTripleId, txId, now, position),
                 );
               }
             }
+            yield* flush();
 
             return {
               txId,
@@ -622,6 +757,7 @@ const makeKvTriplesService = Effect.gen(function* () {
               instant: now,
               triples: asserted,
               retracted: retractedCount,
+              ...(summary === undefined ? {} : { summary }),
             } satisfies TransactionResult;
           });
         })
@@ -741,17 +877,7 @@ const makeKvTriplesService = Effect.gen(function* () {
         ),
       ),
 
-    transaction: (txId) =>
-      Effect.gen(function* () {
-        const datoms = yield* hexaStore.scanCollectAsync({ entity: txId });
-        return transactionRecordFromTriples(txId, datoms.map(datomToTriple));
-      }).pipe(
-        Effect.catch((e) =>
-          Effect.fail(
-            new ReadError({ message: `Transaction read failed: ${String(e)}`, cause: e }),
-          ),
-        ),
-      ),
+    transaction: (txId) => readTransaction(txId),
 
     transactionByCommand: (commandId) =>
       Effect.gen(function* () {
@@ -802,7 +928,32 @@ const makeKvTriplesService = Effect.gen(function* () {
     },
 
     transactionsForEntity: (entityId, request) =>
-      transactionsForEntity({ ...service, query: service.queryAll }, entityId, request),
+      transactionsForEntity(
+        {
+          ...service,
+          query: service.queryAll,
+          // An attachment's record lists only this entity's facts, not the whole segment.
+          transaction: (txId) => readTransaction(txId, entityId),
+          // Attachments don't index their entities in the journal; their segments do.
+          segmentTransactions: (snapshotPosition) =>
+            hexaStore.attachments().pipe(
+              Effect.map((attachments) =>
+                attachments
+                  .filter(
+                    (attachment) =>
+                      attachment.position <= snapshotPosition &&
+                      Segment.lookup(attachment.segment, { entity: entityId }).length > 0,
+                  )
+                  .map((attachment) => ({
+                    transactionId: unsafe.transactionId(attachment.txId),
+                    position: attachment.position,
+                  })),
+              ),
+            ),
+        },
+        entityId,
+        request,
+      ),
 
     currentPosition: () => currentKvCommitPosition(kvBackend),
 

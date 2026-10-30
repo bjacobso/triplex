@@ -7,6 +7,7 @@
 
 import { Effect, Option, pipe } from "effect";
 import type { TriplesService } from "./Triples.js";
+import { isSummaryOnly } from "./transactionMetadata.js";
 import type { ChangeEvent, TripleChange } from "./ChangeEmitter.js";
 
 // =============================================================================
@@ -138,22 +139,24 @@ export const makeWriteInterceptors = (
       const result = yield* inner.transact(operations, meta);
 
       const record = yield* inner.transaction(result.txId);
-      const changes: TripleChange[] = record
-        ? record.changes.map((change) => ({
-            operation: change.op,
-            entityId: change.entityId,
-            attribute: change.attribute,
-          }))
-        : operations.flatMap((op): TripleChange[] => {
-            if (op.op === "assert") {
-              return [{ operation: "assert", entityId: op.entityId, attribute: op.attribute }];
-            }
-            if (op.op === "retract") {
-              const info = tripleMap.get(op.id);
-              return info ? [{ operation: "retract", ...info }] : [];
-            }
-            return [];
-          });
+      // A summary-journaled record has no change list; fall back to the operations.
+      const changes: TripleChange[] =
+        record && !isSummaryOnly(record)
+          ? record.changes.map((change) => ({
+              operation: change.op,
+              entityId: change.entityId,
+              attribute: change.attribute,
+            }))
+          : operations.flatMap((op): TripleChange[] => {
+              if (op.op === "assert") {
+                return [{ operation: "assert", entityId: op.entityId, attribute: op.attribute }];
+              }
+              if (op.op === "retract") {
+                const info = tripleMap.get(op.id);
+                return info ? [{ operation: "retract", ...info }] : [];
+              }
+              return [];
+            });
 
       const event: ChangeEvent = { txId: result.txId, timestamp: yield* now, changes };
       yield* onEvent(event);

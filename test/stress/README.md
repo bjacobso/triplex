@@ -52,6 +52,56 @@ BENCHMARK_SKIP_FDB=true pnpm --filter triplex-stress benchmark
 
 The generated report includes insertion throughput, update throughput with per-round breakdown, triple-pattern latency (Q1-Q6), and Datalog query latency (D1-D6) with system information and methodology notes.
 
+## In-memory import benchmark
+
+`scripts/memory-import.ts` loads a large account into the in-memory `KvTriples` store and reads it
+back, in a fresh Node process per size with a 4 GB heap (roughly a browser tab):
+
+```bash
+pnpm --filter triplex-stress benchmark:memory
+MEMORY_BENCH_SIZES=16000 MEMORY_BENCH_MODES=transact,chunked pnpm --filter triplex-stress benchmark:memory
+```
+
+The data has 25 scalar attributes and 16 facts per subject, all with valid-time intervals; two
+facts per subject are a closed interval and its successor. The read is one `match` per attribute
+at one `validAt`; "first read" is the first of those after loading. Memory is the V8 heap plus
+array buffers after a forced GC, divided by the fact count.
+
+- `transact`: one `Triples.transact` with every assertion.
+- `chunked`: 4,000 assertions per `transact`, yielding between chunks.
+- `import`: `Import.run` with 4,000-fact chunks and the summary journal, then publish a
+  `PositionRef`; the read resolves the ref and reads at its position.
+- `segments`: build a `Segment` per 4,000 facts and attach it, yielding between chunks, then
+  publish the ref. Build time is sorting, indexing and hashing, which a host can run in a worker.
+- `image`: one segment of everything, built and encoded ahead of time like a shipped dataset;
+  commit is decoding, attaching and publishing it.
+
+Node 24.22, 4 vCPU Linux VM, 4 GB heap limit:
+
+| Build       | Mode                          |   Facts |  Build |        Commit | First read |     Read | Memory/fact |
+| ----------- | ----------------------------- | ------: | -----: | ------------: | ---------: | -------: | ----------: |
+| `main`      | one `transact`                |  16,000 |        |      4,356 ms |    20.2 ms |   180 ms |     5,391 B |
+| `main`      | 4,000-fact `transact`s        |  16,000 |        |      3,697 ms |    20.8 ms |   181 ms |     5,369 B |
+| `main`      | one `transact`                |  80,000 |        |     43,905 ms |   111.6 ms | 1,132 ms |     5,231 B |
+| `main`      | 4,000-fact `transact`s        |  80,000 |        |     18,506 ms |    89.5 ms |   814 ms |     5,208 B |
+| `main`      | one `transact`                | 160,000 |        | out of memory |            |          |             |
+| `main`      | 4,000-fact `transact`s        | 160,000 |        |     40,731 ms |   186.1 ms | 1,495 ms |     5,205 B |
+| this branch | one `transact`                |  16,000 |        |      1,041 ms |    33.8 ms |   220 ms |     5,437 B |
+| this branch | 4,000-fact `transact`s        |  16,000 |        |        757 ms |    21.5 ms |   167 ms |     5,280 B |
+| this branch | `Import.run`, summary journal |  16,000 |        |        340 ms |    17.4 ms |   173 ms |     2,661 B |
+| this branch | segments, built and attached  |  16,000 | 100 ms |         13 ms |     3.0 ms |    17 ms |       136 B |
+| this branch | prebuilt segment image        |  16,000 |        |         11 ms |     2.7 ms |    16 ms |       138 B |
+| this branch | one `transact`                |  80,000 |        |      5,137 ms |   100.2 ms |   859 ms |     5,342 B |
+| this branch | 4,000-fact `transact`s        |  80,000 |        |      3,515 ms |   192.1 ms |   877 ms |     5,067 B |
+| this branch | `Import.run`, summary journal |  80,000 |        |      1,490 ms |    63.9 ms |   699 ms |     2,532 B |
+| this branch | segments, built and attached  |  80,000 | 472 ms |         33 ms |     7.8 ms |    55 ms |        87 B |
+| this branch | prebuilt segment image        |  80,000 |        |         13 ms |     5.3 ms |    48 ms |        88 B |
+| this branch | one `transact`                | 160,000 |        |      9,726 ms |   171.9 ms | 1,699 ms |     5,346 B |
+| this branch | 4,000-fact `transact`s        | 160,000 |        |      6,776 ms |   146.9 ms | 1,545 ms |     5,043 B |
+| this branch | `Import.run`, summary journal | 160,000 |        |      2,757 ms |   104.7 ms | 1,450 ms |     2,503 B |
+| this branch | segments, built and attached  | 160,000 | 650 ms |         34 ms |     7.5 ms |    93 ms |        80 B |
+| this branch | prebuilt segment image        | 160,000 |        |         13 ms |     7.0 ms |    85 ms |        79 B |
+
 ## Running Tests
 
 ### SQLite (default)

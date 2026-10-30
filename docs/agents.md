@@ -139,8 +139,9 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
 
 - **What did we believe then about what was true then?** Set both `recordedAt` and `validAt`.
   Setting only one leaves the other at "now".
-- **What did we know when we made a decision?** Use the decision's receipt `instant` as
-  `recordedAt`. Find the receipt with `transactionByCommand`.
+- **What did we know when we made a decision?** Use the decision's receipt `position` as
+  `recordedPosition` (or its `instant` as `recordedAt`, which can't separate commits in the same
+  millisecond). Find the receipt with `transactionByCommand`.
 - **Who changed this entity, and why?** Page `transactionsForEntity(entityId)`, newest first.
   Each record carries its actor, command, correlation, causation, release, and typed changes.
 - **What was retracted?** `history(entityId)` includes retracted assertions. `entity` and `match`

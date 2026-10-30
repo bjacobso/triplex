@@ -1,8 +1,15 @@
 import type { Triple, TripleInput } from "../Triple.js";
 import { TxAttributes } from "../utils/id.js";
-import type { TransactionChange, TransactionMeta, TransactionRecord } from "./Triples.js";
+import type {
+  TransactionChange,
+  TransactionMeta,
+  TransactionRecord,
+  TransactionSummary,
+} from "./Triples.js";
 import { Option } from "effect";
 import { EntityId, TransactionId, TripleId, unsafe } from "../Branded.js";
+import * as CanonicalJson from "../content/CanonicalJson.js";
+import * as ContentIds from "../content/ContentId.js";
 
 const text = (value: string) => ({ type: "string" as const, value });
 
@@ -26,12 +33,52 @@ export const transactionChangeFromTriple = (
   ...(op === "retract" ? { retractionTxId: transactionId } : {}),
 });
 
+const canonicalValue = (value: TransactionChange["value"]): CanonicalJson.CanonicalValue =>
+  value === undefined
+    ? null
+    : (value.type === "number" || value.type === "datetime") && !Number.isFinite(value.value)
+      ? { type: value.type, value: String(value.value) }
+      : (value as unknown as CanonicalJson.CanonicalValue);
+
+/** The compact journal entry for `changes`; see `TransactionSummary`. */
+export const transactionSummary = (changes: readonly TransactionChange[]): TransactionSummary => {
+  let asserted = 0;
+  const attributes = new Set<string>();
+  const content: CanonicalJson.CanonicalValue[] = [];
+  for (const change of changes) {
+    attributes.add(change.attribute);
+    if (change.op === "assert") {
+      asserted++;
+      content.push([
+        change.entityId,
+        change.attribute,
+        canonicalValue(change.value),
+        change.validFrom ?? null,
+        change.validTo ?? null,
+        change.entityType ?? null,
+      ]);
+    } else {
+      content.push(["retract", change.tripleId]);
+    }
+  }
+  return {
+    asserted,
+    retracted: changes.length - asserted,
+    attributes: [...attributes].sort(),
+    digest: ContentIds.hash(
+      ContentIds.Domain.transactionSummary,
+      CanonicalJson.encodeOrThrow(content),
+    ),
+  };
+};
+
 export const metadataInputs = (
   txId: TransactionId,
   position: number,
   instant: number,
   meta: TransactionMeta | undefined,
   changes: readonly TransactionChange[],
+  summary?: TransactionSummary,
 ): readonly TripleInput[] => {
   const input = (attribute: string, value: TripleInput["value"]): TripleInput => ({
     entityId: txId,
@@ -52,8 +99,40 @@ export const metadataInputs = (
     ...[...new Set(changes.map((change) => change.entityId))].map((entityId) =>
       input(TxAttributes.CHANGED_ENTITY, { type: "ref", value: entityId }),
     ),
-    ...changes.map((change) => input(TxAttributes.CHANGE, { type: "json", value: change })),
+    ...(meta?.journal === "summary"
+      ? [
+          input(TxAttributes.SUMMARY, {
+            type: "json",
+            value: summary ?? transactionSummary(changes),
+          }),
+        ]
+      : changes.map((change) => input(TxAttributes.CHANGE, { type: "json", value: change }))),
   ];
+};
+
+const decodeSummary = (value: unknown): TransactionSummary | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const candidate = value as Record<string, unknown>;
+  const count = (field: unknown): field is number =>
+    typeof field === "number" && Number.isSafeInteger(field) && field >= 0;
+  return count(candidate["asserted"]) &&
+    count(candidate["retracted"]) &&
+    Array.isArray(candidate["attributes"]) &&
+    candidate["attributes"].every((attribute) => typeof attribute === "string") &&
+    typeof candidate["digest"] === "string" &&
+    (candidate["segments"] === undefined ||
+      (Array.isArray(candidate["segments"]) &&
+        candidate["segments"].every((segment) => typeof segment === "string")))
+    ? {
+        asserted: candidate["asserted"],
+        retracted: candidate["retracted"],
+        attributes: candidate["attributes"] as string[],
+        digest: candidate["digest"],
+        ...(candidate["segments"] === undefined
+          ? {}
+          : { segments: candidate["segments"] as string[] }),
+      }
+    : undefined;
 };
 
 const scalar = (triple: Triple | undefined): string | undefined => {
@@ -119,6 +198,9 @@ export const transactionRecordFromTriples = (
   ) {
     return null;
   }
+  const summaryTriple = at(TxAttributes.SUMMARY);
+  const summary =
+    summaryTriple?.value.type === "json" ? decodeSummary(summaryTriple.value.value) : undefined;
   const changes = triples
     .filter((triple) => triple.attribute === TxAttributes.CHANGE && triple.value.type === "json")
     .flatMap((triple) => {
@@ -143,6 +225,7 @@ export const transactionRecordFromTriples = (
       ? { configSnapshot: scalar(at(TxAttributes.CONFIG_SNAPSHOT))! }
       : {}),
     changes,
+    ...(summary === undefined ? {} : { summary }),
   };
 };
 
@@ -163,6 +246,13 @@ export const transactionRecordsFromTriples = (
     })
     .sort((left, right) => left.position - right.position);
 };
+
+/**
+ * True for a record whose journal is a summary alone, with no per-fact
+ * changes: consumers that need changes fall back to the submitted operations.
+ */
+export const isSummaryOnly = (record: TransactionRecord): boolean =>
+  record.summary !== undefined && record.changes.length === 0;
 
 export const livePreconditionIds = (meta?: TransactionMeta): ReadonlySet<string> =>
   new Set(

@@ -2,15 +2,34 @@ import { Effect } from "effect";
 
 import type { TransactOp } from "../Triple.js";
 import { WriteError } from "../errors/index.js";
+import type { Segment } from "../segment/Segment.js";
 import type { TransactionMeta, TransactionResult, TriplesService } from "./Triples.js";
 
 const systemWriteAuthorization: unique symbol = Symbol("triplex/SystemWriteAuthorization");
 const journalSuppression: unique symbol = Symbol("triplex/JournalSuppression");
+const segmentAttachment: unique symbol = Symbol("triplex/SegmentAttachment");
 
 export type InternalTransactionMeta = TransactionMeta & {
   readonly [systemWriteAuthorization]?: true;
   readonly [journalSuppression]?: true;
+  readonly [segmentAttachment]?: Segment;
 };
+
+/** The segment a transaction attaches, if any. Backends without segment support must fail. */
+export const attachedSegment = (meta: TransactionMeta | undefined): Segment | undefined =>
+  (meta as InternalTransactionMeta | undefined)?.[segmentAttachment];
+
+/**
+ * Attach a segment in one transaction with no other operations. Internal
+ * transport for `Segment.attach`: the segment rides in the metadata so the
+ * `Triples` contract doesn't change.
+ */
+export const transactSegment = (
+  triples: TriplesService,
+  segment: Segment,
+  meta?: TransactionMeta,
+): ReturnType<typeof transactSystem> =>
+  triples.transact([], { ...meta, [segmentAttachment]: segment } as InternalTransactionMeta);
 
 export const isSystemWriteAuthorized = (meta: TransactionMeta | undefined): boolean =>
   (meta as InternalTransactionMeta | undefined)?.[systemWriteAuthorization] === true;

@@ -115,6 +115,10 @@ export const prepareEntityPage = (input: {
       if (
         (input.request.basis.recordedAt !== undefined &&
           input.request.basis.recordedAt !== envelope.recordedAt) ||
+        // The first page clamps a requested position to the latest commit.
+        (input.request.basis.recordedPosition !== undefined &&
+          Math.min(input.request.basis.recordedPosition, envelope.recordedPosition) !==
+            envelope.recordedPosition) ||
         (input.request.basis.validAt !== undefined &&
           input.request.basis.validAt !== envelope.validAt)
       ) {
@@ -142,7 +146,10 @@ export const prepareEntityPage = (input: {
     limit,
     basis: {
       recordedAt: requested.recordedAt ?? input.now,
-      recordedPosition: input.recordedPosition,
+      recordedPosition: Math.min(
+        requested.recordedPosition ?? input.recordedPosition,
+        input.recordedPosition,
+      ),
       validAt: requested.validAt,
     },
     scope: expectedScope,

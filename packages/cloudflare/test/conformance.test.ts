@@ -6,7 +6,8 @@ import { CloudflareTriples, makeCloudflareAdapter } from "../src/index.js";
 import { makeMockDOState } from "./fixtures/MockDOState.js";
 
 describe("Cloudflare Durable Object Triples", () => {
-  it("matches the shared backend contract", async () => {
+  // The whole corpus runs serially in one test; it has outgrown Vitest's 5s default under load.
+  it("matches the shared backend contract", { timeout: 30_000 }, async () => {
     await expect(
       Effect.runPromise(
         makeTriplesConformanceSuite().pipe(

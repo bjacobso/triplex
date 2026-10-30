@@ -242,6 +242,10 @@ export const preparePagination = (input: {
       const requested = input.basis;
       if (
         (requested.recordedAt !== undefined && requested.recordedAt !== basis.recordedAt) ||
+        // The first page clamps a requested position to the latest commit.
+        (requested.recordedPosition !== undefined &&
+          Math.min(requested.recordedPosition, basis.recordedPosition) !==
+            basis.recordedPosition) ||
         (requested.validAt !== undefined && requested.validAt !== basis.validAt)
       ) {
         throw new PaginationCursorError({
@@ -254,7 +258,10 @@ export const preparePagination = (input: {
     const resolved = resolveTemporalBasis(input.basis, input.now);
     basis = {
       recordedAt: resolved.recordedAt ?? input.now,
-      recordedPosition: input.recordedPosition,
+      recordedPosition: Math.min(
+        resolved.recordedPosition ?? input.recordedPosition,
+        input.recordedPosition,
+      ),
       validAt: resolved.validAt,
     };
   }
