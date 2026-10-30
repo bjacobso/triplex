@@ -54,8 +54,8 @@ const stringToKey = (s: string): Uint8Array => {
  * Binary search for the insertion index of a key (as string) in the sorted keys array.
  * Uses native string comparison which preserves byte order for latin1 strings.
  */
-const bisectStr = (keys: readonly string[], target: string): number => {
-  let lo = 0;
+const bisectStr = (keys: readonly string[], target: string, from = 0): number => {
+  let lo = from;
   let hi = keys.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
@@ -79,13 +79,24 @@ const bisectStr = (keys: readonly string[], target: string): number => {
 const mergeSorted = (left: readonly string[], right: readonly string[]): string[] => {
   const merged = Array.from<string>({ length: left.length + right.length });
   let i = 0;
-  let j = 0;
   let k = 0;
-  while (i < left.length && j < right.length) {
-    merged[k++] = left[i]! < right[j]! ? left[i++]! : right[j++]!;
+  if (right.length * 16 < left.length) {
+    // A few new keys into many: find each one's place by binary search and copy
+    // the runs between them without comparing. Keys share long prefixes, so a
+    // comparison per element would dominate.
+    for (const key of right) {
+      const at = bisectStr(left, key, i);
+      while (i < at) merged[k++] = left[i++]!;
+      merged[k++] = key;
+    }
+  } else {
+    let j = 0;
+    while (i < left.length && j < right.length) {
+      merged[k++] = left[i]! < right[j]! ? left[i++]! : right[j++]!;
+    }
+    while (j < right.length) merged[k++] = right[j++]!;
   }
   while (i < left.length) merged[k++] = left[i++]!;
-  while (j < right.length) merged[k++] = right[j++]!;
   return merged;
 };
 
