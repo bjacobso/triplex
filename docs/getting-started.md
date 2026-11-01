@@ -4,20 +4,20 @@ This guide writes three facts to an in-memory Triplex database, joins them with 
 the result. It is the shortest complete path to a running program.
 
 ::: warning Pre-1.0 packages
-The `@triplex-build` packages are available from npm and require `effect@4.0.3`.
+The `@triplex-build` packages are available from npm and require `effect@4.1.1`.
 Effect 3 is incompatible. Do not use the superseded `@bjacobso` package names for new work.
 :::
 
 ## Prerequisites
 
 - Git
-- Node.js 22 or newer
+- Node.js 22.19.0 or newer
 - Corepack and pnpm 10.11.0 (the repository declares the exact package-manager version)
 
 For an application, install the published core package and its Effect peer dependency:
 
 ```sh
-npm install @triplex-build/triplex effect@4.0.3
+npm install @triplex-build/triplex effect@4.1.1
 ```
 
 ## Run the example

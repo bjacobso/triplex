@@ -1,6 +1,6 @@
 # @triplex-build/triplex-http
 
-> **Pre-1.0:** install `@triplex-build/triplex-http` from npm with `effect@4.0.3`;
+> **Pre-1.0:** install `@triplex-build/triplex-http` from npm with `effect@4.1.1`;
 > Effect 3 is not compatible.
 
 Configuration-derived REST and OpenAPI contracts for Triplex. The package is backend-neutral and

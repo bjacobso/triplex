@@ -27,7 +27,7 @@ default shared conformance suite. Triplex remains pre-1.0; see [current state](/
 Install the SQLite adapter with the compatible Effect version on Node.js 22 or newer:
 
 ```sh
-npm install @triplex-build/triplex @triplex-build/triplex-sqlite effect@4.0.3
+npm install @triplex-build/triplex @triplex-build/triplex-sqlite effect@4.1.1
 ```
 
 This writes a training fact and reads it through the same `Triples` service used by other backends:

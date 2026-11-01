@@ -9,7 +9,7 @@
     "build": "turbo run build && pnpm docs:build",
     "changeset": "changeset",
     "clean": "turbo run clean",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm docs:check && pnpm test && pnpm build",
+    "check": "pnpm format:check && pnpm lint && node scripts/check-alchemy.mjs && pnpm typecheck && pnpm docs:check && pnpm test && pnpm build",
     "dev": "turbo watch build",
     "docs:build": "vitepress build docs && node scripts/check-llms.mjs",
     "docs:check": "node scripts/check-markdown-code.mjs && tsc --noEmit -p docs/snippets/tsconfig.json && pnpm docs:outputs --check",
@@ -66,7 +66,7 @@
     "vue": "catalog:"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "packageManager": "pnpm@10.11.0"
 }
