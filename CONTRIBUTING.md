@@ -1,6 +1,6 @@
 # Contributing
 
-Triplex uses Node.js 22 or newer and pnpm 10.11.
+Triplex uses Node.js 22.19.0 or newer and pnpm 10.11.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -51,15 +51,24 @@ when a Changeset mixes private and publishable packages.
 
 ## Dependency compatibility
 
-The workspace tests Effect 4.0.3 with Foldkit and `@foldkit/ui` 0.168.0 and
-`@foldkit/vite-plugin` 0.27.1. These Foldkit releases declare exact Effect 4.0.0 peers;
-the plugin also pins the Node adapters to 4.0.0. `pnpm-workspace.yaml` allows only
-4.0.3 for those specific package peers and overrides only the plugin's two adapter
-dependencies. The browser adapter is an explicit catalog dependency of both the
-dashboard and the documentation workspace. Remove these exceptions when upstream
-peer ranges accept the tested patch. Peer checking remains enabled.
+The workspace tests Effect and its platform, SQL, and Vitest companions at 4.1.1,
+with Foldkit and `@foldkit/ui` 0.170.0 and `@foldkit/vite-plugin` 0.29.0.
+These Foldkit releases accept Effect `~4.1.0`, including the tested 4.1.1 patch;
+no adapter overrides or peer exceptions are needed. The browser adapter is an
+explicit catalog dependency of both the dashboard and the documentation workspace.
+The Node platform adapters and Foldkit Vite plugin require Node.js 22.19.0 or
+newer. Public packages use the same catalog for their exact Effect peer. Peer checking
+remains enabled. Alchemy 2.0.0-beta.80 and its Distilled dependencies declare Effect
+`^4.0.0`, which includes 4.1.1. Alchemy still imports the removed `effect/Crypto`
+module, including in beta.84. A pnpm patch migrates its OAuth state and PKCE
+generation and service types to `SecureRandom` and `Digest` from `effect/crypto`,
+and provides both services in its platform layer. `scripts/check-alchemy.mjs`
+checks provider imports and PKCE generation without credentials or network calls
+as part of `pnpm check`. Remove the patch when upstream supports these APIs.
+Scoped catalog overrides pin Alchemy's D1 and Durable Object SQL companions to
+4.1.1 within those supported ranges.
 
-Effect 4.0.3's test adapter requires Vitest 5, so the catalog also uses Vitest 5.0.4
+Effect 4.1.1's test adapter requires Vitest 5, so the catalog uses Vitest 5.0.4
 and the compatible Cloudflare test plugin 1.4.0 and Workers types 5.20261006.1.
 The two workerd test configs disable Vitest's host filesystem module cache because
 those paths are unavailable inside the worker. Node test configs keep the default cache.

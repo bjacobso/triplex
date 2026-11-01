@@ -9,35 +9,35 @@ onlyBuiltDependencies:
   - "workerd"
 
 overrides:
-  # Foldkit's plugin pins 4.0.0 adapters; keep its tested Effect runtime aligned.
-  "@foldkit/vite-plugin@0.27.1>@effect/platform-node": "4.0.3"
-  "@foldkit/vite-plugin@0.27.1>@effect/platform-node-shared": "4.0.3"
+  # Alchemy accepts ^4.0.0; pin its SQL companions to the tested catalog.
+  "alchemy@2.0.0-beta.80>@effect/sql-d1": "catalog:"
+  "alchemy@2.0.0-beta.80>@effect/sql-sqlite-do": "catalog:"
   "better-sqlite3": "12.10.0"
 
 catalog:
   "@changesets/cli": 3.0.1
   "@cloudflare/vitest-plugin": 1.4.0
   "@cloudflare/workers-types": 5.20261006.1
-  "@effect/platform-browser": 4.0.3
-  "@effect/platform-node": 4.0.3
-  "@effect/platform-node-shared": 4.0.3
-  "@effect/sql-d1": 4.0.3
-  "@effect/sql-pg": 4.0.3
-  "@effect/sql-sqlite-do": 4.0.3
-  "@effect/sql-sqlite-node": 4.0.3
-  "@effect/vitest": 4.0.3
+  "@effect/platform-browser": 4.1.1
+  "@effect/platform-node": 4.1.1
+  "@effect/platform-node-shared": 4.1.1
+  "@effect/sql-d1": 4.1.1
+  "@effect/sql-pg": 4.1.1
+  "@effect/sql-sqlite-do": 4.1.1
+  "@effect/sql-sqlite-node": 4.1.1
+  "@effect/vitest": 4.1.1
   "@fontsource-variable/ibm-plex-sans": 5.3.0
   "@fontsource/ibm-plex-mono": 5.3.0
   "@playwright/test": 1.63.0
-  "@foldkit/ui": 0.168.0
-  "@foldkit/vite-plugin": 0.27.1
+  "@foldkit/ui": 0.170.0
+  "@foldkit/vite-plugin": 0.29.0
   "@tailwindcss/vite": 4.3.3
   "@types/node": 25.9.1
   "@types/better-sqlite3": 7.6.13
   alchemy: 2.0.0-beta.80
   better-sqlite3: 12.10.0
-  effect: 4.0.3
-  foldkit: 0.168.0
+  effect: 4.1.1
+  foldkit: 0.170.0
   foundationdb: 2.0.1
   oxfmt: 0.44.0
   oxlint: 1.59.0
@@ -53,10 +53,6 @@ catalog:
   vue: 3.5.40
   tailwindcss: 4.3.3
 
-# Exact exceptions for Foldkit's 4.0.0 peers, validated by check and test:e2e.
-peerDependencyRules:
-  allowedVersions:
-    "foldkit@0.168.0>effect": "4.0.3"
-    "foldkit@0.168.0>@effect/platform-browser": "4.0.3"
-    "@foldkit/ui@0.168.0>effect": "4.0.3"
-    "@foldkit/vite-plugin@0.27.1>effect": "4.0.3"
+# Effect 4.1 removed Crypto; migrate Alchemy until upstream adopts effect/crypto.
+patchedDependencies:
+  "alchemy@2.0.0-beta.80": patches/alchemy@2.0.0-beta.80.patch

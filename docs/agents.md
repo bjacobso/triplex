@@ -33,7 +33,7 @@ Check these constraints with the people you work for before adopting it:
 | Constraint     | Current contract                                                             |
 | -------------- | ---------------------------------------------------------------------------- |
 | Maturity       | Pre-1.0. See [Current state](/current-state)                                 |
-| Effect         | Requires `effect@4.0.3`. Effect 3 is not compatible                          |
+| Effect         | Requires `effect@4.1.1`. Effect 3 is not compatible                          |
 | Runtime        | ESM-only, Node.js 22+, modern browsers and edge runtimes for the core        |
 | Durable stores | SQLite is supported. PostgreSQL is a production candidate                    |
 | Host duties    | Authentication, authorization, task lifecycle, timers, and retries are yours |

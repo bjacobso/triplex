@@ -7,7 +7,7 @@ Triplex is a pre-1.0, Effect-native fact database for TypeScript. Read
 
 ## Setup and checks
 
-Use Node.js 22 or newer and the pinned pnpm 10.11.0:
+Use Node.js 22.19.0 or newer and the pinned pnpm 10.11.0:
 
 ```sh
 corepack enable
