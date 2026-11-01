@@ -41,6 +41,7 @@ catalog:
   foundationdb: 2.0.1
   oxfmt: 0.44.0
   oxlint: 1.59.0
+  semver: 7.8.5
   testcontainers: 11.14.0
   tsdown: 0.21.7
   tsx: 4.19.0
@@ -52,6 +53,18 @@ catalog:
   vitest: 5.0.4
   vue: 3.5.40
   tailwindcss: 4.3.3
+
+# Libraries accept compatible releases; the default catalog pins repository tests.
+catalogs:
+  peers:
+    "@effect/platform-browser": ^4.1.1
+    "@effect/platform-node": ^4.1.1
+    "@effect/platform-node-shared": ^4.1.1
+    "@effect/sql-pg": ^4.1.1
+    "@effect/sql-sqlite-node": ^4.1.1
+    "@foldkit/ui": ^0.170.0
+    effect: ^4.1.1
+    foldkit: ^0.170.0
 
 # Effect 4.1 removed Crypto; migrate Alchemy until upstream adopts effect/crypto.
 patchedDependencies:

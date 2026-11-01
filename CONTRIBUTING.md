@@ -57,8 +57,11 @@ These Foldkit releases accept Effect `~4.1.0`, including the tested 4.1.1 patch;
 no adapter overrides or peer exceptions are needed. The browser adapter is an
 explicit catalog dependency of both the dashboard and the documentation workspace.
 The Node platform adapters and Foldkit Vite plugin require Node.js 22.19.0 or
-newer. Public packages use the same catalog for their exact Effect peer. Peer checking
-remains enabled. Alchemy 2.0.0-beta.80 and its Distilled dependencies declare Effect
+newer. Packages declare Effect and Foldkit runtimes and companions as compatible
+ranges through `catalog:peers`, with exact development versions in the default catalog.
+`pnpm pack:check` verifies the resolved tarball peer ranges against those tested versions
+and installs them explicitly in a clean consumer. Peer checking remains enabled.
+Alchemy 2.0.0-beta.80 and its Distilled dependencies declare Effect
 `^4.0.0`, which includes 4.1.1. Alchemy still imports the removed `effect/Crypto`
 module, including in beta.84. A pnpm patch migrates its OAuth state and PKCE
 generation and service types to `SecureRandom` and `Digest` from `effect/crypto`,
