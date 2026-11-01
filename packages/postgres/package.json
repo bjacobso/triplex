@@ -47,11 +47,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@effect/sql-pg": "catalog:",
     "@triplex-build/triplex": "workspace:^",
     "@triplex-build/triplex-sql": "workspace:^"
   },
   "devDependencies": {
+    "@effect/sql-pg": "catalog:",
     "@triplex-build/triplex-testkit": "workspace:^",
     "@types/node": "catalog:",
     "effect": "catalog:",
@@ -59,7 +59,8 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "effect": "catalog:"
+    "@effect/sql-pg": "catalog:peers",
+    "effect": "catalog:peers"
   },
   "engines": {
     "node": ">=22"

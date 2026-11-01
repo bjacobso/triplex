@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import semver from "semver";
 
 const root = resolve(import.meta.dirname, "..");
 const packageNames = [
@@ -16,6 +17,35 @@ const packageNames = [
   "@triplex-build/triplex-cli",
   "@triplex-build/triplex-http",
 ];
+// The private dashboard ships a Vite app rather than the library file layout below.
+const manifestOnlyPackageNames = ["@triplex-build/triplex-dashboard"];
+const isRuntimePeer = (name) =>
+  name === "effect" ||
+  name === "foldkit" ||
+  name.startsWith("@effect/") ||
+  name.startsWith("@foldkit/");
+
+const checkRuntimePeers = (manifest) => {
+  for (const name of Object.keys(manifest.dependencies ?? {})) {
+    if (isRuntimePeer(name)) {
+      throw new Error(`${manifest.name} must declare ${name} as a peer dependency`);
+    }
+  }
+  for (const [name, range] of Object.entries(manifest.peerDependencies ?? {})) {
+    if (!isRuntimePeer(name)) continue;
+    const testedVersion = manifest.devDependencies?.[name];
+    if (!testedVersion || !semver.valid(testedVersion)) {
+      throw new Error(`${manifest.name} must pin a development version of ${name}`);
+    }
+    const normalizedRange = semver.validRange(range);
+    if (!normalizedRange || semver.valid(normalizedRange)) {
+      throw new Error(`${manifest.name} must declare a range for peer ${name}, received ${range}`);
+    }
+    if (!semver.satisfies(testedVersion, range)) {
+      throw new Error(`${manifest.name} peer ${name}@${range} excludes tested ${testedVersion}`);
+    }
+  }
+};
 const publishPackageNames = new Set([
   "@triplex-build/triplex",
   "@triplex-build/triplex-sql",
@@ -42,7 +72,7 @@ const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, encoding: "utf8", stdio: "pipe" });
 
 try {
-  for (const packageName of packageNames) {
+  for (const packageName of [...packageNames, ...manifestOnlyPackageNames]) {
     run("pnpm", ["--filter", packageName, "pack", "--pack-destination", tarDir]);
   }
 
@@ -50,11 +80,18 @@ try {
     .filter((file) => file.endsWith(".tgz"))
     .map((file) => join(tarDir, file));
 
-  if (tarballs.length !== packageNames.length) {
-    throw new Error(`Expected ${packageNames.length} tarballs, found ${tarballs.length}`);
+  const expectedTarballs = packageNames.length + manifestOnlyPackageNames.length;
+  if (tarballs.length !== expectedTarballs) {
+    throw new Error(`Expected ${expectedTarballs} tarballs, found ${tarballs.length}`);
   }
 
   for (const tarball of tarballs) {
+    const manifest = JSON.parse(run("tar", ["-xOzf", tarball, "package/package.json"]));
+    checkRuntimePeers(manifest);
+    if (manifest.peerDependencies?.effect === undefined) {
+      throw new Error(`${manifest.name} must declare Effect as a peer dependency`);
+    }
+    if (manifestOnlyPackageNames.includes(manifest.name)) continue;
     const entries = run("tar", ["-tzf", tarball]).trim().split("\n").filter(Boolean);
 
     for (const required of [
@@ -80,7 +117,6 @@ try {
       throw new Error(`${tarball} contains unexpected files:\n${unexpected.join("\n")}`);
     }
 
-    const manifest = JSON.parse(run("tar", ["-xOzf", tarball, "package/package.json"]));
     packedManifests.push(manifest);
     if (publishPackageNames.has(manifest.name)) {
       if (manifest.private === true) {
@@ -104,12 +140,6 @@ try {
         }
       }
     }
-    if (manifest.dependencies?.effect !== undefined) {
-      throw new Error(`${manifest.name} must not install a private Effect runtime`);
-    }
-    if (manifest.peerDependencies?.effect === undefined) {
-      throw new Error(`${manifest.name} must declare Effect as a peer dependency`);
-    }
   }
 
   const dependencies = Object.fromEntries(
@@ -122,11 +152,13 @@ try {
       return [name, `file:${tarball}`];
     }),
   );
-  const coreManifest = packedManifests.find(
-    (manifest) => manifest.name === "@triplex-build/triplex",
+  const runtimePeerVersions = Object.fromEntries(
+    packedManifests.flatMap((manifest) =>
+      Object.keys(manifest.peerDependencies)
+        .filter(isRuntimePeer)
+        .map((name) => [name, manifest.devDependencies[name]]),
+    ),
   );
-  if (!coreManifest) throw new Error("Could not locate the packed core manifest");
-  const effectVersion = coreManifest.peerDependencies.effect;
   const effectPeerVersions = new Set(
     packedManifests.map((manifest) => manifest.peerDependencies.effect),
   );
@@ -143,7 +175,7 @@ try {
         type: "module",
         dependencies: {
           ...dependencies,
-          effect: effectVersion,
+          ...runtimePeerVersions,
           typescript: "6.0.2",
         },
       },
@@ -325,7 +357,18 @@ if (
 
   // Skip FoundationDB's native addon install so the type-level check is portable.
   // Effect 4 stable's SQLite driver uses node:sqlite for the runtime smoke test.
-  run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], consumerDir);
+  run(
+    "npm",
+    ["install", "--strict-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund"],
+    consumerDir,
+  );
+  const effectInstallPaths = run("npm", ["ls", "effect", "--all", "--parseable"], consumerDir)
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  if (effectInstallPaths.length !== 1) {
+    throw new Error(`Expected one shared Effect installation, found ${effectInstallPaths.length}`);
+  }
   run("npx", ["tsc", "--project", "tsconfig.json"], consumerDir);
   run("node", ["smoke.mjs"], consumerDir);
 

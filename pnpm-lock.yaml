@@ -75,6 +75,9 @@ catalogs:
     oxlint:
       specifier: 1.59.0
       version: 1.59.0
+    semver:
+      specifier: 7.8.5
+      version: 7.8.5
     tailwindcss:
       specifier: 4.3.3
       version: 4.3.3
@@ -165,6 +168,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.59.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -317,12 +323,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.1.1(effect@4.1.1)(redis@6.2.1)
-      '@effect/platform-node-shared':
-        specifier: 'catalog:'
-        version: 4.1.1(effect@4.1.1)
       '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
@@ -336,6 +336,12 @@ importers:
         specifier: workspace:^
         version: link:../sqlite
     devDependencies:
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)(redis@6.2.1)
+      '@effect/platform-node-shared':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.1
@@ -401,15 +407,6 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@effect/platform-browser':
-        specifier: 'catalog:'
-        version: 4.1.1(effect@4.1.1)
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.1.1(effect@4.1.1)(redis@6.2.1)
-      '@foldkit/ui':
-        specifier: 'catalog:'
-        version: 0.170.0(effect@4.1.1)(foldkit@0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1))
       '@fontsource-variable/ibm-plex-sans':
         specifier: 'catalog:'
         version: 5.3.0
@@ -425,13 +422,16 @@ importers:
       '@triplex-build/triplex-sqlite':
         specifier: workspace:^
         version: link:../sqlite
-      effect:
-        specifier: 'catalog:'
-        version: 4.1.1
-      foldkit:
-        specifier: 'catalog:'
-        version: 0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1)
     devDependencies:
+      '@effect/platform-browser':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)(redis@6.2.1)
+      '@foldkit/ui':
+        specifier: 'catalog:'
+        version: 0.170.0(effect@4.1.1)(foldkit@0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1))
       '@foldkit/vite-plugin':
         specifier: 'catalog:'
         version: 0.29.0(effect@4.1.1)(foldkit@0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1))(redis@6.2.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.0))
@@ -441,6 +441,12 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.1
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.1
+      foldkit:
+        specifier: 'catalog:'
+        version: 0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -522,9 +528,6 @@ importers:
 
   packages/postgres:
     dependencies:
-      '@effect/sql-pg':
-        specifier: 'catalog:'
-        version: 4.1.1(effect@4.1.1)
       '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
@@ -532,6 +535,9 @@ importers:
         specifier: workspace:^
         version: link:../sql
     devDependencies:
+      '@effect/sql-pg':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)
       '@triplex-build/triplex-testkit':
         specifier: workspace:^
         version: link:../testkit
@@ -566,9 +572,6 @@ importers:
 
   packages/sqlite:
     dependencies:
-      '@effect/sql-sqlite-node':
-        specifier: 'catalog:'
-        version: 4.1.1(effect@4.1.1)
       '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
@@ -576,6 +579,9 @@ importers:
         specifier: workspace:^
         version: link:../sql
     devDependencies:
+      '@effect/sql-sqlite-node':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)
       '@triplex-build/triplex-testkit':
         specifier: workspace:^
         version: link:../testkit
