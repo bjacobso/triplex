@@ -9,9 +9,8 @@ onlyBuiltDependencies:
   - "workerd"
 
 overrides:
-  # Alchemy accepts ^4.0.0; pin its SQL companions to the tested catalog.
-  "alchemy@2.0.0-beta.80>@effect/sql-d1": "catalog:"
-  "alchemy@2.0.0-beta.80>@effect/sql-sqlite-do": "catalog:"
+  # The Cloudflare provider accepts ^4.0.5; pin its D1 companion to the tested catalog.
+  "@alchemy.run/cloudflare@2.0.0-beta.84>@effect/sql-d1": "catalog:"
   "better-sqlite3": "12.10.0"
 
 catalog:
@@ -34,7 +33,8 @@ catalog:
   "@tailwindcss/vite": 4.3.3
   "@types/node": 25.9.1
   "@types/better-sqlite3": 7.6.13
-  alchemy: 2.0.0-beta.80
+  alchemy: 2.0.0-beta.84
+  "@alchemy.run/cloudflare": 2.0.0-beta.84
   better-sqlite3: 12.10.0
   effect: 4.1.1
   foldkit: 0.170.0
@@ -68,4 +68,4 @@ catalogs:
 
 # Effect 4.1 removed Crypto; migrate Alchemy until upstream adopts effect/crypto.
 patchedDependencies:
-  "alchemy@2.0.0-beta.80": patches/alchemy@2.0.0-beta.80.patch
+  "alchemy@2.0.0-beta.84": patches/alchemy@2.0.0-beta.84.patch

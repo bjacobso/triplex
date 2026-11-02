@@ -1,5 +1,5 @@
 import * as Alchemy from "alchemy";
-import * as Cloudflare from "alchemy/Cloudflare";
+import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
@@ -11,7 +11,7 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const stage = yield* Alchemy.Stage;
     const docs = yield* Cloudflare.Website.StaticSite("Docs", {
-      name: "triplex-docs",
+      name: stage === "prod" ? "triplex-docs" : `triplex-docs-${stage}`,
       ...(stage === "prod" ? { domain: "triplex.build" } : {}),
       command: "pnpm docs:build",
       outdir: "dist",

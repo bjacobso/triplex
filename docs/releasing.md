@@ -67,35 +67,46 @@ consumers to its corresponding `@triplex-build` package. Do not unpublish the ol
 ## Documentation deployment
 
 The VitePress site is deployed to Cloudflare as an assets-only Worker with the Effect-native
-Alchemy stack in `alchemy.run.ts`. Preview the infrastructure diff before applying it:
+Alchemy stack in `alchemy.run.ts`. Inspect the production infrastructure diff with `pnpm docs:plan`.
+Deployments run through GitHub Actions.
 
-```sh
-pnpm docs:plan
-pnpm docs:deploy
-```
-
-The production stage publishes <https://triplex.build>, with
-<https://triplex-docs.bjacobso.workers.dev> also available. The `triplex.build` zone must be active
+The `prod` stage preserves <https://triplex.build> and
+<https://triplex-docs.bjacobso.workers.dev>. The `triplex.build` zone must be active
 in the deploying Cloudflare account; Alchemy attaches the Worker's custom domain, and Cloudflare
-manages its DNS record and HTTPS certificate. Only the `prod` stage attaches the custom domain.
-Local deployment uses the maintainer's authenticated Alchemy profile.
+manages its DNS record and HTTPS certificate. Only `prod` attaches the custom domain.
 
-The CI workflow deploys documentation after every push to `main` (including PR merges), once
-verification, package-consumer checks, documentation browser tests, and PostgreSQL integration
-tests pass. Pull requests do not deploy. Production deployments are serialized and are not
-canceled mid-deploy.
+`.github/workflows/deploy.yml` deploys the exact `main` commit from a successful push run of CI,
+after verification, package-consumer checks, documentation browser tests, PostgreSQL integration,
+and stress smoke tests pass. Production deployments are serialized and are not canceled mid-deploy.
 
-Configure these repository Actions secrets before the first CI deployment:
+`.github/workflows/preview.yml` deploys same-repository pull requests on opening, updates, and
+reopening to `pr-<number>`. Each stage has its own `triplex-docs-pr-<number>` Worker, serves a
+`workers.dev` URL, and updates one sticky PR comment. Closing a PR destroys that stage and marks
+the comment as removed. Deploy and cleanup share a per-PR concurrency group and finish before
+another operation starts. Fork pull requests never receive deployments or credentials.
 
-- `CLOUDFLARE_ACCOUNT_ID`: the same account used by the local production deployment.
+Configure these repository Actions secrets for both production and previews:
+
+- `CLOUDFLARE_ACCOUNT_ID`: the account containing the production Worker and state store.
 - `CLOUDFLARE_API_TOKEN`: a dedicated deployment token scoped to that account and the
   `triplex.build` zone. It needs account-level Workers Scripts Edit, Account Settings Read,
-  and Secrets Store Edit, plus zone-level Zone Read and Workers Routes Edit.
+  and Secrets Store Edit, plus zone-level Zone Read and Workers Routes Edit. Its scope must
+  allow creating and deleting preview Workers as well as updating the production Worker.
 
-CI uses Alchemy's existing remote `Cloudflare.state()` store, so local and automated deployments
-share the `triplex` stack's `prod` state. Secrets Store Edit is required to bind the state-store
-secret when a fresh runner authenticates; Secrets Store Read alone is insufficient. See
-[Cloudflare's Secrets Store permissions](https://developers.cloudflare.com/secrets-store/access-control/).
+The preview workflow requests `pull-requests: write` for its sticky comment; repository or
+organization Actions policies must allow that permission. Both workflows skip with an Actions
+notice when credentials are absent, including cleanup; restore credentials and rerun the closed-PR
+workflow if cleanup was skipped.
+
+Both workflows use the existing remote `Cloudflare.state()` store. The `triplex` stack keeps its
+`prod` state and isolates preview state by stage. Secrets Store Edit is required to bind the
+state-store secret when a fresh runner authenticates; Secrets Store Read alone is insufficient.
+See [Cloudflare's Secrets Store permissions](https://developers.cloudflare.com/secrets-store/access-control/).
+
+Alchemy beta.84 discovers the provider through `@alchemy.run/cloudflare`. State-store maintenance
+now uses `pnpm exec alchemy state bootstrap --backend cloudflare`; the old
+`alchemy provider cloudflare bootstrap` command exits with a migration hint. Deployment commands pass `--yes`
+so CI can provision or upgrade the existing state store when required.
 
 ## Verify a canary
 
