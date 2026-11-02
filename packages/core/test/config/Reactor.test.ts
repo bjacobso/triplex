@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
+import { vi } from "vitest";
 
 import * as B from "../../src/config/BoolExpr";
 import * as Catalog from "../../src/config/Catalog";
@@ -195,10 +196,8 @@ describe("cost tracks the change, not the population", () => {
     }),
   );
 
-  it.effect("stays linear as the population grows", () =>
+  it.effect("looks up changed buckets without scanning the population", () =>
     Effect.gen(function* () {
-      const timings: number[] = [];
-
       for (const n of [250, 500, 1000]) {
         const rules: Record<string, B.BoolExpr> = {};
         const facts: Record<string, World.Value> = {};
@@ -219,17 +218,35 @@ describe("cost tracks the change, not the population", () => {
           })),
         );
 
-        const start = performance.now();
-        for (let i = 0; i < 200; i++) {
-          Reactor.affected(r, [Reactor.factKey("ee" + (i % n), "role")]);
-        }
-        timings.push(performance.now() - start);
-      }
+        const lookups = vi.spyOn(r.index, "get");
+        const registrationReads = vi.spyOn(r.registrations, "get");
+        const scans = [r.index, r.registrations].flatMap((map) => [
+          vi.spyOn(map, Symbol.iterator),
+          vi.spyOn(map, "entries"),
+          vi.spyOn(map, "keys"),
+          vi.spyOn(map, "values"),
+          vi.spyOn(map, "forEach"),
+        ]);
 
-      // A lookup, not a scan: 4x the registrations must not cost 4x the
-      // lookup. Generous bound - the point is the absence of growth, and a
-      // tight threshold would just make this flaky on a loaded machine.
-      expect(timings[2]).toBeLessThan(timings[0] * 3 + 5);
+        try {
+          const changedKeys = Array.from({ length: 200 }, (_, i) =>
+            Reactor.factKey("ee" + (i % n), "role"),
+          );
+          for (const [i, changed] of changedKeys.entries()) {
+            expect(Reactor.affected(r, [changed])).toEqual(["ee" + (i % n)]);
+          }
+
+          // Count the work directly: a lookup reads only its dependency bucket,
+          // regardless of population size or how busy the test runner is.
+          expect(lookups.mock.calls.map(([key]) => key)).toEqual(changedKeys);
+          expect(registrationReads).not.toHaveBeenCalled();
+          for (const scan of scans) expect(scan).not.toHaveBeenCalled();
+        } finally {
+          lookups.mockRestore();
+          registrationReads.mockRestore();
+          for (const scan of scans) scan.mockRestore();
+        }
+      }
     }),
   );
 });
