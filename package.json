@@ -42,6 +42,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.alchemy.json && turbo run typecheck"
   },
   "devDependencies": {
+    "@alchemy.run/cloudflare": "catalog:",
     "@changesets/cli": "catalog:",
     "@effect/platform-browser": "catalog:",
     "@effect/platform-node": "catalog:",

@@ -2,10 +2,55 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { makeOAuthClient } from "alchemy/Auth/OAuthFlow";
+import { AlchemyContext } from "alchemy/AlchemyContext";
+import * as Contributions from "alchemy/Contributions";
+import { evalStack } from "alchemy/Stack";
 import { PlatformServices } from "alchemy/Util/PlatformServices";
 
-// Import the provider used by both stacks without planning or deploying resources.
-await import("alchemy/Cloudflare");
+// Compile the real deployment entrypoint without loading remote state or planning resources.
+const { default: docsStack } = await import("../alchemy.run.ts");
+const { default: hostStack } = await import("../examples/tenant-host-cloudflare/alchemy.run.ts");
+assert.equal(hostStack.stackName, "triplex-tenant-host");
+for (const stage of ["prod", "pr-123", "pr-456"]) {
+  await Effect.runPromise(
+    evalStack(
+      docsStack,
+      (stack) =>
+        Effect.sync(() => {
+          assert.equal(stack.name, "triplex");
+          assert.equal(stack.stage, stage);
+          const worker = stack.resources.Docs;
+          assert.equal(worker.Type, "Cloudflare.Worker");
+          assert.equal(
+            worker.Props.name,
+            stage === "prod" ? "triplex-docs" : `triplex-docs-${stage}`,
+          );
+          assert.equal(worker.Props.domain, stage === "prod" ? "triplex.build" : undefined);
+          assert.equal(worker.Props.workersDev, true);
+          assert.equal(worker.Props.assets.notFoundHandling, "404-page");
+          assert.equal(worker.RemovalPolicy, "destroy");
+        }),
+      { stage },
+    ).pipe(
+      Effect.provideService(AlchemyContext, { dotAlchemy: ".alchemy", dev: false, adopt: false }),
+      Effect.provide(PlatformServices),
+    ),
+  );
+}
+
+// Exercise beta.84's provider discovery and lazy state-store imports, used by `alchemy state`.
+await Effect.runPromise(
+  Effect.gen(function* () {
+    const stores = yield* Contributions.stateStores();
+    const { provider, store } = stores.get("cloudflare");
+    assert.equal(provider.name, "cloudflare");
+    const implementation = yield* store.load;
+    assert.equal(typeof implementation.layer, "function");
+    assert.equal(typeof implementation.lifecycle.bootstrap, "function");
+    assert.equal(typeof implementation.lifecycle.teardown, "function");
+    yield* provider.auth;
+  }).pipe(Effect.provide(PlatformServices)),
+);
 
 const client = makeOAuthClient({
   clientId: "triplex-compatibility-check",
@@ -36,4 +81,6 @@ for (const authorization of [first, second]) {
 }
 assert.notEqual(first.state, second.state);
 assert.notEqual(first.verifier, second.verifier);
-console.log("Verified Alchemy provider imports and OAuth PKCE with Effect 4.1 crypto services.");
+console.log(
+  "Verified Alchemy stack isolation, state-store discovery, and OAuth PKCE with Effect 4.1.",
+);

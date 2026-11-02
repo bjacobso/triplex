@@ -61,20 +61,21 @@ newer. Packages declare Effect and Foldkit runtimes and companions as compatible
 ranges through `catalog:peers`, with exact development versions in the default catalog.
 `pnpm pack:check` verifies the resolved tarball peer ranges against those tested versions
 and installs them explicitly in a clean consumer. Peer checking remains enabled.
-Alchemy 2.0.0-beta.80 and its Distilled dependencies declare Effect
-`^4.0.0`, which includes 4.1.1. Alchemy still imports the removed `effect/Crypto`
+Alchemy 2.0.0-beta.84 and its Cloudflare provider accept Effect `^4.0.5`,
+which includes 4.1.1. Alchemy still imports the removed `effect/Crypto`
 module, including in beta.84. A pnpm patch migrates its OAuth state and PKCE
 generation and service types to `SecureRandom` and `Digest` from `effect/crypto`,
 and provides both services in its platform layer. `scripts/check-alchemy.mjs`
-checks provider imports and PKCE generation without credentials or network calls
+checks both stack entrypoints, OAuth/PKCE generation, and Cloudflare state-store
+discovery without credentials or network calls
 as part of `pnpm check`. Remove the patch when upstream supports these APIs.
-Scoped catalog overrides pin Alchemy's D1 and Durable Object SQL companions to
-4.1.1 within those supported ranges.
+A scoped catalog override pins the Cloudflare provider's D1 companion to 4.1.1
+within its supported range.
 
 Effect 4.1.1's test adapter requires Vitest 5, so the catalog uses Vitest 5.0.4
 and the compatible Cloudflare test plugin 1.4.0 and Workers types 5.20261006.1.
 The two workerd test configs disable Vitest's host filesystem module cache because
 those paths are unavailable inside the worker. Node test configs keep the default cache.
-Alchemy 2.0.0-beta.80 supplies the stable Effect imports used by the existing stacks.
+Both stacks import the provider from `@alchemy.run/cloudflare` at the same version.
 Validate dependency changes with a frozen install, `pnpm check`, `pnpm pack:check`,
 and `pnpm test:e2e`; PostgreSQL and FoundationDB retain their integration gates above.
