@@ -1,75 +1,177 @@
+/* Triplex in the WorldVM register: warm paper, ink, one blue. Dark code windows
+   are the only heavy surface. The homepage vocabulary lives in home.css. */
+
+@font-face {
+  font-family: "DM Sans Variable";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("./fonts/dm-sans-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "DM Sans Variable";
+  font-style: italic;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("./fonts/dm-sans-italic-variable.woff2") format("woff2");
+}
+
 :root {
-  --vp-font-family-base: "IBM Plex Sans Variable", sans-serif;
-  --vp-font-family-mono: "IBM Plex Mono", monospace;
-  --vp-c-brand-1: #3457f1;
-  --vp-c-brand-2: #2545d5;
-  --vp-c-brand-3: #1c36af;
-  --vp-c-brand-soft: rgba(52, 87, 241, 0.12);
-  --vp-c-bg: #f7f8fb;
-  --vp-c-bg-alt: #eff1f7;
+  --vp-font-family-base: "DM Sans Variable", "DM Sans", system-ui, sans-serif;
+  --vp-font-family-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --vp-c-brand-1: #1f5fd1;
+  --vp-c-brand-2: #174ba8;
+  --vp-c-brand-3: #133f8f;
+  --vp-c-brand-soft: rgba(31, 95, 209, 0.1);
+  --vp-c-bg: #faf8f3;
+  --vp-c-bg-alt: #f2eee4;
   --vp-c-bg-elv: #ffffff;
-  --vp-c-divider: rgba(13, 20, 43, 0.13);
-  --vp-c-text-1: #0d142b;
-  --vp-c-text-2: #4f586f;
-  --vp-code-block-bg: #10162a;
-  --vp-code-tab-text-color: #aeb8d2;
-  --vp-code-tab-hover-text-color: #f3f5ff;
-  --vp-code-tab-active-text-color: #f3f5ff;
-  --vp-nav-height: 72px;
+  --vp-c-bg-soft: #f2eee4;
+  --vp-c-divider: #e4dfd2;
+  --vp-c-border: #cfc8b6;
+  --vp-c-gutter: #e4dfd2;
+  --vp-c-text-1: #1d2621;
+  --vp-c-text-2: #4d5750;
+  --vp-c-text-3: #7a827b;
+  --vp-c-default-soft: rgba(29, 38, 33, 0.06);
+  --vp-code-bg: rgba(29, 38, 33, 0.06);
+  --vp-code-color: #1d2621;
+  --vp-code-block-bg: #1e2622;
+  --vp-code-block-divider-color: rgba(216, 221, 214, 0.18);
+  --vp-code-tab-text-color: #8a948d;
+  --vp-code-tab-hover-text-color: #ffffff;
+  --vp-code-tab-active-text-color: #ffffff;
+  --vp-code-tab-active-bar-color: #7ea6f2;
+  --vp-button-brand-bg: #1f5fd1;
+  --vp-button-brand-hover-bg: #174ba8;
+  --vp-nav-height: 76px;
   --vp-layout-top-height: 0px;
 }
 
 .dark {
-  --vp-c-brand-1: #7f96ff;
-  --vp-c-brand-2: #9b79ff;
-  --vp-c-brand-3: #b39aff;
-  --vp-c-brand-soft: rgba(127, 150, 255, 0.14);
-  --vp-c-bg: #090e1d;
-  --vp-c-bg-alt: #0f1528;
-  --vp-c-bg-elv: #131a30;
-  --vp-c-divider: rgba(220, 226, 255, 0.13);
-  --vp-c-text-1: #f3f5ff;
-  --vp-c-text-2: #aeb8d2;
-  --vp-code-block-bg: #080d1b;
+  --vp-c-brand-1: #7ea6f2;
+  --vp-c-brand-2: #9bbaf5;
+  --vp-c-brand-3: #b8cdf8;
+  --vp-c-brand-soft: rgba(126, 166, 242, 0.14);
+  --vp-c-bg: #141815;
+  --vp-c-bg-alt: #1a1f1b;
+  --vp-c-bg-elv: #1e2420;
+  --vp-c-bg-soft: #1e2420;
+  --vp-c-divider: rgba(238, 240, 234, 0.11);
+  --vp-c-border: rgba(238, 240, 234, 0.2);
+  --vp-c-gutter: rgba(238, 240, 234, 0.08);
+  --vp-c-text-1: #eef0ea;
+  --vp-c-text-2: #b5bcb4;
+  --vp-c-text-3: #8a928b;
+  --vp-c-default-soft: rgba(238, 240, 234, 0.08);
+  --vp-code-bg: rgba(238, 240, 234, 0.08);
+  --vp-code-color: #eef0ea;
+  --vp-code-block-bg: #111613;
+  --vp-button-brand-bg: #2a66d6;
+  --vp-button-brand-hover-bg: #1f5fd1;
 }
 
 body {
   font-size: 16px;
-  letter-spacing: -0.008em;
+  -webkit-font-smoothing: antialiased;
 }
 
-.worldvm-incubation {
+.vp-doc :not(pre) > code {
+  color: var(--vp-code-color);
+}
+
+/* Navigation: the mark and wordmark, a few links, and one solid call to action. */
+
+.VPNavBar {
+  border-bottom: 1px solid transparent;
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, transparent) !important;
+  backdrop-filter: blur(12px);
+}
+
+.VPNavBar.has-sidebar,
+.VPNavBar:not(.home) {
+  border-bottom-color: var(--vp-c-divider);
+}
+
+/* The WorldVM family lockup: a line mark, a heavy lowercase name, and one
+   colored glyph. WorldVM ends in an orange dot; Triplex ends in a blue cursor. */
+.VPNavBarTitle .title {
+  gap: 9px;
+}
+
+.VPNavBarTitle .logo {
+  width: 32px;
+  height: 32px;
+  margin-right: 0;
+}
+
+.VPNavBarTitle .title span {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.VPNavBarTitle .title span::after {
+  content: "_";
+  margin-left: 0.04em;
+  color: var(--vp-c-brand-1);
+}
+
+.VPNavBarMenuLink,
+.VPNavBarMenuGroup .text {
+  font-size: 15px;
+  font-weight: 520;
+}
+
+.VPNavBarMenu > .VPNavBarMenuLink:last-child {
+  align-self: center;
+  height: 40px;
+  margin-left: 10px;
+  padding: 0 16px;
+  line-height: 40px;
+  border-radius: 4px;
+  color: #ffffff;
+  background: var(--vp-button-brand-bg);
+}
+
+.VPNavBarMenu > .VPNavBarMenuLink:last-child:hover {
+  color: #ffffff;
+  background: var(--vp-button-brand-hover-bg);
+}
+
+.vp-doc:not(.triplex-home) h1 {
+  font-weight: 620;
+  letter-spacing: -0.045em;
+}
+
+.vp-doc:not(.triplex-home) h2 {
+  font-weight: 620;
+  letter-spacing: -0.03em;
+}
+
+/* Homepage chrome */
+
+.worldvm-banner {
   width: 100%;
-  padding: 10px 16px;
-  border-bottom: 1px solid #e7e5e4;
-  background: #f5f5f4;
-  color: #44403c;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  margin: 0;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-alt);
+  color: var(--vp-c-text-2);
   font-size: 13px;
-  font-weight: 400;
   line-height: 20px;
-  letter-spacing: normal;
   text-align: center;
 }
 
-.worldvm-incubation p {
-  margin: 0;
-}
-
-.worldvm-incubation a {
-  color: inherit;
+.worldvm-banner a {
+  color: var(--vp-c-text-1);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.worldvm-incubation a:focus-visible {
+.worldvm-banner a:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
@@ -94,30 +196,13 @@ body {
   position: fixed;
 }
 
-.VPNavBar {
-  border-bottom: 1px solid var(--vp-c-divider);
-  background: var(--vp-c-bg) !important;
+.triplex-index .VPHome {
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
 }
 
-.VPNavBarTitle .logo {
-  width: 25px;
-  height: 29px;
-}
-
-.VPNavBarTitle .title {
-  font-weight: 620;
-  letter-spacing: -0.035em;
-}
-
-.VPNavBarMenuLink,
-.VPNavBarMenuGroup .text {
-  font-size: 14px;
-}
-
-.vp-doc:not(.triplex-home) h1 {
-  letter-spacing: -0.045em;
-}
-
-.vp-doc:not(.triplex-home) h2 {
-  letter-spacing: -0.025em;
+.triplex-index .VPHome > .vp-doc {
+  max-width: none;
+  padding: 0;
 }

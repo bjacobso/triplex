@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/triplex-logo-dark.svg" />
-    <img src="assets/triplex-logo.svg" alt="Triplex logo" width="640" />
+    <img src="assets/triplex-logo.svg" alt="Triplex logo" width="480" />
   </picture>
 </p>
 

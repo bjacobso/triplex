@@ -1,9 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="129 124 415 470" role="img" aria-label="Triplex mark">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="Triplex mark">
   <title>Triplex mark</title>
-  <g fill-rule="evenodd" clip-rule="evenodd">
-    <path d="M 148 243 L 148 275 L 326 372 L 328 372 L 328 332 L 205 264 L 197 258 L 337 183 L 476 258 L 474 261 L 346 331 L 346 373 L 525 274 L 525 244 L 338 142 L 327 146 Z" fill="#0160FE"/>
-    <path d="M 148 344 L 148 374 L 336 476 L 346 472 L 524 375 L 524 344 L 484 325 L 483 355 L 336 435 L 252 388 L 190 356 L 188 325 Z" fill="#7177EA"/>
-    <path d="M 148 446 L 149 475 L 335 575 L 356 566 L 524 475 L 524 446 L 517 441 L 484 426 L 484 455 L 481 458 L 375 516 L 336 535 L 232 478 L 188 455 L 187 425 L 149 444 Z" fill="#A7B5FF"/>
+  <g fill="none" stroke="#1d2621" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 7 34 14 20 21 6 14Z"/>
+    <path d="M6 20.5 20 27.5 34 20.5"/>
+    <path d="M6 27 20 34 34 27"/>
   </g>
 </svg>
