@@ -87,7 +87,7 @@ export default defineConfig({
     resolve: { alias: workspaceAliases() },
   },
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/triplex-favicon.svg" }],
     ["meta", { name: "theme-color", content: "#faf8f3" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:site_name", content: "Triplex" }],
@@ -103,7 +103,7 @@ export default defineConfig({
     languages: ["js", "json", "sh", "sql", "ts"],
   },
   themeConfig: {
-    logo: { light: "/mark.svg", dark: "/mark-dark.svg", alt: "Triplex" },
+    logo: { light: "/triplex-mark.svg", dark: "/triplex-mark-dark.svg", alt: "Triplex" },
     siteTitle: "triplex",
     nav: [
       {
