@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit } from "effect";
 import { Triples } from "@triplex-build/triplex";
-import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
+import { Layer } from "effect";
+import {
+  findPlaintext,
+  makeSealedStorageSuite,
+  makeSensitiveConformanceSuite,
+  makeTriplesConformanceSuite,
+  sensitiveConformanceLayer,
+} from "@triplex-build/triplex-testkit";
 import { CloudflareTriples, makeCloudflareAdapter } from "../src/index.js";
 import { makeMockDOState } from "./fixtures/MockDOState.js";
 
@@ -20,6 +27,58 @@ describe("Cloudflare Durable Object Triples", () => {
         ) as Effect.Effect<void, unknown, never>,
       ),
     ).resolves.toBeUndefined();
+  });
+
+  it("passes the sealed-storage and sensitive-value contracts", async () => {
+    const raw = () =>
+      CloudflareTriples.layer({
+        state: makeMockDOState(),
+        scope: "test:tenant-a:default:sensitive",
+      });
+    await expect(
+      Effect.runPromise(
+        makeSealedStorageSuite().pipe(
+          Effect.provide(Layer.fresh(raw())),
+          Effect.scoped,
+        ) as Effect.Effect<void, unknown, never>,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      Effect.runPromise(
+        makeSensitiveConformanceSuite().pipe(
+          Effect.andThen(makeTriplesConformanceSuite()),
+          Effect.provide(sensitiveConformanceLayer(raw())),
+          Effect.scoped,
+        ) as Effect.Effect<void, unknown, never>,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("never persists planted plaintext in Durable Object SQLite", async () => {
+    const state = makeMockDOState();
+    await Effect.runPromise(
+      makeSensitiveConformanceSuite().pipe(
+        Effect.provide(
+          sensitiveConformanceLayer(
+            CloudflareTriples.layer({ state, scope: "test:tenant-a:default:scan" }),
+          ),
+        ),
+        Effect.scoped,
+      ) as Effect.Effect<void, unknown, never>,
+    );
+    const adapter = makeCloudflareAdapter(state);
+    const tables = await Effect.runPromise(
+      adapter.rawQuery<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'", []),
+    );
+    let dump = "";
+    for (const { name } of tables) {
+      dump += JSON.stringify(
+        await Effect.runPromise(adapter.rawQuery(`SELECT * FROM "${name}"`, [])),
+      );
+    }
+    expect(tables.map(({ name }) => name)).toContain("triples");
+    expect(findPlaintext(dump, "Grace")).not.toEqual([]);
+    expect(findPlaintext(dump)).toEqual([]);
   });
 
   it("binds opaque cursors to the complete database scope", async () => {

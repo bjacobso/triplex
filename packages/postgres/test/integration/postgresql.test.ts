@@ -47,7 +47,13 @@ import {
   PostgresqlDialect,
   type PostgresqlConfig,
 } from "@triplex-build/triplex-postgres";
-import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
+import {
+  findPlaintext,
+  makeSealedStorageSuite,
+  makeSensitiveConformanceSuite,
+  makeTriplesConformanceSuite,
+  sensitiveConformanceLayer,
+} from "@triplex-build/triplex-testkit";
 import {
   PgConnectionInfo,
   PgContainerLayer,
@@ -126,8 +132,13 @@ describe("PostgreSQL Integration", () => {
               yield* runMigrations;
               expect(
                 yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`,
-              ).toEqual([{ version: 1 }, { version: 2 }]);
+              ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
               expect(yield* sql`SELECT value_number FROM triples`).toEqual([{ value_number: 42 }]);
+              // v3 admits sealed values with an envelope and a blind-index token.
+              yield* sql`INSERT INTO triples (id, entity_id, attribute, value_type, value_sealed, value_blind, recorded_at, recorded_position, valid_from) VALUES ('sealed', 'old', ':secret', 'sealed', '{}', 'token', 2, 2, 2)`;
+              expect(
+                yield* sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'numeric_index_upgrade' AND indexname = 'idx_attr_blind'`,
+              ).toHaveLength(1);
               expect(
                 yield* sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'numeric_index_upgrade' AND indexname = 'idx_attr_numeric'`,
               ).toHaveLength(1);
@@ -138,6 +149,103 @@ describe("PostgreSQL Integration", () => {
       );
     },
   );
+
+  describe("sensitive values", () => {
+    const withFreshDatabase = <A, E>(
+      name: string,
+      use: (context: {
+        readonly triples: Layer.Layer<Triples>;
+        readonly sql: SqlClient.SqlClient;
+      }) => Effect.Effect<A, E>,
+    ) =>
+      Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const { url } = yield* PgConnectionInfo;
+            const config = configFromUrl(url);
+            const database = DatabaseId.make(`${name}-${Date.now().toString(36)}`);
+            const context = yield* Layer.build(
+              PgTriples.layerForDatabaseMigrated(config, database),
+            );
+            const sql = Context.get(context, SqlClient.SqlClient);
+            const triples = Layer.succeed(Triples, Context.get(context, Triples));
+            return yield* use({ triples, sql }).pipe(
+              Effect.ensuring(
+                Effect.gen(function* () {
+                  const [schema] = yield* sql<{
+                    schema: string;
+                  }>`SELECT current_schema() AS schema`;
+                  yield* sql.unsafe(`DROP SCHEMA "${schema!.schema}" CASCADE`);
+                }).pipe(Effect.ignore),
+              ),
+            );
+          }).pipe(Effect.provide(PgContainerLayer)),
+        ),
+      );
+
+    it.skipIf(!DOCKER_AVAILABLE)(
+      "passes the sealed-storage engine contract",
+      { timeout: 120_000 },
+      async () => {
+        await withFreshDatabase("sealed-storage", ({ triples }) =>
+          makeSealedStorageSuite().pipe(Effect.provide(triples)),
+        );
+      },
+    );
+
+    it.skipIf(!DOCKER_AVAILABLE)(
+      "passes the decorator contract and keeps the full Triples contract through it",
+      { timeout: 120_000 },
+      async () => {
+        await withFreshDatabase("sensitive-decorator", ({ triples }) =>
+          makeSensitiveConformanceSuite().pipe(
+            Effect.andThen(makeTriplesConformanceSuite()),
+            Effect.provide(sensitiveConformanceLayer(triples)),
+          ),
+        );
+      },
+    );
+
+    it.skipIf(!DOCKER_AVAILABLE)(
+      "never persists planted plaintext in any table, index or journal",
+      { timeout: 120_000 },
+      async () => {
+        const dump = await withFreshDatabase("sensitive-scan", ({ triples, sql }) =>
+          Effect.gen(function* () {
+            yield* makeSensitiveConformanceSuite().pipe(
+              Effect.provide(sensitiveConformanceLayer(triples)),
+            );
+            const tables = yield* sql<{ table_name: string }>`
+              SELECT table_name FROM information_schema.tables
+              WHERE table_schema = current_schema() ORDER BY table_name
+            `;
+            const indexes = yield* sql`
+              SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema()
+            `;
+            const serialize = (value: unknown) =>
+              JSON.stringify(value, (_key, field: unknown) =>
+                typeof field === "bigint" ? field.toString() : field,
+              );
+            const parts = [serialize(indexes)];
+            for (const { table_name } of tables) {
+              const rows = yield* sql.unsafe(`SELECT * FROM "${table_name.replaceAll('"', '""')}"`);
+              parts.push(table_name, serialize(rows));
+            }
+            return {
+              text: parts.join("\n"),
+              tables: tables.map(({ table_name }) => table_name),
+            };
+          }),
+        );
+        expect(dump.tables).toEqual(
+          expect.arrayContaining(["triples", "triplex_command_receipts"]),
+        );
+        expect(dump.text).toContain("idx_attr_blind");
+        expect(findPlaintext(dump.text, "Grace")).not.toEqual([]);
+        expect(findPlaintext(dump.text)).toEqual([]);
+      },
+    );
+  });
 
   // Helper to run effects with PostgreSQL via testcontainers
   const runWithPostgres = <A, E>(effect: Effect.Effect<A, E, Triples>) =>
