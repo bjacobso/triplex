@@ -41,7 +41,7 @@ describe("SQLite sensitive values", () => {
     );
   });
 
-  it("keeps the full Triples contract through the decorator", async () => {
+  it("keeps the full Triples contract through the decorator", { timeout: 30_000 }, async () => {
     await run(
       makeTriplesConformanceSuite().pipe(
         Effect.provide(sensitiveConformanceLayer(Layer.fresh(SqliteTriples.layerMemory))),

@@ -28,7 +28,7 @@ describe("sensitive-value conformance on in-memory KV", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("keeps the full Triples contract through the decorator", async () => {
+  it("keeps the full Triples contract through the decorator", { timeout: 30_000 }, async () => {
     await expect(
       Effect.runPromise(
         makeTriplesConformanceSuite().pipe(

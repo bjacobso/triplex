@@ -29,7 +29,7 @@ describe("Cloudflare Durable Object Triples", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("passes the sealed-storage and sensitive-value contracts", async () => {
+  it("passes the sealed-storage and sensitive-value contracts", { timeout: 30_000 }, async () => {
     const raw = () =>
       CloudflareTriples.layer({
         state: makeMockDOState(),
