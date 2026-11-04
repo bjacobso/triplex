@@ -27,6 +27,7 @@ import {
   EntityId,
 } from "@triplex-build/triplex";
 import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import { commitValidatorConformanceCases } from "./commitValidatorCases.js";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -2850,6 +2851,7 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
       );
     }),
   },
+  ...commitValidatorConformanceCases,
 ];
 
 /**

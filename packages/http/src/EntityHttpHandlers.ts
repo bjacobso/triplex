@@ -1,5 +1,6 @@
 import {
   CommandAlreadyCommittedError,
+  CommitRejectedError,
   ConstraintViolationError,
   TransactionConflictError,
 } from "@triplex-build/triplex";
@@ -115,6 +116,7 @@ const mapError = (error: unknown) => {
       error.message,
       error.violations[0]?.path === undefined ? {} : { path: error.violations[0].path },
     );
+  if (error instanceof CommitRejectedError) return jsonError(409, "commit_rejected", error.message);
   if (error instanceof TransactionConflictError)
     return jsonError(409, "transaction_conflict", error.message);
   if (error instanceof CommandAlreadyCommittedError)

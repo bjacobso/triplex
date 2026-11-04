@@ -85,6 +85,14 @@ hosts typed configuration as a modular layer over the same core.
   live facts. The shared commit-position contention point prevents concurrent Triplex writers from
   both winning an absence or uniqueness check. Direct adapter writes remain outside this guarantee,
   and authorization remains host-owned.
+- Commit validators are the host's in-transaction seam. After operations and the journal envelope
+  are applied and before commit, every `Triples` implementation runs `meta.validate` with the
+  resolved changes and read-only `before`/`after` views at exact commit-position cuts (entity,
+  match, and complete Datalog). Rejections fail the whole transaction with `CommitRejectedError`.
+  `CommitValidation.layer` decorates any `Layer<Triples>` so every application write path runs
+  runtime-wide validators, and it can durably record rejections as reserved facts after rollback.
+  Triplex system writes bypass runtime-wide validators. Triplex supplies the seam; hosts define the
+  policies.
 - The `operational` subpath owns consumer checkpoints as reserved, Datalog-queryable facts.
   Compare-and-retract prevents stale workers from overwriting a newer position. Checkpoint
   maintenance is the one unjournaled internal mutation: emitting it into the feed would cause a

@@ -16,6 +16,8 @@ import { describe, it, expect } from "vitest";
 import { Context, Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 import {
+  CommitRejectedError,
+  CommitValidation,
   DatabaseId,
   DatabaseManager,
   EntityId,
@@ -340,6 +342,99 @@ describe("PostgreSQL Integration", () => {
         expect(result.host[0]?.count).toBe(0);
         expect(result.retry).toHaveLength(0);
         expect(result.receipt?.txId).toBe(result.original.txId);
+      },
+    );
+
+    it.skipIf(!DOCKER_AVAILABLE)(
+      "runs runtime-wide validators on the host transaction connection and rolls back host rows",
+      { timeout: 120_000 },
+      async () => {
+        const result = await runWithHostSql(
+          Effect.gen(function* () {
+            yield* prepareHostTables;
+            const sql = yield* SqlClient.SqlClient;
+            const base = yield* Triples;
+            const entityId = EntityId.make("host:validated:record");
+            // Requires SqlClient: reads a host row written earlier in the same
+            // transaction, and reads uncommitted facts through the after view.
+            const hostApproval = CommitValidation.make("host.approval-row", (commit) =>
+              Effect.gen(function* () {
+                const client = yield* SqlClient.SqlClient;
+                const facts = yield* commit.after.entity(entityId);
+                const approving = facts.some(
+                  (fact) => fact.value.type === "string" && fact.value.value === "approved",
+                );
+                if (!approving) return [];
+                const rows = yield* client<{ readonly id: string }>`
+                  SELECT id FROM host_records WHERE id = ${commit.transaction.commandId ?? ""}
+                `.pipe(Effect.orDie);
+                return rows.length === 1
+                  ? []
+                  : [{ code: "missing_approval_row", message: "No host approval row", entityId }];
+              }),
+            );
+            const triples = yield* Triples.pipe(
+              Effect.provide(
+                CommitValidation.layer({ validators: [hostApproval] }).pipe(
+                  Layer.provide(Layer.succeed(Triples, base)),
+                ),
+              ),
+            );
+            const approve = (commandId: string) =>
+              triples.transact(
+                [
+                  {
+                    op: "assert",
+                    entityId,
+                    attribute: ":host/state",
+                    value: string("approved"),
+                  },
+                ],
+                { actor: "host:approver", commandId },
+              );
+
+            const before = yield* triples.currentPosition();
+            const rejected = yield* sql
+              .withTransaction(
+                Effect.gen(function* () {
+                  yield* sql`INSERT INTO host_outbox (id, body) VALUES ('rejected', 'deliver')`;
+                  yield* approve("approval:missing");
+                }),
+              )
+              .pipe(Effect.flip);
+            const afterRejection = {
+              outbox: yield* sql<{ count: number }>`SELECT COUNT(*)::int AS count FROM host_outbox`,
+              facts: yield* triples.entity(entityId),
+              position: yield* triples.currentPosition(),
+            };
+
+            const committed = yield* sql.withTransaction(
+              Effect.gen(function* () {
+                yield* sql`INSERT INTO host_records (id, body) VALUES ('approval:present', 'ok')`;
+                const transaction = yield* approve("approval:present");
+                yield* sql`INSERT INTO host_outbox (id, body) VALUES ('accepted', 'deliver')`;
+                return transaction;
+              }),
+            );
+            return {
+              rejected,
+              before,
+              afterRejection,
+              committed,
+              outbox: yield* sql<{ count: number }>`SELECT COUNT(*)::int AS count FROM host_outbox`,
+              facts: yield* triples.entity(entityId),
+            };
+          }),
+        );
+        expect(result.rejected).toBeInstanceOf(CommitRejectedError);
+        expect((result.rejected as CommitRejectedError).rejections[0]?.code).toBe(
+          "missing_approval_row",
+        );
+        expect(result.afterRejection.outbox[0]?.count).toBe(0);
+        expect(result.afterRejection.facts).toHaveLength(0);
+        expect(result.afterRejection.position).toBe(result.before);
+        expect(result.outbox[0]?.count).toBe(1);
+        expect(result.facts).toHaveLength(1);
       },
     );
 

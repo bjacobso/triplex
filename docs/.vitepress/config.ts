@@ -33,6 +33,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     items: [
       { text: "Configuration", link: "/configuration" },
       { text: "Operational primitives", link: "/operational-primitives" },
+      { text: "Commit validators", link: "/commit-validators" },
       { text: "Configuration HTTP API", link: "/http-api" },
       { text: "Performance", link: "/performance" },
       {
@@ -116,6 +117,7 @@ export default defineConfig({
           { text: "Datalog", link: "/datalog" },
           { text: "Configuration", link: "/configuration" },
           { text: "Operational primitives", link: "/operational-primitives" },
+          { text: "Commit validators", link: "/commit-validators" },
           { text: "HTTP API", link: "/http-api" },
           { text: "Backend blueprints", link: "/backends" },
         ],

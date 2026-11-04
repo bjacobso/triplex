@@ -43,6 +43,7 @@ import {
   CommandAlreadyCommittedError,
   TransactionConflictError,
   ConstraintViolationError,
+  CommitRejectedError,
   PaginationCursorError,
 } from "../errors/index.js";
 import { unsafe } from "../Branded.js";
@@ -69,6 +70,8 @@ import { TxAttributes } from "../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
+import type * as CommitValidation from "./CommitValidation.js";
+import { attemptFrom, runValidators, viewBasis } from "./commitValidationRun.js";
 
 // =============================================================================
 // Row to Triple Conversion
@@ -149,6 +152,35 @@ export const TriplesLive = Layer.effect(
     // =========================================================================
     // Write Operations
     // =========================================================================
+
+    /** Read-only commit view at an exact position, on the transaction connection. */
+    const commitView = (position: number, instant: number): CommitValidation.View => {
+      const basis = (options?: CommitValidation.ViewOptions) =>
+        viewBasis(position, instant, options);
+      return {
+        position,
+        entity: (entityId, options) =>
+          basis(options).pipe(
+            Effect.flatMap((resolved) => adapter.getByEntity(entityId, resolved)),
+            Effect.map((rows) => rows.map(rowToTriple)),
+          ),
+        entities: (entityIds, options) =>
+          basis(options).pipe(
+            Effect.flatMap((resolved) => adapter.getByEntities(entityIds, resolved)),
+            Effect.map((rows) => entityIds.map((id) => (rows.get(id) ?? []).map(rowToTriple))),
+          ),
+        match: (pattern, options) =>
+          basis(options).pipe(
+            Effect.flatMap((resolved) => adapter.query(pattern, resolved)),
+            Effect.map((rows) => rows.map(rowToTriple)),
+          ),
+        query: (q, options) =>
+          Effect.all([validateDatalogQuery(q), basis(options)]).pipe(
+            Effect.flatMap(([validated, resolved]) => executor.execute(validated, false, resolved)),
+            Effect.map((response) => response.results),
+          ),
+      };
+    };
 
     const assert_ = (input: TripleInput): Effect.Effect<Triple, WriteError> =>
       transact([
@@ -255,121 +287,206 @@ export const TriplesLive = Layer.effect(
       | TransactionConflictError
       | CommandAlreadyCommittedError
       | ConstraintViolationError
+      | CommitRejectedError
     > =>
-      adapter.withTransaction(
-        Effect.gen(function* () {
-          if (!isSystemWriteAuthorized(meta)) {
-            const reserved = reservedAssertError(operations);
-            if (reserved) return yield* Effect.fail(reserved);
-          }
-          const invalidCondition = validatePreconditions(operations, meta);
-          if (invalidCondition) {
-            return yield* Effect.fail(
-              new WriteError({
-                message: `Transaction precondition ${invalidCondition} must have a matching retract operation`,
-              }),
-            );
-          }
-          if (invalidCommandId(meta) !== undefined) {
-            return yield* Effect.fail(
-              new WriteError({
-                message: "Command ID must contain between 1 and 1024 characters",
-              }),
-            );
-          }
-          const txId = yield* nextTxId;
-          const timestamp = yield* now;
-          if (meta?.commandId !== undefined) {
-            const originalTransactionId = yield* adapter.claimCommand(
-              meta.commandId,
-              txId,
-              timestamp,
-            );
-            if (originalTransactionId !== null) {
+      adapter
+        .withTransaction(
+          Effect.gen(function* () {
+            if (!isSystemWriteAuthorized(meta)) {
+              const reserved = reservedAssertError(operations);
+              if (reserved) return yield* Effect.fail(reserved);
+            }
+            const invalidCondition = validatePreconditions(operations, meta);
+            if (invalidCondition) {
               return yield* Effect.fail(
-                new CommandAlreadyCommittedError({
-                  commandId: meta.commandId,
-                  transactionId: unsafe.transactionId(originalTransactionId),
-                  message: `Command ${meta.commandId} already committed as ${originalTransactionId}`,
+                new WriteError({
+                  message: `Transaction precondition ${invalidCondition} must have a matching retract operation`,
                 }),
               );
             }
-          }
-          const position = yield* adapter.nextCommitPosition();
-          const actor = meta?.actor;
-          const preconditionIds = livePreconditionIds(meta);
-
-          for (const condition of entityStatePreconditions(meta)) {
-            const actual = (yield* adapter.getByEntity(condition.entityId))
-              .map((row) => row.id)
-              .sort();
-            const expected = [...condition.tripleIds].sort();
-            if (
-              actual.length !== expected.length ||
-              actual.some((id, index) => id !== expected[index])
-            ) {
+            if (invalidCommandId(meta) !== undefined) {
               return yield* Effect.fail(
-                new TransactionConflictError({
-                  entityId: condition.entityId,
-                  message: `Expected entity ${condition.entityId} to have the observed fact set, but another transaction changed it`,
+                new WriteError({
+                  message: "Command ID must contain between 1 and 1024 characters",
                 }),
               );
             }
-          }
+            const txId = yield* nextTxId;
+            const timestamp = yield* now;
+            if (meta?.commandId !== undefined) {
+              const originalTransactionId = yield* adapter.claimCommand(
+                meta.commandId,
+                txId,
+                timestamp,
+              );
+              if (originalTransactionId !== null) {
+                return yield* Effect.fail(
+                  new CommandAlreadyCommittedError({
+                    commandId: meta.commandId,
+                    transactionId: unsafe.transactionId(originalTransactionId),
+                    message: `Command ${meta.commandId} already committed as ${originalTransactionId}`,
+                  }),
+                );
+              }
+            }
+            const position = yield* adapter.nextCommitPosition();
+            const actor = meta?.actor;
+            const preconditionIds = livePreconditionIds(meta);
 
-          if (meta?.enforce !== undefined) {
-            const current = yield* Constraint.loadRelevantFacts(
-              meta.enforce.constraints,
-              operations,
-              {
-                byEntityType: (entityType) =>
-                  adapter.query({ entityType }).pipe(Effect.map((rows) => rows.map(rowToTriple))),
-                byEntities: (entityIds) =>
-                  adapter
-                    .getByEntities(entityIds)
-                    .pipe(
-                      Effect.map((rows) =>
-                        entityIds.flatMap((entityId) =>
-                          (rows.get(entityId) ?? []).map(rowToTriple),
+            for (const condition of entityStatePreconditions(meta)) {
+              const actual = (yield* adapter.getByEntity(condition.entityId))
+                .map((row) => row.id)
+                .sort();
+              const expected = [...condition.tripleIds].sort();
+              if (
+                actual.length !== expected.length ||
+                actual.some((id, index) => id !== expected[index])
+              ) {
+                return yield* Effect.fail(
+                  new TransactionConflictError({
+                    entityId: condition.entityId,
+                    message: `Expected entity ${condition.entityId} to have the observed fact set, but another transaction changed it`,
+                  }),
+                );
+              }
+            }
+
+            if (meta?.enforce !== undefined) {
+              const current = yield* Constraint.loadRelevantFacts(
+                meta.enforce.constraints,
+                operations,
+                {
+                  byEntityType: (entityType) =>
+                    adapter.query({ entityType }).pipe(Effect.map((rows) => rows.map(rowToTriple))),
+                  byEntities: (entityIds) =>
+                    adapter
+                      .getByEntities(entityIds)
+                      .pipe(
+                        Effect.map((rows) =>
+                          entityIds.flatMap((entityId) =>
+                            (rows.get(entityId) ?? []).map(rowToTriple),
+                          ),
                         ),
                       ),
-                    ),
-              },
-            );
-            const violations = yield* Constraint.newlyViolated(
-              current,
-              operations,
-              meta.enforce.constraints,
-              timestamp,
-            ).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new WriteError({
-                    message: `Constraint evaluation failed: ${cause.message}`,
-                    cause,
-                  }),
-              ),
-            );
-            if (violations.length > 0) {
-              return yield* Effect.fail(
-                new ConstraintViolationError({
-                  violations,
-                  message: `Transaction would introduce or worsen ${violations.length} graph constraint violation${violations.length === 1 ? "" : "s"}`,
-                }),
+                },
               );
+              const violations = yield* Constraint.newlyViolated(
+                current,
+                operations,
+                meta.enforce.constraints,
+                timestamp,
+              ).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new WriteError({
+                      message: `Constraint evaluation failed: ${cause.message}`,
+                      cause,
+                    }),
+                ),
+              );
+              if (violations.length > 0) {
+                return yield* Effect.fail(
+                  new ConstraintViolationError({
+                    violations,
+                    message: `Transaction would introduce or worsen ${violations.length} graph constraint violation${violations.length === 1 ? "" : "s"}`,
+                  }),
+                );
+              }
             }
-          }
 
-          const triples: Triple[] = [];
-          const changes: import("./Triples.js").TransactionChange[] = [];
-          let retractedCount = 0;
+            const triples: Triple[] = [];
+            const changes: import("./Triples.js").TransactionChange[] = [];
+            let retractedCount = 0;
 
-          let pendingAsserts: TransactOp[] = [];
+            let pendingAsserts: TransactOp[] = [];
 
-          for (const op of operations) {
-            if (op.op === "assert") {
-              pendingAsserts.push(op);
-              continue;
+            for (const op of operations) {
+              if (op.op === "assert") {
+                pendingAsserts.push(op);
+                continue;
+              }
+
+              if (pendingAsserts.length > 0) {
+                const batch = yield* flushAssertBatch(
+                  pendingAsserts,
+                  txId,
+                  timestamp,
+                  position,
+                  actor,
+                );
+                triples.push(...batch);
+                changes.push(
+                  ...batch.map((triple) =>
+                    transactionChangeFromTriple("assert", triple, txId, timestamp),
+                  ),
+                );
+                pendingAsserts = [];
+              }
+
+              switch (op.op) {
+                case "retract": {
+                  const current = yield* adapter.getById(op.id as string);
+                  if (current && !isSystemWriteAuthorized(meta)) {
+                    const reserved = reservedWriteError({
+                      entityId: current.entity_id,
+                      attribute: current.attribute,
+                      entityType: current.entity_type ?? undefined,
+                    });
+                    if (reserved) return yield* Effect.fail(reserved);
+                  }
+                  const didRetract = yield* adapter.retract(
+                    op.id as string,
+                    timestamp,
+                    txId,
+                    position,
+                  );
+                  if (!didRetract && preconditionIds.has(op.id as string)) {
+                    return yield* Effect.fail(
+                      new TransactionConflictError({
+                        tripleId: op.id,
+                        message: `Expected live triple ${op.id}, but another transaction changed it`,
+                      }),
+                    );
+                  }
+                  if (didRetract) {
+                    retractedCount++;
+                    if (current) {
+                      changes.push(
+                        transactionChangeFromTriple(
+                          "retract",
+                          rowToTriple(current),
+                          txId,
+                          timestamp,
+                        ),
+                      );
+                    }
+                  }
+                  break;
+                }
+                case "retract-pattern": {
+                  const pattern = queryToPattern(op.pattern);
+                  const matched = yield* adapter.query(pattern);
+                  if (!isSystemWriteAuthorized(meta)) {
+                    for (const row of matched) {
+                      const reserved = reservedWriteError({
+                        entityId: row.entity_id,
+                        attribute: row.attribute,
+                        entityType: row.entity_type ?? undefined,
+                      });
+                      if (reserved) return yield* Effect.fail(reserved);
+                    }
+                  }
+                  for (const row of matched) {
+                    if (yield* adapter.retract(row.id, timestamp, txId, position)) {
+                      retractedCount++;
+                      changes.push(
+                        transactionChangeFromTriple("retract", rowToTriple(row), txId, timestamp),
+                      );
+                    }
+                  }
+                  break;
+                }
+              }
             }
 
             if (pendingAsserts.length > 0) {
@@ -386,89 +503,34 @@ export const TriplesLive = Layer.effect(
                   transactionChangeFromTriple("assert", triple, txId, timestamp),
                 ),
               );
-              pendingAsserts = [];
             }
 
-            switch (op.op) {
-              case "retract": {
-                const current = yield* adapter.getById(op.id as string);
-                if (current && !isSystemWriteAuthorized(meta)) {
-                  const reserved = reservedWriteError({
-                    entityId: current.entity_id,
-                    attribute: current.attribute,
-                    entityType: current.entity_type ?? undefined,
-                  });
-                  if (reserved) return yield* Effect.fail(reserved);
-                }
-                const didRetract = yield* adapter.retract(
-                  op.id as string,
-                  timestamp,
-                  txId,
-                  position,
-                );
-                if (!didRetract && preconditionIds.has(op.id as string)) {
-                  return yield* Effect.fail(
-                    new TransactionConflictError({
-                      tripleId: op.id,
-                      message: `Expected live triple ${op.id}, but another transaction changed it`,
-                    }),
-                  );
-                }
-                if (didRetract) {
-                  retractedCount++;
-                  if (current) {
-                    changes.push(
-                      transactionChangeFromTriple("retract", rowToTriple(current), txId, timestamp),
-                    );
-                  }
-                }
-                break;
-              }
-              case "retract-pattern": {
-                const pattern = queryToPattern(op.pattern);
-                const matched = yield* adapter.query(pattern);
-                if (!isSystemWriteAuthorized(meta)) {
-                  for (const row of matched) {
-                    const reserved = reservedWriteError({
-                      entityId: row.entity_id,
-                      attribute: row.attribute,
-                      entityType: row.entity_type ?? undefined,
-                    });
-                    if (reserved) return yield* Effect.fail(reserved);
-                  }
-                }
-                for (const row of matched) {
-                  if (yield* adapter.retract(row.id, timestamp, txId, position)) {
-                    retractedCount++;
-                    changes.push(
-                      transactionChangeFromTriple("retract", rowToTriple(row), txId, timestamp),
-                    );
-                  }
-                }
-                break;
+            if (!isJournalSuppressed(meta)) {
+              for (const input of metadataInputs(txId, position, timestamp, meta, changes)) {
+                yield* adapter.insert(input, txId, timestamp, yield* nextTripleId, position);
               }
             }
-          }
 
-          if (pendingAsserts.length > 0) {
-            const batch = yield* flushAssertBatch(pendingAsserts, txId, timestamp, position, actor);
-            triples.push(...batch);
-            changes.push(
-              ...batch.map((triple) =>
-                transactionChangeFromTriple("assert", triple, txId, timestamp),
-              ),
-            );
-          }
-
-          if (!isJournalSuppressed(meta)) {
-            for (const input of metadataInputs(txId, position, timestamp, meta, changes)) {
-              yield* adapter.insert(input, txId, timestamp, yield* nextTripleId, position);
+            if (meta?.validate !== undefined && meta.validate.length > 0) {
+              yield* runValidators(meta.validate, {
+                transaction: attemptFrom(txId, timestamp, position, meta),
+                changes: [...changes],
+                before: commitView(position - 1, timestamp),
+                after: commitView(position, timestamp),
+              });
             }
-          }
 
-          return { txId, position, instant: timestamp, triples, retracted: retractedCount };
-        }),
-      );
+            return { txId, position, instant: timestamp, triples, retracted: retractedCount };
+          }),
+        )
+        .pipe(
+          // Adapters that wrap unknown failures must not hide a typed rejection.
+          Effect.catchTag(
+            "WriteError",
+            (error): Effect.Effect<never, WriteError | CommitRejectedError> =>
+              Effect.fail(error.cause instanceof CommitRejectedError ? error.cause : error),
+          ),
+        );
 
     const retract = (id: TripleId): Effect.Effect<void, WriteError> =>
       transact([{ op: "retract", id }]).pipe(
