@@ -9,6 +9,7 @@ import type { TemporalBasis } from "../Temporal.js";
 import type { Triple } from "../Triple.js";
 import type { TransactionRecord, TriplesService } from "../store/Triples.js";
 import { SEALED_BINDING_PREFIX, sealedBinding, type TripleValue } from "../Value.js";
+import { Sensitivity } from "../sensitive/Sensitive.js";
 import type { DatalogQueryError, ReadError } from "../errors/index.js";
 import { extractDependencies } from "../subscriptions/extract-dependencies.js";
 import * as TypeExpr from "../config/TypeExpr.js";
@@ -172,6 +173,22 @@ const positivePatterns = (query: DatalogQuery): PatternClause[] =>
 
 const variablesInPatterns = (patterns: readonly PatternClause[]): string[] =>
   unique(patterns.flatMap((pattern) => pattern.filter(isVariable)));
+
+/** Value variables of patterns on sensitive attributes; they are never projected. */
+const sensitiveValueVariables = (
+  patterns: readonly PatternClause[],
+  isSensitive: (attribute: string) => boolean,
+): Set<string> =>
+  new Set(
+    patterns.flatMap((pattern) =>
+      typeof pattern[1] === "string" &&
+      !isVariable(pattern[1]) &&
+      isSensitive(pattern[1]) &&
+      isVariable(pattern[2])
+        ? [pattern[2]]
+        : [],
+    ),
+  );
 
 const tripleValueConstant = (value: TripleValue): Constant => {
   switch (value.type) {
@@ -425,11 +442,23 @@ export const evaluate = (
   | CandidateConflictError
 > =>
   Effect.gen(function* () {
-    const patterns = positivePatterns(definition.query);
-    const internalVariables = variablesInPatterns(patterns);
+    // With sensitive attributes, plan the query once (rejecting unsupported
+    // uses and rewriting plaintext constants to blind tokens) and withhold
+    // sealed value variables from the internal provenance projection.
+    const sensitivity = yield* Effect.serviceOption(Sensitivity);
+    const query = Option.isSome(sensitivity)
+      ? yield* sensitivity.value.prepareQuery(definition.query)
+      : definition.query;
+    const patterns = positivePatterns(query);
+    const withheld = Option.isSome(sensitivity)
+      ? sensitiveValueVariables(patterns, sensitivity.value.isSensitive)
+      : new Set<string>();
+    const internalVariables = variablesInPatterns(patterns).filter(
+      (variable) => !withheld.has(variable),
+    );
     const augmentedQuery: DatalogQuery = {
-      ...definition.query,
-      find: unique([...definition.query.find, ...internalVariables]),
+      ...query,
+      find: unique([...query.find, ...internalVariables]),
     };
     const [response, nextTemporalBoundary] = yield* Effect.all([
       triples.queryAll(augmentedQuery, { basis: options.basis }),

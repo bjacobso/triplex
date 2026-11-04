@@ -62,6 +62,11 @@
       "import": "./dist/derivation/index.js",
       "default": "./dist/derivation/index.js"
     },
+    "./sensitive": {
+      "types": "./dist/sensitive/index.d.ts",
+      "import": "./dist/sensitive/index.js",
+      "default": "./dist/sensitive/index.js"
+    },
     "./operational": {
       "types": "./dist/operational/index.d.ts",
       "import": "./dist/operational/index.js",
