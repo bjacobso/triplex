@@ -32,8 +32,10 @@ import type {
   CommandAlreadyCommittedError,
   TransactionConflictError,
   ConstraintViolationError,
+  CommitRejectedError,
   PaginationCursorError,
 } from "../errors/index.js";
+import type { Validator as CommitValidator } from "./CommitValidation.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import type { TemporalBasis } from "../Temporal.js";
 import type { TripleValue } from "../Value.js";
@@ -86,6 +88,14 @@ export interface TransactionMeta {
    * `TransactionConflictError`.
    */
   readonly preconditions?: readonly TransactionPrecondition[];
+  /**
+   * Commit validators for this transaction. They run in order after the
+   * operations and journal envelope are applied and before commit, reading
+   * the exact post-commit state. Any rejection fails the whole transaction
+   * with `CommitRejectedError`. Runtime-wide validators installed with
+   * `CommitValidation.layer` run before these.
+   */
+  readonly validate?: readonly CommitValidator[];
 }
 
 export interface TransactionChange {
@@ -225,6 +235,7 @@ export interface TriplesService {
     | TransactionConflictError
     | CommandAlreadyCommittedError
     | ConstraintViolationError
+    | CommitRejectedError
   >;
   // --- Triple-level reads --------------------------------------------------
   /** Fetch a single triple by id. */

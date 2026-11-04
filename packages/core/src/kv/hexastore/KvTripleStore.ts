@@ -897,6 +897,28 @@ export class KvTripleStore {
     });
   }
 
+  /**
+   * Type-index scan at one bitemporal basis. Retraction only updates META, so
+   * the TYPE index still lists facts retracted after the basis.
+   */
+  getByEntityTypeTemporalAsync(
+    entityType: string,
+    basis: ResolvedTemporalBasis,
+  ): Effect.Effect<Datom[]> {
+    const { start, end } = typePrefixRange(entityType);
+
+    return Effect.gen({ self: this }, function* () {
+      const entries = yield* Stream.runCollect(this.kv.getRange({ start, end }));
+      const tripleIds: string[] = [];
+      for (const [, value] of entries) {
+        tripleIds.push(textDecoder.decode(value));
+      }
+      if (tripleIds.length === 0) return [];
+      const datoms = yield* this.batchFetchMeta(tripleIds);
+      return datoms.filter((datom): datom is Datom => datom !== null && visibleAt(datom, basis));
+    });
+  }
+
   /** Stream facts visible at one bitemporal basis. */
   scanTemporal(pattern: ScanPattern, basis: ResolvedTemporalBasis): Stream.Stream<Datom> {
     return this.kv.getRange({ ...patternToScan(pattern) }).pipe(

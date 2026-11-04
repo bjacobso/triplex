@@ -15,6 +15,7 @@ import {
   CommandAlreadyCommittedError,
   TransactionConflictError,
   ConstraintViolationError,
+  CommitRejectedError,
   WriteError,
   ReadError,
   MigrationError,
@@ -55,7 +56,8 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
             error instanceof WriteError ||
             error instanceof TransactionConflictError ||
             error instanceof CommandAlreadyCommittedError ||
-            error instanceof ConstraintViolationError
+            error instanceof ConstraintViolationError ||
+            error instanceof CommitRejectedError
               ? error
               : new WriteError({
                   message: `Transaction failed: ${String(error)}`,
