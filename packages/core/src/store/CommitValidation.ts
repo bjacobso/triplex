@@ -318,7 +318,10 @@ export interface LayerOptions<R = never> {
    * {@link recordRejection} after that rollback instead.
    */
   readonly recordRejections?: boolean;
-  /** Runs after rollback (and after recording, when enabled). Failures are logged. */
+  /**
+   * Runs after rollback (and after recording, when enabled) for rejections
+   * from runtime-wide and per-call validators alike. Failures are logged.
+   */
   readonly onRejected?: (error: CommitRejectedError) => Effect.Effect<void, unknown, R>;
 }
 
@@ -397,14 +400,10 @@ const decorate = (inner: TriplesService, installed: Installed): TriplesService =
     });
 
   const transact: TriplesService["transact"] = (operations, meta) => {
-    if (isSystemWriteAuthorized(meta) || installed.validators.length === 0) {
-      return inner.transact(operations, meta);
-    }
+    if (isSystemWriteAuthorized(meta)) return inner.transact(operations, meta);
+    const validate = [...installed.validators, ...(meta?.validate ?? [])];
     return inner
-      .transact(operations, {
-        ...meta,
-        validate: [...installed.validators, ...(meta?.validate ?? [])],
-      })
+      .transact(operations, validate.length === 0 ? meta : { ...meta, validate })
       .pipe(
         Effect.catchTag("CommitRejectedError", (error) =>
           audit(error).pipe(Effect.flatMap(Effect.fail)),

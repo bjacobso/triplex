@@ -1,7 +1,8 @@
 # Commit validators
 
-Status: implemented on KV, SQLite, PostgreSQL, and the experimental Cloudflare and FoundationDB
-backends. Pre-1.0: the contract may still change before a stable release.
+Status: implemented and covered by shared conformance on KV, SQLite, PostgreSQL, and the
+experimental Cloudflare backend. FoundationDB uses the same KV code path, but its native suite
+remains opt-in. Pre-1.0: the contract may still change before a stable release.
 
 A commit validator is host code that runs **inside** a Triplex transaction. It runs after the
 transaction's operations and journal envelope are applied and before the commit. It reads the
@@ -98,9 +99,14 @@ Why both? An authorization rule that you opt into per call is easy to forget on 
 so authorization belongs in the runtime-wide layer. A command-specific guard is part of that
 command, so it belongs on the call. Both use the same contract and run in the same place.
 
-The layer builds its validators' requirements `R` once, at layer construction. A validator can
+The layer captures its validators' requirements `R` once, at layer construction. A validator can
 depend on host services (a policy table, for example) without changing the `R = never`
-signature of `transact`. Per-call validators must already be closed, with `R = never`.
+signature of `transact`. Services in the calling fiber take precedence over captured ones, so
+transaction-local state such as Effect SQL's transaction connection is never replaced. Per-call
+validators must already be closed, with `R = never`.
+
+Compose the layer with `Layer.provide(backend)`. Use `Layer.provideMerge(backend)` when the host
+also needs the backend's `SqlClient`; the decorated `Triples` is the one exposed either way.
 
 Why not a backend constructor option? A decorator works with every shipped and custom
 `Layer<Triples>`, including the ambient PostgreSQL client, `Runtime.define`, and Cloudflare. It
@@ -193,9 +199,10 @@ here's why". There are two ways to keep a record, and both run **after the rollb
   `CommitValidation.readRejection` or with Datalog over the reserved attributes.
 - **Host callback:** `onRejected: (error) => Effect<void>` writes to a host table or metrics.
 
-For per-call validators, or when the host rolls back an enclosing transaction (see below), call
-`CommitValidation.recordRejection(triples, error)` yourself after the rollback. Recording is
-idempotent per attempted transaction.
+Both cover every rejection on a transaction that goes through the layer, from runtime-wide and
+per-call validators alike. Without the layer, or when the host rolls back an enclosing
+transaction (see below), call `CommitValidation.recordRejection(triples, error)` yourself after
+the rollback. Recording is idempotent per attempted transaction.
 
 A record can't be mistaken for committed facts:
 
@@ -269,4 +276,197 @@ and narrow Datalog.
 
 ## Example: per-attribute asserter rules
 
-<!-- examples below are added with the implementation -->
+This policy says who may assert each governed attribute. The employee named on an I-9 may sign
+Section 1, and an actor with the `hr` role may complete Section 2. Relationships are read from
+`before`, so a transaction that sets `:i9/employee` to its own actor cannot also sign in the same
+commit. The layer installs the policy for every write path and records each refusal durably.
+
+```ts check
+import { Effect, Layer } from "effect";
+import {
+  CommitRejectedError,
+  CommitValidation,
+  EntityId,
+  KvTriples,
+  Triples,
+  ref,
+  string,
+} from "@triplex-build/triplex";
+
+type Grant =
+  | { readonly kind: "subject"; readonly via: string }
+  | { readonly kind: "role"; readonly role: string };
+
+const grants: Readonly<Record<string, Grant>> = {
+  ":i9/section1-signature": { kind: "subject", via: ":i9/employee" },
+  ":i9/section2-signature": { kind: "role", role: "hr" },
+};
+
+const asserters = CommitValidation.make("i9.asserters", (commit) =>
+  Effect.gen(function* () {
+    const actor = commit.transaction.actor;
+    const rejections: CommitValidation.Rejection[] = [];
+    for (const change of commit.changes) {
+      const grant = grants[change.attribute];
+      if (change.op !== "assert" || grant === undefined) continue;
+      let allowed = false;
+      if (actor === undefined) {
+        allowed = false;
+      } else if (grant.kind === "subject") {
+        const subjects = yield* commit.before.match({
+          entityId: change.entityId,
+          attribute: grant.via,
+        });
+        allowed = subjects.some((fact) => fact.value.type === "ref" && fact.value.value === actor);
+      } else {
+        const roles = yield* commit.before.match({
+          entityId: EntityId.make(actor),
+          attribute: ":person/role",
+        });
+        allowed = roles.some(
+          (fact) => fact.value.type === "string" && fact.value.value === grant.role,
+        );
+      }
+      if (!allowed) {
+        rejections.push({
+          code: "not_asserter",
+          message: `${actor ?? "An anonymous actor"} may not assert ${change.attribute}`,
+          entityId: change.entityId,
+          attribute: change.attribute,
+          details: { actor: actor ?? null, grant },
+        });
+      }
+    }
+    return rejections;
+  }),
+);
+
+const Database = CommitValidation.layer({
+  validators: [asserters],
+  recordRejections: true,
+}).pipe(Layer.provide(KvTriples.layer));
+
+const i9 = EntityId.make("i9:alice");
+const sign = (attribute: string, actor: string) =>
+  Effect.gen(function* () {
+    const triples = yield* Triples;
+    return yield* triples.transact(
+      [{ op: "assert", entityId: i9, entityType: "I9", attribute, value: string(actor) }],
+      { actor, commandId: `${attribute}:${actor}` },
+    );
+  });
+
+const program = Effect.gen(function* () {
+  const triples = yield* Triples;
+  yield* triples.transact([
+    {
+      op: "assert",
+      entityId: EntityId.make("person:hank"),
+      attribute: ":person/role",
+      value: string("hr"),
+    },
+    {
+      op: "assert",
+      entityId: i9,
+      entityType: "I9",
+      attribute: ":i9/employee",
+      value: ref(EntityId.make("person:alice")),
+    },
+  ]);
+
+  yield* sign(":i9/section1-signature", "person:alice");
+  yield* sign(":i9/section2-signature", "person:hank");
+
+  const refused = yield* sign(":i9/section1-signature", "person:hank").pipe(Effect.flip);
+  if (refused instanceof CommitRejectedError && refused.recorded !== undefined) {
+    const audit = yield* CommitValidation.readRejection(triples, refused.recorded.entityId);
+    yield* Effect.log(audit?.rejections[0]?.code); // "not_asserter"
+  }
+});
+
+Effect.runPromise(program.pipe(Effect.provide(Database)));
+```
+
+## Example: a command-specific guard
+
+Per-call validators suit rules that belong to one command. This import refuses to run until
+Section 2 is complete, checked against the state that would commit. A later write cannot slip in
+between the check and the commit.
+
+```ts check
+import { Effect } from "effect";
+import { CommitValidation, EntityId, Triples, number } from "@triplex-build/triplex";
+
+const sectionTwoComplete = (i9: EntityId) =>
+  CommitValidation.make("payroll.requires-section2", (commit) =>
+    Effect.gen(function* () {
+      const facts = yield* commit.after.match({
+        entityId: i9,
+        attribute: ":i9/section2-signature",
+      });
+      return facts.length > 0
+        ? []
+        : [
+            {
+              code: "section2_incomplete",
+              message: "Payroll import requires a completed Section 2",
+              entityId: i9,
+              suggestion: "Complete Section 2, then retry the import",
+            },
+          ];
+    }),
+  );
+
+export const importPayroll = (employee: EntityId, i9: EntityId, rate: number) =>
+  Effect.gen(function* () {
+    const triples = yield* Triples;
+    return yield* triples.transact(
+      [{ op: "assert", entityId: employee, attribute: ":payroll/rate", value: number(rate) }],
+      { actor: "service:payroll-import", validate: [sectionTwoComplete(i9)] },
+    );
+  });
+```
+
+## Example: host rows in the same SQL transaction
+
+On PostgreSQL (`PgTriples.layerFromSqlClient`) and SQLite, host rows and Triplex facts share one
+Effect SQL transaction. If a validator rejects, the outbox row rolls back with the facts. Because
+this host rolls back its own enclosing transaction, it records the rejection afterwards rather
+than enabling `recordRejections`.
+
+```ts
+const command = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const triples = yield* Triples;
+  return yield* sql
+    .withTransaction(
+      Effect.gen(function* () {
+        const tx = yield* triples.transact(ops, { actor, commandId });
+        yield* sql`INSERT INTO host_outbox (id, body) VALUES (${tx.txId}, 'notify')`;
+        return tx;
+      }),
+    )
+    .pipe(
+      Effect.tapError((error) =>
+        error instanceof CommitRejectedError
+          ? CommitValidation.recordRejection(triples, error)
+          : Effect.void,
+      ),
+    );
+});
+```
+
+Rejection records are ordinary reserved facts, so Datalog can list them:
+
+```ts
+const refusals = Effect.gen(function* () {
+  const triples = yield* Triples;
+  return yield* triples.queryAll({
+    find: ["?record", "?actor", "?finding"],
+    where: [
+      ["?record", ":triplex/commit-rejection-actor", "?actor"],
+      ["?record", ":triplex/commit-rejection-finding", "?finding"],
+    ],
+  });
+});
+```

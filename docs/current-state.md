@@ -30,6 +30,10 @@ work that is not complete.
   cardinality, uniqueness, and reference-target constraints.
 - Queryable validation observations plus opt-in atomic enforcement of required, cardinality,
   uniqueness, and reference-target constraints.
+- [Commit validators](/commit-validators): host checks inside the transaction boundary over
+  db-before and db-after views, with typed rejections, runtime-wide installation for every write
+  path, and optional durable rejection records. Shared conformance covers KV, SQLite, PostgreSQL,
+  and Cloudflare.
 - Content-addressed Datalog derivations with explicit candidate identity, source provenance,
   immutable materialization runs, freshness positions, temporal wakeups, pure reconciliation, and
   read-only hypothetical overlays.
@@ -110,7 +114,9 @@ outside the normal test matrix.
   does not independently prove that an external actor chose the right rule or answer.
 - Constraint enforcement is opt-in and serialized through the commit-position boundary. Direct
   adapter writes, authorization, general Datalog invariants, inbox/outbox delivery, timers, retries,
-  and application workflow lifecycle are host responsibilities.
+  and application workflow lifecycle are host responsibilities. Hosts can enforce authorization and
+  invariants atomically with commit validators, but Triplex ships no policy grammar. Validators run
+  while the commit is serialized, and on Cloudflare they must be synchronous.
 - The HTTP API intentionally omits PATCH, filters, relationship expansion, raw Datalog, writable
   historical schemas, automatic migrations, empty entities, and mutation of scheduled facts.
 - The schema is intentionally greenfield. Databases created by pre-baseline development builds

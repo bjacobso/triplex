@@ -83,13 +83,15 @@ const asserters = CommitValidation.make("conf.asserters", (commit) =>
       const grant = grants[change.attribute];
       if (grant === undefined) continue;
       let allowed = false;
-      if (actor !== undefined && grant.kind === "subject") {
+      if (actor === undefined) {
+        allowed = false;
+      } else if (grant.kind === "subject") {
         const subjects = yield* commit.before.match({
           entityId: change.entityId,
           attribute: grant.via,
         });
         allowed = subjects.some((fact) => fact.value.type === "ref" && fact.value.value === actor);
-      } else if (actor !== undefined) {
+      } else {
         const roles = yield* commit.before.match({
           entityId: eid(actor),
           attribute: ":conf/cv-role",
@@ -173,10 +175,9 @@ export const commitValidatorConformanceCases = [
             find: ["?actor"],
             where: [[commit.transaction.txId, ":_tx/actor", "?actor"]],
           });
-          observed["invalidBasis"] = yield* commit.after.entity(doc, { validAt: Number.NaN }).pipe(
-            Effect.flip,
-            Effect.map((error) => error._tag),
-          );
+          observed["invalidBasis"] = yield* commit.after
+            .entity(doc, { validAt: Number.NaN })
+            .pipe(Effect.match({ onFailure: (error) => error._tag, onSuccess: () => "succeeded" }));
         }),
       );
 
@@ -423,7 +424,9 @@ export const commitValidatorConformanceCases = [
         .transact([assertStatus("bad-query")], {
           validate: [
             CommitValidation.make("conf.bad-query", (commit) =>
-              commit.after.query({ find: ["?missing"], where: [["?e", ":conf/cv-x", "?v"]] }),
+              commit.after
+                .query({ find: ["?missing"], where: [["?e", ":conf/cv-x", "?v"]] })
+                .pipe(Effect.asVoid),
             ),
           ],
         })
@@ -684,6 +687,25 @@ export const commitValidatorConformanceCases = [
       yield* check(
         forged instanceof WriteError && forged.message.includes("reserved"),
         "ordinary writes must not forge rejection records",
+      );
+
+      // The layer audits per-call rejections even without runtime-wide validators.
+      const auditOnly = yield* decorate<never>(t, { validators: [], recordRejections: true });
+      const perCall = yield* auditOnly
+        .transact([section(":conf/cv-note", "per-call")], {
+          validate: [
+            CommitValidation.make("conf.per-call", () =>
+              Effect.succeed([{ code: "per_call", message: "Refused by the command" }]),
+            ),
+          ],
+        })
+        .pipe(Effect.flip);
+      yield* check(
+        perCall instanceof CommitRejectedError &&
+          perCall.recorded !== undefined &&
+          (yield* CommitValidation.readRejection(t, perCall.recorded.entityId))?.rejections[0]
+            ?.code === "per_call",
+        "the layer should record per-call rejections too",
       );
 
       // Triplex system writes are not subject to runtime-wide validators.
