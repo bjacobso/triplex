@@ -94,6 +94,21 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
 - Next: explicitly modelled general Datalog invariants. Observation mode remains available for
   migrations and audit.
 
+## 1a. Sensitive values
+
+**Goal:** Hold regulated personal data without plaintext at rest or accidental disclosure.
+
+- Delivered: content-addressed `Attribute.sensitive` marking, the `sealed` value type, pluggable
+  `ValueCodec` and `KeyProvider` services with identity and AES-256-GCM codecs, the sealing
+  `Triples` decorator, blind-index equality and joins in every engine, planning-time
+  `SensitiveQueryError`, uniqueness over blind tokens, sensitivity-aware derivations and overlays,
+  SQL v3 and Cloudflare v4 migrations, and shared conformance with raw-storage plaintext scans.
+  See [Sensitive values](/sensitive-values).
+- Next: erasure that scrubs an erased subject's blind tokens through a backend maintenance
+  operation and records an erasure fact; in-place rewrap under rotated data keys; dual-version
+  blind lookups for blind-key rotation; FoundationDB native coverage; and an explicit host opt-in
+  for opening sealed values in `ConfigRuntime` rules.
+
 ## 2. Reactive "Live" Queries (Watch API)
 
 **Goal:** Power real-time, reactive user interfaces.

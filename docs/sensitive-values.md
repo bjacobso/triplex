@@ -1,17 +1,18 @@
-# Sensitive values (RFC)
+# Sensitive values
 
-Status: **implemented, pre-1.0, opt-in.** This page is the design record for sensitive attribute
-values: what they are, which guarantees Triplex gives, and what remains host work. The
-[implementation status](#implementation-status) section at the end tracks what is built.
+Status: **pre-1.0, opt-in.** This page is the design record and reference for sensitive attribute
+values: what they are, which guarantees Triplex gives, and what remains host work.
+[Implementation status](#implementation-status) at the end separates built features from
+designed ones.
 
 ## Problem
 
 Triplex stores every value in typed plaintext columns or KV records, and Datalog, indexes,
-uniqueness checks and graph constraints compare those values directly. Nothing marks an attribute
-as sensitive, so a database that holds national identifiers, birth dates or document numbers keeps
-them readable in every table, journal payload, snapshot and backup. The configuration layer's
-observation digests (`config/World.ts`) avoid copying values into decision records, but they are
-not encryption and do not protect the facts themselves.
+uniqueness checks and graph constraints compare those values directly. Nothing marked an
+attribute as sensitive, so a database that holds national identifiers, birth dates or document
+numbers kept them readable in every table, journal payload, snapshot and backup. The configuration
+layer's observation digests (`config/World.ts`) avoid copying values into decision records, but
+they are not encryption and do not protect the facts themselves.
 
 A sensitive attribute needs four properties together:
 
@@ -27,35 +28,86 @@ A sensitive attribute needs four properties together:
    what the store can compare (presence and keyed equality), or fail during planning with a typed
    error that names the attribute. They never return a silently wrong answer.
 
+## Quick start
+
+```ts check
+import { Effect, Layer } from "effect";
+import { EntityId, KvTriples, Triples } from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
+import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
+
+const ssn = Attribute.sensitive(Attribute.text(":employee/ssn"));
+const name = Attribute.text(":employee/name");
+
+const Employee = EntityType.make("Employee", {
+  attributes: {
+    ssn: Attribute.use(ssn, { unique: true }),
+    name: Attribute.use(name, { required: true }),
+  },
+});
+
+// Decorate any backend's Triples. Test keys are for tests only.
+const layer = Sensitive.layer({ database: "acme/main", attributes: [Employee] }).pipe(
+  Layer.provide(ValueCodec.aesGcm),
+  Layer.provide(KeyProvider.test({ seed: "test-only" })),
+  Layer.provide(KvTriples.layer),
+);
+
+const program = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const employee = EntityId.make("employee:1");
+  yield* triples.assertBatch([
+    { entityId: employee, attribute: ":employee/name", value: { type: "string", value: "Ada" } },
+    {
+      entityId: employee,
+      attribute: ":employee/ssn",
+      value: { type: "string", value: "123-45-6789" },
+    },
+  ]);
+
+  // Equality goes through the blind index; the plaintext never reaches storage.
+  const { results } = yield* triples.queryAll({
+    find: ["?name"],
+    where: [
+      ["?e", ":employee/ssn", "123-45-6789"],
+      ["?e", ":employee/name", "?name"],
+    ],
+  });
+
+  // Reads return sealed values. Opening is explicit and needs the codec.
+  const sealed = yield* triples.entity(employee);
+  const opened = yield* Sensitive.open(sealed);
+  return { results, sealed, opened };
+});
+
+export const main = program.pipe(Effect.provide(layer));
+```
+
 ## Model
 
 ### Marking an attribute
 
-```ts
-import { Attribute, EntityType } from "@triplex-build/triplex/config";
-
-const ssn = Attribute.sensitive(Attribute.text(":person/ssn"));
-const birthDate = Attribute.sensitive(Attribute.date(":person/birth-date"));
-
-const Person = EntityType.make("Person", {
-  attributes: {
-    ssn: Attribute.use(ssn, { unique: true }),
-    birthDate: Attribute.use(birthDate),
-  },
-});
-```
-
 `Attribute.sensitive(definition)` returns a definition with `sensitive: true`. Its config node
 records `sensitive: true` in its attributes, so the node's content ID changes and every release
 that adopts it shows a changed attribute node. Non-sensitive attributes keep their existing content
-IDs because the field is omitted when false. Reference attributes cannot be sensitive. A ref is
-graph identity, and sealing it would break traversal, reference-target constraints and entity
-expansion. Blob attributes already store a content hash rather than the content, so they are
-rejected too.
+IDs because the field is omitted when false. `EntityType` handles expose `sensitive` per attribute.
+
+Reference attributes cannot be sensitive. A ref is graph identity, and sealing it would break
+traversal, reference-target constraints and entity expansion. Blob attributes already store a
+content hash rather than the content, so they are rejected too. Sensitive values may be
+`string` (text, date and enum attributes), `number`, `boolean`, `datetime` or `json`.
+
+The policy that the runtime enforces comes from one of three sources:
+
+- `Sensitive.attributesOf([...])` collects marked definitions and entity types. It also accepts
+  explicit `{ key, valueType }` descriptors.
+- `Sensitive.attributesFromNodes(nodes)` reads `sensitive: true` attribute nodes, for example
+  every node of a pinned release, so the release is the source of truth.
+- `Sensitive.layer({ attributes })` accepts either form.
 
 ### The sealed value
 
-Storage is self-describing. A sealed fact carries the sealed variant of `TripleValue`:
+Storage is self-describing. A sealed fact carries the `sealed` variant of `TripleValue`:
 
 ```ts
 interface SealedValue {
@@ -66,7 +118,7 @@ interface SealedValue {
   readonly keyId: string;
   /** Codec-owned envelope, base64url. Opaque to Triplex. */
   readonly ciphertext: string;
-  /** Keyed equality token, base64url, or absent when the codec has no blind index. */
+  /** Keyed equality token, base64url, absent when the codec has no blind index. */
   readonly blind?: string;
 }
 ```
@@ -75,20 +127,20 @@ Because storage records whether a value is sealed, a reader never has to guess. 
 longer lists an attribute still sees older sealed facts as sealed. A sealed fact never becomes
 plaintext through a configuration change; only an explicit open can produce plaintext.
 
-Adding the variant widens `TripleValue` and `Triple["value"]`. That is an additive data change:
-databases without sensitive attributes never produce it, and existing rows decode exactly as
-before. It is still a source-level change for TypeScript code that switches exhaustively over
-`value.type`, so the Changeset marks the core package minor (a 0.x breaking slot), and the
-in-repository consumers (dashboard, HTTP, CLI, snapshots and constraints) handle it explicitly.
+Adding the variant widens `TripleValue`, `ValueType` and `Triple["value"]`. That is an additive data
+change: databases without sensitive attributes never produce it, and existing rows decode exactly
+as before. It is still a source-level change for TypeScript code that switches exhaustively over
+`value.type`, so the Changeset marks the core package minor (the 0.x breaking slot). The
+in-repository consumers (snapshots, constraints, validation, dashboard, HTTP and CLI) handle the
+variant explicitly.
 
 ### Services
 
-| Service              | Role                                                                                                        |
-| -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `SensitiveAttributes` | The policy: which attribute keywords are sensitive and their declared plaintext type.                      |
-| `ValueCodec`          | Seals, opens and blinds one value with a `SensitiveContext` (database, entity, attribute and value type).   |
-| `KeyProvider`         | Supplies per-subject data keys and the per-database blind key to the reference AES-GCM codec.              |
-| `Sensitivity`         | The composed runtime capability: policy, codec and database identity, used by `open` and by overlays.     |
+| Service       | Role                                                                                                            |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ValueCodec`  | Seals, opens and blinds one value, given a `SensitiveContext` (database, entity, attribute, value type).        |
+| `KeyProvider` | Supplies per-subject data keys and the per-database blind key to the reference AES-GCM codec.                   |
+| `Sensitivity` | The composed runtime capability: policy, codec and database identity. Used by `open`, derivations and overlays. |
 
 ```ts
 interface SensitiveContext {
@@ -99,64 +151,83 @@ interface SensitiveContext {
 }
 
 interface ValueCodecService {
-  /** Codec name recorded in errors and diagnostics, never in data. */
   readonly name: string;
-  /** Whether equal plaintexts in different attributes share a blind token. */
+  /** Which equal plaintexts share a blind token. */
   readonly blindScope: "database" | "attribute" | "none";
-  readonly seal: (ctx: SensitiveContext, value: TripleValue) => Effect<Sealed, SensitiveValueError>;
-  readonly open: (ctx: SensitiveContext, sealed: SealedValue) => Effect<TripleValue, SensitiveValueError>;
-  readonly blind: (ctx: SensitiveContext, value: TripleValue) => Effect<string | undefined, SensitiveValueError>;
+  readonly seal: (ctx: SensitiveContext, value: PlainValue) => Effect<Sealed, SensitiveValueError>;
+  readonly open: (
+    ctx: SensitiveContext,
+    sealed: SealedValue,
+  ) => Effect<PlainValue, SensitiveValueError>;
+  readonly blind: (
+    ctx: SensitiveContext,
+    value: PlainValue,
+  ) => Effect<string | undefined, SensitiveValueError>;
 }
 ```
 
-Codecs shipped in core:
+Codecs shipped in core (`@triplex-build/triplex/sensitive`):
 
-- `ValueCodec.identity`: reversible base64url of the canonical plaintext, with an unkeyed SHA-256
-  blind token. It exists so that development databases have the same storage shape and the same
-  query semantics as production, and turning encryption on swaps the codec instead of the schema.
-  It is **not** confidential. It must be chosen explicitly; there is no implicit default codec.
-  Declaring a sensitive attribute without providing a codec fails at layer construction.
-- `ValueCodec.aesGcm`: the reference implementation over WebCrypto (`crypto.subtle`, available in
-  browsers, Node.js 22 and workerd; core still imports no Node API). It uses AES-256-GCM with a
-  random 96-bit nonce per value. The additional authenticated data binds the database, entity,
-  attribute and declared type, so a ciphertext cannot be moved to another fact. The blind token
-  is HMAC-SHA-256 under the database blind key over a domain tag, the scalar family and the
-  canonical plaintext. Its `blindScope` is `database`, so equal values in two sensitive attributes
-  of one database join.
-- `KeyProvider.test(...)`: deterministic **test keys only**, derived from a seed. It supports
-  per-subject keys, rotation of the current key ID and key destruction for erasure tests. Production
-  hosts implement `KeyProvider` over their KMS. Triplex never persists key material.
+- `ValueCodec.aesGcm` (or `ValueCodec.aesGcmWith({ subjectOf, blindScope })`) is the reference
+  implementation over WebCrypto (`crypto.subtle`, available in browsers, Node.js 22 and workerd;
+  core still imports no Node API). It uses AES-256-GCM with a random 96-bit nonce per value. The
+  envelope is a version byte, the nonce and the ciphertext with its tag. The additional
+  authenticated data binds the database, entity, attribute and declared type, so a ciphertext
+  cannot be moved to another fact. The blind token is HMAC-SHA-256 under the database blind key
+  over a domain tag, the scalar family (number and datetime share one) and the canonical JSON
+  plaintext. It is prefixed with the blind key ID. With the default `blindScope: "database"`, equal
+  values in two sensitive attributes of one database join.
+- `ValueCodec.identity` stores reversible base64url of the canonical plaintext with an unkeyed
+  SHA-256 blind token. It gives development databases the same storage shape and query semantics
+  as production, so turning encryption on swaps the codec rather than the schema. It is **not**
+  confidential. `aesGcm` can still open identity envelopes until they are rewrapped.
+- `KeyProvider.test({ seed })` and `KeyProvider.testKeys({ seed })` provide deterministic
+  **test keys only**. They support per-subject keys, `rotate()` and `destroy({ database, subject })`.
+  Production hosts implement `KeyProvider` over their KMS. Triplex never persists key material.
+
+There is no implicit codec. `Sensitive.layer` requires `ValueCodec` in context, so declaring
+sensitive attributes without choosing a codec fails to compose. This deliberately departs from an
+identity-by-default design: forgetting to configure encryption must not store plaintext silently.
 
 ### Composition
 
-`Sensitive.layer(options)` decorates any `Triples`. It works the same way over every backend,
-including Cloudflare and FoundationDB, because it sits above the storage adapter:
+`Sensitive.layer(options)` decorates any `Triples` and outputs `Triples | Sensitivity`:
 
 ```ts
-const layer = Sensitive.layer({ database: "acme/main", attributes: [ssn, birthDate] }).pipe(
+const layer = Sensitive.layer({ database: "acme/main", attributes: [Employee] }).pipe(
   Layer.provide(ValueCodec.aesGcm),
-  Layer.provide(KeyProvider.test({ seed: "test-only" })),
-  Layer.provideMerge(SqliteTriples.layer({ filename: "app.db", scope })),
+  Layer.provide(hostKeyProviderLayer),
+  Layer.provide(SqliteTriples.layer({ filename: "app.db" })),
 );
 ```
 
-The output is `Triples | Sensitivity`. Every core service that already reads `Triples` from
-context, including `ConfigStore`, `EntityValidation`, derivations and the HTTP handlers, gets the
-sealed behavior without new parameters. A process that opens the raw backend layer without the
-decorator still cannot read plaintext. It sees sealed values and has no keys.
+It sits above the storage adapter, so it works the same way over every backend, including
+Cloudflare and FoundationDB. Every core service that already reads `Triples` from context gets
+the sealed behavior without new parameters. That includes `ConfigStore`, `EntityValidation`,
+derivations and the HTTP handlers. A process that opens the raw backend layer without the
+decorator still cannot read plaintext: it sees sealed values and has no keys.
+
+`database` is the stable logical identity given to the codec. It scopes keys and blind tokens and
+is bound into every ciphertext, so it must not change for the life of the database.
 
 ## Semantics
 
 ### Writes
 
-`transact` (and `assert`, `assertBatch`, which delegate to it):
+`transact`, `assert` and `assertBatch` (which delegate to it):
 
-- seals every `assert` whose attribute is sensitive, after checking the value against the declared
-  type, and passes only the sealed value to the inner store;
-- rejects a caller-supplied `sealed` value for any attribute. Sealing is a store capability, not
+- seal every `assert` whose attribute is sensitive, after checking the value against the declared
+  type (number and datetime are interchangeable), and pass only the sealed value to the inner
+  store;
+- reject a caller-supplied `sealed` value for any attribute. Sealing is a store capability, not
   an input format, and accepting foreign ciphertext would let a caller forge blind tokens;
-- rewrites `retract-pattern` value constants on sensitive attributes to blind matches;
-- checks `meta.enforce` rules before the write (see [constraints](#constraints)).
+- rewrite `retract-pattern` value constants on sensitive attributes to blind matches;
+- reject unique enforcement on a sensitive attribute when the codec has no blind index.
+
+Write-side failures surface as `WriteError` whose `cause` is a typed `SensitiveValueError`. It
+carries `attribute`, `reason` (`sealed-input`, `invalid-value`, `codec`, `key-unavailable`,
+`key-destroyed`, `integrity` or `blind-index-unavailable`) and a message that never contains the
+value. This keeps the `Triples` write signature unchanged.
 
 Plaintext exists only in the caller's request and in the codec call. The commit's
 `TransactionResult.triples` already carry the sealed values.
@@ -164,91 +235,101 @@ Plaintext exists only in the caller's request and in the codec call. The commit'
 ### Reads
 
 `get`, `entity`, `entities`, `entityPage`, `match`, `history`, `transaction`, `transactions`,
-`transactionByCommand` and `transactionsForEntity` return the stored sealed values unchanged. The
+`transactionByCommand` and `transactionsForEntity` return stored sealed values unchanged. The
 journal's `:_tx/change` payload embeds the same sealed value, so history and "what changed" reads
-show that a sensitive fact changed, by whom and when, without its plaintext.
+show that a sensitive fact changed, by whom and when, without its plaintext. Entity snapshots
+commit to the sealed envelope.
 
-`match` with a value constant on a sensitive attribute is rewritten to the blind token, so lookups
-such as "which person has this SSN?" are indexed equality reads.
+`match` with a value on a sensitive attribute is rewritten to a blind-token lookup, so "which
+person has this SSN?" is an indexed equality read. A value of a type that can never equal the
+declared type matches nothing, as it would in plaintext. A value-only `match` (no attribute) fails
+with `ReadError` whose cause is `SensitiveQueryError` (`value-only-match`) when the policy is
+non-empty, because it could silently miss sealed facts.
 
 Opening is explicit:
 
 ```ts
-const facts = yield* triples.entity(personId);
-const opened = yield* Sensitive.open(facts); // Effect<readonly Triple[], SensitiveValueError, Sensitivity>
+const reveal = (personId: EntityId) =>
+  Effect.gen(function* () {
+    const triples = yield* Triples;
+    const facts = yield* triples.entity(personId);
+    return yield* Sensitive.open(facts); // fails with SensitiveValueError; requires Sensitivity
+  });
 ```
 
-`Sensitive.open` accepts a triple, an array of triples, or a `TransactionRecord`. It leaves
-non-sealed values untouched. Hosts log or authorize this call; it is the single place where
-plaintext is produced.
+`Sensitive.open` accepts a triple, an array of triples or a `TransactionRecord`, and leaves
+non-sealed values untouched. It is the single place where Triplex produces plaintext, so hosts
+authorize and audit this call.
 
 ### Datalog
 
-The decorator analyses every `query`, `queryAll`, `queryPage`, `explain` and `explainPage` call
-against the policy before the inner engine runs. A variable is *sensitive* when it occurs in the
-value position of a pattern on a sensitive attribute.
+The decorator validates and analyses every `query`, `queryAll`, `queryPage`, `explain` and
+`explainPage` call against the policy before the inner engine runs. A variable is _sensitive_
+when it occurs in the value position of a pattern on a sensitive attribute.
 
-| Use                                                           | Result                                                                                         |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Presence (`[?e ":person/ssn" _]` or an unused value variable) | Allowed.                                                                                       |
-| Constant in the value position                                | Allowed; rewritten to the blind token (`{ type: "blind", value }`). Uses the blind index.      |
-| Join between two sensitive value positions                    | Allowed when both have blind tokens and the codec's `blindScope` permits it (same attribute, or `database` scope). |
-| Join with a plaintext position or an identity position        | `SensitiveQueryError` (`join`).                                                                |
-| Projection in `find`, `orderBy`, wrapper filters, `having`    | `SensitiveQueryError` (`projection`, `order`, `filter`).                                      |
-| Comparison or equality predicate                              | `SensitiveQueryError` (`predicate`). Use a pattern constant for equality.                      |
-| Aggregate over the value                                      | `SensitiveQueryError` (`aggregate`).                                                          |
-| Rule bodies and rule applications                             | `SensitiveQueryError` (`rule`) when a rule touches a sensitive attribute.                      |
-| Pattern with a variable attribute                             | `SensitiveQueryError` (`dynamic-attribute`) when a policy exists, because the analysis cannot prove the attribute is not sensitive. |
-| Blind-dependent use with a codec whose `blindScope` is `none` | `SensitiveQueryError` (`blind-index-unavailable`).                                             |
+| Use                                                           | Result                                                                                                                                                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Presence (`[?e ":person/ssn" ?_any]`) and its negation        | Allowed.                                                                                                                                                                                    |
+| Constant in the value position                                | Allowed. Rewritten to a blind-token constant (`{ type: "blind", value }`) and answered from the blind index. A constant whose scalar family cannot equal the declared type matches nothing. |
+| Join between two sensitive value positions                    | Allowed with a blind index, within one attribute or across attributes when the codec's `blindScope` is `database`.                                                                          |
+| Join with a plaintext value or an identity position           | `SensitiveQueryError` (`join`).                                                                                                                                                             |
+| Projection in `find`, `optionalProjection` or wrapper filters | `SensitiveQueryError` (`projection`).                                                                                                                                                       |
+| `orderBy` (query or wrapper)                                  | `SensitiveQueryError` (`order`).                                                                                                                                                            |
+| Comparison or equality predicate                              | `SensitiveQueryError` (`predicate`). Use a pattern constant for equality.                                                                                                                   |
+| Aggregate source or `having`                                  | `SensitiveQueryError` (`aggregate`, `having`).                                                                                                                                              |
+| Rule bodies and rule arguments                                | `SensitiveQueryError` (`rule`).                                                                                                                                                             |
+| Variable attribute whose value is used or constrained         | `SensitiveQueryError` (`dynamic-attribute`), because the analysis cannot prove the attribute is not sensitive.                                                                              |
+| Blind-dependent use when the codec's `blindScope` is `none`   | `SensitiveQueryError` (`blind-index-unavailable`).                                                                                                                                          |
 
-`SensitiveQueryError` is a member of `DatalogQueryError` and carries `attribute`, `operation` and
-a message that names the attribute and never the value. Full-text search is not part of Triplex
+`SensitiveQueryError` is a member of `DatalogQueryError`. It carries `attribute` and `operation`,
+and its message names the attribute and never a value. Full-text search is not part of Triplex
 Datalog today. When the roadmap's `fts` predicate lands, it must reject sensitive variables through
-the same check.
+the same analysis.
 
-As defense in depth, the engines themselves never project a sealed value. Without the decorator,
-a raw Datalog read that binds a sealed value projects `null`, orders it with other non-scalar
-values, and joins it only with another sealed value carrying the same blind token. KV, SQLite and
-PostgreSQL agree on this in the shared corpus.
+As defense in depth, the engines enforce the same boundary without the decorator. A raw Datalog
+read projects a sealed binding as `null`. It never matches a sealed value against a plaintext
+constant or binding, joins sealed values only on equal blind tokens, and excludes them from rule
+closure. A sealed value without a blind token equals nothing. KV, SQLite, PostgreSQL and the
+Durable Object backend agree on this in the shared `sealedStorageCases`.
 
-### Constraints
+### Constraints and validation
 
 - **Required** and **cardinality** count facts and work unchanged.
-- **Unique** compares the blind token (`sealed:<blind>`) instead of the canonical value. If the
-  codec has no blind index, a transaction that enforces a unique rule on a sensitive attribute fails
-  before mutation with `SensitiveValueError` (`blind-index-unavailable`). It does not skip the rule.
-  Uniqueness across a blind-key rotation is covered by the rotation design below.
-- **Reference-target** cannot apply because ref attributes cannot be sensitive.
-- Violation messages already omit values. `valueIdentity` for a sealed value is the blind token,
-  never plaintext.
+- **Unique** compares the blind token (`sealed:<blind>`) instead of the canonical value. Without a
+  blind index, a transaction that enforces a unique rule on a sensitive attribute fails before
+  mutation; the rule is never skipped.
+- **Reference-target** cannot apply, because ref attributes cannot be sensitive.
+- Violation messages omit values, and `valueIdentity` for a sealed value is the blind token.
+- `EntityValidation` checks the presence and cardinality of sealed fields. Their plaintext type was
+  enforced when they were sealed. The committed state CID covers the sealed envelope.
 
 ### Derivations and overlays
 
-Derivations run their queries through `Triples`, so the planning rules above apply unchanged. A
-derivation that projects, orders or compares a sensitive value fails with `SensitiveQueryError` when
-it is evaluated. Derivations may still use sensitive attributes for presence and blind equality,
-for example "people without an SSN on file". Candidate provenance records triple IDs and sealed
-values, never plaintext.
+Derivations plan their query through `Sensitivity` when it is in context. A derivation that
+projects, orders or compares a sensitive value fails with `SensitiveQueryError` when it is
+evaluated. Derivations may use sensitive attributes for presence and blind equality, for example
+"employees without an SSN on file" or "applicants whose SSN matches an employee". Sensitive value
+variables are withheld from the internal provenance projection. Candidate provenance still records
+every sealed source fact by triple ID, never a plaintext value.
 
-`Derivation.evaluateOverlay` builds an ephemeral in-memory store. When `Sensitivity` is in context,
-it seals hypothetical assertions on sensitive attributes before seeding and applies the same query
-analysis and blind rewriting. Hypothetical sensitive values therefore compare exactly like
-committed ones and never reach the in-memory indexes in plaintext.
+`evaluateOverlay` seals hypothetical assertions on sensitive attributes before seeding its
+in-memory store, so they compare exactly like committed facts and never reach its indexes in
+plaintext. A hypothetical fact's content identity commits to its blind token, not to plaintext or
+randomized ciphertext.
 
-`ConfigRuntime` evaluation reads scalar facts into a `World`. Sealed facts are not scalar, so an
-evaluation that reads a sensitive attribute fails with a typed error. A rule such as "older than
-18" from a sealed birth date needs an explicit host decision to open the value. That opt-in is
-future work.
+`ConfigRuntime` evaluation reads scalar facts into a `World`. A rule that reads a sealed fact fails
+with `UnsupportedDecisionFactError`. A rule such as "older than 18" from a sealed birth date needs
+an explicit host decision to open the value, which is future work.
 
 ### Surfaces
 
-| Surface   | Default                                                                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| HTTP      | Entity reads return sensitive fields as `{ "$sealed": { "valueType": ..., "keyId": ... } }`, without ciphertext or blind. Writes accept plaintext and seal through the decorated `Triples`. There is no plaintext read route; hosts that need one call `Sensitive.open` in their own handler after authorization. |
-| CLI       | `entity`, `history`, `journal` and `query` print sealed values as `{ "type": "sealed", "valueType", "keyId" }`. The CLI has no key access and no open command. |
-| Dashboard | Sealed values render as a locked `sealed · <valueType>` badge. It has no open action.                                                                       |
+| Surface   | Default                                                                                                                                                                                                                                                                                                                                                                     |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP      | Entity reads return sensitive fields as `{ "$sealed": { "valueType", "keyId" } }`, without ciphertext or blind token. Writes accept plaintext and seal through the decorated `Triples`. A write to a sensitive attribute fails closed when `Sensitivity` is absent. There is no plaintext read route; hosts call `Sensitive.open` in their own handler after authorization. |
+| CLI       | Entity, history, journal and query output prints sealed values as `{ "type": "sealed", "valueType", "keyId" }`. The CLI has no key access and no open command.                                                                                                                                                                                                              |
+| Dashboard | Sealed values render as `sealed · <valueType>` and cannot be edited in form mode.                                                                                                                                                                                                                                                                                           |
 
-"Never plaintext by accident" holds structurally. Each surface sees only what `Triples` returns,
+"Never plaintext by accident" holds structurally: each surface sees only what `Triples` returns,
 and `Triples` returns sealed values.
 
 ## Storage
@@ -256,90 +337,97 @@ and `Triples` returns sealed values.
 All backends store the same logical sealed value. The ciphertext and blind token are kept in
 dedicated places, and the plaintext value columns stay empty.
 
-| Backend                   | Ciphertext                      | Blind token                    | Index                                                                                         |
-| ------------------------- | ------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------- |
-| SQLite, PostgreSQL        | `value_sealed TEXT` (JSON envelope: type, key ID, ciphertext) | `value_blind TEXT` | `idx_attr_blind ON triples(attribute, value_blind) WHERE value_type = 'sealed'` (migration v3) |
-| Cloudflare Durable Object | Same columns                    | Same columns                   | Same index (Cloudflare migration v4)                                                          |
-| In-memory KV, FoundationDB | `META` record value tag `sealed` (type, key ID, ciphertext, blind) | Tuple tag `0x08` over the blind token in EAVT, AEVT and AVET | AVET on `(attribute, sealed blind)`                                                            |
+| Backend                    | Ciphertext                                                          | Blind token                                                                                                   | Index                                                                                              |
+| -------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| SQLite, PostgreSQL         | `value_sealed TEXT` (JSON envelope: value type, key ID, ciphertext) | `value_blind TEXT`                                                                                            | `idx_attr_blind ON triples(attribute, value_blind) WHERE value_type = 'sealed'` (SQL migration v3) |
+| Cloudflare Durable Object  | Same columns                                                        | Same column                                                                                                   | Same index (Cloudflare migration v4)                                                               |
+| In-memory KV, FoundationDB | `META` record value tag 7 (envelope and optional blind)             | Tuple tag `0x08` over `blind:<token>`, or `opaque:<ciphertext>` without a blind index, in EAVT, AEVT and AVET | AVET on `(attribute, sealed token)`                                                                |
 
-Migration v3 widens the `value_type` check to admit `sealed` and adds the two columns and the
-index. PostgreSQL replaces the check constraint in place. SQLite cannot alter a check constraint,
-so it rebuilds the `triples` table inside the migration transaction and recreates every index;
-that cost is proportional to the table size and is the documented SQLite procedure. Existing rows
-are untouched.
+SQL migration v3 admits `sealed` in the `value_type` check, adds both columns and the index, and
+requires an envelope on sealed rows. PostgreSQL replaces the check constraints in place. SQLite
+cannot alter a check constraint, so v3 rebuilds `triples` with SQLite's create-copy-drop-rename
+procedure and recreates every index. The rebuild is proportional to the table size. Existing rows
+are copied unchanged. `runMigrations` now applies each migration and its applied record in one
+transaction. The exported `Migration` gained optional per-dialect statements (`dialects.sqlite`,
+`dialects.pg`) that run before the portable `up` statements. Hosts that execute migrations
+themselves must run their dialect's statements first.
 
 The columns are `TEXT` (base64url) rather than `BLOB`/`bytea` so one DDL serves SQLite,
-PostgreSQL and Durable Object SQL, and the KV and journal JSON encodings stay byte-identical. The
-cost is roughly a third more space per sealed value.
+PostgreSQL and Durable Object SQL, and the KV and journal JSON encodings stay identical. The cost
+is about a third more space per sealed value.
 
-A sealed fact without a blind token is still indexed in KV, under its triple ID. That keeps its
-key unique and makes clear it never matches an equality lookup.
+Every backend runs a planted-plaintext test. It writes a high-entropy marker into sensitive
+attributes through `ValueCodec.aesGcm`, runs the decorator corpus, then scans raw storage for the
+marker in every encoding Triplex uses (UTF-8, JSON-escaped and base64url). The corpus includes
+the journal, command receipts, a uniqueness violation and planning errors. Each scan includes a
+positive control that finds a non-sensitive plaintext value.
 
-The planted-plaintext test writes a high-entropy marker into a sensitive attribute with
-`ValueCodec.aesGcm`, then scans raw storage for the marker in any encoding Triplex uses (UTF-8,
-JSON-escaped and base64url):
-
-- every table and column in SQLite (`sqlite_master`, then every row);
-- every table in the PostgreSQL schema;
-- every key and value in the KV backend.
-
-The test also commits a constraint-enforced transaction and triggers a planning error, so it covers
-the journal, command receipts and error messages.
+- SQLite: every row of every table, plus the raw bytes of the database, WAL and shared-memory
+  files after close.
+- PostgreSQL: every row of every table in the database schema, plus index definitions.
+- In-memory KV: every key and value.
+- Cloudflare Durable Object SQLite: every row of every table.
 
 ## Erasure (crypto-shredding)
 
 Design, partially built:
 
-- `KeyProvider` is keyed by **subject**, which defaults to the entity ID. A host may map several
-  entities to one subject, for example a person's documents to the person.
-- Erasing a subject destroys its data key in the key provider. Facts, positions, journal entries
-  and sealed envelopes remain, so history stays complete and every audit query keeps working. The
+- `KeyProvider` is keyed by **subject**. `ValueCodec.aesGcmWith({ subjectOf })` maps a value to its
+  subject, which defaults to the entity ID. A host may map related entities, such as a person's
+  documents, to the person.
+- Erasing a subject destroys its data keys in the key provider. Facts, positions, journal entries
+  and sealed envelopes remain, so history stays complete and audit queries keep working. The
   ciphertext can no longer be opened.
 - Reads after erasure return the same sealed values. `Sensitive.open` fails with
-  `SensitiveValueError` (`key-destroyed`); `Sensitive.open(..., { erased: "keep-sealed" })` leaves
-  such values sealed instead, so a UI can render "erased" without failing the whole entity.
+  `SensitiveValueError` (`key-destroyed`). `Sensitive.open(facts, { erased: "keep-sealed" })`
+  leaves erased values sealed instead, so a UI can render "erased" without failing the read.
 - **Blind tokens must be scrubbed too.** A blind token keyed per database survives a destroyed data
   key, so someone holding a candidate value could still confirm it. Erasure therefore also clears
-  `value_blind` (and the KV blind index entries) for the subject's facts through an unjournaled
-  maintenance operation, like checkpoint maintenance, and records one journaled erasure fact
-  naming the subject and the time. It names no attributes or values. After scrubbing, Datalog
-  presence still matches erased facts, while equality, joins and uniqueness no longer do. A unique
-  value whose holder was erased becomes reusable.
+  the subject's blind tokens (`value_blind`, and the KV blind index entries) through an unjournaled
+  maintenance operation, like checkpoint maintenance. It also records one journaled erasure fact
+  that names the subject and the time but no attribute or value. After scrubbing, Datalog presence
+  still matches erased facts, while equality, joins and uniqueness no longer do, so a unique value
+  whose holder was erased becomes reusable.
 - Derivations over erased subjects keep their committed provenance. Re-evaluation sees presence but
   no equality matches, which is the correct post-erasure answer.
 
-Built today: per-subject keys, key destruction in the test provider, and typed `key-destroyed`
-opening with the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure
-fact. They need a new optional `StorageAdapter` maintenance method on every backend.
+Built: per-subject keys, key destruction in the test provider, typed `key-destroyed` opening and
+the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure fact. Both need a
+new optional `StorageAdapter` maintenance method on every backend.
 
 ## Key rotation
 
-Design:
+Design, partially built:
 
-- **Data keys.** Each envelope records its key ID. `KeyProvider.dataKey` returns the current key
-  for new seals, and `KeyProvider.openingKey(keyId)` resolves historical keys, so rotation needs no
-  data change. Re-encryption under a new key (*rewrap*) rewrites `value_sealed` for an existing
-  fact ID in place. The fact's meaning, valid time, transaction and position do not change, so
-  transaction history is untouched. Rewrap is an unjournaled maintenance operation with a durable
-  checkpoint, so it resumes after interruption. Journal `:_tx/change` payloads hold their own
-  copies of the sealed value. Rewrap either rewrites them too, or keeps the old key IDs available
-  for opening. The reference provider does the latter.
-- **Blind key.** Rotating the blind key changes every token. Tokens carry a key-version prefix.
-  During rotation the decorator expands each equality constant to both versions and compares joins
-  on the token payload within one version. A background rewrap recomputes tokens, which requires
-  opening every value. Uniqueness enforcement compares both versions until the rewrap completes.
-- Not built: the rewrap maintenance operation (same adapter extension as the blind scrub) and
+- **Data keys.** Each envelope records its key ID. `KeyProvider.sealingKey` returns the current key
+  for new seals and `KeyProvider.openingKey(context, keyId)` resolves historical keys, so rotation
+  needs no data change. The test provider's `rotate()` demonstrates this and is covered by tests.
+  Re-encryption under a new key (_rewrap_) rewrites `value_sealed` for an existing fact ID in place.
+  The fact's meaning, valid time, transaction and position do not change, so transaction history
+  is untouched. Rewrap is an unjournaled maintenance operation with a durable checkpoint, so it
+  resumes after interruption. Journal `:_tx/change` payloads hold their own copy of the sealed
+  value. Rewrap either rewrites them too or keeps old key IDs available for opening; the reference
+  provider does the latter.
+- **Blind key.** Rotating the blind key changes every token. Tokens already carry the blind key ID
+  as a prefix. During rotation the decorator would expand each equality constant to both key
+  versions and compare joins within one version. A background rewrap recomputes tokens, which
+  requires opening every value. Uniqueness enforcement compares both versions until the rewrap
+  completes.
+- Not built: the rewrap maintenance operation (the same adapter extension as the blind scrub) and
   dual-version blind lookups.
 
 ## Backends
 
-| Backend      | Storage | Query rules | Conformance                                              |
-| ------------ | ------- | ----------- | -------------------------------------------------------- |
-| In-memory KV | Yes     | Yes         | Shared `sensitiveConformance` corpus                     |
-| SQLite       | Yes     | Yes         | Shared corpus, raw-storage scan, migration from v2       |
-| PostgreSQL   | Yes     | Yes         | Shared corpus and raw-storage scan in the opt-in integration suite |
-| Cloudflare   | Yes (migration v4) | Yes | Covered by its SQL harness through the shared corpus |
-| FoundationDB | Yes (shared KV encoding) | Yes | Opt-in native suite; not run by default            |
+| Backend      | Storage                  | Query rules | Conformance                                                                       |
+| ------------ | ------------------------ | ----------- | --------------------------------------------------------------------------------- |
+| In-memory KV | Yes                      | Yes         | Sealed-storage and decorator corpora, full corpus through the decorator, raw scan |
+| SQLite       | Yes (migration v3)       | Yes         | Same, plus file scan and the v1 to v3 upgrade                                     |
+| PostgreSQL   | Yes (migration v3)       | Yes         | Same in the opt-in integration suite, plus the v1 to v3 upgrade                   |
+| Cloudflare   | Yes (migration v4)       | Yes         | Same in the native-SQL harness; both corpora in workerd                           |
+| FoundationDB | Yes (shared KV encoding) | Yes         | Not run: its native suite is opt-in and has no sensitive cases yet                |
+
+The shared corpora are exported from `@triplex-build/triplex-testkit` as `sealedStorageCases`,
+`sensitiveConformanceCases`, `sensitiveConformanceLayer` and `findPlaintext`.
 
 ## Out of scope
 
@@ -349,23 +437,28 @@ Design:
   provides the single choke point.
 - Client-side sealing. Callers cannot submit pre-sealed values.
 - Encrypting attribute names, entity IDs, valid times or transaction metadata. Only values are
-  sealed. Entity IDs must not embed sensitive data.
-- Length hiding. AES-GCM ciphertext length follows plaintext length; codecs may pad.
+  sealed, so entity IDs must not embed sensitive data.
+- Length hiding. AES-GCM ciphertext length follows plaintext length; a host codec may pad.
 - Opening sensitive values inside `ConfigRuntime` rule evaluation.
+- Checking that a write's policy matches its pinned `configSnapshot`. Hosts derive the policy from
+  the release with `Sensitive.attributesFromNodes`.
 
 ## Related work
 
 - Shared catalogs across tenant databases: sensitivity is part of the attribute node, so a shared
-  catalog carries it to every tenant. Key material stays per database, and blind tokens never join
-  across databases.
-- Commit validators: a validator that inspects values sees the sealed form when it runs below the
-  decorator. A validator that needs plaintext must run above it, or call `Sensitive.open`, and must
-  not echo values into its error messages.
+  catalog carries it to every tenant. Key material stays per database (the codec's `database`), and
+  blind tokens never join across databases.
+- Commit validators: a validator running inside the inner store sees only sealed values. A
+  validator that needs plaintext must run above the decorator or call `Sensitive.open`, and must not
+  echo values into its error messages.
 
 ## Implementation status
 
-See the summary in [Current state](/current-state). Delivered: marking, the sealed value type, the
-identity and AES-GCM codecs, the test key provider, the `Triples` decorator for writes, reads,
-journal and Datalog planning, blind equality in the KV and SQL engines, storage migrations for
-SQLite, PostgreSQL and Cloudflare, constraint support, overlay sealing, surface defaults, and the
-raw-storage scan tests. Design only: blind scrubbing on erasure, rewrap and blind-key rotation.
+Built: marking, the sealed value type, the identity and AES-GCM codecs, the test key provider with
+rotation and destruction, the `Triples` decorator for writes, reads, the journal and Datalog
+planning, blind equality in the KV and SQL engines, storage migrations for SQLite, PostgreSQL and
+Cloudflare, constraint and validation support, derivation and overlay support, surface defaults,
+shared conformance corpora, and raw-storage scan tests.
+
+Designed but not built: blind-token scrubbing and the erasure fact, rewrap, blind-key rotation,
+and opening sealed values in `ConfigRuntime`.

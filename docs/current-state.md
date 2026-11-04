@@ -37,6 +37,16 @@ work that is not complete.
   a Foldkit/Tailwind browser dashboard that exercises facts, reflected entity-type tables,
   config-rendered form previews, raw Datalog, derivations, the journal, and full configuration
   object/revision/release history through one app-lifetime Effect layer.
+- Opt-in sensitive attribute values. `Attribute.sensitive` marks an attribute in its
+  content-addressed node. `Sensitive.layer` decorates any `Triples` so a pluggable `ValueCodec`
+  seals values before storage: a reference AES-256-GCM codec over WebCrypto with a keyed
+  blind index, or a non-confidential identity codec for development. Reads, the journal,
+  snapshots, the CLI, the dashboard and HTTP return sealed values, and `Sensitive.open` is the only
+  path to plaintext. Datalog, uniqueness and derivations support presence and blind equality; every
+  other use of a sealed value fails during planning with `SensitiveQueryError`. SQL migration v3 and
+  Cloudflare migration v4 add the ciphertext and blind-index columns. KV, SQLite, PostgreSQL and
+  Cloudflare pass shared sealed-value conformance and raw-storage plaintext scans. See
+  [Sensitive values](/sensitive-values).
 - An Effect v4 agent CLI with schema-decoded commands and stable JSON output for SQLite and
   PostgreSQL. It explores entities, bitemporal facts, Datalog, causal history, configuration
   revisions/releases/refs/impact, applies attributed idempotent transactions, and moves refs.
@@ -106,6 +116,11 @@ outside the normal test matrix.
 - Exact derivation provenance currently supports patterns, predicates, and negation. Recursive
   rules, disjunction, aggregation, pagination, dynamic attributes, and transaction-binding clauses
   are rejected where a complete explanation cannot be preserved.
+- Sensitive values: crypto-shredding is limited to key destruction; scrubbing an erased subject's
+  blind tokens, rewrapping ciphertext under new keys and rotating the blind key are designed but
+  not built. `KeyProvider.test` keys are for tests only; production hosts supply their own
+  `KeyProvider`. Range, ordering, aggregation and comparison over sealed values are intentionally
+  unsupported.
 - Config decision verification proves internal content integrity given a trusted decision root. It
   does not independently prove that an external actor chose the right rule or answer.
 - Constraint enforcement is opt-in and serialized through the commit-position boundary. Direct
