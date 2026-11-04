@@ -8,7 +8,13 @@
  */
 
 import { Effect } from "effect";
-import type { TripleValue } from "../../Value.js";
+import {
+  SEALED_BINDING_PREFIX,
+  isSealedBinding,
+  sealedBinding,
+  type SealedValue,
+  type TripleValue,
+} from "../../Value.js";
 import type { Datom } from "../hexastore/KvTripleStore.js";
 import type { KvTripleStore } from "../hexastore/KvTripleStore.js";
 import type { ScanPattern } from "../hexastore/scan.js";
@@ -39,7 +45,23 @@ export const tripleValueToConstant = (tv: TripleValue): Constant => {
     case "json":
       // JSON values become their stringified form for comparison
       return JSON.stringify(tv.value);
+    case "sealed":
+      // Joins compare blind tokens; projection maps this binding to null.
+      return sealedBinding(tv);
   }
+};
+
+/** A scan-only sealed value that selects facts by blind token or opaque identity. */
+const sealedScanValue = (binding: string): SealedValue => {
+  const token = binding.slice(SEALED_BINDING_PREFIX.length);
+  return token.startsWith("opaque:")
+    ? {
+        type: "sealed",
+        valueType: "string",
+        keyId: "",
+        ciphertext: token.slice("opaque:".length),
+      }
+    : { type: "sealed", valueType: "string", keyId: "", ciphertext: "", blind: token };
 };
 
 /**
@@ -53,9 +75,14 @@ export const tripleValueToConstant = (tv: TripleValue): Constant => {
  * stored alongside the binding when possible.
  */
 export const constantToTripleValue = (c: Constant): TripleValue => {
+  if (typeof c === "string" && isSealedBinding(c)) return sealedScanValue(c);
   if (typeof c === "string") return { type: "string", value: c };
   if (typeof c === "number") return { type: "number", value: c };
   if (typeof c === "boolean") return { type: "boolean", value: c };
+  // TypedConstant (blind token for a sealed value)
+  if (typeof c === "object" && c !== null && "type" in c && c.type === "blind") {
+    return sealedScanValue(`${SEALED_BINDING_PREFIX}${c.value}`);
+  }
   // TypedConstant (ref)
   if (typeof c === "object" && c !== null && "type" in c && c.type === "ref") {
     return { type: "ref", value: unsafe.entityId((c as { type: "ref"; value: string }).value) };
@@ -72,6 +99,7 @@ export const constantToTripleValue = (c: Constant): TripleValue => {
  * encoding keeps later joins symmetric with that public binding shape.
  */
 const constantToScanValues = (c: Constant): readonly TripleValue[] => {
+  if (typeof c === "string" && isSealedBinding(c)) return [sealedScanValue(c)];
   if (typeof c === "string") {
     const values: TripleValue[] = [
       { type: "string", value: c },
@@ -194,7 +222,9 @@ export const bindDatom = (
   // Bind value. Typed constants match the stored tag exactly; variables and
   // untyped constants use the flattened scalar exposed in result contexts.
   if (typeof valueTerm === "object" && valueTerm !== null && "type" in valueTerm) {
-    if (valueTerm.type !== datom.value.type || valueTerm.value !== datom.value.value) {
+    if (valueTerm.type === "blind") {
+      if (datom.value.type !== "sealed" || datom.value.blind !== valueTerm.value) return null;
+    } else if (datom.value.type !== "ref" || valueTerm.value !== datom.value.value) {
       return null;
     }
   } else {

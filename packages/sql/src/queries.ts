@@ -1,4 +1,8 @@
-import type { TripleValue, ValueType } from "@triplex-build/triplex/internal";
+import {
+  encodeSealedEnvelope,
+  type TripleValue,
+  type ValueType,
+} from "@triplex-build/triplex/internal";
 
 /** Encode a typed Triplex value into the SQL table's value columns. */
 export const packValue = (
@@ -10,6 +14,8 @@ export const packValue = (
   value_boolean: number | null;
   value_datetime: number | null;
   value_json: string | null;
+  value_sealed: string | null;
+  value_blind: string | null;
 } => {
   const base = {
     value_string: null as string | null,
@@ -17,6 +23,8 @@ export const packValue = (
     value_boolean: null as number | null,
     value_datetime: null as number | null,
     value_json: null as string | null,
+    value_sealed: null as string | null,
+    value_blind: null as string | null,
   };
 
   switch (value.type) {
@@ -42,6 +50,14 @@ export const packValue = (
           size: value.size,
           ...(value.filename && { filename: value.filename }),
         }),
+      };
+    case "sealed":
+      // Plaintext columns stay NULL; only the envelope and blind token persist.
+      return {
+        ...base,
+        value_type: "sealed",
+        value_sealed: encodeSealedEnvelope(value),
+        value_blind: value.blind ?? null,
       };
   }
 };

@@ -2,6 +2,7 @@ import {
   COMMAND_RECEIPTS_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
   BASELINE_INDEX_DDLS,
+  SEALED_VALUES_DDLS,
   TRIPLES_TABLE_DDL,
 } from "./schema.js";
 import {
@@ -37,5 +38,10 @@ export const migrations: readonly Migration[] = [
     version: 3,
     name: "triplex_numeric_value_index",
     up: [NUMERIC_VALUE_INDEX_DDL],
+  },
+  {
+    version: 4,
+    name: "triplex_sealed_values",
+    up: SEALED_VALUES_DDLS,
   },
 ];

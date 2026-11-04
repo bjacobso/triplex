@@ -277,9 +277,10 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
           `INSERT INTO triples (
             id, entity_id, attribute, value_type,
             value_string, value_number, value_boolean, value_datetime, value_json,
+                value_sealed, value_blind,
             recorded_at, recorded_position, valid_from, valid_to,
             created_by, entity_type, schema_version, tx_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id,
           input.entityId,
           input.attribute,
@@ -289,6 +290,8 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
           packed.value_boolean,
           packed.value_datetime,
           packed.value_json,
+          packed.value_sealed,
+          packed.value_blind,
           timestamp,
           position,
           input.validFrom ?? timestamp,
@@ -309,6 +312,8 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
           value_boolean: packed.value_boolean,
           value_datetime: packed.value_datetime,
           value_json: packed.value_json,
+          value_sealed: packed.value_sealed,
+          value_blind: packed.value_blind,
           recorded_at: timestamp,
           recorded_position: position,
           valid_from: input.validFrom ?? timestamp,
@@ -358,9 +363,10 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
             `INSERT INTO triples (
                 id, entity_id, attribute, value_type,
                 value_string, value_number, value_boolean, value_datetime, value_json,
+                value_sealed, value_blind,
                 recorded_at, recorded_position, valid_from, valid_to,
                 created_by, entity_type, schema_version, tx_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             input.entityId,
             input.attribute,
@@ -370,6 +376,8 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
             packed.value_boolean,
             packed.value_datetime,
             packed.value_json,
+            packed.value_sealed,
+            packed.value_blind,
             timestamp,
             position,
             input.validFrom ?? timestamp,
@@ -390,6 +398,8 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
             value_boolean: packed.value_boolean,
             value_datetime: packed.value_datetime,
             value_json: packed.value_json,
+            value_sealed: packed.value_sealed,
+            value_blind: packed.value_blind,
             recorded_at: timestamp,
             recorded_position: position,
             valid_from: input.validFrom ?? timestamp,
@@ -543,6 +553,16 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
             case "datetime":
               conditions.push(`value_datetime = ?`);
               params.push(packed.value_datetime);
+              break;
+            case "sealed":
+              // Sealed values match by blind token (or exact envelope when unblinded).
+              if (packed.value_blind !== null) {
+                conditions.push(`value_blind = ?`);
+                params.push(packed.value_blind);
+              } else {
+                conditions.push(`value_blind IS NULL AND value_sealed = ?`);
+                params.push(packed.value_sealed);
+              }
               break;
           }
         }

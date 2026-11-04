@@ -216,12 +216,14 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
               INSERT INTO triples (
                 id, entity_id, attribute, value_type,
                 value_string, value_number, value_boolean, value_datetime, value_json,
+                value_sealed, value_blind,
                 recorded_at, recorded_position, valid_from, valid_to,
                 created_by, entity_type, schema_version, tx_id
               ) VALUES (
                 ${id}, ${input.entityId}, ${input.attribute}, ${packed.value_type},
                 ${packed.value_string}, ${packed.value_number}, ${packed.value_boolean},
                 ${packed.value_datetime}, ${packed.value_json},
+              ${packed.value_sealed}, ${packed.value_blind},
                 ${timestamp}, ${position}, ${input.validFrom ?? timestamp}, ${input.validTo ?? null},
                 ${input.createdBy ?? null}, ${input.entityType ?? null}, ${1}, ${txId}
               )
@@ -245,6 +247,8 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
               value_boolean: packed.value_boolean,
               value_datetime: packed.value_datetime,
               value_json: packed.value_json,
+              value_sealed: packed.value_sealed,
+              value_blind: packed.value_blind,
               recorded_at: timestamp,
               recorded_position: position,
               valid_from: input.validFrom ?? timestamp,
@@ -304,6 +308,8 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
                       packed.value_boolean,
                       packed.value_datetime,
                       packed.value_json,
+                      packed.value_sealed,
+                      packed.value_blind,
                       timestamp,
                       position,
                       input.validFrom ?? timestamp,
@@ -321,6 +327,7 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
                   INSERT INTO triples (
                     id, entity_id, attribute, value_type,
                     value_string, value_number, value_boolean, value_datetime, value_json,
+                value_sealed, value_blind,
                     recorded_at, recorded_position, valid_from, valid_to,
                     created_by, entity_type, schema_version, tx_id
                   ) VALUES ${valuesSql}
@@ -347,6 +354,8 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
                 value_boolean: packed.value_boolean,
                 value_datetime: packed.value_datetime,
                 value_json: packed.value_json,
+                value_sealed: packed.value_sealed,
+                value_blind: packed.value_blind,
                 recorded_at: timestamp,
                 recorded_position: position,
                 valid_from: input.validFrom ?? timestamp,
@@ -527,6 +536,14 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
                   conditions.push(`value_datetime = ${collector.add(packed.value_datetime)}`);
                   break;
                 case "json":
+                  break;
+                case "sealed":
+                  // Sealed values match by blind token (or exact envelope when unblinded).
+                  conditions.push(
+                    packed.value_blind !== null
+                      ? `value_blind = ${collector.add(packed.value_blind)}`
+                      : `value_blind IS NULL AND value_sealed = ${collector.add(packed.value_sealed)}`,
+                  );
                   break;
               }
             }

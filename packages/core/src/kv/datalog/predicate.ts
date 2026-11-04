@@ -5,6 +5,7 @@
  * they just filter existing contexts based on comparison operators.
  */
 
+import { SEALED_BINDING_PREFIX } from "../../Value.js";
 import {
   isVariable,
   type Context,
@@ -29,6 +30,7 @@ export const resolveTerm = (term: Term, context: Context): Constant | null => {
   if (typeof term === "object" && term !== null && "type" in term) {
     const typed = term as { type: string; value: string };
     if (typed.type === "ref") return typed.value;
+    if (typed.type === "blind") return `${SEALED_BINDING_PREFIX}${typed.value}`;
   }
   return term as Constant;
 };

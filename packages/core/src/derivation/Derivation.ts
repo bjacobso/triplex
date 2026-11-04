@@ -8,7 +8,7 @@ import { isNotClause, isPatternClause, isPredicateClause, isVariable } from "../
 import type { TemporalBasis } from "../Temporal.js";
 import type { Triple } from "../Triple.js";
 import type { TransactionRecord, TriplesService } from "../store/Triples.js";
-import type { TripleValue } from "../Value.js";
+import { SEALED_BINDING_PREFIX, sealedBinding, type TripleValue } from "../Value.js";
 import type { DatalogQueryError, ReadError } from "../errors/index.js";
 import { extractDependencies } from "../subscriptions/extract-dependencies.js";
 import * as TypeExpr from "../config/TypeExpr.js";
@@ -177,6 +177,8 @@ const tripleValueConstant = (value: TripleValue): Constant => {
   switch (value.type) {
     case "json":
       return JSON.stringify(value.value);
+    case "sealed":
+      return sealedBinding(value);
     default:
       return value.value;
   }
@@ -186,13 +188,21 @@ const termValue = (term: Term, row: Readonly<Record<string, Constant | null>>): 
   isVariable(term) ? (row[term] ?? null) : term;
 
 const normalizedConstant = (value: Constant | null): Constant | null =>
-  typeof value === "object" && value !== null && "type" in value ? value.value : value;
+  typeof value === "object" && value !== null && "type" in value
+    ? value.type === "blind"
+      ? `${SEALED_BINDING_PREFIX}${value.value}`
+      : value.value
+    : value;
 
 const termMatches = (
   term: Term,
   actual: Constant | null,
   row: Readonly<Record<string, Constant | null>>,
-): boolean => normalizedConstant(termValue(term, row)) === normalizedConstant(actual);
+): boolean =>
+  // A variable absent from the row was withheld from projection (a sensitive
+  // value position), so provenance matches it like a wildcard.
+  (isVariable(term) && !(term in row)) ||
+  normalizedConstant(termValue(term, row)) === normalizedConstant(actual);
 
 const tripleMatches = (
   triple: Triple,

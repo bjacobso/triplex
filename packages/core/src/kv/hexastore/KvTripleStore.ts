@@ -14,7 +14,7 @@
  */
 
 import { Effect, Stream } from "effect";
-import type { TripleValue } from "../../Value.js";
+import { decodeSealedEnvelope, encodeSealedEnvelope, type TripleValue } from "../../Value.js";
 import type { KvBackendService } from "../kv/KvBackend.js";
 import type { ResolvedTemporalBasis } from "../../Temporal.js";
 import { unsafe } from "../../Branded.js";
@@ -124,6 +124,7 @@ const VT_DATETIME = 3;
 const VT_REF = 4;
 const VT_JSON = 5;
 const VT_BLOB = 6;
+const VT_SEALED = 7;
 
 // Reusable write buffer (4KB, grows if needed). Avoids per-datom allocation.
 let _writeBuf = new Uint8Array(4096);
@@ -243,6 +244,19 @@ const serializeDatom = (datom: Datom): Uint8Array => {
         offset = writeStr(v.filename, offset);
       } else {
         ensureCapacity(1, offset);
+        _writeBuf[offset++] = 0;
+      }
+      break;
+    }
+    case "sealed": {
+      // Envelope and optional blind token. Never plaintext.
+      _writeBuf[offset++] = VT_SEALED;
+      offset = writeStr(encodeSealedEnvelope(v), offset);
+      ensureCapacity(1, offset);
+      if (v.blind !== undefined) {
+        _writeBuf[offset++] = 1;
+        offset = writeStr(v.blind, offset);
+      } else {
         _writeBuf[offset++] = 0;
       }
       break;
@@ -401,6 +415,17 @@ const deserializeDatom = (bytes: Uint8Array): Datom => {
         size,
         ...(filename !== undefined ? { filename } : {}),
       };
+      break;
+    }
+    case VT_SEALED: {
+      let envelope: string;
+      [envelope, offset] = readStr(bytes, offset);
+      const hasBlind = bytes[offset++]! !== 0;
+      let blind: string | undefined;
+      if (hasBlind) {
+        [blind, offset] = readStr(bytes, offset);
+      }
+      value = decodeSealedEnvelope(envelope, blind);
       break;
     }
     default:
@@ -974,6 +999,12 @@ const valuesEqual = (a: TripleValue, b: TripleValue): boolean => {
       return a.value === (b as typeof a).value;
     case "json":
       return JSON.stringify(a.value) === JSON.stringify((b as typeof a).value);
+    case "sealed": {
+      const other = b as typeof a;
+      return a.blind !== undefined || other.blind !== undefined
+        ? a.blind === other.blind
+        : a.ciphertext === other.ciphertext;
+    }
   }
 };
 

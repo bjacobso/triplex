@@ -5,7 +5,7 @@
  * by selecting the optimal index and computing prefix bounds.
  */
 
-import type { TripleValue } from "../../Value.js";
+import type { SealedValue, TripleValue } from "../../Value.js";
 import type { TuplePart } from "./tuple.js";
 import {
   tString,
@@ -15,7 +15,9 @@ import {
   tRef,
   tJson,
   tBlob,
+  tSealed,
   encodePartStr,
+  encodeSealedStr,
   encodeStringStr,
   encodeNumberStr,
   encodeBooleanStr,
@@ -36,6 +38,13 @@ export interface ScanPattern {
 }
 
 /**
+ * Index token for a sealed value: its blind token, or a per-value opaque token
+ * (which no equality lookup can produce) when the codec has no blind index.
+ */
+export const sealedIndexToken = (value: SealedValue): string =>
+  value.blind === undefined ? `opaque:${value.ciphertext}` : `blind:${value.blind}`;
+
+/**
  * Convert a TripleValue to a TuplePart for index key encoding.
  */
 export const valueToTuplePart = (value: TripleValue): TuplePart => {
@@ -54,6 +63,8 @@ export const valueToTuplePart = (value: TripleValue): TuplePart => {
       return tJson(value.value);
     case "blob":
       return tBlob(value.value);
+    case "sealed":
+      return tSealed(sealedIndexToken(value));
   }
 };
 
@@ -77,6 +88,8 @@ export const valueToPartStr = (value: TripleValue): string => {
       return encodePartStr(tJson(value.value));
     case "blob":
       return encodeBlobStr(value.value);
+    case "sealed":
+      return encodeSealedStr(sealedIndexToken(value));
   }
 };
 

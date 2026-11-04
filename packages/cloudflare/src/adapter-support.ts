@@ -1,4 +1,4 @@
-import type { TripleValue, ValueType } from "@triplex-build/triplex";
+import { encodeSealedEnvelope, type TripleValue, type ValueType } from "@triplex-build/triplex";
 import {
   MigrationError,
   ReadError,
@@ -29,8 +29,12 @@ export const packValue = (
   value_boolean: number | null;
   value_datetime: number | null;
   value_json: string | null;
+  value_sealed: string | null;
+  value_blind: string | null;
 } => {
   const base = {
+    value_sealed: null as string | null,
+    value_blind: null as string | null,
     value_string: null as string | null,
     value_number: null as number | null,
     value_boolean: null as number | null,
@@ -61,6 +65,14 @@ export const packValue = (
           size: value.size,
           ...(value.filename && { filename: value.filename }),
         }),
+      };
+    case "sealed":
+      // Plaintext columns stay NULL; only the envelope and blind token persist.
+      return {
+        ...base,
+        value_type: "sealed",
+        value_sealed: encodeSealedEnvelope(value),
+        value_blind: value.blind ?? null,
       };
   }
 };

@@ -17,7 +17,7 @@
 
 import { Effect, Stream } from "effect";
 import type { KvTripleStore } from "../hexastore/KvTripleStore.js";
-import type { TripleValue } from "../../Value.js";
+import { isSealedBinding, type TripleValue } from "../../Value.js";
 import type { ResolvedTemporalBasis } from "../../Temporal.js";
 import {
   type Context,
@@ -280,6 +280,8 @@ const deriveRulePairs = (
           const arg1 = normalizedRuleConstant(context[head[0]]!);
           const arg2 = normalizedRuleConstant(context[head[1]]!);
           if (typeof arg1 !== "string" || typeof arg2 !== "string") continue;
+          // Rules relate identities; sealed values never participate (as in SQL).
+          if (isSealedBinding(arg1) || isSealedBinding(arg2)) continue;
           const pair = { arg1, arg2 };
           const key = JSON.stringify([pair.arg1, pair.arg2]);
           if (!seen.has(key)) {
@@ -395,6 +397,10 @@ const executeWhere = (
 
 // ─── Result extraction (find/actualize) ────────────────────────────────────
 
+/** Sealed-value bindings join internally but always project as `null`. */
+const publicConstant = (value: Constant | null): Constant | null =>
+  isSealedBinding(value) ? null : value;
+
 /**
  * Extract the find variables from contexts, producing the final result rows.
  * Only variables listed in `find` are included in each result row.
@@ -409,7 +415,7 @@ const actualize = (contexts: readonly Context[], find: readonly Term[]): Context
     for (const term of find) {
       if (isVariable(term)) {
         if (term in ctx) {
-          row[term] = ctx[term]!;
+          row[term] = publicConstant(ctx[term]!);
         } else {
           row[term] = null;
         }
@@ -434,7 +440,7 @@ const projectAggregateInputs = (contexts: readonly Context[], find: readonly Ter
     const row: Record<string, Constant | null> = {};
     for (const term of find) {
       if (isVariable(term)) {
-        row[term] = term in ctx ? ctx[term]! : null;
+        row[term] = term in ctx ? publicConstant(ctx[term]!) : null;
       } else {
         row[String(term)] = normalizedRuleConstant(term as Constant);
       }
@@ -442,7 +448,7 @@ const projectAggregateInputs = (contexts: readonly Context[], find: readonly Ter
     return row;
   });
 
-const tripleValueToResultValue = (value: TripleValue): Constant => {
+const tripleValueToResultValue = (value: TripleValue): Constant | null => {
   switch (value.type) {
     case "string":
     case "ref":
@@ -455,6 +461,8 @@ const tripleValueToResultValue = (value: TripleValue): Constant => {
       return value.value;
     case "json":
       return JSON.stringify(value.value);
+    case "sealed":
+      return null;
   }
 };
 
@@ -470,7 +478,7 @@ const hydrateOptionalProjection = (
   }
 
   return Effect.gen(function* () {
-    const entityCache = new Map<string, Map<string, Constant>>();
+    const entityCache = new Map<string, Map<string, Constant | null>>();
 
     return yield* Effect.forEach(rows, (row) =>
       Effect.gen(function* () {
@@ -488,7 +496,7 @@ const hydrateOptionalProjection = (
 
         let entityFields = entityCache.get(entityId);
         if (!entityFields) {
-          entityFields = new Map<string, Constant>();
+          entityFields = new Map<string, Constant | null>();
           const datoms = yield* asOf === undefined
             ? store.getEntity(entityId).pipe(Stream.runCollect)
             : store.scanCollectTemporalAsync({ entity: entityId }, asOf);

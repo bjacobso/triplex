@@ -28,7 +28,14 @@ export type SnapshotValue =
   | { type: "boolean"; value: boolean }
   | { type: "datetime"; value: number }
   | { type: "ref"; value: string }
-  | { type: "json"; value: unknown };
+  | { type: "json"; value: unknown }
+  | {
+      type: "sealed";
+      valueType: string;
+      keyId: string;
+      ciphertext: string;
+      blind?: string;
+    };
 
 export type SnapshotAttributeMap = Record<string, SnapshotValue | SnapshotValue[]>;
 
@@ -90,6 +97,15 @@ export const tripleValueToSnapshotValue = (tv: TripleValue): SnapshotValue => {
     case "blob":
       // Blobs are stored by their content hash in the triple store
       return { type: "string", value: tv.value };
+    case "sealed":
+      // Snapshots commit to the sealed envelope, never to plaintext.
+      return {
+        type: "sealed",
+        valueType: tv.valueType,
+        keyId: tv.keyId,
+        ciphertext: tv.ciphertext,
+        ...(tv.blind === undefined ? {} : { blind: tv.blind }),
+      };
   }
 };
 
@@ -132,7 +148,12 @@ export const triplesToAttributeMap = (triples: readonly Triple[]): SnapshotAttri
  */
 const canonicalValueSortKey = (sv: SnapshotValue): string => {
   // Sort by type first, then by a stringified value representation
-  const valuePart = sv.type === "json" ? JSON.stringify(sv.value) : String(sv.value);
+  const valuePart =
+    sv.type === "sealed"
+      ? (sv.blind ?? sv.ciphertext)
+      : sv.type === "json"
+        ? JSON.stringify(sv.value)
+        : String(sv.value);
   return `${sv.type}:${valuePart}`;
 };
 

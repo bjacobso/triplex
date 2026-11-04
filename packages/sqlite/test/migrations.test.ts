@@ -38,8 +38,8 @@ describe("host-owned SQLite migrations", () => {
     );
 
     expect(result.before).toHaveLength(0);
-    expect(migrations.map(({ version }) => version)).toEqual([1, 2]);
-    expect(result.applied.map(({ version }) => version)).toEqual([1, 2]);
+    expect(migrations.map(({ version }) => version)).toEqual([1, 2, 3]);
+    expect(result.applied.map(({ version }) => version)).toEqual([1, 2, 3]);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "recorded_at",
@@ -48,6 +48,8 @@ describe("host-owned SQLite migrations", () => {
         "retracted_position",
         "valid_from",
         "valid_to",
+        "value_sealed",
+        "value_blind",
       ]),
     );
     expect(result.columns.map(({ name }) => name)).not.toContain("created_at");
@@ -62,6 +64,9 @@ describe("host-owned SQLite migrations", () => {
         "idx_attribute_history",
         "idx_attribute_temporal",
         "idx_attr_numeric",
+        "idx_attr_blind",
+        "idx_entity",
+        "idx_tx_id",
       ]),
     );
   });
@@ -89,9 +94,30 @@ describe("host-owned SQLite migrations", () => {
         const indexes = yield* sql`SELECT name FROM sqlite_master WHERE name = 'idx_attr_numeric'`;
         expect(indexes).toHaveLength(1);
         const applied = yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`;
-        expect(applied).toEqual([{ version: 1 }, { version: 2 }]);
+        expect(applied).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+        // v3 admits sealed values and requires their envelope.
+        yield* sql`
+          INSERT INTO triples (
+            id, entity_id, attribute, value_type, value_sealed, value_blind,
+            recorded_at, recorded_position, valid_from, schema_version, tx_id
+          ) VALUES (
+            '00000000000000000000000001', 'migration:entity', ':migration/sealed',
+            'sealed', '{}', 'token', 2, 2, 2, 1, '_tx/00000000000000000000000001'
+          )
+        `;
+        const missingEnvelope = yield* sql`
+          INSERT INTO triples (
+            id, entity_id, attribute, value_type,
+            recorded_at, recorded_position, valid_from, schema_version, tx_id
+          ) VALUES (
+            '00000000000000000000000002', 'migration:entity', ':migration/sealed',
+            'sealed', 3, 3, 3, 1, '_tx/00000000000000000000000002'
+          )
+        `.pipe(Effect.flip);
+        expect(String((missingEnvelope as { cause?: unknown }).cause)).toMatch(/ConstraintError/);
         return yield* sql<{ value_string: string }>`
-          SELECT value_string FROM triples WHERE entity_id = 'migration:entity'
+          SELECT value_string FROM triples
+          WHERE entity_id = 'migration:entity' AND value_type = 'string'
         `;
       }),
     );

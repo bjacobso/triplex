@@ -282,6 +282,14 @@ const textScalarTypeCondition = (alias: string): string =>
 const numberScalarTypeCondition = (alias: string): string =>
   `${alias}.value_type IN ('number', 'datetime')`;
 
+/** Sealed values match only by their keyed blind-index token, never by any value column. */
+const sealedBlindCondition = (alias: string, blind: string, ctx: CompilerContext): string =>
+  `(${alias}.value_type = 'sealed' AND ${alias}.value_blind = ${ctx.collector.add(blind)})`;
+
+/** Two sealed bindings join when both carry the same blind token. */
+const sealedJoinCondition = (left: string, right: string): string =>
+  `(${left}.value_type = 'sealed' AND ${right}.value_type = 'sealed' AND ${left}.value_blind = ${right}.value_blind)`;
+
 /** Match a pattern constant using the flattened scalar identity exposed by Datalog. */
 const compilePatternValueCondition = (
   alias: string,
@@ -289,6 +297,7 @@ const compilePatternValueCondition = (
   ctx: CompilerContext,
 ): string => {
   if (isTypedConstant(value)) {
+    if (value.type === "blind") return sealedBlindCondition(alias, value.value, ctx);
     return `(${alias}.value_type = ${ctx.collector.add(value.type)} AND ${alias}.value_string = ${ctx.collector.add(value.value)})`;
   }
   if (typeof value === "number") {
@@ -303,7 +312,7 @@ const compilePatternValueCondition = (
 /** Compare bindings using the flattened scalar semantics exposed by the KV executor. */
 const compileBindingEquality = (left: VariableBinding, right: VariableBinding): string => {
   if (isTripleValueBinding(left) && isTripleValueBinding(right)) {
-    return `(((${textScalarTypeCondition(left.alias)}) AND (${textScalarTypeCondition(right.alias)}) AND ${textScalarExpression(left.alias)} = ${textScalarExpression(right.alias)}) OR ((${numberScalarTypeCondition(left.alias)}) AND (${numberScalarTypeCondition(right.alias)}) AND ${numberScalarExpression(left.alias)} = ${numberScalarExpression(right.alias)}) OR (${left.alias}.value_type = 'boolean' AND ${right.alias}.value_type = 'boolean' AND ${left.alias}.value_boolean = ${right.alias}.value_boolean))`;
+    return `(((${textScalarTypeCondition(left.alias)}) AND (${textScalarTypeCondition(right.alias)}) AND ${textScalarExpression(left.alias)} = ${textScalarExpression(right.alias)}) OR ((${numberScalarTypeCondition(left.alias)}) AND (${numberScalarTypeCondition(right.alias)}) AND ${numberScalarExpression(left.alias)} = ${numberScalarExpression(right.alias)}) OR (${left.alias}.value_type = 'boolean' AND ${right.alias}.value_type = 'boolean' AND ${left.alias}.value_boolean = ${right.alias}.value_boolean) OR ${sealedJoinCondition(left.alias, right.alias)})`;
   }
 
   if (isTripleValueBinding(left)) {
@@ -323,12 +332,16 @@ const compileBindingConstantEquality = (
   ctx: CompilerContext,
 ): string => {
   if (!isTripleValueBinding(binding)) {
+    if (isTypedConstant(value) && value.type === "blind") return "1 = 0";
     const scalar = constantScalar(value);
     return typeof scalar === "string"
       ? `${resolveBinding(binding)} = ${formatValue(scalar, ctx)}`
       : "1 = 0";
   }
 
+  if (isTypedConstant(value) && value.type === "blind") {
+    return sealedBlindCondition(binding.alias, value.value, ctx);
+  }
   if (typeof value === "number") {
     return `((${numberScalarTypeCondition(binding.alias)}) AND ${numberScalarExpression(binding.alias)} = ${formatValue(value, ctx)})`;
   }
@@ -948,6 +961,7 @@ const compileGroupedBindingConstantEquality = (
   ctx: CompilerContext,
 ): string => {
   if (!isTripleValueBinding(binding)) {
+    if (isTypedConstant(value) && value.type === "blind") return "1 = 0";
     const scalar = constantScalar(value);
     return typeof scalar === "string"
       ? `${resolveBinding(binding)} = ${formatValue(scalar, ctx)}`

@@ -88,6 +88,9 @@ const valueText = (value: TripleValue | undefined): string => {
       return JSON.stringify(value.value);
     case "blob":
       return `${value.filename ?? "blob"} · ${value.mimeType} · ${value.size} bytes`;
+    case "sealed":
+      // Sensitive values are sealed at rest; the dashboard has no key access.
+      return `sealed · ${value.valueType}`;
   }
 };
 

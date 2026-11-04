@@ -1,4 +1,4 @@
-import { NUMERIC_VALUE_INDEX_DDL } from "@triplex-build/triplex-sql";
+import { NUMERIC_VALUE_INDEX_DDL, SEALED_BLIND_INDEX_DDL } from "@triplex-build/triplex-sql";
 
 /**
  * Cloudflare database schema support.
@@ -70,7 +70,36 @@ export const BASELINE_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_tx_id ON triples(tx_id) WHERE retracted_at IS NULL",
 ] as const;
 
-export const INDEX_DDLS = [...BASELINE_INDEX_DDLS, NUMERIC_VALUE_INDEX_DDL] as const;
+export const INDEX_DDLS = [
+  ...BASELINE_INDEX_DDLS,
+  NUMERIC_VALUE_INDEX_DDL,
+  SEALED_BLIND_INDEX_DDL,
+] as const;
+
+const TRIPLES_V3_COLUMNS =
+  "id, entity_id, attribute, value_type, value_string, value_number, value_boolean, value_datetime, value_json, recorded_at, recorded_position, valid_from, valid_to, created_by, retracted_at, retracted_position, retract_tx_id, entity_type, schema_version, tx_id";
+
+/**
+ * Migration v4 rebuilds `triples` so `sealed` is an admitted value type and
+ * sealed values keep their envelope and blind-index token in dedicated
+ * columns. Durable Object SQLite cannot alter a CHECK constraint, so this uses
+ * SQLite's create-copy-drop-rename procedure inside the initialize transaction.
+ */
+export const SEALED_VALUES_DDLS = [
+  "DROP TABLE IF EXISTS triples_v4",
+  TRIPLES_TABLE_DDL.replace("CREATE TABLE IF NOT EXISTS triples (", "CREATE TABLE triples_v4 (")
+    .replace("'json', 'blob')", "'json', 'blob', 'sealed')")
+    .replace(
+      "tx_id TEXT\n  )",
+      "tx_id TEXT,\n    value_sealed TEXT,\n    value_blind TEXT,\n    CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)\n  )",
+    ),
+  `INSERT INTO triples_v4 (${TRIPLES_V3_COLUMNS}) SELECT ${TRIPLES_V3_COLUMNS} FROM triples`,
+  "DROP TABLE triples",
+  "ALTER TABLE triples_v4 RENAME TO triples",
+  ...BASELINE_INDEX_DDLS,
+  NUMERIC_VALUE_INDEX_DDL,
+  SEALED_BLIND_INDEX_DDL,
+] as const;
 
 export const INDEX_NAMES = [
   "idx_entity",
@@ -78,6 +107,7 @@ export const INDEX_NAMES = [
   "idx_attribute_history",
   "idx_attribute_temporal",
   "idx_type",
+  "idx_attr_blind",
   "idx_attr_string",
   "idx_attr_number",
   "idx_attr_numeric",
