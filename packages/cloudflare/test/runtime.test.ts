@@ -26,26 +26,34 @@ describe("public Cloudflare runtime", () => {
     sql.exec(
       "INSERT INTO triplex_schema_migrations (version, name, applied_at) VALUES (1, 'triplex_baseline', 0)",
     );
-    const adapter = makeCloudflareAdapter(state);
-    await Effect.runPromise(
-      adapter.insert(
-        {
-          entityId: EntityId.make("existing"),
-          attribute: ":runtime/value",
-          value: number(1),
-        },
-        null,
-        1,
-        "00000000000000000000000001",
-        1,
-      ),
+    // A row written by a v1 runtime, using only v1 columns.
+    sql.exec(
+      "INSERT INTO triples (id, entity_id, attribute, value_type, value_number, recorded_at, recorded_position, valid_from, schema_version) VALUES ('00000000000000000000000001', 'existing', ':runtime/value', 'number', 1, 1, 1, 1, 1)",
     );
+    const adapter = makeCloudflareAdapter(state);
     await Effect.runPromise(adapter.initialize());
     await Effect.runPromise(adapter.initialize());
     expect(await Effect.runPromise(adapter.getByEntity("existing"))).toHaveLength(1);
     expect(
       sql.exec("SELECT version FROM triplex_schema_migrations ORDER BY version").toArray(),
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
+    expect(
+      sql.exec("SELECT name FROM sqlite_master WHERE name = 'idx_attr_blind'").toArray(),
+    ).toHaveLength(1);
+    await Effect.runPromise(
+      adapter.insert(
+        {
+          entityId: EntityId.make("existing"),
+          attribute: ":runtime/secret",
+          value: { type: "sealed", valueType: "string", keyId: "k", ciphertext: "c", blind: "b" },
+        },
+        null,
+        2,
+        "00000000000000000000000002",
+        2,
+      ),
+    );
+    expect(await Effect.runPromise(adapter.getByEntity("existing"))).toHaveLength(2);
     expect(
       sql.exec("SELECT name FROM sqlite_master WHERE name = 'idx_attr_numeric'").toArray(),
     ).toHaveLength(1);

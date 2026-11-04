@@ -28,6 +28,11 @@ export interface AttributeDescriptor {
   readonly cardinality: "one" | "many";
   readonly unique: boolean;
   readonly storage: StorageFamily;
+  /**
+   * Whether the attribute node is marked sensitive. Responses render its values
+   * as a `{ "$sealed": { valueType, keyId } }` marker, never plaintext.
+   */
+  readonly sensitive: boolean;
 }
 
 export interface EntityDescriptor {
@@ -150,6 +155,7 @@ export const compile = (
     }
 
     const attributeTypes = new Map<string, TypeExpr.TypeExpr>();
+    const sensitiveAttributes = new Set<string>();
     for (const node of bySlot.values()) {
       if (node.kind !== Attribute.KIND) continue;
       if (!attributeKey.test(node.key)) {
@@ -178,6 +184,7 @@ export const compile = (
         );
       }
       attributeTypes.set(node.key, type);
+      if (attrs["sensitive"] === true) sensitiveAttributes.add(node.key);
     }
 
     const collections = new Set<string>();
@@ -290,7 +297,14 @@ export const compile = (
         } catch (error) {
           return yield* error as UnsupportedConfigError;
         }
-        descriptors.push({ key, alias, type, required, cardinality, unique, storage });
+        const sensitive = sensitiveAttributes.has(key);
+        if (sensitive && storage === "ref") {
+          return yield* unsupported(
+            `entities.${node.key}.attributes.${alias}`,
+            `Sensitive attribute ${key} cannot use reference storage`,
+          );
+        }
+        descriptors.push({ key, alias, type, required, cardinality, unique, storage, sensitive });
       }
       if (descriptors.length === 0) {
         return yield* unsupported(

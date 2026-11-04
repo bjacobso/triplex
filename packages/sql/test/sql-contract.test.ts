@@ -5,7 +5,7 @@ import { INDEX_NAMES, migrations, packValue } from "../src/index.js";
 
 describe("SQL package contract", () => {
   it("keeps migration versions ordered and index declarations complete", () => {
-    expect(migrations.map((migration) => migration.version)).toEqual([1, 2]);
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3]);
     expect(new Set(migrations.flatMap((migration) => migration.up)).size).toBe(
       migrations.flatMap((migration) => migration.up).length,
     );
@@ -14,6 +14,34 @@ describe("SQL package contract", () => {
         true,
       );
     }
+  });
+
+  it("packs sealed values into the envelope and blind columns only", () => {
+    const packed = packValue({
+      type: "sealed",
+      valueType: "string",
+      keyId: "key-1",
+      ciphertext: "ciphertext",
+      blind: "token",
+    });
+    expect(packed).toMatchObject({
+      value_type: "sealed",
+      value_string: null,
+      value_json: null,
+      value_blind: "token",
+    });
+    expect(JSON.parse(packed.value_sealed!)).toEqual({
+      valueType: "string",
+      keyId: "key-1",
+      ciphertext: "ciphertext",
+    });
+  });
+
+  it("declares the sealed-value migration for both SQL dialects", () => {
+    const sealed = migrations.find((migration) => migration.version === 3)!;
+    expect(sealed.dialects?.sqlite?.join("\n")).toContain("value_blind TEXT");
+    expect(sealed.dialects?.pg?.join("\n")).toContain("ADD COLUMN IF NOT EXISTS value_blind");
+    expect(sealed.up.join("\n")).toContain("idx_attr_blind");
   });
 
   it.each([

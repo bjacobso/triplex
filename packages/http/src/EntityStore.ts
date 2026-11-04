@@ -12,10 +12,12 @@ import { ulid } from "ulidx";
 
 import type { ConfigApiDescriptor, EntityDescriptor } from "./ConfigApi.js";
 import { decodeInput, encodeEntity, type EntityDocument } from "./EntityCodec.js";
+import { Sensitivity, type SensitivityService } from "@triplex-build/triplex/sensitive";
 import {
   EntityNotFoundHttpError,
   RequestValidationError,
   ScheduledFactsConflictError,
+  SensitiveStorageRequiredError,
 } from "./Errors.js";
 
 export interface EntityListPage {
@@ -121,8 +123,30 @@ const rejectScheduledFacts = (
     }
   });
 
+/** Fail closed unless every sensitive attribute is sealed by the decorated `Triples`. */
+const requireSealing = (
+  sensitivity: Option.Option<SensitivityService>,
+  entity: EntityDescriptor,
+): Effect.Effect<void, SensitiveStorageRequiredError> => {
+  const unsealed = entity.attributes.find(
+    (attribute) =>
+      attribute.sensitive &&
+      (Option.isNone(sensitivity) || !sensitivity.value.isSensitive(attribute.key)),
+  );
+  return unsealed === undefined
+    ? Effect.void
+    : Effect.fail(
+        new SensitiveStorageRequiredError({
+          code: "sensitive_storage_required",
+          attribute: unsealed.key,
+          message: `Sensitive attribute ${unsealed.key} requires a Sensitive.layer-decorated Triples that seals it`,
+        }),
+      );
+};
+
 const make = Effect.gen(function* () {
   const triples = yield* Triples;
+  const sensitivity = yield* Effect.serviceOption(Sensitivity);
 
   return {
     list: (entity, request) =>
@@ -173,6 +197,7 @@ const make = Effect.gen(function* () {
 
     create: (config, entity, body, context) =>
       Effect.gen(function* () {
+        yield* requireSealing(sensitivity, entity);
         const values = yield* decodeInput(entity, body);
         const id = EntityId.make(
           `${entity.entityType.slice(0, 1).toLowerCase()}${entity.entityType.slice(1)}:${ulid()}`,
@@ -186,6 +211,7 @@ const make = Effect.gen(function* () {
 
     replace: (config, entity, rawId, body, context) =>
       Effect.gen(function* () {
+        yield* requireSealing(sensitivity, entity);
         const values = yield* decodeInput(entity, body);
         const id = yield* EntityId.decode(rawId).pipe(
           Effect.mapError(
