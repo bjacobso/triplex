@@ -135,6 +135,9 @@ const scalarValue = (value: TripleValue): World.Value | undefined => {
       return value.value;
     case "json":
       return undefined;
+    // Sealed values are not readable by rules without an explicit host open.
+    case "sealed":
+      return undefined;
   }
 };
 

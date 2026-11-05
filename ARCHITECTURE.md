@@ -107,6 +107,15 @@ hosts typed configuration as a modular layer over the same core.
 - `_triplex/` entities, `:triplex/` and `:_tx/` attributes, and Triplex-owned entity types are
   reserved for core services. Ordinary writes fail before mutation; config and validation services
   cross that boundary through a private core capability.
+- Core's `sensitive` subpath owns sensitive attribute values. `Sensitive.layer` decorates any
+  `Triples`: it seals sensitive assertions through the `ValueCodec` service before they reach the
+  inner store, rewrites plaintext equality to blind-index tokens, and rejects every other Datalog
+  use of a sealed value during planning. Storage is self-describing: the `sealed` value type
+  persists a codec envelope and optional blind token in dedicated columns or KV encodings and never
+  plaintext. The engines independently guarantee that sealed bindings project as `null` and
+  compare only by blind token. Opening is an explicit `Sensitive.open` effect. Codecs use
+  WebCrypto, so the subpath stays browser- and edge-safe. See
+  [Sensitive values](docs/sensitive-values.md).
 - `EntitySnapshot` and `ConfigSnapshot` are deliberately separate models: the former materializes
   one fact entity at a transaction/time; the latter pins an immutable release graph, revision
   stamps, dependency closures, and movable refs.

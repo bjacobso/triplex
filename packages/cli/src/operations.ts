@@ -162,7 +162,39 @@ const validatePageSize = (limit: number): Effect.Effect<number, Error> =>
     ? Effect.succeed(limit)
     : Effect.fail(new Error("limit must be an integer between 1 and 1000"));
 
+const isSealedValue = (
+  value: object,
+): value is { readonly type: "sealed"; readonly valueType: unknown; readonly keyId: unknown } =>
+  "type" in value &&
+  value.type === "sealed" &&
+  "valueType" in value &&
+  "keyId" in value &&
+  "ciphertext" in value;
+
+/**
+ * Output shaping for sealed (sensitive) values: print the type and key ID
+ * only. Ciphertext and blind tokens never reach CLI output, wherever a sealed
+ * value appears (facts, journal changes, or JSON journal payloads).
+ */
+export const redactSealed = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(redactSealed);
+  if (typeof value !== "object" || value === null) return value;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  if (isSealedValue(value)) {
+    return { type: "sealed", valueType: value.valueType, keyId: value.keyId };
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, field]) => [key, redactSealed(field)]),
+  );
+};
+
 export const execute = (
+  options: ExecuteOptions,
+): Effect.Effect<unknown, unknown, Triples | ConfigStore.ConfigStore> =>
+  executeRaw(options).pipe(Effect.map(redactSealed));
+
+const executeRaw = (
   options: ExecuteOptions,
 ): Effect.Effect<unknown, unknown, Triples | ConfigStore.ConfigStore> =>
   Effect.gen(function* () {

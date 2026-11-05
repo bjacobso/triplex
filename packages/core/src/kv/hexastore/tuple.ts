@@ -39,6 +39,12 @@ export const TAG_JSON = 0x06;
 /** Blob hash -- SHA-256 bytes. */
 export const TAG_BLOB = 0x07;
 
+/**
+ * Sealed (sensitive) value -- string encoding of its blind-index token, or of
+ * `opaque:<ciphertext>` when the codec has no blind index. Never plaintext.
+ */
+export const TAG_SEALED = 0x08;
+
 /** Max sentinel -- sorts after all real values. Used as upper bound. */
 export const TAG_MAX = 0xff;
 
@@ -53,6 +59,7 @@ export type TuplePart =
   | { readonly type: "datetime"; readonly value: number }
   | { readonly type: "json"; readonly value: unknown }
   | { readonly type: "blob"; readonly value: string }
+  | { readonly type: "sealed"; readonly value: string }
   | { readonly type: "max" };
 
 // Convenience constructors
@@ -64,6 +71,7 @@ export const tRef = (value: string): TuplePart => ({ type: "ref", value });
 export const tDatetime = (value: number): TuplePart => ({ type: "datetime", value });
 export const tJson = (value: unknown): TuplePart => ({ type: "json", value });
 export const tBlob = (value: string): TuplePart => ({ type: "blob", value });
+export const tSealed = (value: string): TuplePart => ({ type: "sealed", value });
 export const tMax = (): TuplePart => ({ type: "max" });
 
 // ─── Encoding ──────────────────────────────────────────────────────────────
@@ -206,6 +214,9 @@ const encodePart = (part: TuplePart): Uint8Array => {
       // Store the hex hash as raw bytes (hash is a fixed string)
       return concat(new Uint8Array([TAG_BLOB]), encodeString(part.value));
 
+    case "sealed":
+      return concat(new Uint8Array([TAG_SEALED]), encodeString(part.value));
+
     case "max":
       return new Uint8Array([TAG_MAX]);
   }
@@ -254,6 +265,11 @@ const decodePart = (bytes: Uint8Array, offset: number): [TuplePart, number] => {
     case TAG_BLOB: {
       const [str, consumed] = decodeString(bytes, offset + 1);
       return [{ type: "blob", value: str }, 1 + consumed];
+    }
+
+    case TAG_SEALED: {
+      const [str, consumed] = decodeString(bytes, offset + 1);
+      return [{ type: "sealed", value: str }, 1 + consumed];
     }
 
     case TAG_MAX:
@@ -380,6 +396,9 @@ export const encodePartStr = (part: TuplePart): string => {
     case "blob":
       return String.fromCharCode(TAG_BLOB) + encodeStringToStr(part.value);
 
+    case "sealed":
+      return String.fromCharCode(TAG_SEALED) + encodeStringToStr(part.value);
+
     case "max":
       return String.fromCharCode(TAG_MAX);
   }
@@ -482,3 +501,8 @@ export const encodeBooleanStr = (b: boolean): string =>
  * Equivalent to `encodePartStr(tBlob(s))` but allocates zero intermediate objects.
  */
 export const encodeBlobStr = (s: string): string => TAG_BLOB_CHR + encodeStringToStr(s);
+
+const TAG_SEALED_CHR = String.fromCharCode(TAG_SEALED);
+
+/** Encode a sealed value's index token directly to latin1 string. */
+export const encodeSealedStr = (s: string): string => TAG_SEALED_CHR + encodeStringToStr(s);

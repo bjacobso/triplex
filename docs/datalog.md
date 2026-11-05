@@ -73,6 +73,11 @@ const query = {
 };
 ```
 
+A `{ type: "blind", value }` typed constant matches a sealed value by its blind-index token.
+Applications normally write plaintext constants and let the
+[sensitive values](/sensitive-values) layer rewrite them. That layer also rejects projecting,
+ordering, comparing or aggregating sensitive attributes during planning.
+
 Numeric-looking strings and identity values are never guessed into numbers. Equality preserves the
 same public scalar families through patterns, joins, predicates, negation, disjunction, grouping,
 distinctness, and pagination.

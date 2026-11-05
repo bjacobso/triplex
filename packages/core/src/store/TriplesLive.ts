@@ -31,6 +31,7 @@ import type {
   TransactOp,
 } from "../Triple.js";
 import { queryToPattern } from "../Triple.js";
+import { decodeSealedEnvelope } from "../Value.js";
 import type { Pattern } from "../types/Pattern.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
@@ -106,6 +107,9 @@ const rowToTriple = (row: TripleRow): Triple => {
       };
       break;
     }
+    case "sealed":
+      value = decodeSealedEnvelope(row.value_sealed ?? "{}", row.value_blind);
+      break;
     default:
       value = { type: "string", value: "" };
   }

@@ -83,6 +83,10 @@ export const TripleRow = Schema.Struct({
   value_boolean: Schema.NullOr(Schema.Number),
   value_datetime: Schema.NullOr(Schema.Number),
   value_json: Schema.NullOr(Schema.String),
+  /** Sealed-value envelope (`value_type = 'sealed'`); absent on pre-v3 rows. */
+  value_sealed: Schema.optional(Schema.NullOr(Schema.String)),
+  /** Blind-index token for a sealed value, when the codec provides one. */
+  value_blind: Schema.optional(Schema.NullOr(Schema.String)),
   recorded_at: Schema.Number,
   recorded_position: Schema.Number,
   valid_from: Schema.Number,

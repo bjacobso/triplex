@@ -18,6 +18,7 @@ import type {
   Reader,
 } from "./Derivation.js";
 import { evaluate } from "./Derivation.js";
+import { Sensitivity } from "../sensitive/Sensitive.js";
 
 export interface Overlay {
   /** Facts visible only to this evaluation. Omitted validFrom defaults to basis.validAt. */
@@ -165,7 +166,35 @@ export const evaluateOverlay = (
     );
     const nextTemporalBoundary =
       temporalBoundaries.length === 0 ? undefined : Math.min(...temporalBoundaries);
-    const hypotheticalIdentities = yield* Effect.forEach(resolvedAssertions, overlayFactIdentity);
+    // Hypothetical sensitive values are sealed before they reach the in-memory
+    // indexes, so they compare exactly like committed ones. Their identity
+    // commits to the blind token, never to plaintext or randomized ciphertext.
+    const sensitivity = yield* Effect.serviceOption(Sensitivity);
+    const identityInputs: TripleInput[] = [];
+    const seededAssertions: TripleInput[] = [];
+    for (const assertion of resolvedAssertions) {
+      if (Option.isNone(sensitivity) || !sensitivity.value.isSensitive(assertion.attribute)) {
+        identityInputs.push(assertion);
+        seededAssertions.push(assertion);
+        continue;
+      }
+      const sealed = yield* sensitivity.value
+        .sealValue(assertion.entityId, assertion.attribute, assertion.value)
+        .pipe(Effect.mapError((cause) => new InvalidOverlayError({ message: cause.message })));
+      seededAssertions.push({ ...assertion, value: sealed });
+      identityInputs.push({
+        ...assertion,
+        value:
+          sealed.type === "sealed"
+            ? {
+                ...sealed,
+                keyId: "",
+                ciphertext: sealed.blind === undefined ? sealed.ciphertext : "",
+              }
+            : sealed,
+      });
+    }
+    const hypotheticalIdentities = yield* Effect.forEach(identityInputs, overlayFactIdentity);
     if (
       new Set(hypotheticalIdentities.map((identity) => identity.contentId)).size !==
       hypotheticalIdentities.length
@@ -181,7 +210,7 @@ export const evaluateOverlay = (
         const memory = Context.get(context, Triples);
         const seeded = yield* memory.assertBatch([
           ...visibleBase.map(inputFrom),
-          ...resolvedAssertions,
+          ...seededAssertions,
         ]);
         const translated = new Map<string, Triple>();
         const hypotheticalContentIds = new Map<string, ContentIds.ContentId>();

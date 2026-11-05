@@ -128,7 +128,19 @@ export const BASELINE_INDEX_DDLS = [
 export const NUMERIC_VALUE_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_attr_numeric ON triples(attribute, COALESCE(value_number, value_datetime)) WHERE value_type IN ('number', 'datetime')";
 
-export const INDEX_DDLS = [...BASELINE_INDEX_DDLS, NUMERIC_VALUE_INDEX_DDL] as const;
+/**
+ * Blind-index lookups for sealed (sensitive) values: equality, joins and
+ * uniqueness compare the keyed token, never plaintext. Includes retracted facts
+ * so snapshot-pinned reads can use it.
+ */
+export const SEALED_BLIND_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_attr_blind ON triples(attribute, value_blind) WHERE value_type = 'sealed'";
+
+export const INDEX_DDLS = [
+  ...BASELINE_INDEX_DDLS,
+  NUMERIC_VALUE_INDEX_DDL,
+  SEALED_BLIND_INDEX_DDL,
+] as const;
 
 /**
  * Index names for drop/recreate operations during bulk loading
@@ -142,6 +154,7 @@ export const INDEX_NAMES = [
   "idx_attr_string",
   "idx_attr_number",
   "idx_attr_numeric",
+  "idx_attr_blind",
   "idx_ref_target",
   "idx_temporal",
   "idx_recorded_position",
@@ -198,4 +211,71 @@ export const SNAPSHOT_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_snapshot_hash ON entity_snapshots(hash)",
   "CREATE INDEX IF NOT EXISTS idx_snapshot_type ON entity_snapshots(entity_type, tx_time DESC)",
   "CREATE INDEX IF NOT EXISTS idx_snapshot_position ON entity_snapshots(entity_id, tx_position DESC, tx_time DESC)",
+] as const;
+
+// =============================================================================
+// Sealed (sensitive) values — migration v3
+// =============================================================================
+
+const VALUE_TYPES_V3 = "'string', 'number', 'boolean', 'datetime', 'ref', 'json', 'blob', 'sealed'";
+
+/**
+ * The v3 `triples` shape: `sealed` joins the value types, and sealed values
+ * keep their codec envelope in `value_sealed` and their blind-index token in
+ * `value_blind`. Plaintext value columns stay NULL for sealed facts.
+ */
+const triplesTableDdlV3 = (name: string) => `
+  CREATE TABLE IF NOT EXISTS ${name} (
+    id TEXT PRIMARY KEY NOT NULL,
+    entity_id TEXT NOT NULL,
+    attribute TEXT NOT NULL,
+    value_type TEXT NOT NULL CHECK (value_type IN (${VALUE_TYPES_V3})),
+    value_string TEXT,
+    value_number DOUBLE PRECISION,
+    value_boolean INTEGER,
+    value_datetime BIGINT,
+    value_json TEXT,
+    recorded_at BIGINT NOT NULL,
+    recorded_position BIGINT NOT NULL,
+    valid_from BIGINT NOT NULL,
+    valid_to BIGINT,
+    created_by TEXT,
+    retracted_at BIGINT,
+    retracted_position BIGINT,
+    retract_tx_id TEXT,
+    entity_type TEXT,
+    schema_version INTEGER DEFAULT 1,
+    tx_id TEXT,
+    value_sealed TEXT,
+    value_blind TEXT,
+    CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)
+  )
+`;
+
+const V2_TRIPLES_COLUMNS =
+  "id, entity_id, attribute, value_type, value_string, value_number, value_boolean, value_datetime, value_json, recorded_at, recorded_position, valid_from, valid_to, created_by, retracted_at, retracted_position, retract_tx_id, entity_type, schema_version, tx_id";
+
+/**
+ * SQLite cannot alter a CHECK constraint, so v3 rebuilds `triples` using the
+ * documented create-copy-drop-rename procedure inside the migration
+ * transaction, then recreates every index. Existing rows are copied unchanged.
+ */
+export const SEALED_VALUES_SQLITE_DDLS = [
+  "DROP TABLE IF EXISTS triples_v3",
+  triplesTableDdlV3("triples_v3"),
+  `INSERT INTO triples_v3 (${V2_TRIPLES_COLUMNS}) SELECT ${V2_TRIPLES_COLUMNS} FROM triples`,
+  "DROP TABLE triples",
+  "ALTER TABLE triples_v3 RENAME TO triples",
+  ...BASELINE_INDEX_DDLS,
+  NUMERIC_VALUE_INDEX_DDL,
+] as const;
+
+/** PostgreSQL widens the inline value-type check in place. */
+export const SEALED_VALUES_POSTGRES_DDLS = [
+  "ALTER TABLE triples DROP CONSTRAINT IF EXISTS triples_value_type_check",
+  `ALTER TABLE triples ADD CONSTRAINT triples_value_type_check CHECK (value_type IN (${VALUE_TYPES_V3}))`,
+  "ALTER TABLE triples ADD COLUMN IF NOT EXISTS value_sealed TEXT",
+  "ALTER TABLE triples ADD COLUMN IF NOT EXISTS value_blind TEXT",
+  "ALTER TABLE triples DROP CONSTRAINT IF EXISTS triples_sealed_envelope_check",
+  "ALTER TABLE triples ADD CONSTRAINT triples_sealed_envelope_check CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)",
 ] as const;

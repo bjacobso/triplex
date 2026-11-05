@@ -27,6 +27,8 @@ export interface AttributeHandle<D extends Attribute.AnyDefinition> {
   readonly required: boolean;
   readonly cardinality: "one" | "many";
   readonly unique: boolean;
+  /** Whether the global attribute is sensitive (sealed at rest). */
+  readonly sensitive: boolean;
   readonly definition: D;
   readonly assertion: (
     value: Attribute.ValueOf<D>,
@@ -108,6 +110,7 @@ export const make = <const N extends string, const A extends Uses>(
       required: attributeUse.required,
       cardinality: attributeUse.cardinality,
       unique: attributeUse.unique,
+      sensitive: attribute.sensitive,
       definition: attribute,
       assertion: (value, options) => Attribute.assertion(attribute, value, options),
     };

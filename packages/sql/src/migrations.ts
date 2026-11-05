@@ -5,6 +5,9 @@ import {
   TRIPLES_TABLE_DDL,
   BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
+  SEALED_BLIND_INDEX_DDL,
+  SEALED_VALUES_POSTGRES_DDLS,
+  SEALED_VALUES_SQLITE_DDLS,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
@@ -15,6 +18,16 @@ import {
 export interface Migration {
   readonly version: number;
   readonly name: string;
+  /**
+   * Dialect-specific statements, run before `up` on the matching dialect.
+   * Hosts that execute migrations themselves must run the statements for
+   * their dialect, then `up`.
+   */
+  readonly dialects?: {
+    readonly sqlite?: ReadonlyArray<string>;
+    readonly pg?: ReadonlyArray<string>;
+  };
+  /** Portable statements run on every dialect. */
   readonly up: ReadonlyArray<string>;
 }
 
@@ -44,6 +57,12 @@ export const migrations: readonly Migration[] = [
     name: "triplex_numeric_value_index",
     up: [NUMERIC_VALUE_INDEX_DDL],
   },
+  {
+    version: 3,
+    name: "triplex_sealed_values",
+    dialects: { sqlite: SEALED_VALUES_SQLITE_DDLS, pg: SEALED_VALUES_POSTGRES_DDLS },
+    up: [SEALED_BLIND_INDEX_DDL],
+  },
 ];
 
 export const runMigrations = Effect.gen(function* () {
@@ -70,25 +89,37 @@ export const runMigrations = Effect.gen(function* () {
       continue;
     }
 
-    for (const statement of migration.up) {
-      yield* sql.unsafe(statement).pipe(
-        Effect.mapError(
-          (error) =>
-            new MigrationError({
-              version: migration.version,
-              name: migration.name,
-              message: `Failed to run migration: ${String(error)}`,
-              cause: error,
-            }),
-        ),
-      );
-    }
+    const dialectStatements = sql.onDialectOrElse({
+      orElse: () => [] as ReadonlyArray<string>,
+      sqlite: () => migration.dialects?.sqlite ?? [],
+      pg: () => migration.dialects?.pg ?? [],
+    });
 
-    // Record migration as applied
-    const now = Date.now();
-    yield* sql`
-      INSERT INTO triplex_schema_migrations (version, name, applied_at)
-      VALUES (${migration.version}, ${migration.name}, ${now})
-    `;
+    // Each migration (and its applied record) commits atomically; the SQLite
+    // v3 table rebuild in particular must never be observed half-done.
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        for (const statement of [...dialectStatements, ...migration.up]) {
+          yield* sql.unsafe(statement).pipe(
+            Effect.mapError(
+              (error) =>
+                new MigrationError({
+                  version: migration.version,
+                  name: migration.name,
+                  message: `Failed to run migration: ${String(error)}`,
+                  cause: error,
+                }),
+            ),
+          );
+        }
+
+        // Record migration as applied
+        const now = Date.now();
+        yield* sql`
+          INSERT INTO triplex_schema_migrations (version, name, applied_at)
+          VALUES (${migration.version}, ${migration.name}, ${now})
+        `;
+      }),
+    );
   }
 });

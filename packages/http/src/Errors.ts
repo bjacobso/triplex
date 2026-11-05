@@ -54,6 +54,19 @@ export class CursorConflictError extends Data.TaggedError("CursorConflictError")
   readonly message: string;
 }> {}
 
+/**
+ * The release marks an attribute sensitive, but the host's `Triples` is not
+ * decorated with a `Sensitive.layer` that seals it. Writes fail closed so
+ * plaintext is never stored by accident.
+ */
+export class SensitiveStorageRequiredError extends Data.TaggedError(
+  "SensitiveStorageRequiredError",
+)<{
+  readonly code: "sensitive_storage_required";
+  readonly attribute: string;
+  readonly message: string;
+}> {}
+
 export class UnauthorizedError extends Data.TaggedError("UnauthorizedError")<{
   readonly code: "unauthorized";
   readonly message: string;

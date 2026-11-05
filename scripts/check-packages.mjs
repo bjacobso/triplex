@@ -191,6 +191,7 @@ import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/
 import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
 import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
+import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
 import * as Cloudflare from "@triplex-build/triplex-cloudflare";
 import * as FoundationDb from "@triplex-build/triplex-foundationdb";
 import * as Host from "@triplex-build/triplex-host";
@@ -227,7 +228,14 @@ const Employer = EntityType.make("Employer", {
   },
 });
 const nameAssertion = Employer.attributes.name.assertion("Acme");
+const sensitiveLayer = Sensitive.layer({
+  database: "tenant-a",
+  attributes: [Attribute.sensitive(Attribute.text(":employee/ssn"))],
+});
 void triple;
+void sensitiveLayer;
+void ValueCodec.aesGcm;
+void KeyProvider.test;
 void transactionId;
 void tripleId;
 void transactionEntity;

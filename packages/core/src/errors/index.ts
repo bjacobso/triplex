@@ -140,6 +140,53 @@ export class DatalogValidationError extends Data.TaggedError("DatalogValidationE
 }> {}
 
 /**
+ * A Datalog query, pattern read, or constraint would use a sensitive (sealed)
+ * attribute's value in a way the store cannot answer correctly without
+ * plaintext: projection, ordering, comparison, aggregation, rules, or joins
+ * with plaintext. Raised during planning, before any backend executes.
+ *
+ * The message names the attribute and the operation, never a value.
+ */
+export class SensitiveQueryError extends Data.TaggedError("SensitiveQueryError")<{
+  readonly attribute: string;
+  readonly operation:
+    | "projection"
+    | "order"
+    | "filter"
+    | "predicate"
+    | "aggregate"
+    | "having"
+    | "join"
+    | "rule"
+    | "dynamic-attribute"
+    | "value-only-match"
+    | "constant-type"
+    | "blind-index-unavailable";
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
+
+/**
+ * A sensitive value could not be sealed, blinded, or opened, or a write
+ * supplied a value the sensitive-values policy does not accept. The message
+ * names the attribute and the reason, never a value.
+ */
+export class SensitiveValueError extends Data.TaggedError("SensitiveValueError")<{
+  readonly attribute: string;
+  readonly entityId?: string;
+  readonly reason:
+    | "invalid-value"
+    | "sealed-input"
+    | "codec"
+    | "key-unavailable"
+    | "key-destroyed"
+    | "integrity"
+    | "blind-index-unavailable";
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
+
+/**
  * A paged-query cursor could not be decoded or does not belong to the query,
  * temporal snapshot, or database scope in which it was presented.
  */
@@ -186,7 +233,8 @@ export type DatalogQueryError =
   | DatalogError
   | UnboundVariableError
   | InvalidPredicateError
-  | DatalogValidationError;
+  | DatalogValidationError
+  | SensitiveQueryError;
 
 export type DatalogErrorUnion = DatalogQueryError | PaginationCursorError;
 

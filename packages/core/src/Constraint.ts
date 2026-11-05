@@ -149,18 +149,31 @@ export const loadRelevantFacts = <E>(
 
 const pathOf = (attribute: string): string => `$[${JSON.stringify(attribute)}]`;
 
+/**
+ * Canonical value identity for uniqueness. Sealed values compare by their keyed
+ * blind token, never by ciphertext (which is randomized per write) and never by
+ * plaintext. A sealed value without a blind token is comparable to nothing;
+ * the sensitive-values layer rejects unique enforcement in that configuration
+ * before evaluation, so it cannot silently pass.
+ */
 const valueKey = (triple: Triple): Effect.Effect<string, CanonicalJson.CanonicalEncodingError> =>
-  CanonicalJson.encode(
-    (triple.value.type === "blob"
-      ? {
-          type: triple.value.type,
-          value: triple.value.value,
-          mimeType: triple.value.mimeType,
-          size: triple.value.size,
-          ...(triple.value.filename === undefined ? {} : { filename: triple.value.filename }),
-        }
-      : triple.value) as unknown as CanonicalJson.CanonicalValue,
-  );
+  triple.value.type === "sealed"
+    ? Effect.succeed(
+        triple.value.blind === undefined
+          ? `sealed-unblinded:${triple.id}`
+          : `sealed:${triple.value.blind}`,
+      )
+    : CanonicalJson.encode(
+        (triple.value.type === "blob"
+          ? {
+              type: triple.value.type,
+              value: triple.value.value,
+              mimeType: triple.value.mimeType,
+              size: triple.value.size,
+              ...(triple.value.filename === undefined ? {} : { filename: triple.value.filename }),
+            }
+          : triple.value) as unknown as CanonicalJson.CanonicalValue,
+      );
 
 const visibleAt = (triple: Triple, validAt: number): boolean =>
   triple.validFrom <= validAt && (Option.isNone(triple.validTo) || triple.validTo.value > validAt);
@@ -254,11 +267,12 @@ export const evaluateFacts = (
       for (const fact of typedFacts) {
         if (fact.attribute !== rule.attribute) continue;
         const identity = yield* valueKey(fact);
+        const target = fact.value.type === "ref" ? fact.value.value : undefined;
         const validTarget =
-          fact.value.type === "ref" &&
+          target !== undefined &&
           visible.some(
             (candidate) =>
-              candidate.entityId === fact.value.value &&
+              candidate.entityId === target &&
               Option.isSome(candidate.entityType) &&
               candidate.entityType.value === rule.targetEntityType,
           );

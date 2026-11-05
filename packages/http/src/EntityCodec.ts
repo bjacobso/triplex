@@ -1,4 +1,4 @@
-import { EntityId, type Triple, type TripleValue } from "@triplex-build/triplex";
+import { EntityId, type SealedValue, type Triple, type TripleValue } from "@triplex-build/triplex";
 import { CanonicalJson, TypeSchema } from "@triplex-build/triplex/config";
 import { Effect, Option, Result, Schema } from "effect";
 
@@ -17,8 +17,30 @@ const requestError = (path: string, message: string) =>
 const conflict = (entityId: string, path: string, message: string) =>
   new DataShapeConflictError({ code: "data_shape_conflict", entityId, path, message });
 
-const valueSchema = (attribute: AttributeDescriptor): Schema.Codec<unknown, unknown> => {
-  const scalar = TypeSchema.compile(attribute.type);
+/** Response marker for a sealed (sensitive) value: no plaintext, ciphertext, or blind token. */
+export interface SealedMarker {
+  readonly $sealed: { readonly valueType: string; readonly keyId: string };
+}
+
+const SealedMarkerSchema = Schema.Struct({
+  $sealed: Schema.Struct({ valueType: Schema.String, keyId: Schema.String }),
+}).annotate({
+  identifier: "SealedValue",
+  description: "A sensitive value sealed at rest. Plaintext is never returned by this API.",
+});
+
+const sealedMarker = (value: SealedValue): SealedMarker => ({
+  $sealed: { valueType: value.valueType, keyId: value.keyId },
+});
+
+const valueSchema = (
+  attribute: AttributeDescriptor,
+  mode: "input" | "output",
+): Schema.Codec<unknown, unknown> => {
+  const scalar =
+    mode === "output" && attribute.sensitive
+      ? (SealedMarkerSchema as unknown as Schema.Codec<unknown, unknown>)
+      : TypeSchema.compile(attribute.type);
   return attribute.cardinality === "many"
     ? (Schema.Array(scalar) as Schema.Codec<unknown, unknown>)
     : scalar;
@@ -31,20 +53,26 @@ const closedStruct = <const Fields extends Schema.Struct.Fields>(fields: Fields)
     Schema.Record(Schema.Union([Schema.String, Schema.Symbol]), Schema.Unknown),
   ]).check(Schema.isPropertyNames(Schema.Literals(Object.keys(fields))));
 
-export const attributesSchema = (entity: EntityDescriptor): Schema.Codec<unknown, unknown> => {
+export const attributesSchema = (
+  entity: EntityDescriptor,
+  mode: "input" | "output" = "input",
+): Schema.Codec<unknown, unknown> => {
   const fields = Object.fromEntries(
     entity.attributes.map((attribute) => [
       attribute.key,
-      attribute.required ? valueSchema(attribute) : Schema.optional(valueSchema(attribute)),
+      attribute.required
+        ? valueSchema(attribute, mode)
+        : Schema.optional(valueSchema(attribute, mode)),
     ]),
   ) as Schema.Struct.Fields;
+  const sealed = mode === "output" && entity.attributes.some((attribute) => attribute.sensitive);
   return closedStruct(fields).annotate({
-    identifier: `${entity.entityType}Attributes`,
+    identifier: `${entity.entityType}${sealed ? "Sealed" : ""}Attributes`,
   }) as unknown as Schema.Codec<unknown, unknown>;
 };
 
 export const inputSchema = (entity: EntityDescriptor): Schema.Codec<unknown, unknown> =>
-  closedStruct({ attributes: attributesSchema(entity) }).annotate({
+  closedStruct({ attributes: attributesSchema(entity, "input") }).annotate({
     identifier: `${entity.entityType}Input`,
   }) as Schema.Codec<unknown, unknown>;
 
@@ -52,7 +80,7 @@ export const outputSchema = (entity: EntityDescriptor): Schema.Codec<unknown, un
   Schema.Struct({
     id: Schema.String,
     type: Schema.Literal(entity.entityType),
-    attributes: attributesSchema(entity),
+    attributes: attributesSchema(entity, "output"),
   }).annotate({ identifier: entity.entityType }) as Schema.Codec<unknown, unknown>;
 
 const normalize = (
@@ -136,35 +164,60 @@ export const decodeInput = (
     return result;
   });
 
+interface StoredValue {
+  readonly value: unknown;
+  /** Distinctness identity: canonical plaintext, or the blind token for sealed values. */
+  readonly identity: string;
+}
+
 const decodeStoredValue = (
   entityId: string,
   attribute: AttributeDescriptor,
   value: TripleValue,
-): unknown => {
+): StoredValue => {
+  const path = `$.attributes[${JSON.stringify(attribute.key)}]`;
+  if (value.type === "sealed") {
+    // Storage is self-describing: a sealed value renders sealed even when the
+    // pinned release no longer marks the attribute sensitive.
+    if (value.valueType !== attribute.storage) {
+      throw conflict(
+        entityId,
+        path,
+        `Stored sealed ${value.valueType} value is incompatible with configured ${attribute.storage} storage`,
+      );
+    }
+    return {
+      value: sealedMarker(value),
+      identity: `sealed:${value.blind ?? `opaque:${value.ciphertext}`}`,
+    };
+  }
+  if (attribute.sensitive) {
+    throw conflict(
+      entityId,
+      path,
+      "A sensitive attribute has an unsealed stored value; it is not returned",
+    );
+  }
   if (value.type !== attribute.storage) {
     throw conflict(
       entityId,
-      `$.attributes[${JSON.stringify(attribute.key)}]`,
+      path,
       `Stored ${value.type} value is incompatible with configured ${attribute.storage} storage`,
     );
   }
   const raw = value.value;
   if (attribute.storage === "ref" && typeof raw === "string" && raw.length === 0) {
-    throw conflict(
-      entityId,
-      `$.attributes[${JSON.stringify(attribute.key)}]`,
-      "Stored reference is not a valid entity ID",
-    );
+    throw conflict(entityId, path, "Stored reference is not a valid entity ID");
   }
   const decoded = Schema.decodeUnknownResult(TypeSchema.compile(attribute.type))(raw);
   if (Result.isFailure(decoded)) {
     throw conflict(
       entityId,
-      `$.attributes[${JSON.stringify(attribute.key)}]`,
+      path,
       `Stored value does not satisfy the configured type: ${decoded.failure.message}`,
     );
   }
-  return decoded.success;
+  return { value: decoded.success, identity: `plain:${canonical(decoded.success)}` };
 };
 
 /** Materialize only declared attributes and reject ambiguous or incompatible stored state. */
@@ -189,7 +242,9 @@ export const encodeEntity = (
         const values = facts
           .filter((fact) => fact.attribute === descriptor.key)
           .map((fact) => decodeStoredValue(entityId, descriptor, fact.value));
-        const distinct = [...new Map(values.map((value) => [canonical(value), value])).entries()]
+        const distinct = [
+          ...new Map(values.map((stored) => [stored.identity, stored.value])).entries(),
+        ]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([, value]) => value);
         if (descriptor.cardinality === "one" && distinct.length > 1) {

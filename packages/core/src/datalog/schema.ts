@@ -37,15 +37,20 @@ export const DatalogAttribute = Schema.String.pipe(
 );
 
 /**
- * TypedConstant: a constant with an explicit type (e.g. ref values)
- * Matches the internal TripleValue representation { type, value }
+ * TypedConstant: a constant with an explicit type.
+ *
+ * - `ref` matches a stored reference exactly.
+ * - `blind` matches a sealed (sensitive) value by its keyed blind-index token.
+ *   The sensitive-values layer rewrites plaintext constants on sensitive
+ *   attributes to this form; callers rarely write it by hand.
  */
 export const TypedConstant = Schema.Struct({
-  type: Schema.Literal("ref"),
+  type: Schema.Literals(["ref", "blind"]),
   value: Schema.String,
 }).annotate({
   identifier: "TypedConstant",
-  description: "A typed constant value (e.g. { type: 'ref', value: 'entity:id' })",
+  description:
+    "A typed constant value (e.g. { type: 'ref', value: 'entity:id' } or a { type: 'blind' } sealed-value token)",
 });
 export type TypedConstant = typeof TypedConstant.Type;
 

@@ -36,7 +36,13 @@ const day = (instant: number) => new Date(instant).toISOString().slice(0, 10);
 // `+` asserts and `−` retracts; valid time is the half-open interval [validFrom, validTo).
 const describe = (change: TransactionChange) => {
   const value =
-    change.value?.type === "ref" ? change.value.value : JSON.stringify(change.value?.value);
+    change.value === undefined
+      ? "undefined"
+      : change.value.type === "ref"
+        ? change.value.value
+        : change.value.type === "sealed"
+          ? "sealed"
+          : JSON.stringify(change.value.value);
   const from = change.validFrom === undefined ? "" : day(change.validFrom);
   const valid = change.validTo === undefined ? `from ${from}` : `[${from}, ${day(change.validTo)})`;
   return `${change.op === "assert" ? "+" : "−"} \`${change.attribute}\` \`${value}\` ${valid}`;

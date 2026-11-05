@@ -33,6 +33,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     items: [
       { text: "Configuration", link: "/configuration" },
       { text: "Operational primitives", link: "/operational-primitives" },
+      { text: "Sensitive values", link: "/sensitive-values" },
       { text: "Configuration HTTP API", link: "/http-api" },
       { text: "Performance", link: "/performance" },
       {
@@ -124,6 +125,7 @@ export default defineConfig({
         items: [
           { text: "Configuration", link: "/configuration" },
           { text: "Operational primitives", link: "/operational-primitives" },
+          { text: "Sensitive values", link: "/sensitive-values" },
           { text: "HTTP API", link: "/http-api" },
           { text: "Performance", link: "/performance" },
         ],

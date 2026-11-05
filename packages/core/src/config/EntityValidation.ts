@@ -248,6 +248,13 @@ const assertOp = (
 });
 
 const nativeValue = (value: TripleValue): CanonicalJson.CanonicalValue => {
+  if (value.type === "sealed") {
+    // Commit to the sealed envelope, never to plaintext. The value was checked
+    // against its declared type when it was sealed.
+    return {
+      $sealed: { valueType: value.valueType, keyId: value.keyId, ciphertext: value.ciphertext },
+    };
+  }
   if (value.type === "blob") {
     return {
       hash: value.value,
@@ -313,11 +320,31 @@ interface ValidationIssue {
   readonly constraintKey?: string;
 }
 
+/**
+ * Sealed fields keep their presence/optionality check but accept the sealed
+ * placeholder: their plaintext type was enforced when they were sealed and is
+ * not observable here.
+ */
+const relaxSealedFields = (
+  type: TypeExpr.TypeExpr,
+  sealedAttributes: ReadonlySet<string>,
+): TypeExpr.TypeExpr => {
+  if (sealedAttributes.size === 0 || type._tag !== "Struct") return type;
+  const fields: Record<string, TypeExpr.StructField> = {};
+  for (const [name, field] of Object.entries(type.fields)) {
+    fields[name] = sealedAttributes.has(name) ? { ...field, type: TypeExpr.any } : field;
+  }
+  return TypeExpr.struct(fields);
+};
+
 const validationIssues = (
   type: TypeExpr.TypeExpr,
   state: CanonicalJson.CanonicalValue,
+  sealedAttributes: ReadonlySet<string> = new Set(),
 ): ReadonlyArray<ValidationIssue> => {
-  const decoded = Schema.decodeUnknownResult(TypeSchema.compile(type))(state);
+  const decoded = Schema.decodeUnknownResult(
+    TypeSchema.compile(relaxSealedFields(type, sealedAttributes)),
+  )(state);
   if (Result.isSuccess(decoded)) return [];
   return SchemaIssue.makeFormatterStandardSchemaV1()(decoded.failure.issue).issues.map((issue) => ({
     code: "schema" as const,
@@ -524,7 +551,13 @@ const makeService = Effect.gen(function* () {
         const subjects = [...new Set(matching.map((row) => row.entityId))].sort();
 
         for (const subject of subjects) {
-          const state = yield* materialize(yield* triples.entity(subject), definition.type);
+          const body = yield* triples.entity(subject);
+          const state = yield* materialize(body, definition.type);
+          const sealedAttributes = new Set(
+            body
+              .filter((triple) => triple.value.type === "sealed")
+              .map((triple) => triple.attribute),
+          );
           const stateCid = ContentId.hash(
             ContentId.Domain.validationState,
             yield* CanonicalJson.encode(state),
@@ -537,7 +570,7 @@ const makeService = Effect.gen(function* () {
               .map((issue) => issue.path),
           );
           const issues: ValidationIssue[] = [
-            ...validationIssues(definition.type, state).filter(
+            ...validationIssues(definition.type, state, sealedAttributes).filter(
               (issue) => !graphOwnedPaths.has(issue.path),
             ),
             ...graphIssues.map((issue) => ({

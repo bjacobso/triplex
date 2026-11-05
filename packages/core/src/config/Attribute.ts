@@ -2,7 +2,7 @@
 
 import { Effect, type Schema } from "effect";
 
-import type { TripleValue } from "../Value.js";
+import type { PlainValue, SealableValueType, TripleValue } from "../Value.js";
 import type { EntityId } from "../Branded.js";
 import * as Values from "../Value.js";
 import * as ConfigNode from "./ConfigNode.js";
@@ -27,6 +27,13 @@ export interface Definition<K extends string, V> {
   readonly _tag: "Attribute";
   readonly key: K;
   readonly type: TypeExpr.TypeExpr;
+  /** The stored Triplex value type produced by `encode`. */
+  readonly valueType: PlainValue["type"];
+  /**
+   * Whether values are sealed at rest by the sensitive-values layer. Part of
+   * the attribute node's content identity; see `sensitive`.
+   */
+  readonly sensitive: boolean;
   readonly node: Effect.Effect<
     ConfigNode.ConfigNode,
     | ConfigNode.DuplicateChildKeyError
@@ -59,6 +66,18 @@ const DefinitionType = TypeExpr.struct({
   valueType: TypeExpr.required(TypeExpr.any),
 });
 
+/**
+ * Only sensitive attribute nodes use this shape, so the content IDs of every
+ * existing non-sensitive attribute are unchanged.
+ */
+const SensitiveDefinitionType = TypeExpr.struct({
+  key: TypeExpr.required(TypeExpr.text),
+  valueType: TypeExpr.required(TypeExpr.any),
+  sensitive: TypeExpr.required(TypeExpr.boolean),
+});
+
+const SEALABLE: ReadonlySet<string> = new Set(["string", "number", "boolean", "datetime", "json"]);
+
 const validateKey = <const K extends string>(key: K): K => {
   if (!ATTRIBUTE_KEY.test(key)) {
     throw new TypeError(
@@ -68,9 +87,24 @@ const validateKey = <const K extends string>(key: K): K => {
   return key;
 };
 
+const nodeOf = (
+  key: string,
+  type: TypeExpr.TypeExpr,
+  sensitive: boolean,
+  refs: ReadonlyArray<ConfigNode.ConfigRef>,
+) =>
+  ConfigNode.makeTyped({
+    kind: KIND,
+    key,
+    type: sensitive ? SensitiveDefinitionType : DefinitionType,
+    attrs: sensitive ? { key, valueType: type, sensitive: true } : { key, valueType: type },
+    refs,
+  });
+
 const make = <const K extends string, V>(
   keyInput: K,
   type: TypeExpr.TypeExpr,
+  valueType: PlainValue["type"],
   encode: (value: V) => TripleValue,
   refs: ReadonlyArray<ConfigNode.ConfigRef> = [],
 ): Definition<K, V> => {
@@ -79,46 +113,72 @@ const make = <const K extends string, V>(
     _tag: "Attribute",
     key,
     type,
+    valueType,
+    sensitive: false,
     encode,
-    node: ConfigNode.makeTyped({
-      kind: KIND,
-      key,
-      type: DefinitionType,
-      attrs: { key, valueType: type },
-      refs,
-    }),
+    node: nodeOf(key, type, false, refs),
   };
 };
 
+/**
+ * Declare an attribute's values sensitive: sealed at rest through a
+ * `ValueCodec`, returned sealed by every read, and usable by Datalog only for
+ * presence and keyed equality. See the sensitive values reference.
+ *
+ * Sensitivity is part of the attribute node's content identity, so marking or
+ * unmarking an attribute changes its content ID and appears in any release
+ * that adopts it. Reference and blob attributes cannot be sensitive.
+ */
+export const sensitive = <const K extends string, V>(
+  definition: Definition<K, V>,
+): Definition<K, V> => {
+  if (!SEALABLE.has(definition.valueType)) {
+    throw new TypeError(
+      `Attribute ${definition.key} stores ${definition.valueType} values, which cannot be sensitive; only string, number, boolean, datetime and json values can be sealed`,
+    );
+  }
+  if (definition.sensitive) return definition;
+  return {
+    ...definition,
+    sensitive: true,
+    node: nodeOf(definition.key, definition.type, true, []),
+  };
+};
+
+/** The sealed plaintext type of a sensitive definition. */
+export const sealableValueType = (definition: AnyDefinition): SealableValueType =>
+  definition.valueType as SealableValueType;
+
 export const text = <const K extends string>(key: K): Definition<K, string> =>
-  make(key, TypeExpr.text, Values.string);
+  make(key, TypeExpr.text, "string", Values.string);
 
 export const number = <const K extends string>(key: K): Definition<K, number> =>
-  make(key, TypeExpr.number, Values.number);
+  make(key, TypeExpr.number, "number", Values.number);
 
 export const integer = <const K extends string>(key: K): Definition<K, number> =>
-  make(key, TypeExpr.integer, Values.number);
+  make(key, TypeExpr.integer, "number", Values.number);
 
 export const boolean = <const K extends string>(key: K): Definition<K, boolean> =>
-  make(key, TypeExpr.boolean, Values.boolean);
+  make(key, TypeExpr.boolean, "boolean", Values.boolean);
 
 export const date = <const K extends string>(key: K): Definition<K, string> =>
-  make(key, TypeExpr.date, Values.string);
+  make(key, TypeExpr.date, "string", Values.string);
 
 export const instant = <const K extends string>(key: K): Definition<K, number | Date> =>
-  make(key, TypeExpr.instant, Values.datetime);
+  make(key, TypeExpr.instant, "datetime", Values.datetime);
 
 export const enumOf = <const K extends string, const V extends string>(
   key: K,
   values: ReadonlyArray<V>,
-): Definition<K, V> => make(key, TypeExpr.enumOf(values), (value) => Values.string(value));
+): Definition<K, V> =>
+  make(key, TypeExpr.enumOf(values), "string", (value) => Values.string(value));
 
 /** A relation attribute whose values are entity ids of `target`. */
 export const ref = <const K extends string, const Target extends { readonly entityType: string }>(
   key: K,
   target: Target,
 ): Definition<K, EntityId> =>
-  make(key, TypeExpr.ref(target.entityType), Values.ref, [
+  make(key, TypeExpr.ref(target.entityType), "ref", Values.ref, [
     {
       rel: "references-entity-type",
       kind: "entity-schema",

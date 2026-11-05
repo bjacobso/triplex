@@ -1,7 +1,9 @@
 import {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
+  SensitiveValueError,
   TransactionConflictError,
+  WriteError,
 } from "@triplex-build/triplex";
 import { Cause, Effect, Result } from "effect";
 import { Base64Url } from "effect/encoding";
@@ -24,6 +26,7 @@ import {
   ReadOnlyVersionError,
   RequestValidationError,
   ScheduledFactsConflictError,
+  SensitiveStorageRequiredError,
   UnauthorizedError,
   VersionNotFoundError,
 } from "./Errors.js";
@@ -119,6 +122,11 @@ const mapError = (error: unknown) => {
     return jsonError(409, "transaction_conflict", error.message);
   if (error instanceof CommandAlreadyCommittedError)
     return jsonError(409, "command_already_committed", error.message);
+  if (error instanceof SensitiveStorageRequiredError)
+    return jsonError(500, error.code, error.message);
+  // The sealing layer rejected a value; its message names the attribute, never the value.
+  if (error instanceof WriteError && error.cause instanceof SensitiveValueError)
+    return jsonError(400, "invalid_request", error.cause.message);
   return jsonError(500, "internal_error", "The request could not be completed");
 };
 

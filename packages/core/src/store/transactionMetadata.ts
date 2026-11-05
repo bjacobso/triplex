@@ -119,12 +119,11 @@ export const transactionRecordFromTriples = (
   ) {
     return null;
   }
-  const changes = triples
-    .filter((triple) => triple.attribute === TxAttributes.CHANGE && triple.value.type === "json")
-    .flatMap((triple) => {
-      const change = decodeChange(triple.value.value);
-      return change === undefined ? [] : [change];
-    });
+  const changes = triples.flatMap((triple) => {
+    if (triple.attribute !== TxAttributes.CHANGE || triple.value.type !== "json") return [];
+    const change = decodeChange(triple.value.value);
+    return change === undefined ? [] : [change];
+  });
   return {
     txId,
     position: positionTriple.value.value,
