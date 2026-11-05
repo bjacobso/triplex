@@ -1,4 +1,3 @@
-import "@fontsource-variable/ibm-plex-sans";
 import "@fontsource/ibm-plex-mono/400.css";
 import { type Theme, useData } from "vitepress";
 import DefaultTheme from "vitepress/theme-without-fonts";
@@ -21,12 +20,10 @@ export default {
         h(DefaultTheme.Layout, null, {
           "layout-top": () =>
             frontmatter.value.pageClass === "triplex-index"
-              ? h("div", { class: "worldvm-incubation" }, [
-                  h("p", null, [
-                    "Triplex is an incubation project within ",
-                    h("a", { href: "https://worldvm.com/" }, "WorldVM"),
-                    ".",
-                  ]),
+              ? h("p", { class: "worldvm-banner" }, [
+                  "Triplex is an incubation project within ",
+                  h("a", { href: "https://worldvm.com/" }, "WorldVM"),
+                  ".",
                 ])
               : null,
         });

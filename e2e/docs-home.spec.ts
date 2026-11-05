@@ -32,10 +32,10 @@ for (const colorScheme of ["light", "dark"] as const) {
     const stack = page.locator(".stack-map");
     await expect(stack.getByRole("link")).toHaveCount(6);
     await expect(stack).toContainText(/\d+ lines from schema to REST API/);
-    const timeline = page.locator(".triplex-home__timeline table");
+    const timeline = page.locator(".th-journal table");
     await expect(timeline.locator("tbody tr")).toHaveCount(6);
     await expect(timeline).toContainText("create:placement:maria-harbor");
-    const examples = page.locator('.triplex-home__snippet div[class*="language-"]');
+    const examples = page.locator('.th-steps .th-window div[class*="language-"]');
     await expect(examples).toHaveCount(11);
     for (const example of await examples.all()) {
       await expect(example).toBeVisible();
@@ -54,7 +54,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 test("home examples remain visible on mobile without page overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  const examples = page.locator('.triplex-home__snippet div[class*="language-"]');
+  const examples = page.locator('.th-steps .th-window div[class*="language-"]');
   await expect(examples).toHaveCount(11);
   for (const example of await examples.all()) {
     await expect(example).toBeVisible();

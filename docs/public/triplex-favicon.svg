@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="Triplex mark">
+  <title>Triplex mark</title>
+  <rect width="40" height="40" rx="8" fill="#f7f4ec"/>
+  <g fill="none" stroke="#26372c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 7 34 14 20 21 6 14Z"/>
+    <path d="M6 20.5 20 27.5 34 20.5"/>
+    <path d="M6 27 20 34 34 27"/>
+  </g>
+</svg>

@@ -87,8 +87,8 @@ export default defineConfig({
     resolve: { alias: workspaceAliases() },
   },
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/mark.svg" }],
-    ["meta", { name: "theme-color", content: "#0b1020" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/triplex-favicon.svg" }],
+    ["meta", { name: "theme-color", content: "#faf8f3" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:site_name", content: "Triplex" }],
     // Machine-readable entry points for coding agents: https://llmstxt.org
@@ -99,28 +99,38 @@ export default defineConfig({
     ],
   ],
   markdown: {
-    theme: { light: "tokyo-night", dark: "tokyo-night" },
+    theme: { light: "github-dark-high-contrast", dark: "github-dark-high-contrast" },
     languages: ["js", "json", "sh", "sql", "ts"],
   },
   themeConfig: {
-    logo: { src: "/mark.svg", alt: "Triplex" },
-    siteTitle: "Triplex",
+    logo: { light: "/triplex-mark.svg", dark: "/triplex-mark-dark.svg", alt: "Triplex" },
+    siteTitle: "triplex",
     nav: [
-      { text: "Get started", link: "/getting-started" },
-      { text: "Modeling guide", link: "/agents" },
-      { text: "Playground", link: "/playground" },
-      { text: "Concepts", link: "/concepts" },
+      {
+        text: "Learn",
+        items: [
+          { text: "Getting started", link: "/getting-started" },
+          { text: "Modeling guide", link: "/agents" },
+          { text: "Core concepts", link: "/concepts" },
+          { text: "Datalog", link: "/datalog" },
+          { text: "Configuration walkthrough", link: "/configuration-versioning" },
+          { text: "Derivations", link: "/derivations" },
+          { text: "Provenance", link: "/provenance" },
+          { text: "Current state", link: "/current-state" },
+        ],
+      },
       {
         text: "Reference",
         items: [
-          { text: "Datalog", link: "/datalog" },
           { text: "Configuration", link: "/configuration" },
           { text: "Operational primitives", link: "/operational-primitives" },
           { text: "HTTP API", link: "/http-api" },
-          { text: "Backend blueprints", link: "/backends" },
+          { text: "Performance", link: "/performance" },
         ],
       },
       { text: "Operate", link: "/tools" },
+      { text: "Backends", link: "/backends" },
+      { text: "Playground", link: "/playground" },
     ],
     sidebar,
     search: {
