@@ -13,14 +13,17 @@ export const KIND = "attribute";
 const ATTRIBUTE_KEY = /^:[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*$/;
 
 export interface AssertionOptions {
-  /** Domain-valid time carried by the assertion descriptor. */
+  /** Start of the domain-valid interval, in epoch milliseconds (inclusive). */
   readonly validFrom?: number;
+  /** End of the domain-valid interval, in epoch milliseconds (exclusive). */
+  readonly validTo?: number;
 }
 
 export interface Assertion<K extends string = string> {
   readonly attribute: K;
   readonly value: TripleValue;
   readonly validFrom?: number;
+  readonly validTo?: number;
 }
 
 export interface Definition<K extends string, V> {
@@ -203,9 +206,22 @@ export const assertion = <D extends AnyDefinition>(
   if (options.validFrom !== undefined && !Number.isFinite(options.validFrom)) {
     throw new TypeError("validFrom must be a finite epoch-millisecond value");
   }
+  if (options.validTo !== undefined && !Number.isFinite(options.validTo)) {
+    throw new TypeError("validTo must be a finite epoch-millisecond value");
+  }
+  if (
+    options.validFrom !== undefined &&
+    options.validTo !== undefined &&
+    options.validTo <= options.validFrom
+  ) {
+    throw new RangeError(
+      "validTo must be later than validFrom; intervals are [validFrom, validTo)",
+    );
+  }
   return {
     attribute: definition.key,
     value: definition.encode(value),
     ...(options.validFrom !== undefined && { validFrom: options.validFrom }),
+    ...(options.validTo !== undefined && { validTo: options.validTo }),
   };
 };

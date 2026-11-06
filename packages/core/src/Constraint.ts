@@ -409,3 +409,31 @@ export const newlyViolated = (
     }
     return result;
   });
+
+const formatValidAt = (validAt: number): string => {
+  const date = new Date(validAt);
+  return Number.isNaN(date.getTime()) ? String(validAt) : date.toISOString();
+};
+
+/**
+ * Summarize enforcement violations for an error message.
+ *
+ * The first `limit` violations are named with their constraint key, subject,
+ * and valid-time instant; the remainder are counted. Constraints are evaluated
+ * at every valid-time edge of the projected post-state, so `validAt` says
+ * which instant failed. `ConstraintViolationError.violations` keeps the
+ * complete structured list.
+ */
+export const describeViolations = (violations: readonly ViolationAt[], limit = 2): string => {
+  const count = violations.length;
+  const head = `Transaction would introduce or worsen ${count} graph constraint violation${count === 1 ? "" : "s"}`;
+  if (count === 0) return head;
+  const named = violations
+    .slice(0, limit)
+    .map(
+      (violation) =>
+        `${violation.constraintKey} for ${violation.subject} at validAt ${formatValidAt(violation.validAt)} (${violation.message})`,
+    );
+  const rest = count > limit ? `; and ${count - limit} more (see error.violations)` : "";
+  return `${head}: ${named.join("; ")}${rest}`;
+};

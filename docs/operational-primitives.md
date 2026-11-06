@@ -29,10 +29,46 @@ all of its writes roll back.
 
 This intentionally small primitive covers moving pointers and state machines without pretending
 that a read followed by an arbitrary write is compare-and-set. Config refs and entity-validation
-heads use it. There is no generic public "assert when no value exists" precondition. The narrower
-graph-constraint enforcement path does atomically protect declared required, cardinality,
+heads use it. `TripleLive` cannot detect an insertion: a fact asserted between your read and your
+write has no ID you could name. For that, use an `EntityState` precondition. The narrower
+graph-constraint enforcement path also atomically protects declared required, cardinality,
 uniqueness, and reference-target invariants by evaluating them inside the serialized commit
 boundary.
+
+### Entity-state preconditions
+
+`{ _tag: "EntityState", entityId, tripleIds }` is the check-then-write guard for one entity. After
+the transaction enters the serialized commit boundary, Triplex compares the entity's complete set
+of live (not retracted) fact IDs, across all valid time, with `tripleIds`. Any difference (an
+assertion, retraction, or replacement by another writer since your read) fails the whole
+transaction with `TransactionConflictError`; nothing commits. Unlike `TripleLive`, it needs no
+matching `retract` operation, so it also guards an "assert only when nothing changed" write.
+
+Observe the set from `history(entityId)`, which includes every valid time, keeping the facts whose
+`retractedAt` is `None`. `entity(entityId)` applies a valid-time basis and would omit future or
+expired facts, so its IDs can differ from the set the precondition compares.
+
+```ts
+const activate = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const observed = (yield* triples.history(vendor)).filter((fact) =>
+    Option.isNone(fact.retractedAt),
+  );
+  // Decide from `observed` (and any Datalog check) whether the command is allowed, then:
+  yield* triples.transact(operations, {
+    actor,
+    commandId,
+    preconditions: [
+      { _tag: "EntityState", entityId: vendor, tripleIds: observed.map((fact) => fact.id) },
+    ],
+  });
+});
+```
+
+On conflict, reload and decide again. The precondition guards only the named entity: a check that
+reads other entities (such as a vendor's reviews) needs an `EntityState` precondition for each of
+them, or graph-constraint enforcement. It is also not a declarative rule: a write that omits it is
+not checked, and the passage of valid time can still make a guarded state invalid later.
 
 ### Causal transaction envelopes
 
@@ -49,7 +85,9 @@ Every successful `transact` persists an `_Transaction` entity with:
 - one `:_tx/change` JSON fact for every asserted or retracted application fact.
 
 `Triples.transaction(txId)` reconstructs the typed envelope. The same facts remain available to
-Datalog for application-specific audit queries. A command ID is an atomically unique idempotency
+Datalog for application-specific audit queries. Their valid time starts at the commit instant, so
+query them at the current valid time; a past `validAt` hides them (see
+[Datalog](/datalog#query-shape)). A command ID is an atomically unique idempotency
 identity within one Triplex database. Concurrent attempts acquire a backend-local claim inside the
 same transaction as the facts and envelope; exactly one commits. A loser receives
 `CommandAlreadyCommittedError` with the original transaction ID, and

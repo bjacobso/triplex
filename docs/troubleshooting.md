@@ -1,5 +1,5 @@
 ---
-description: Answers to common failures, including npm 404s, missing Effect services, empty queries, 100-row pages, which clock to set, duplicate command IDs, unenforced constraints, and stale projections.
+description: Answers to common failures, including npm 404s, missing Effect services, empty queries, 100-row pages, which clock to set, duplicate command IDs, unenforced or failing constraints, and stale projections.
 ---
 
 # Troubleshooting and FAQ
@@ -48,6 +48,15 @@ Check these in order:
    joining.
 5. **Negation safety:** variables in `not` must already be bound outside it; invalid programs fail
    preflight instead of producing a partial answer.
+6. **Attribute spelling:** Datalog does not check attribute keys against your model or the
+   committed release. A misspelled key such as `":vendor/staus"` matches no facts and returns `[]`
+   without an error, and so does a missing `:` prefix. A compliance query that reports "no
+   violations" looks the same as a typo. Build queries from your `Attribute` definitions'
+   `.key` (or the entity type handles' `attributes.x.key`) instead of string literals, and keep a
+   test that expects at least one known row.
+7. **Transaction provenance under a past `validAt`:** `:_tx/*` facts are valid only from their
+   commit instant, so joining them into a query whose `validAt` is earlier returns `[]`. Read
+   provenance in a second query at the current basis; see [Datalog](/datalog#query-shape).
 
 Use `triples.explain(query)` or CLI `query explain`, then run with debug output to inspect the
 compiled plan without changing the query.
@@ -70,6 +79,10 @@ Entity timelines use a different newest-first contract: preserve the first page'
 `recordedAt` asks what the database knew; `validAt` asks what was true in the domain. Setting only
 `recordedAt` still uses the current valid time, and setting only `validAt` still uses the latest
 recorded knowledge. For “what did we believe then about what was true then?”, set both explicitly.
+
+Recorded time is the commit clock and cannot be supplied or backdated; an import of historical data
+is recorded at the import's commit time. Put domain dates in valid time, and model "when we learned
+this" as an ordinary attribute if you need it.
 
 Both are non-negative epoch milliseconds. Valid intervals are `[validFrom, validTo)`, so a fact is
 not visible exactly at its `validTo`. For exact transaction order, use journal positions; multiple
@@ -96,6 +109,28 @@ Always derive or collect rules from the exact immutable snapshot you pin. Existi
 remain during unrelated writes or repairs; enforcement rejects a new or worsened violation. Direct
 adapter writes, commands without `enforce`, authorization, and general Datalog invariants are
 outside this guarantee. Use validation observations when auditing or migrating existing data.
+
+## Why does an enforced write fail with `ConstraintViolationError`?
+
+Enforcement checks required, cardinality, uniqueness, and reference-target rules at every
+valid-time edge of the affected entities, not only at the current time. The most common causes are
+time gaps rather than missing data:
+
+- **Facts of one entity start at different times.** An assertion without `validFrom` starts at the
+  commit time. If one attribute is backdated and the others are not, the entity exists at the
+  earlier instant without its required attributes. Give all of an entity's facts the same
+  `validFrom`.
+- **A reference points at an entity that is not valid yet.** The target must have a fact of the
+  target entity type valid at the referencing fact's `validFrom`. Make referenced entities valid
+  from an earlier (or the same) time.
+- **A retraction erased an interval.** Retracting a value removes it from all of valid time, so a
+  required attribute can disappear from the entity's past. To end a value from a date on, retract it
+  and re-assert it with `validTo` in the same transaction.
+
+The error message names the first two violations with their constraint key, subject, and `validAt`.
+Inspect `error.violations` for the complete list; each entry's `validAt` is the epoch-millisecond
+instant at which the rule fails. See
+[Constraints hold at every valid instant](/configuration#constraints-hold-at-every-valid-instant).
 
 ## Why is a projection stale or empty?
 

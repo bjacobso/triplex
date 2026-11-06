@@ -123,6 +123,9 @@ describe("transaction graph constraints", () => {
     expect(result.error).toMatchObject({
       violations: [expect.objectContaining({ code: "required", subject: "person:missing-name" })],
     });
+    expect(result.error.message).toMatch(
+      /^Transaction would introduce or worsen 1 graph constraint violation: Person::person\/name:required for person:missing-name at validAt \d{4}-\d{2}-\d{2}T[^ ]+Z \(Person requires :person\/name\)$/,
+    );
     expect(result.facts).toEqual([]);
     expect(result.after).toBe(result.before);
   });
@@ -362,5 +365,42 @@ describe("transaction graph constraints", () => {
         expect.objectContaining({ code: "required", validAt: 100 }),
       ]),
     });
+  });
+
+  it("names the first violations, with valid time, in the error message", () => {
+    const violation = (subject: string, validAt: number): Constraint.ViolationAt => ({
+      constraintKey: "Person::person/name:required",
+      code: "required",
+      subject,
+      entityType: "Person",
+      attribute: ":person/name",
+      path: ":person/name",
+      message: "Person requires :person/name",
+      actual: 0,
+      validAt,
+    });
+    const day = Date.UTC(2026, 2, 15);
+
+    expect(Constraint.describeViolations([])).toBe(
+      "Transaction would introduce or worsen 0 graph constraint violations",
+    );
+    expect(Constraint.describeViolations([violation("person:a", day)])).toBe(
+      "Transaction would introduce or worsen 1 graph constraint violation: " +
+        "Person::person/name:required for person:a at validAt 2026-03-15T00:00:00.000Z " +
+        "(Person requires :person/name)",
+    );
+    expect(
+      Constraint.describeViolations([
+        violation("person:a", day),
+        violation("person:b", day),
+        violation("person:c", day),
+      ]),
+    ).toBe(
+      "Transaction would introduce or worsen 3 graph constraint violations: " +
+        "Person::person/name:required for person:a at validAt 2026-03-15T00:00:00.000Z " +
+        "(Person requires :person/name); " +
+        "Person::person/name:required for person:b at validAt 2026-03-15T00:00:00.000Z " +
+        "(Person requires :person/name); and 1 more (see error.violations)",
+    );
   });
 });

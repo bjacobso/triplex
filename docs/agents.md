@@ -63,7 +63,9 @@ Check these constraints with the people you work for before adopting it:
 - Model relationships as `Attribute.ref(key, TargetType)`. There are no join tables. Datalog joins
   on shared values.
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
-  and `ref`.
+  and `ref`. `date` is a calendar string that ordered predicates (`<`, `>`) cannot compare; use
+  `instant` (epoch milliseconds or a `Date`) for anything you compare or expire. See the
+  [value-type table](/configuration#ontology-dsl).
 - Set `entityType` on every assertion so type-level reads and constraints can find the entity.
 
 <<< @/snippets/home/site-safety/app.ts#model
@@ -97,11 +99,28 @@ Follow these rules for every write:
 4. **Pin `configSnapshot` and pass `enforce` from the same release.** Pinning alone only records
    which rules applied. Constraints are checked only when you also pass them with `enforce`.
 5. **Put business time on the assertion.** Use `validFrom` and `validTo` when the dates define when
-   the fact holds. Intervals are half-open: `[validFrom, validTo)`.
-6. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
+   the fact holds. Intervals are half-open: `[validFrom, validTo)`. Omitted `validFrom` means the
+   commit time.
+6. **Give all of an entity's facts one interval.** Enforced constraints are checked at every
+   valid-time edge of the entity, not only now. Assert every attribute of a new entity with the same
+   `validFrom`, and make referenced entities valid from an earlier (or the same) time as the facts
+   that point at them. Otherwise the entity exists at some instant without a required attribute, or
+   references an entity that does not exist yet, and the write fails with
+   `ConstraintViolationError`. Read `error.violations`: each entry carries the `validAt` at which
+   it fails.
+7. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
    the same transaction. For facts that other writers may also change, add a
    `{ _tag: "TripleLive", id }` precondition so a concurrent change fails with a conflict instead
-   of being lost.
+   of being lost. Retract operations are `{ op: "retract", id }`, where `id` is the assertion's
+   `TripleId`.
+8. **End a value at a time; don't erase its past.** A retraction removes the assertion from all of
+   valid time. To change a state from time `T` on (prospect to active), retract the open assertion,
+   re-assert the same value with `validTo: T`, and assert the new value from `T`, all in one
+   transaction. See [ending a fact at a time](/concepts#end-a-fact-at-a-time).
+9. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
+   and then writes, pass `{ _tag: "EntityState", entityId, tripleIds }` with the live fact IDs you
+   read. Another writer's change in between fails the command with `TransactionConflictError`. See
+   [entity-state preconditions](/operational-primitives#entity-state-preconditions).
 
 <<< @/snippets/home/site-safety/app.ts#command
 
@@ -143,6 +162,11 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
   `recordedAt`. Find the receipt with `transactionByCommand`.
 - **Who changed this entity, and why?** Page `transactionsForEntity(entityId)`, newest first.
   Each record carries its actor, command, correlation, causation, release, and typed changes.
+- **Who asserted the state that held at a past date?** Don't join `["?tx", ":_tx/actor", "?a"]`
+  into a query with a past `validAt`: transaction facts are valid only from their commit instant,
+  so the join silently returns `[]`. Bind `?tx` in the past-`validAt` query, then read provenance
+  in a second query at the current basis or with `transaction(txId)`. See
+  [Datalog](/datalog#query-shape).
 - **What was retracted?** `history(entityId)` includes retracted assertions. `entity` and `match`
   show only facts visible at the basis you ask for.
 
@@ -167,7 +191,9 @@ Triplex facts, the journal, and an outbox row commit together. See
 | Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`  |
 | Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                       |
 | Retract a fact in one command and assert its replacement in another | Do both in one transaction                                         |
+| Retract an open state to change it from a date on                   | Retract it and re-assert it with `validTo`, in one transaction     |
 | Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                      |
+| Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                 |
 | Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`           |
 | Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                  |
 | Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation     |

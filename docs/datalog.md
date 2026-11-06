@@ -46,6 +46,37 @@ const program = Effect.gen(function* () {
 });
 ```
 
+Transaction facts (`:_tx/*`) are ordinary facts on the `_Transaction` entity, and their valid
+time starts at the commit instant. A query whose basis sets `validAt` before the commit therefore
+finds no `:_tx/*` facts for that transaction, and a provenance join like the one above returns `[]`
+even though the joined fact was valid at that time. To ask "what was true then, and who asserted
+it", run two queries:
+
+```ts
+const program = Effect.gen(function* () {
+  const triples = yield* Triples;
+  // 1. The domain state at the past valid time, with the asserting transaction.
+  const { results: state } = yield* triples.query(
+    {
+      find: ["?person", "?name", "?tx"],
+      where: [["?person", ":person/name", "?name", "?tx"]],
+    },
+    { basis: { validAt: pastInstant } },
+  );
+  // 2. Provenance at the current basis, where every committed transaction is visible.
+  const { results: actors } = yield* triples.query({
+    find: ["?tx", "?actor"],
+    where: [["?tx", ":_tx/actor", "?actor"]],
+  });
+
+  return { state, actors };
+});
+```
+
+`Triples.transaction(txId)` and `Triples.transactionsForEntity(entityId)` read the same envelope
+without a valid-time basis. Recorded time still applies: a `recordedAt` before the commit hides both
+the fact and its transaction.
+
 The `?` prefix is reserved for variables. Entity, attribute, transaction, and rule identity
 positions accept string literals or variables. Malformed runtime input and unsupported programs
 fail with typed `DatalogValidationError` or `UnboundVariableError` before either backend runs.
@@ -145,6 +176,35 @@ const namedAliceOrBob = {
   ],
 };
 ```
+
+`not` takes one or more clauses. With several, it is conjunctive: it excludes a binding only when
+all of its clauses match together, like `NOT EXISTS` over a join. Its clauses are patterns or
+predicates, at most eight of them. Variables that appear only inside the `not` are local to it;
+every variable it shares with the rest of the query must be bound by a positive pattern outside it:
+
+```ts
+// Vendors with no completed review: excludes ?vendor only when one review both
+// references it and is complete.
+const unreviewed = {
+  find: ["?vendor"],
+  where: [
+    ["?vendor", ":vendor/name", "?name"],
+    ["not", ["?review", ":review/vendor", "?vendor"], ["?review", ":review/complete", true]],
+  ],
+};
+```
+
+There is no `and` clause. The top-level `where` list is already a conjunction, and
+`["not", ["and", ...]]` is written `["not", clause1, clause2]`.
+
+Each `or` alternative is a single clause: one pattern, one predicate, or one `not` (which may itself
+hold several clauses). Alternatives filter bindings that the rest of the query establishes; they do
+not bind new variables for `find`. A multi-clause branch such as `["or", [[c1, c2], [c3]]]` is not
+supported and fails preflight with a message naming the alternative. To express "c1 and c2, or c3",
+use one of these:
+
+- negate the complement with a conjunctive `not`, when the alternatives are absence checks; or
+- run one query per alternative and union the results in host code.
 
 Unsafe negation, empty disjunctions, and unbound projections fail during shared preflight.
 

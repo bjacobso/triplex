@@ -501,7 +501,7 @@ const configImpact = Command.make(
 ).pipe(Command.withDescription("Query reverse dependencies and deploy-impact candidates"));
 
 const config = Command.make("config").pipe(
-  Command.withDescription("Splunk configuration objects, revisions, releases, refs, and impact"),
+  Command.withDescription("Inspect configuration objects, revisions, releases, refs, and impact"),
   Command.withSubcommands([
     configRefs,
     configReleases,

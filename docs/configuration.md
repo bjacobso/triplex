@@ -77,6 +77,29 @@ Employer.attributes.name.assertion("Acme", { validFrom });
 Employment.attributes.employer.assertion(EntityId.make("employer:acme"), { validFrom });
 ```
 
+Attribute constructors fix the stored value type:
+
+| Constructor         | TypeScript input   | Stored as  | Datalog projects | Ordered `<` `>`? | Use for                                            |
+| ------------------- | ------------------ | ---------- | ---------------- | ---------------- | -------------------------------------------------- |
+| `Attribute.text`    | `string`           | `string`   | string           | No               | Names, free text                                   |
+| `Attribute.number`  | `number`           | `number`   | number           | Yes              | Quantities, scores                                 |
+| `Attribute.integer` | `number`           | `number`   | number           | Yes              | Counts                                             |
+| `Attribute.boolean` | `boolean`          | `boolean`  | boolean          | No               | Flags                                              |
+| `Attribute.date`    | `string`           | `string`   | string           | No               | Calendar dates you display, such as `"2026-03-15"` |
+| `Attribute.instant` | `number` or `Date` | `datetime` | epoch ms number  | Yes              | Times you compare, sort, or expire                 |
+| `Attribute.enumOf`  | one of the values  | `string`   | string           | No               | Closed sets such as statuses                       |
+| `Attribute.ref`     | `EntityId`         | `ref`      | string ID        | No               | Relationships to another entity type               |
+
+`date` is a calendar string, so ordered Datalog predicates (`<`, `<=`, `>`, `>=`), which are
+numeric-only, cannot compare it. Use `instant` for any time you compare or expire. When a date says
+when the fact itself holds, prefer the assertion's `validFrom` and `validTo` over either attribute.
+
+A handle's `assertion(value, { validFrom, validTo })` returns `{ attribute, value, validFrom?,
+validTo? }`, ready to spread into an `assert` operation next to `op`, `entityId`, and `entityType`.
+Both options are epoch milliseconds and describe the half-open valid interval `[validFrom, validTo)`;
+omit `validFrom` to start at the commit time and omit `validTo` for an open-ended fact. A non-finite
+value, or a `validTo` that is not later than `validFrom`, throws.
+
 Requiredness is not inherently true of `:employer/name`; it is true of the way `Employer` uses the
 attribute. Reference attributes follow the same separation.
 
@@ -206,6 +229,58 @@ concurrent Triplex writers from both winning the same absence or uniqueness deci
 loading uses entity-type and reference-target indexes plus batched subject reads. Direct adapter
 writes, unconstrained commands, authorization, and general Datalog invariants remain outside this
 guarantee.
+
+### Constraints hold at every valid instant
+
+Enforcement does not only check "now". It evaluates each rule at every valid-time edge (each
+`validFrom` and `validTo`) of the facts it loads for the affected entities, before and after the
+transaction. An entity exists at an instant when any of its typed facts is valid then. At each such
+instant:
+
+- `required`: the entity must also have a valid value for each required attribute;
+- `cardinality` and `unique`: the counts are taken over the facts valid at that instant; and
+- reference target: the referenced entity must have a fact of the target type valid at that same
+  instant.
+
+Two modeling rules follow:
+
+1. **All of an entity's facts share one interval.** Give every attribute of a new entity the same
+   `validFrom`. If `:vendor/status` starts on 2026-03-15 but `:vendor/name` defaults to the commit
+   time, the vendor exists on 2026-03-15 without a name, and a required name rule fails at that
+   instant.
+2. **Referenced entities must be valid from an earlier (or the same) time.** A review dated
+   2026-03-01 that references a vendor whose facts start on 2026-04-01 fails the reference-target
+   rule at 2026-03-01. Load the referenced entity from a `validFrom` at or before the earliest
+   fact that points at it.
+
+Assertions without `validFrom` start at the commit time, so a backdated assertion of one attribute
+next to defaulted assertions of others creates exactly this gap. To change one attribute's value
+from a date on, end the old value at that date and assert the new value from it in the same
+transaction instead of retracting the old value outright.
+
+`ConstraintViolationError.message` names the first two violations with their constraint key,
+subject, and `validAt` (as an ISO instant). `error.violations` holds the complete list. Each entry
+carries `constraintKey`, `code`, `subject`, `entityType`, `attribute`, `message`, and the `validAt`
+epoch-millisecond instant at which it fails:
+
+```ts
+const write = Effect.gen(function* () {
+  const triples = yield* Triples;
+  return yield* triples
+    .transact(operations, meta)
+    .pipe(
+      Effect.tapError((error) =>
+        error._tag === "ConstraintViolationError"
+          ? Effect.logWarning(
+              error.violations.map(
+                (v) => `${v.constraintKey} ${v.subject} at ${new Date(v.validAt).toISOString()}`,
+              ),
+            )
+          : Effect.void,
+      ),
+    );
+});
+```
 
 Validation observations remain useful for migrations and audit even when enforcement is enabled.
 Applications normally resolve one pinned release, collect its rules, and pass both its

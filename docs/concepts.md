@@ -38,6 +38,102 @@ Corrections therefore append evidence:
 `history(entityId)` includes retracted assertions. Current `entity` and `match` reads show only
 facts visible at their requested bitemporal basis.
 
+### End a fact at a time
+
+A retraction removes an assertion from the current recorded view for its **whole** valid interval,
+including its past. To end a value from time `T` on while keeping what was true before `T`, retract
+the open assertion and re-assert the same value with `validTo: T`, in one transaction. Assert the
+replacement value from `T` in the same transaction when there is one:
+
+```ts check
+import { Effect, Option } from "effect";
+import { EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
+
+const vendor = EntityId.make("vendor:acme");
+const KNOWN = Date.UTC(2026, 0, 1);
+const ACTIVATED = Date.UTC(2026, 2, 15);
+
+const program = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const created = yield* triples.transact(
+    [
+      {
+        op: "assert",
+        entityId: vendor,
+        entityType: "Vendor",
+        attribute: ":vendor/status",
+        value: string("prospect"),
+        validFrom: KNOWN,
+      },
+    ],
+    { actor: "user:pat", commandId: "vendor:acme:create" },
+  );
+  const prospect = created.triples[0]!;
+
+  // Prospect until March 15, active from then on: one command, one transaction.
+  yield* triples.transact(
+    [
+      { op: "retract", id: prospect.id },
+      {
+        op: "assert",
+        entityId: vendor,
+        entityType: "Vendor",
+        attribute: ":vendor/status",
+        value: string("prospect"),
+        validFrom: KNOWN,
+        validTo: ACTIVATED,
+      },
+      {
+        op: "assert",
+        entityId: vendor,
+        entityType: "Vendor",
+        attribute: ":vendor/status",
+        value: string("active"),
+        validFrom: ACTIVATED,
+      },
+    ],
+    {
+      actor: "user:pat",
+      commandId: "vendor:acme:activate",
+      preconditions: [{ _tag: "TripleLive", id: prospect.id }],
+    },
+  );
+
+  const before = yield* triples.match(
+    { entityId: vendor, attribute: ":vendor/status" },
+    { validAt: Date.UTC(2026, 1, 1) },
+  );
+  // Triple.validFrom is a number; Triple.validTo is an Option (None when open-ended).
+  return before.map((fact) => ({
+    value: fact.value,
+    validFrom: new Date(fact.validFrom).toISOString(),
+    validTo: Option.match(fact.validTo, {
+      onNone: () => "open",
+      onSome: (end) => new Date(end).toISOString(),
+    }),
+  }));
+});
+
+console.log(await Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer))));
+// [{ value: { type: "string", value: "prospect" }, validFrom: "2026-01-01T00:00:00.000Z",
+//    validTo: "2026-03-15T00:00:00.000Z" }]
+```
+
+Operations are `{ op: "assert", entityId, attribute, value, entityType?, validFrom?, validTo? }`,
+`{ op: "retract", id }` for one assertion by its `TripleId`, and
+`{ op: "retract-pattern", pattern }` for every live assertion matching an entity, attribute, type,
+or value pattern. Retract by `id` when you mean one assertion; the ID comes from
+`TransactionResult.triples`, `match`, `entity`, or `history`. A stored `Triple` carries
+`validFrom` as epoch milliseconds and `validTo`, `retractedAt`, `entityType`, and `txId` as Effect
+`Option`s. Its `value` is a tagged union: `string`, `number`, `boolean`, `datetime`, `ref`, `json`,
+`blob`, or `sealed` for a [sensitive value](/sensitive-values).
+
+The same rule applies with constraint enforcement: retracting the open assertion alone leaves the
+entity's past without the attribute, which a `required` rule rejects. Under enforcement, add a
+`TripleLive` precondition (as above) or an
+[`EntityState` precondition](/operational-primitives#entity-state-preconditions) so a concurrent
+change fails instead of being overwritten.
+
 ## Recorded time and valid time
 
 The two clocks answer different questions:
@@ -64,9 +160,27 @@ clause of a Datalog query. Times are non-negative epoch milliseconds and interva
 exclusive. If `recordedAt` is omitted, Triplex uses the latest recorded state; if `validAt` is
 omitted, it uses the runtime's current time. Setting only one axis does not freeze the other.
 
-Recorded time is assigned by the Triplex transaction boundary, not supplied as application data.
+Recorded time is the commit clock. The Triplex transaction boundary assigns it, and there is no
+option to supply or backdate it, so a historical import records everything at the import's commit
+time. Put the domain dates in valid time; if you also need "when did we learn this", model it as an
+ordinary attribute (for example `:review/received-at`) on the entity. Tests of recorded-time travel
+must capture instants from real commits, such as a receipt's `instant`, rather than inventing them.
 Use the journal's ordered commit positions when exact ordering matters; timestamps alone may not
 distinguish commits in the same millisecond.
+
+### Read an assertion's interval
+
+Datalog patterns bind entity, attribute, value, and optionally the asserting transaction. They
+cannot bind an assertion's `validFrom` or `validTo`. Questions such as "which exceptions expire
+within 30 days" have two workarounds:
+
+- **Two bases.** Query the same thing at `validAt: t` and at `validAt: t + 30 days`; the bindings
+  present in the first result and absent from the second end inside that window.
+- **Direct reads.** Use `match` or `entity` for the candidate entities and read each `Triple`'s
+  `validTo` (an `Option`).
+
+Store a date as an ordinary `instant` attribute only when it is domain data in its own right, not to
+duplicate the assertion's interval.
 
 ## Datalog asks across relationships
 
