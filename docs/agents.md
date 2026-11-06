@@ -63,7 +63,9 @@ Check these constraints with the people you work for before adopting it:
 - Model relationships as `Attribute.ref(key, TargetType)`. There are no join tables. Datalog joins
   on shared values.
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
-  and `ref`.
+  and `ref`. `date` is a calendar string that ordered predicates (`<`, `>`) cannot compare; use
+  `instant` (epoch milliseconds or a `Date`) for anything you compare or expire. See the
+  [value-type table](/configuration#ontology-dsl).
 - Set `entityType` on every assertion so type-level reads and constraints can find the entity.
 
 <<< @/snippets/home/site-safety/app.ts#model

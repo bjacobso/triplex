@@ -77,6 +77,23 @@ Employer.attributes.name.assertion("Acme", { validFrom });
 Employment.attributes.employer.assertion(EntityId.make("employer:acme"), { validFrom });
 ```
 
+Attribute constructors fix the stored value type:
+
+| Constructor         | TypeScript input   | Stored as  | Datalog projects | Ordered `<` `>`? | Use for                                            |
+| ------------------- | ------------------ | ---------- | ---------------- | ---------------- | -------------------------------------------------- |
+| `Attribute.text`    | `string`           | `string`   | string           | No               | Names, free text                                   |
+| `Attribute.number`  | `number`           | `number`   | number           | Yes              | Quantities, scores                                 |
+| `Attribute.integer` | `number`           | `number`   | number           | Yes              | Counts                                             |
+| `Attribute.boolean` | `boolean`          | `boolean`  | boolean          | No               | Flags                                              |
+| `Attribute.date`    | `string`           | `string`   | string           | No               | Calendar dates you display, such as `"2026-03-15"` |
+| `Attribute.instant` | `number` or `Date` | `datetime` | epoch ms number  | Yes              | Times you compare, sort, or expire                 |
+| `Attribute.enumOf`  | one of the values  | `string`   | string           | No               | Closed sets such as statuses                       |
+| `Attribute.ref`     | `EntityId`         | `ref`      | string ID        | No               | Relationships to another entity type               |
+
+`date` is a calendar string, so ordered Datalog predicates (`<`, `<=`, `>`, `>=`), which are
+numeric-only, cannot compare it. Use `instant` for any time you compare or expire. When a date says
+when the fact itself holds, prefer the assertion's `validFrom` and `validTo` over either attribute.
+
 A handle's `assertion(value, { validFrom, validTo })` returns `{ attribute, value, validFrom?,
 validTo? }`, ready to spread into an `assert` operation next to `op`, `entityId`, and `entityType`.
 Both options are epoch milliseconds and describe the half-open valid interval `[validFrom, validTo)`;

@@ -71,6 +71,10 @@ Entity timelines use a different newest-first contract: preserve the first page'
 `recordedAt` still uses the current valid time, and setting only `validAt` still uses the latest
 recorded knowledge. For “what did we believe then about what was true then?”, set both explicitly.
 
+Recorded time is the commit clock and cannot be supplied or backdated; an import of historical data
+is recorded at the import's commit time. Put domain dates in valid time, and model "when we learned
+this" as an ordinary attribute if you need it.
+
 Both are non-negative epoch milliseconds. Valid intervals are `[validFrom, validTo)`, so a fact is
 not visible exactly at its `validTo`. For exact transaction order, use journal positions; multiple
 commits can share one millisecond. Read [the dated example](/concepts#recorded-time-and-valid-time).
