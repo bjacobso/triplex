@@ -109,8 +109,13 @@ Follow these rules for every write:
 7. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
    the same transaction. For facts that other writers may also change, add a
    `{ _tag: "TripleLive", id }` precondition so a concurrent change fails with a conflict instead
-   of being lost.
-8. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
+   of being lost. Retract operations are `{ op: "retract", id }`, where `id` is the assertion's
+   `TripleId`.
+8. **End a value at a time; don't erase its past.** A retraction removes the assertion from all of
+   valid time. To change a state from time `T` on (prospect to active), retract the open assertion,
+   re-assert the same value with `validTo: T`, and assert the new value from `T`, all in one
+   transaction. See [ending a fact at a time](/concepts#end-a-fact-at-a-time).
+9. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
    and then writes, pass `{ _tag: "EntityState", entityId, tripleIds }` with the live fact IDs you
    read. Another writer's change in between fails the command with `TransactionConflictError`. See
    [entity-state preconditions](/operational-primitives#entity-state-preconditions).
@@ -184,6 +189,7 @@ Triplex facts, the journal, and an outbox row commit together. See
 | Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`  |
 | Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                       |
 | Retract a fact in one command and assert its replacement in another | Do both in one transaction                                         |
+| Retract an open state to change it from a date on                   | Retract it and re-assert it with `validTo`, in one transaction     |
 | Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                      |
 | Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                 |
 | Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`           |
