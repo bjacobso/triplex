@@ -2,7 +2,7 @@
  * Tests for the vendor risk review brief (see REPORT.md for the brief text and outcome table).
  */
 import { describe, expect, it } from "vitest";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer } from "effect";
 import { KvTriples, Triples } from "@triplex-build/triplex";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { K, Review, Vendor, DAY } from "../src/model.js";
@@ -190,7 +190,8 @@ describe("silent traps (probes)", () => {
     expect(r.results).toEqual([]);
   });
 
-  it("Attribute.assertion() silently drops validTo when the options object is not a literal", async () => {
+  // Fixed after the trial: AssertionOptions now carries validTo, so a non-literal options object keeps it.
+  it("Attribute.assertion() keeps validTo when the options object is not a literal", async () => {
     const f = await run(Effect.gen(function* () {
       const rel = yield* seed;
       const triples = yield* Triples;
@@ -202,8 +203,7 @@ describe("silent traps (probes)", () => {
       ], { actor: "user:sam", commandId: "trap:validTo" });
       return yield* triples.match({ entityId: id("review:trap"), attribute: K.questionnaire }, { validAt: TODAY });
     }));
-    expect(f).toHaveLength(1); // still visible 9 months after the intended validTo
-    expect(Option.isNone(f[0]!.validTo)).toBe(true);
+    expect(f).toHaveLength(0); // expired at the intended validTo (the trial saw it still visible)
   });
 
   it("missing value is not false: without enforce, a vendor with no customer-data flag is invisible to Q1", async () => {

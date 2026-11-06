@@ -77,6 +77,12 @@ Employer.attributes.name.assertion("Acme", { validFrom });
 Employment.attributes.employer.assertion(EntityId.make("employer:acme"), { validFrom });
 ```
 
+A handle's `assertion(value, { validFrom, validTo })` returns `{ attribute, value, validFrom?,
+validTo? }`, ready to spread into an `assert` operation next to `op`, `entityId`, and `entityType`.
+Both options are epoch milliseconds and describe the half-open valid interval `[validFrom, validTo)`;
+omit `validFrom` to start at the commit time and omit `validTo` for an open-ended fact. A non-finite
+value, or a `validTo` that is not later than `validFrom`, throws.
+
 Requiredness is not inherently true of `:employer/name`; it is true of the way `Employer` uses the
 attribute. Reference attributes follow the same separation.
 

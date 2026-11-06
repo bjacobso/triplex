@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 
 import { KvTriples } from "../../src/kv/layers/KvTriplesLive.js";
 import { Triples } from "../../src/store/Triples.js";
@@ -79,6 +79,22 @@ describe("ontology DSL", () => {
       value: { type: "string", value: "Acme" },
       validFrom: 1_700_000_000_000,
     });
+    const interval = { validFrom: 1_700_000_000_000, validTo: 1_700_000_086_400 };
+    expect(Employer.name.assertion("Acme", interval)).toEqual({
+      attribute: ":employer/name",
+      value: { type: "string", value: "Acme" },
+      validFrom: 1_700_000_000_000,
+      validTo: 1_700_000_086_400,
+    });
+    expect(Employer.name.assertion("Acme", { validTo: 1_700_000_086_400 })).toEqual({
+      attribute: ":employer/name",
+      value: { type: "string", value: "Acme" },
+      validTo: 1_700_000_086_400,
+    });
+    expect(() => Employer.name.assertion("Acme", { validTo: Number.NaN })).toThrow(TypeError);
+    expect(() =>
+      Employer.name.assertion("Acme", { validFrom: 1_700_000_000_000, validTo: 1_700_000_000_000 }),
+    ).toThrow(RangeError);
     expect(Employment.employer.assertion("employer:acme")).toEqual({
       attribute: ":employment/employer",
       value: { type: "ref", value: "employer:acme" },
@@ -137,6 +153,31 @@ describe("ontology DSL", () => {
       ]);
     }).pipe(Effect.provide(AppLayer));
   });
+
+  it.effect("carries an assertion's valid interval into the stored fact", () =>
+    Effect.gen(function* () {
+      const triples = yield* Triples;
+      const validFrom = Date.UTC(2026, 0, 1);
+      const validTo = Date.UTC(2026, 1, 1);
+      const interval = { validFrom, validTo };
+      yield* triples.transact([
+        {
+          op: "assert",
+          entityId: "employer:acme",
+          entityType: Employer.entityType,
+          ...Employer.name.assertion("Acme", interval),
+        },
+      ]);
+
+      const [fact] = yield* triples.match(
+        { entityId: "employer:acme" },
+        { validAt: Date.UTC(2026, 0, 15) },
+      );
+      expect(fact?.validFrom).toBe(validFrom);
+      expect(fact?.validTo).toEqual(Option.some(validTo));
+      expect(yield* triples.match({ entityId: "employer:acme" }, { validAt: validTo })).toEqual([]);
+    }).pipe(Effect.provide(KvTriples.layer)),
+  );
 
   it("rejects identities outside the public naming conventions", () => {
     expect(() => Attribute.text(":Employer/name")).toThrow(/lowercase namespaced keyword/);
