@@ -1,5 +1,5 @@
 ---
-description: Answers to common failures, including npm 404s, missing Effect services, empty queries, 100-row pages, which clock to set, duplicate command IDs, unenforced constraints, and stale projections.
+description: Answers to common failures, including npm 404s, missing Effect services, empty queries, 100-row pages, which clock to set, duplicate command IDs, unenforced or failing constraints, and stale projections.
 ---
 
 # Troubleshooting and FAQ
@@ -96,6 +96,28 @@ Always derive or collect rules from the exact immutable snapshot you pin. Existi
 remain during unrelated writes or repairs; enforcement rejects a new or worsened violation. Direct
 adapter writes, commands without `enforce`, authorization, and general Datalog invariants are
 outside this guarantee. Use validation observations when auditing or migrating existing data.
+
+## Why does an enforced write fail with `ConstraintViolationError`?
+
+Enforcement checks required, cardinality, uniqueness, and reference-target rules at every
+valid-time edge of the affected entities, not only at the current time. The most common causes are
+time gaps rather than missing data:
+
+- **Facts of one entity start at different times.** An assertion without `validFrom` starts at the
+  commit time. If one attribute is backdated and the others are not, the entity exists at the
+  earlier instant without its required attributes. Give all of an entity's facts the same
+  `validFrom`.
+- **A reference points at an entity that is not valid yet.** The target must have a fact of the
+  target entity type valid at the referencing fact's `validFrom`. Make referenced entities valid
+  from an earlier (or the same) time.
+- **A retraction erased an interval.** Retracting a value removes it from all of valid time, so a
+  required attribute can disappear from the entity's past. To end a value from a date on, retract it
+  and re-assert it with `validTo` in the same transaction.
+
+The error message names the first two violations with their constraint key, subject, and `validAt`.
+Inspect `error.violations` for the complete list; each entry's `validAt` is the epoch-millisecond
+instant at which the rule fails. See
+[Constraints hold at every valid instant](/configuration#constraints-hold-at-every-valid-instant).
 
 ## Why is a projection stale or empty?
 

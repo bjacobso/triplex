@@ -358,7 +358,7 @@ export const TriplesLive = Layer.effect(
               return yield* Effect.fail(
                 new ConstraintViolationError({
                   violations,
-                  message: `Transaction would introduce or worsen ${violations.length} graph constraint violation${violations.length === 1 ? "" : "s"}`,
+                  message: Constraint.describeViolations(violations),
                 }),
               );
             }

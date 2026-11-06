@@ -97,8 +97,16 @@ Follow these rules for every write:
 4. **Pin `configSnapshot` and pass `enforce` from the same release.** Pinning alone only records
    which rules applied. Constraints are checked only when you also pass them with `enforce`.
 5. **Put business time on the assertion.** Use `validFrom` and `validTo` when the dates define when
-   the fact holds. Intervals are half-open: `[validFrom, validTo)`.
-6. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
+   the fact holds. Intervals are half-open: `[validFrom, validTo)`. Omitted `validFrom` means the
+   commit time.
+6. **Give all of an entity's facts one interval.** Enforced constraints are checked at every
+   valid-time edge of the entity, not only now. Assert every attribute of a new entity with the same
+   `validFrom`, and make referenced entities valid from an earlier (or the same) time as the facts
+   that point at them. Otherwise the entity exists at some instant without a required attribute, or
+   references an entity that does not exist yet, and the write fails with
+   `ConstraintViolationError`. Read `error.violations`: each entry carries the `validAt` at which
+   it fails.
+7. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
    the same transaction. For facts that other writers may also change, add a
    `{ _tag: "TripleLive", id }` precondition so a concurrent change fails with a conflict instead
    of being lost.
@@ -168,6 +176,7 @@ Triplex facts, the journal, and an outbox row commit together. See
 | Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                       |
 | Retract a fact in one command and assert its replacement in another | Do both in one transaction                                         |
 | Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                      |
+| Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                 |
 | Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`           |
 | Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                  |
 | Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation     |

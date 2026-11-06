@@ -207,6 +207,58 @@ loading uses entity-type and reference-target indexes plus batched subject reads
 writes, unconstrained commands, authorization, and general Datalog invariants remain outside this
 guarantee.
 
+### Constraints hold at every valid instant
+
+Enforcement does not only check "now". It evaluates each rule at every valid-time edge (each
+`validFrom` and `validTo`) of the facts it loads for the affected entities, before and after the
+transaction. An entity exists at an instant when any of its typed facts is valid then. At each such
+instant:
+
+- `required`: the entity must also have a valid value for each required attribute;
+- `cardinality` and `unique`: the counts are taken over the facts valid at that instant; and
+- reference target: the referenced entity must have a fact of the target type valid at that same
+  instant.
+
+Two modeling rules follow:
+
+1. **All of an entity's facts share one interval.** Give every attribute of a new entity the same
+   `validFrom`. If `:vendor/status` starts on 2026-03-15 but `:vendor/name` defaults to the commit
+   time, the vendor exists on 2026-03-15 without a name, and a required name rule fails at that
+   instant.
+2. **Referenced entities must be valid from an earlier (or the same) time.** A review dated
+   2026-03-01 that references a vendor whose facts start on 2026-04-01 fails the reference-target
+   rule at 2026-03-01. Load the referenced entity from a `validFrom` at or before the earliest
+   fact that points at it.
+
+Assertions without `validFrom` start at the commit time, so a backdated assertion of one attribute
+next to defaulted assertions of others creates exactly this gap. To change one attribute's value
+from a date on, end the old value at that date and assert the new value from it in the same
+transaction instead of retracting the old value outright.
+
+`ConstraintViolationError.message` names the first two violations with their constraint key,
+subject, and `validAt` (as an ISO instant). `error.violations` holds the complete list. Each entry
+carries `constraintKey`, `code`, `subject`, `entityType`, `attribute`, `message`, and the `validAt`
+epoch-millisecond instant at which it fails:
+
+```ts
+const write = Effect.gen(function* () {
+  const triples = yield* Triples;
+  return yield* triples
+    .transact(operations, meta)
+    .pipe(
+      Effect.tapError((error) =>
+        error._tag === "ConstraintViolationError"
+          ? Effect.logWarning(
+              error.violations.map(
+                (v) => `${v.constraintKey} ${v.subject} at ${new Date(v.validAt).toISOString()}`,
+              ),
+            )
+          : Effect.void,
+      ),
+    );
+});
+```
+
 Validation observations remain useful for migrations and audit even when enforcement is enabled.
 Applications normally resolve one pinned release, collect its rules, and pass both its
 `configSnapshot` and enforcement set at the command boundary.
