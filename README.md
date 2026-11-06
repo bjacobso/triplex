@@ -572,6 +572,16 @@ compose storage and query layers with a validated database scope and explicit ca
 `@triplex-build/triplex/internal` remains unstable implementation support for legacy adapter code.
 Public exports resolve only to built `dist` files.
 
+## Triplex and WorldVM
+
+Triplex is a standalone database: it has no dependency on WorldVM, and you do not need WorldVM to
+use it. It is also the temporal fact store in [WorldVM](https://worldvm.com), a TypeScript runtime
+and standard library for software that models the world, reasons about it, and acts on it. There,
+Triplex answers one question: what is true, and what was true? Triplex owns facts, time, the
+journal, configuration, and provenance; WorldVM owns actors, permissions, programs, threads, and
+external effects. WorldVM's `@worldvm/*` packages are not published yet. See
+[Triplex and WorldVM](docs/worldvm.md) for the exact boundary.
+
 ## Documentation
 
 | Document                                                      | Purpose                                                      |
@@ -592,6 +602,7 @@ Public exports resolve only to built `dist` files.
 | [Custom runtimes](docs/custom-runtimes.md)                    | Public runtime builders, capabilities, and backend contracts |
 | [Architecture](ARCHITECTURE.md)                               | Package boundaries and dependency direction                  |
 | [Roadmap](docs/roadmap.md)                                    | Release gates and future work                                |
+| [Triplex and WorldVM](docs/worldvm.md)                        | Relationship to WorldVM and the API boundary                 |
 | [Source provenance](docs/provenance.md)                       | Imported repository history                                  |
 
 The focused configuration explorer remains under [`examples/config-explorer`](examples/config-explorer),
