@@ -34,12 +34,48 @@ const unbound = (variable: string, clause: unknown): never => {
   });
 };
 
+const isAndClause = (value: unknown): boolean => Array.isArray(value) && value[0] === "and";
+
+/**
+ * Explain common grouping mistakes in `not` and `or` before the generic schema
+ * failure, which otherwise lists every union member that did not match.
+ */
+const groupingHint = (input: unknown): string | undefined => {
+  if (typeof input !== "object" || input === null) return undefined;
+  const where = (input as { readonly where?: unknown }).where;
+  if (!Array.isArray(where)) return undefined;
+  for (const [index, clause] of where.entries()) {
+    if (!Array.isArray(clause)) continue;
+    const at = `where[${index}]`;
+    if (isAndClause(clause)) {
+      return `${at}: Datalog has no "and" clause. Top-level where clauses are already a conjunction; inside negation write ["not", clause1, clause2, ...]`;
+    }
+    if (clause[0] === "not" && clause.slice(1).some(isAndClause)) {
+      return `${at}: write conjunctive negation as ["not", clause1, clause2, ...], not ["not", ["and", ...]]`;
+    }
+    if (clause[0] === "or") {
+      const alternatives: readonly unknown[] =
+        clause.length === 2 && Array.isArray(clause[1]) ? clause[1] : clause.slice(1);
+      for (const [branch, alternative] of alternatives.entries()) {
+        if (
+          isAndClause(alternative) ||
+          (Array.isArray(alternative) && Array.isArray(alternative[0]))
+        ) {
+          return `${at} alternative ${branch}: each "or" alternative must be a single pattern, predicate, or "not" clause; conjunctive alternatives are not supported. Use a conjunctive ["not", ...] alternative or one query per alternative`;
+        }
+      }
+    }
+  }
+  return undefined;
+};
+
 const decodeQuery = (input: unknown): DatalogQuery => {
   const decoded = Schema.decodeUnknownResult(DatalogQuerySchema)(input);
   if (Result.isFailure(decoded)) {
+    const hint = groupingHint(input);
     return invalid(
       input,
-      `Invalid Datalog query shape: ${decoded.failure.message}`,
+      `Invalid Datalog query shape: ${hint ?? decoded.failure.message}`,
       decoded.failure,
     );
   }

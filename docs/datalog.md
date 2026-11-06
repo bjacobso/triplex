@@ -146,6 +146,35 @@ const namedAliceOrBob = {
 };
 ```
 
+`not` takes one or more clauses. With several, it is conjunctive: it excludes a binding only when
+all of its clauses match together, like `NOT EXISTS` over a join. Its clauses are patterns or
+predicates, at most eight of them. Variables that appear only inside the `not` are local to it;
+every variable it shares with the rest of the query must be bound by a positive pattern outside it:
+
+```ts
+// Vendors with no completed review: excludes ?vendor only when one review both
+// references it and is complete.
+const unreviewed = {
+  find: ["?vendor"],
+  where: [
+    ["?vendor", ":vendor/name", "?name"],
+    ["not", ["?review", ":review/vendor", "?vendor"], ["?review", ":review/complete", true]],
+  ],
+};
+```
+
+There is no `and` clause. The top-level `where` list is already a conjunction, and
+`["not", ["and", ...]]` is written `["not", clause1, clause2]`.
+
+Each `or` alternative is a single clause: one pattern, one predicate, or one `not` (which may itself
+hold several clauses). Alternatives filter bindings that the rest of the query establishes; they do
+not bind new variables for `find`. A multi-clause branch such as `["or", [[c1, c2], [c3]]]` is not
+supported and fails preflight with a message naming the alternative. To express "c1 and c2, or c3",
+use one of these:
+
+- negate the complement with a conjunctive `not`, when the alternatives are absence checks; or
+- run one query per alternative and union the results in host code.
+
 Unsafe negation, empty disjunctions, and unbound projections fail during shared preflight.
 
 ## Aggregation and ordering

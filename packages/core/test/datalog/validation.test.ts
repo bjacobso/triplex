@@ -36,6 +36,67 @@ describe("Datalog query validation", () => {
     expect(failure.message).toContain("Invalid Datalog query shape");
   });
 
+  it("explains and-grouping and multi-clause or alternatives", () => {
+    const base = ["?v", ":v/name", "?n"];
+    const cases: ReadonlyArray<readonly [unknown, RegExp]> = [
+      [
+        [
+          "or",
+          [
+            [
+              ["?v", ":v/a", true],
+              ["?v", ":v/b", true],
+            ],
+            [["?v", ":v/c", true]],
+          ],
+        ],
+        /where\[1\] alternative 0: each "or" alternative must be a single pattern, predicate, or "not" clause/,
+      ],
+      [
+        [
+          "or",
+          [
+            ["and", ["?v", ":v/a", true], ["?v", ":v/b", true]],
+            ["?v", ":v/c", true],
+          ],
+        ],
+        /where\[1\] alternative 0: each "or" alternative must be a single/,
+      ],
+      [
+        ["not", ["and", ["?r", ":r/vendor", "?v"], ["?r", ":r/ok", true]]],
+        /where\[1\]: write conjunctive negation as \["not", clause1, clause2, \.\.\.\]/,
+      ],
+      [["and", ["?v", ":v/a", true]], /where\[1\]: Datalog has no "and" clause/],
+    ];
+    for (const [clause, message] of cases) {
+      const query = { find: ["?v"], where: [base, clause] };
+      expect(() => assertDatalogQuery(query)).toThrow(DatalogValidationError);
+      expect(() => assertDatalogQuery(query)).toThrow(message);
+    }
+
+    expect(
+      assertDatalogQuery({
+        find: ["?v"],
+        where: [base, ["not", ["?r", ":r/vendor", "?v"], ["?r", ":r/ok", true]]],
+      }).where,
+    ).toHaveLength(2);
+    expect(
+      assertDatalogQuery({
+        find: ["?v"],
+        where: [
+          base,
+          [
+            "or",
+            [
+              ["not", ["?r", ":r/vendor", "?v"], ["?r", ":r/ok", true]],
+              ["?v", ":v/c", true],
+            ],
+          ],
+        ],
+      }).where,
+    ).toHaveLength(2);
+  });
+
   it("reports unbound result and predicate variables explicitly", () => {
     for (const query of [
       {
