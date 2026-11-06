@@ -46,6 +46,37 @@ const program = Effect.gen(function* () {
 });
 ```
 
+Transaction facts (`:_tx/*`) are ordinary facts on the `_Transaction` entity, and their valid
+time starts at the commit instant. A query whose basis sets `validAt` before the commit therefore
+finds no `:_tx/*` facts for that transaction, and a provenance join like the one above returns `[]`
+even though the joined fact was valid at that time. To ask "what was true then, and who asserted
+it", run two queries:
+
+```ts
+const program = Effect.gen(function* () {
+  const triples = yield* Triples;
+  // 1. The domain state at the past valid time, with the asserting transaction.
+  const { results: state } = yield* triples.query(
+    {
+      find: ["?person", "?name", "?tx"],
+      where: [["?person", ":person/name", "?name", "?tx"]],
+    },
+    { basis: { validAt: pastInstant } },
+  );
+  // 2. Provenance at the current basis, where every committed transaction is visible.
+  const { results: actors } = yield* triples.query({
+    find: ["?tx", "?actor"],
+    where: [["?tx", ":_tx/actor", "?actor"]],
+  });
+
+  return { state, actors };
+});
+```
+
+`Triples.transaction(txId)` and `Triples.transactionsForEntity(entityId)` read the same envelope
+without a valid-time basis. Recorded time still applies: a `recordedAt` before the commit hides both
+the fact and its transaction.
+
 The `?` prefix is reserved for variables. Entity, attribute, transaction, and rule identity
 positions accept string literals or variables. Malformed runtime input and unsupported programs
 fail with typed `DatalogValidationError` or `UnboundVariableError` before either backend runs.

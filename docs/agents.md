@@ -151,6 +151,11 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
   `recordedAt`. Find the receipt with `transactionByCommand`.
 - **Who changed this entity, and why?** Page `transactionsForEntity(entityId)`, newest first.
   Each record carries its actor, command, correlation, causation, release, and typed changes.
+- **Who asserted the state that held at a past date?** Don't join `["?tx", ":_tx/actor", "?a"]`
+  into a query with a past `validAt`: transaction facts are valid only from their commit instant,
+  so the join silently returns `[]`. Bind `?tx` in the past-`validAt` query, then read provenance
+  in a second query at the current basis or with `transaction(txId)`. See
+  [Datalog](/datalog#query-shape).
 - **What was retracted?** `history(entityId)` includes retracted assertions. `entity` and `match`
   show only facts visible at the basis you ask for.
 

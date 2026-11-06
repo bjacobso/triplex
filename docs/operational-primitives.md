@@ -49,7 +49,9 @@ Every successful `transact` persists an `_Transaction` entity with:
 - one `:_tx/change` JSON fact for every asserted or retracted application fact.
 
 `Triples.transaction(txId)` reconstructs the typed envelope. The same facts remain available to
-Datalog for application-specific audit queries. A command ID is an atomically unique idempotency
+Datalog for application-specific audit queries. Their valid time starts at the commit instant, so
+query them at the current valid time; a past `validAt` hides them (see
+[Datalog](/datalog#query-shape)). A command ID is an atomically unique idempotency
 identity within one Triplex database. Concurrent attempts acquire a backend-local claim inside the
 same transaction as the facts and envelope; exactly one commits. A loser receives
 `CommandAlreadyCommittedError` with the original transaction ID, and
