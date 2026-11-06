@@ -110,6 +110,10 @@ Follow these rules for every write:
    the same transaction. For facts that other writers may also change, add a
    `{ _tag: "TripleLive", id }` precondition so a concurrent change fails with a conflict instead
    of being lost.
+8. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
+   and then writes, pass `{ _tag: "EntityState", entityId, tripleIds }` with the live fact IDs you
+   read. Another writer's change in between fails the command with `TransactionConflictError`. See
+   [entity-state preconditions](/operational-primitives#entity-state-preconditions).
 
 <<< @/snippets/home/site-safety/app.ts#command
 
