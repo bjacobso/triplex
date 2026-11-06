@@ -101,6 +101,36 @@ layer opens the SQLite file and applies Triplex's current migration. Create it o
 the application lifetime. Production hosts that separate schema migration from runtime startup
 should use the explicit unmigrated composition described in [Host integration](/host-integration).
 
+## Use Triplex from a source checkout
+
+To try unreleased changes from a checkout in a project outside the repository workspace, build the
+packages and link their built output. Package exports point to generated `dist` files, so an
+unbuilt checkout cannot be imported. Build the packages you need and their dependencies:
+
+```sh
+cd triplex
+pnpm install --frozen-lockfile
+pnpm turbo run build --filter=@triplex-build/triplex-sqlite...
+```
+
+Then link them into your project. Link Effect from the copy core resolves too, so your code and
+Triplex share one Effect instance; two copies make service tags disagree:
+
+```sh
+cd ../my-project
+mkdir -p node_modules/@triplex-build
+ln -sfn "$PWD/../triplex/packages/core" node_modules/@triplex-build/triplex
+ln -sfn "$PWD/../triplex/packages/sqlite" node_modules/@triplex-build/triplex-sqlite
+ln -sfn "$PWD/../triplex/packages/core/node_modules/effect" node_modules/effect
+```
+
+Rebuild after changing the checkout. For a copy that installs like the published packages, run
+`pnpm pack` in each package directory and install the tarballs with `effect@4.1.1` instead.
+
+Don't use `docs/snippets/tsconfig.json` for an outside project. It maps the package names to
+`packages/*/src` so the documentation can type-check against unbuilt sources, which bypasses the
+public exports your application will use.
+
 ## Next steps
 
 - Experiment without installing anything in the browser [Playground](/playground).
