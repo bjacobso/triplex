@@ -8,7 +8,7 @@
  * The same renderer backs the production build and the dev server, so links on
  * the homepage work in both.
  */
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -137,7 +137,11 @@ const firstParagraph = (markdown: string) => {
 };
 
 const loadPages = async (srcDir: string): Promise<Page[]> => {
-  const files = (await readdir(srcDir)).filter((file) => file.endsWith(".md")).sort();
+  const files = (await readdir(srcDir, { recursive: true }))
+    .filter(
+      (file) => file.endsWith(".md") && !file.startsWith("snippets/") && !file.startsWith("."),
+    )
+    .sort();
   return Promise.all(
     files.map(async (file) => {
       const { data, body } = frontmatter(await readFile(join(srcDir, file), "utf8"));
@@ -215,7 +219,11 @@ export const writeLlmsFiles = async (
 ) => {
   const files = await renderLlmsFiles(srcDir, sidebar);
   await Promise.all(
-    [...files].map(([name, content]) => writeFile(join(outDir, name), content, "utf8")),
+    [...files].map(async ([name, content]) => {
+      const path = join(outDir, name);
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, content, "utf8");
+    }),
   );
   console.log(`Wrote llms.txt, llms-full.txt, and ${files.size - 2} Markdown pages.`);
 };
@@ -244,7 +252,7 @@ export const llmsDevServer = (srcDir: string, sidebar: DefaultTheme.SidebarItem[
       const isLlms = /^llms(-full)?\.txt$/.test(path);
       // The dev client imports pages as `/<page>.md` modules; only answer plain fetches.
       const isPageMarkdown =
-        /^[\w-]+\.md$/.test(path) &&
+        /^(?:[\w-]+\/)*[\w-]+\.md$/.test(path) &&
         query === undefined &&
         request.headers["sec-fetch-dest"] !== "script";
       if (!isLlms && !isPageMarkdown) return next();

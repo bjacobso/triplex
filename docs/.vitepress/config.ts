@@ -65,6 +65,9 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: "Project",
     items: [
+      { text: "Blog", link: "/blog/" },
+      { text: "The Database That Remembers Why", link: "/blog/remembers-why/" },
+      { text: "01 · A fact is a triple", link: "/blog/remembers-why/01-a-fact-is-a-triple" },
       { text: "Custom runtimes", link: "/custom-runtimes" },
       { text: "Roadmap", link: "/roadmap" },
     ],
@@ -132,6 +135,7 @@ export default defineConfig({
       },
       { text: "Operate", link: "/tools" },
       { text: "Backends", link: "/backends" },
+      { text: "Blog", link: "/blog/" },
       { text: "Playground", link: "/playground" },
     ],
     sidebar,
