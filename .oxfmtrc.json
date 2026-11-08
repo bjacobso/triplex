@@ -1,0 +1,8 @@
+{
+  "overrides": [
+    {
+      "files": ["docs/snippets/blog/remembers-why/0[2-5]/*.ts"],
+      "options": { "printWidth": 68 }
+    }
+  ]
+}

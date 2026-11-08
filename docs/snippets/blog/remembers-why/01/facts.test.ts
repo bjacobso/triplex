@@ -88,10 +88,19 @@ describe("Part 1: A fact is a triple", () => {
       "https://triplex.build/blog/remembers-why/01-a-fact-is-a-triple.md",
     );
     expect(files.get("blog/index.md")).toContain("The Database That Remembers Why");
-    const source = await readFile(
-      resolve(docs, "blog/remembers-why/01-a-fact-is-a-triple.md"),
-      "utf8",
-    );
-    expect(source).not.toContain("```");
+    for (const slug of [
+      "01-a-fact-is-a-triple",
+      "02-nothing-is-overwritten",
+      "03-two-clocks-two-questions",
+      "04-someone-did-this",
+      "05-a-shape-is-not-an-invariant",
+    ]) {
+      const path = `blog/remembers-why/${slug}.md`;
+      const source = await readFile(resolve(docs, path), "utf8");
+      expect(source).not.toContain("```");
+      expect(files.get(path)).toContain("export const");
+      expect(files.get(path)).not.toContain("<<<");
+      expect(files.get("llms.txt")).toContain(`https://triplex.build/${path}`);
+    }
   });
 });
