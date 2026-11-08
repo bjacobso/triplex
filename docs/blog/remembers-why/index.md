@@ -18,8 +18,9 @@ Facts change. Rules change. The record of what happened shouldn't.
 
 This twelve-part build-in-public series starts with a Map and ends with a
 small compliance host. Each installment adds one missing piece, then asks a
-question that version cannot answer. Part 1 is published; the other eleven
-are coming. [Start with a fact](./01-a-fact-is-a-triple).
+question that version cannot answer. Parts 1–5 are published; Parts 6–12
+are coming. [Start with a fact](./01-a-fact-is-a-triple), or continue with
+[Part 5](./05-a-shape-is-not-an-invariant).
 
 ## The tension: an update destroys evidence
 
@@ -46,20 +47,20 @@ Give a statement an identity, a history, two clocks, and an author.
 **Published.** Entity, attribute, value. Store facts in a Map, query by
 pattern, and watch a correction erase the evidence it replaced.
 
-### 02 · Nothing is overwritten
+### 02 · [Nothing is overwritten](./02-nothing-is-overwritten)
 
-**Coming.** Assertions, retractions, and an atomic transaction log. Preserve
+**Published.** Assertions, retractions, and an atomic transaction log. Preserve
 the earlier statement without pretending it is still the current answer.
 
-### 03 · Two clocks, two questions
+### 03 · [Two clocks, two questions](./03-two-clocks-two-questions)
 
-**Coming.** Valid time and recorded time. Ask “was Maria trained on March 2?”
+**Published.** Valid time and recorded time. Ask “was Maria trained on March 2?”
 as known then and as known now. A late correction changes one answer, not
 the record of the earlier belief.
 
-### 04 · Someone did this
+### 04 · [Someone did this](./04-someone-did-this)
 
-**Coming.** Commands, actors, idempotent command IDs, receipts, and the
+**Published.** Commands, actors, idempotent command IDs, receipts, and the
 journal. Record who acted and the rule context supplied with the command;
 Part 6 will give those rules immutable release identities. A retry must not
 become a second business event. Attribution records a claim about an actor;
@@ -69,9 +70,9 @@ authentication stays with the host.
 
 Give facts a checked shape, give rules an identity, and make work queryable.
 
-### 05 · A shape is not an invariant
+### 05 · [A shape is not an invariant](./05-a-shape-is-not-an-invariant)
 
-**Coming.** Attributes and entity types described with Effect Schema.
+**Published.** Attributes and entity types described with Effect Schema.
 Decode values at the boundary; enforce cross-fact constraints inside the
 transaction, where a concurrent writer cannot invalidate the check.
 

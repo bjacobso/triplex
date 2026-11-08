@@ -4,7 +4,9 @@ description: Part 1 of The Database That Remembers Why. Build a Map-backed fact 
 prev:
   text: The series
   link: /blog/remembers-why/
-next: false
+next:
+  text: Nothing is overwritten
+  link: /blog/remembers-why/02-nothing-is-overwritten
 ---
 
 # A fact is a triple
@@ -148,8 +150,8 @@ supports today.
 
 ## Next: preserve the statement
 
-**Part 2, “Nothing is overwritten,” is coming.** We will stop replacing
-facts and record assertions and retractions in a transaction log. A
+[Part 2, “Nothing is overwritten,”](./02-nothing-is-overwritten) stops replacing
+facts and records assertions and retractions in a transaction log. A
 correction must change the current answer without erasing the statement
 that made an earlier answer possible. Only then can Part 3 give that
 history two clocks.

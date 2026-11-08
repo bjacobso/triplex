@@ -68,6 +68,19 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Blog", link: "/blog/" },
       { text: "The Database That Remembers Why", link: "/blog/remembers-why/" },
       { text: "01 · A fact is a triple", link: "/blog/remembers-why/01-a-fact-is-a-triple" },
+      {
+        text: "02 · Nothing is overwritten",
+        link: "/blog/remembers-why/02-nothing-is-overwritten",
+      },
+      {
+        text: "03 · Two clocks, two questions",
+        link: "/blog/remembers-why/03-two-clocks-two-questions",
+      },
+      { text: "04 · Someone did this", link: "/blog/remembers-why/04-someone-did-this" },
+      {
+        text: "05 · A shape is not an invariant",
+        link: "/blog/remembers-why/05-a-shape-is-not-an-invariant",
+      },
       { text: "Custom runtimes", link: "/custom-runtimes" },
       { text: "Roadmap", link: "/roadmap" },
     ],
