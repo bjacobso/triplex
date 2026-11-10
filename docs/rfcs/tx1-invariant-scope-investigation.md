@@ -165,3 +165,7 @@ The default PostgreSQL test command now quotes its exclusion glob (fixed in the
 preceding investigation PR), retaining six unit tests and keeping native tests
 only in the explicit integration gate. Empty Changeset records this design/test checkpoint,
 with no package version, adoption or migration requirement.
+
+The two new protocol diagnostic files also run through TypeScript in the package
+typecheck gate (`tsconfig.protocol-tests.json`). Their scoped callback requirements
+are explicit; Vitest transpilation alone would not catch that missing annotation.

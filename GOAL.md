@@ -713,3 +713,20 @@ Opened [draft scope investigation #77](https://github.com/bjacobso/triplex/pull/
 based on #76, implementation/diagnostic checkpoint 89b3f37. All independent
 deliverables have PRs/issues; TX1 production remains incomplete. Hosted #76/#77
 checks are pending after the corrected test selection; inspect them before stopping.
+
+Extra diagnostic type audit found an undeclared Effect Scope requirement in both
+experiment callback types (Vitest transpilation did not catch it). Corrected
+those type annotations; the publication fix is also on #76 as cd14228. Added
+`tsconfig.protocol-tests.json` to the PostgreSQL typecheck gate for these two new
+files, mapping this package’s public self-import to its own source so clean
+checks do not depend on a prior self build. The explicit typecheck passes; no
+runtime algorithm changed. Root/package validation follows the gate addition.
+
+Protocol type gate now passes inside `pnpm check`; package verification again
+passes all 11 tarballs. Both synthetic helpers explicitly require Scope, and the
+new files are checked rather than relying on Vitest transpilation. #77’s pre-type-
+gate revision b831aef passed every hosted check, including Node 22/24 and native
+PG. #76’s type-only cd14228 initially failed formatting on its longer callback
+signature; fixed upstream in 3cb0118 and carried into this tip. Final CI reruns
+are expected for these type/config/format-only changes; runtime evidence remains
+45 passing PG tests and no allocator implementation. Owner answer still pending.

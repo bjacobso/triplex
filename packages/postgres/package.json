@@ -43,7 +43,7 @@
     "dev": "tsdown --watch",
     "test": "vitest --run --exclude 'test/integration/**'",
     "test:integration": "vitest --run test/integration",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.protocol-tests.json",
     "clean": "rm -rf dist"
   },
   "dependencies": {

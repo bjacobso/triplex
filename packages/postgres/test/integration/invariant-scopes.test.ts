@@ -1,6 +1,7 @@
 /** Isolated mechanism tests, not a production invariant registry or scope API. */
 import { Context, Deferred, Effect, Fiber, Layer, Redacted, Result } from "effect";
 import { SqlClient } from "effect/sql";
+import type { Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import { makePostgresqlLayerUnmigrated } from "@triplex-build/triplex-postgres";
 import {
@@ -9,7 +10,7 @@ import {
   checkDockerAvailable,
 } from "../fixtures/PgTestLayer.js";
 
-const experiment = <A, E>(run: (sql: SqlClient.SqlClient) => Effect.Effect<A, E>) =>
+const experiment = <A, E>(run: (sql: SqlClient.SqlClient) => Effect.Effect<A, E, Scope.Scope>) =>
   Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
