@@ -88,7 +88,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                  | Based on TX2 PR #60                                                 |
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                           |
 | 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
-| 6     | TX1.4: scoped concurrency, if needed   | blocked | [Decision proposal](docs/rfcs/tx1-scoped-concurrency.md)                                                        | Owner decision on mandatory scope authority and ordered publication |
+| 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [decision](docs/rfcs/tx1-scoped-concurrency.md)    | Owner decision on mandatory scope authority and ordered publication |
 | 7     | TX4: inbox/outbox                      | pending | —                                                                                                               | —                                                                   |
 | 8     | TX5: cheap preconditions               | pending | —                                                                                                               | —                                                                   |
 | 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
@@ -265,10 +265,10 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `design/tx1-scoped-concurrency`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: open TX1.4's decision draft, then implement TX4 inbox/outbox.
+- Active item: TX4 inbox/outbox is next; allocator drafts #63/#64 await owner decisions.
 - Integration tip / PR stack: `design/tx1-scoped-concurrency`, based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: record the TX1.4 draft link, then start TX4 with a failing portable
+- Next action: start TX4 with a failing portable
   transactional-entry test. Continue independent work while the allocator protocol
   decisions are pending; do not weaken ordering or invariant checks.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
@@ -424,3 +424,8 @@ older-writer visibility obligations, and cross-backend proof gates. Scope heads
 alone cannot fix the demonstrated final-counter conflict. No scope API, schema,
 allocator, or constraint behavior was changed. `pnpm check` passes with 37 docs pages.
 TX1.4 remains blocked on its owner decisions; proceed independently with TX4.
+
+TX1.4 opened as [draft PR #64](https://github.com/bjacobso/triplex/pull/64), tested
+documentation `873f193`, based on draft #63. This is not a completed scoped runtime.
+The active goal continues with independent inbox/outbox work under the existing
+serialized transaction guarantees.
