@@ -323,3 +323,7 @@ TX2 opened as [PR #60](https://github.com/bjacobso/triplex/pull/60), tested
 implementation `735e05c`, with base branch `feat/tx8-schema-guard`. TX8's GitHub CI
 is green on Node 22 and 24, package-consumer, stress-smoke, docs-e2e, Postgres
 integration, and docs preview. Its local screenshot mismatch is environment-specific.
+
+TX2's initial hosted verification caught a report-only TypeScript fence with
+`yield*` outside a generator, added after the successful local root check. Wrapped
+that fragment in `Effect.gen` and rechecked the Markdown; product code is unchanged.

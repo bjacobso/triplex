@@ -13,12 +13,15 @@ fact's commit position, then manually selected assertions and retractions. Publi
 After, pass the receipt's position directly:
 
 ```ts
-const basis = { recordedPosition: receipt.position, validAt: businessInstant };
-const home = yield * triples.entity(homeId, basis);
-const homes = yield * triples.entities(homeIds, basis);
-const matching = yield * triples.match({ entityId: homeId }, basis);
-const answer = yield * triples.queryAll(query, { basis });
-const page = yield * triples.queryPage({ inner: query, limit: 20 }, { basis });
+const replay = Effect.gen(function* () {
+  const basis = { recordedPosition: receipt.position, validAt: businessInstant };
+  const home = yield* triples.entity(homeId, basis);
+  const homes = yield* triples.entities(homeIds, basis);
+  const matching = yield* triples.match({ entityId: homeId }, basis);
+  const answer = yield* triples.queryAll(query, { basis });
+  const page = yield* triples.queryPage({ inner: query, limit: 20 }, { basis });
+  return { home, homes, matching, answer, page };
+});
 ```
 
 `query`, `queryAll`, `queryPage`, and entity pages share the cut. Positions are
