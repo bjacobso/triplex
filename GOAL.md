@@ -377,3 +377,9 @@ the outer commit. `pnpm check` and all 29 Postgres integration tests pass. See
 
 `pnpm pack:check` also passes for TX1.2 (11 tarballs and a clean consumer), including
 the new public helper signature. Preparing the PR and a real-concurrency smoke run.
+
+The TX1.2 smoke ran at clean implementation `7b37148`: nine configurations,
+81 commits, 108 serialization failures at allocation, no deadlocks/retries, and all
+atomicity/visibility checks passed. Raw evidence is in
+`test/evidence/tx1-conflicts-smoke.json`. This confirms error classification changes
+without claiming that allocation contention has been fixed.

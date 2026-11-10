@@ -105,3 +105,16 @@ The benchmark harness's failure-location extraction now follows cause wrappers s
 new typed errors do not hide the original allocation location in subsequent runs.
 No performance improvement is claimed. Package validation and any final smoke
 results are recorded in `GOAL.md` before opening the PR.
+
+Real-concurrency smoke after implementation:
+
+```sh
+TX1_BENCH_COMMANDS=3 TX1_BENCH_REPETITIONS=1 TX1_BENCH_OUTPUT=../evidence/tx1-conflicts-smoke.json pnpm --filter triplex-stress benchmark:positions
+```
+
+At clean implementation revision `7b37148`, all nine configurations and atomicity/
+visibility checks passed. There were 81 commits, 108 serialization failures,
+zero deadlocks, and zero retries. Every failure retained its
+`40001:position-allocation` location through the new typed wrapper. See
+[the raw smoke report](tx1-conflicts-smoke.json). Counts match the baseline smoke;
+the run verifies classification and unchanged contention, not throughput gains.
