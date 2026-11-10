@@ -64,7 +64,7 @@ describe("public Cloudflare runtime", () => {
     ).toHaveLength(1);
     expect(sql.exec("SELECT * FROM entity_snapshots").toArray()).toEqual([]);
   });
-  it("passes shared conformance through the public builder", async () => {
+  it("passes shared conformance through the public builder", { timeout: 30_000 }, async () => {
     await Effect.runPromise(
       runtimeConformance(makeCloudflareRuntime(makeMockDOState()), {
         scope: DatabaseScope.test("cloudflare-conformance"),

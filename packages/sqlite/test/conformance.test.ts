@@ -4,7 +4,7 @@ import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
 
 describe("SQLite Triples conformance", () => {
-  it("matches the shared KV/SQL contract", async () => {
+  it("matches the shared KV/SQL contract", { timeout: 30_000 }, async () => {
     await expect(
       Effect.runPromise(
         makeTriplesConformanceSuite().pipe(

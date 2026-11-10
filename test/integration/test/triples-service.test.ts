@@ -22,7 +22,7 @@ const provide = <A, E>(effect: Effect.Effect<A, E, Triples>): Promise<A> =>
   Effect.runPromise(effect.pipe(Effect.provide(SqliteTriples.layerMemory)));
 
 describe("SqliteTriples convenience layer", () => {
-  it("passes the full Triples conformance suite", async () => {
+  it("passes the full Triples conformance suite", { timeout: 30_000 }, async () => {
     await provide(makeTriplesConformanceSuite());
   });
 

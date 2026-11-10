@@ -13,7 +13,7 @@ import { CloudflareTriples, makeCloudflareAdapter } from "../src/index.js";
 import { makeMockDOState } from "./fixtures/MockDOState.js";
 
 describe("Cloudflare Durable Object Triples", () => {
-  it("matches the shared backend contract", async () => {
+  it("matches the shared backend contract", { timeout: 30_000 }, async () => {
     await expect(
       Effect.runPromise(
         makeTriplesConformanceSuite().pipe(

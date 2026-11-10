@@ -119,6 +119,10 @@ Final checks are recorded below as they finish; no unexecuted checks count as pa
 - `pnpm pack:check`: 11 package tarballs and a clean external consumer passed,
   including public position-read call sites.
 - `git diff --check`: passed.
+- Hosted verification subsequently exposed the expanded aggregate conformance
+  suites exceeding Vitest's default 5-second timeout on slower CI runners. Their
+  budgets are now explicitly 30 seconds, consistent with the existing testkit and
+  decorated full-corpus tests; assertions and generated histories are unchanged.
 - Focused core temporal/pagination/derivation tests: 29 passed.
 - Generated-history KV case: passed after comparison was strengthened to full facts.
 - `pnpm test:foundationdb:integration`: skipped its only file, no native tests run.
