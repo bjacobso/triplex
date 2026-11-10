@@ -313,3 +313,7 @@ export const OPERATIONAL_ENTRY_INDEX_DDLS = [
   `CREATE INDEX IF NOT EXISTS idx_operational_pending_global ON triplex_operational_entries (kind, recorded_position, id) WHERE acknowledged_position IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_operational_pending_scope ON triplex_operational_entries (kind, scope_token, recorded_position, id) WHERE acknowledged_position IS NULL`,
 ];
+
+/** Expression statistics cover only live rows, avoiding historical attribute skew. */
+export const LIVE_PRECONDITION_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_live_precondition_key
+  ON triples ((length(entity_id)::text || ':' || entity_id || attribute)) WHERE retracted_at IS NULL`;

@@ -186,7 +186,7 @@ try {
 
   writeFileSync(
     join(consumerDir, "consumer.ts"),
-    `import { DatabaseId, DatalogValidationError, EntityId, TransactionId, TripleId, type TripleInput, type TriplesService } from "@triplex-build/triplex";
+    `import { DatabaseId, DatalogValidationError, EntityId, KvTriples, TransactionId, TripleId, type TripleInput, type TriplesService } from "@triplex-build/triplex";
 import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/datalog";
 import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
 import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
@@ -220,6 +220,12 @@ const intent = Outbox.append({scope: triple.entityId, idempotencyKey: "command:1
 const incoming = Inbox.append({scope: triple.entityId, idempotencyKey: "message:1", payload: null});
 const entryTransaction = triplesService.transact([intent, incoming, Outbox.acknowledge(Outbox.id(triple.entityId, "command:1"))]);
 const pendingEntries = Outbox.pending(triplesService, {scope: triple.entityId, limit: 10});
+const guardedWrite = triplesService.transact([], {preconditions: [
+  {_tag: "AttributeValue", entityId: triple.entityId, attribute: triple.attribute, value: triple.value},
+  {_tag: "AttributeAbsent", entityId: triple.entityId, attribute: ":missing"},
+  {_tag: "EntityAbsent", entityId: EntityId.make("new:entity")},
+]});
+const kvLiveBackfill = KvTriples.migrateLiveFacts({batchSize: 500});
 const entryHistory = Outbox.get(triplesService, Outbox.id(triple.entityId, "command:1"));
 const operationalConflict = new OperationalEntryConflictError({entryId: Outbox.id(triple.entityId, "command:1"), kind: "outbox", scope: triple.entityId, idempotencyKey: "command:1", message: "conflicting payload"});
 

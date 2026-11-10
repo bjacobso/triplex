@@ -145,7 +145,25 @@ export const EntityStatePrecondition = Schema.Struct({
   /** The complete set of live fact identities observed before constructing the transaction. */
   tripleIds: Schema.Array(TripleId),
 });
+export const AttributeValuePrecondition = Schema.Struct({
+  _tag: Schema.Literal("AttributeValue"),
+  entityId: EntityId,
+  attribute: Schema.String,
+  value: TripleValue,
+});
+export const AttributeAbsentPrecondition = Schema.Struct({
+  _tag: Schema.Literal("AttributeAbsent"),
+  entityId: EntityId,
+  attribute: Schema.String,
+});
+export const EntityAbsentPrecondition = Schema.Struct({
+  _tag: Schema.Literal("EntityAbsent"),
+  entityId: EntityId,
+});
 export const TransactionPrecondition = Schema.Union([
+  AttributeValuePrecondition,
+  AttributeAbsentPrecondition,
+  EntityAbsentPrecondition,
   TripleLivePrecondition,
   EntityStatePrecondition,
 ]);

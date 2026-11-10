@@ -24,6 +24,12 @@ import type { TransactionId } from "../Branded.js";
  * StorageAdapterService - Backend-agnostic storage primitives
  */
 export interface StorageAdapterService {
+  /** Bounded live (unretracted, across all valid time) lookup using a live index. */
+  readonly livePreconditionFacts: (
+    entityId: string,
+    attribute: string | undefined,
+    limit: 1 | 2,
+  ) => Effect.Effect<readonly TripleRow[], ReadError>;
   /** Point lookup by content ID; includes acknowledged history. */
   readonly getOperationalEntry: (
     id: ContentId,

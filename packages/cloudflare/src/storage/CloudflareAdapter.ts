@@ -24,7 +24,11 @@ import {
   INDEX_DDLS,
   migrations,
 } from "../adapter-support.js";
-import { makeSqlOperationalEntryStorage, SqliteDialect } from "@triplex-build/triplex-sql";
+import {
+  makeSqlOperationalEntryStorage,
+  makeSqlLivePreconditionLookup,
+  SqliteDialect,
+} from "@triplex-build/triplex-sql";
 import type { TripleRow } from "@triplex-build/triplex/runtime";
 
 // =============================================================================
@@ -679,6 +683,15 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
 
   return {
     ...entries,
+    livePreconditionFacts: makeSqlLivePreconditionLookup(
+      {
+        run: <Row extends Record<string, unknown>>(statement: string, params: readonly unknown[]) =>
+          Effect.try(() =>
+            cursorToArray(sqlStorage.exec<Row>(statement, ...(params as SqlStorageValue[]))),
+          ),
+      },
+      SqliteDialect,
+    ),
     withTransaction,
     nextCommitPosition,
     currentCommitPosition,

@@ -78,6 +78,92 @@ reads other entities (such as a vendor's reviews) needs an `EntityState` precond
 them, or graph-constraint enforcement. It is also not a declarative rule: a write that omits it is
 not checked, and the passage of valid time can still make a guarded state invalid later.
 
+### Attribute-value and absence preconditions
+
+Use `AttributeValue` to compare one attribute without loading the entity or its history.
+It requires **exactly one unretracted fact** for the entity/attribute, with the expected typed
+value. JSON object key order is ignored through canonical encoding; scalar value types remain
+separate. Two live facts conflict even when their values are equal. `AttributeAbsent` requires
+no unretracted fact on one attribute; `EntityAbsent` requires none on the entity. A previously
+used but fully retracted entity is absent.
+
+Like `EntityState`, these guards consider every valid time: unretracted future and expired
+facts count. They observe the pre-state before any operation in the transaction, within the
+existing serialized commit boundary. They require no matching retract. A mismatch fails with
+retryable `TransactionConflictError` and rolls back facts, journal, receipt, and position.
+Unrelated attributes do not invalidate an attribute guard. Hosts must still guard every entity
+or invariant their command depends on.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples, number } from "@triplex-build/triplex";
+
+const createHome = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const home = EntityId.make("home:alice");
+  return yield* triples.transact(
+    [{ op: "assert", entityId: home, attribute: ":home/version", value: number(1) }],
+    { preconditions: [{ _tag: "EntityAbsent", entityId: home }] },
+  );
+});
+
+const checkVersion = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const home = EntityId.make("home:alice");
+  return yield* triples.transact([], {
+    preconditions: [
+      { _tag: "AttributeValue", entityId: home, attribute: ":home/version", value: number(1) },
+      { _tag: "AttributeAbsent", entityId: home, attribute: ":home/deleted" },
+    ],
+  });
+});
+```
+
+The sensitive decorator rewrites plaintext value guards through the attribute's blind-token
+policy. A codec without blind equality rejects that plaintext comparison with `WriteError`;
+plaintext never enters the storage lookup or journal. Raw stored sealed envelopes can still be
+compared exactly; envelopes with blind tokens compare their value type and token.
+
+Lookups fetch at most two live facts for a value guard and one for absence. SQL uses partial
+live indexes. PostgreSQL migration **v6** adds a length-framed entity/attribute expression index
+and analyzes `triples`: its index-expression statistics describe live rows, avoiding the
+historical attribute skew that made the planner scan old facts. Keep automatic analysis enabled
+as data changes. SQLite and Cloudflare use their existing `(entity_id, attribute)` live index;
+SQLite records migration v6 without extra DDL, and Cloudflare needs no additional migration.
+
+KV retains its historical indexes and adds one live-only ID key per unretracted fact. Assertions,
+batch assertions, and retractions update that key within the same transaction. Fresh empty stores
+are ready automatically. An existing store keeps all existing APIs working, but the new cheap
+guards return `ReadError` until its live index is backfilled. Upgrade **every writer** first;
+old writers do not maintain the new index. Run bounded batches against the same backend until
+complete:
+
+```ts check
+import { Effect } from "effect";
+import { KvTriples } from "@triplex-build/triplex";
+
+// Provide the existing database's KvBackend layer when running this effect.
+const backfill = Effect.gen(function* () {
+  for (;;) {
+    const progress = yield* KvTriples.migrateLiveFacts({ batchSize: 500 });
+    if (progress.complete) return;
+  }
+});
+```
+
+Each batch atomically persists its cursor and ID keys. It is safe to resume after a crash;
+upgraded transactional writers maintain the index while backfill proceeds. Retractions conflict
+with overlapping source reads and remove live keys atomically, while new assertions before an
+already processed cursor write their own keys. Historical keys remain unchanged. Batch sizes
+are 1–1000 (default 500); reduce the size to fit the backend's transaction time/size limits.
+Malformed source data aborts the batch. A completed backfill is a no-op on repetition; unknown
+index versions are rejected. Mixing old writers or writing raw KV facts outside Triplex's
+transaction/index protocol invalidates the guarantee.
+
+Custom storage adapters must implement `livePreconditionFacts` as a bounded indexed lookup,
+including all unretracted valid times. Exhaustive precondition switches must handle the three
+new variants. Existing `TripleLive` and `EntityState` behavior is unchanged.
+
 ### Causal transaction envelopes
 
 Every successful `transact` persists an `_Transaction` entity with:

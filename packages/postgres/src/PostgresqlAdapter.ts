@@ -24,6 +24,7 @@ import {
 } from "@triplex-build/triplex/internal";
 import {
   makeSqlOperationalEntryStorage,
+  makeSqlLivePreconditionLookup,
   packValue,
   runMigrations,
 } from "@triplex-build/triplex-sql";
@@ -652,6 +653,10 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
 
       return {
         ...entries,
+        livePreconditionFacts: makeSqlLivePreconditionLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          PostgresqlDialect,
+        ),
         withTransaction,
         nextCommitPosition,
         currentCommitPosition,

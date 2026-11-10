@@ -1,3 +1,5 @@
+import { checkCheapPreconditions } from "../../store/cheapPreconditions.js";
+import { initializeKvLiveFacts, migrateKvLiveFacts } from "../hexastore/KvTripleStore.js";
 /**
  * KV-backed implementation of the merged `Triples` service.
  *
@@ -278,6 +280,7 @@ const transactionBackend = (tx: KvTransaction): KvBackendService => ({
 const makeKvTriplesService = Effect.gen(function* () {
   const kvBackend = yield* KvBackend;
   const runtime = yield* TripleStoreRuntime;
+  yield* initializeKvLiveFacts(kvBackend);
 
   // Single hexastore handle shared by the write path and the Datalog path so
   // their datom caches can never diverge.
@@ -492,6 +495,12 @@ const makeKvTriplesService = Effect.gen(function* () {
             const position = yield* nextKvCommitPosition(tx);
             const actor = meta?.actor;
             const preconditionIds = livePreconditionIds(meta);
+
+            yield* checkCheapPreconditions(meta, (entityId, attribute, limit) =>
+              transactionStore
+                .livePreconditionFacts(entityId, attribute, limit)
+                .pipe(Effect.map((facts) => facts.map((fact) => fact.value))),
+            );
 
             for (const condition of entityStatePreconditions(meta)) {
               const actual = (yield* transactionStore.scanCollectAsync({
@@ -1016,6 +1025,12 @@ export const KvTriplesLive: Layer.Layer<Triples, never, KvBackend | TripleStoreR
  * Convenience namespace for wiring KV-backed `Triples`.
  */
 export const KvTriples = {
+  /** Call repeatedly until complete after upgrading every writer of an existing KV store. */
+  migrateLiveFacts: (options: { readonly batchSize?: number } = {}) =>
+    Effect.gen(function* () {
+      const kv = yield* KvBackend;
+      return yield* migrateKvLiveFacts(kv, options.batchSize);
+    }),
   /**
    * `Triples` over the KV hexastore, requiring only a `KvBackend` and
    * `TripleStoreRuntime`. Use this to reuse a real KV backend (e.g. FDB).

@@ -10,6 +10,7 @@
  * The same service owns storage mutations and query execution.
  */
 
+import { checkCheapPreconditions } from "./cheapPreconditions.js";
 import { Effect, Layer, Option } from "effect";
 import {
   Triples,
@@ -309,6 +310,12 @@ export const TriplesLive = Layer.effect(
           const position = yield* adapter.nextCommitPosition();
           const actor = meta?.actor;
           const preconditionIds = livePreconditionIds(meta);
+
+          yield* checkCheapPreconditions(meta, (entityId, attribute, limit) =>
+            adapter
+              .livePreconditionFacts(entityId, attribute, limit)
+              .pipe(Effect.map((rows) => rows.map((row) => rowToTriple(row).value))),
+          );
 
           for (const condition of entityStatePreconditions(meta)) {
             const actual = (yield* adapter.getByEntity(condition.entityId))

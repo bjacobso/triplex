@@ -376,7 +376,23 @@ const decorate = (inner: TriplesService, sensitivity: SensitivityService): Tripl
       const prepared = yield* prepareOperations(sensitivity, operations).pipe(
         Effect.mapError(asWriteError),
       );
-      return yield* inner.transact(prepared, meta);
+      const preconditions = yield* Effect.forEach(meta?.preconditions ?? [], (condition) =>
+        Effect.gen(function* () {
+          if (condition._tag !== "AttributeValue") return condition;
+          const pattern = yield* sensitivity
+            .preparePattern({
+              entityId: condition.entityId,
+              attribute: condition.attribute,
+              value: condition.value,
+            })
+            .pipe(Effect.mapError(asWriteError));
+          return { ...condition, value: pattern.value as TripleValue };
+        }),
+      );
+      return yield* inner.transact(
+        prepared,
+        meta === undefined ? undefined : { ...meta, preconditions },
+      );
     });
 
   const writeOnly = <A>(

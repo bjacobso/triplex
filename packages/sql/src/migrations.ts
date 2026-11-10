@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { MigrationError } from "@triplex-build/triplex/internal";
 import {
+  LIVE_PRECONDITION_INDEX_POSTGRES_DDL,
   TRIPLES_TABLE_DDL,
   BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
@@ -77,6 +78,12 @@ export const migrations: readonly Migration[] = [
     name: "triplex_operational_entries",
     dialects: { pg: [OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL] },
     up: [OPERATIONAL_ENTRIES_TABLE_DDL, ...OPERATIONAL_ENTRY_INDEX_DDLS],
+  },
+  {
+    version: 6,
+    name: "triplex_live_precondition_index",
+    dialects: { pg: [LIVE_PRECONDITION_INDEX_POSTGRES_DDL, "ANALYZE triples"] },
+    up: [],
   },
 ];
 

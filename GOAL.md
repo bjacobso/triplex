@@ -109,7 +109,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
 | 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [decision](docs/rfcs/tx1-scoped-concurrency.md)    | Owner decision on mandatory scope authority and ordered publication |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                           | Based on #64; native FDB unverified                                 |
-| 8     | TX5: cheap preconditions               | pending | —                                                                                                               | —                                                                   |
+| 8     | TX5: cheap preconditions               | active  | Uncommitted implementation on `feat/tx5-cheap-preconditions`                                                    | —                                                                   |
 | 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                      |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                               | Issue only                                                          |
@@ -281,17 +281,21 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `feat/tx4-operational-entries`. Carry the
+- Canonical ledger: this checkout, currently `feat/tx5-cheap-preconditions`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX5 cheap preconditions is next. TX4 is open as PR #65 with passing
-  local checks and retained evidence; hosted verification is pending.
-- Integration tip / PR stack: `feat/tx4-operational-entries`, based on
+- Active item: TX5 cheap preconditions, with uncommitted portable guards, SQL
+  bounded lookups, KV live-index maintenance and resumable backfill. Root checks
+  and all 33 PostgreSQL tests pass. TX4's hosted
+  CI is green on every check.
+- Integration tip / PR stack: `feat/tx5-cheap-preconditions`, based on
+  `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: create TX5's branch from #65, verify existing precondition semantics,
-  and write failing portable attribute-value/absence tests before implementation.
-  Continue independent work while allocator decisions are pending.
+- Next action: finalize TX5's adoption report, retain clean-revision SQLite and
+  PostgreSQL plans, run final root/package/PostgreSQL checks, and open its PR.
+  Migration safety, sensitive no-blind guards, and the PostgreSQL expression-index
+  diagnostic pass. Continue independent work while allocator decisions are pending.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
   final-statement allocation alone is insufficient. No production change authorized
   by that draft is assumed.
@@ -480,3 +484,45 @@ implementation `23e0c44` and evidence `2ce96f3`. Final `pnpm check`, `pnpm pack:
 and all 32 PostgreSQL integrations pass. The complete stack is #59 → #60 → #61 →
 #62 → #63 (draft) → #64 (draft) → #65. Hosted verification is pending. Continue
 with TX5; no merge, release, or WorldVM edit was performed.
+
+### 2026-11-10 — TX5 in progress
+
+The portable regression failed first because a wrong attribute-value precondition
+was ignored (`/tmp/triplex-tx5-red.log`). `AttributeValue` (exactly one live fact),
+`AttributeAbsent`, and `EntityAbsent` now run before mutation within the existing
+serialized boundary. They include all unretracted valid times, consistent with
+EntityState. Canonical equality and sensitive blind-token preparation are shared.
+Concurrent value replacement, absent insertion, entity creation, rollback and
+future-valid/retracted cases pass in the portable suites. `pnpm check` and the
+32-test PostgreSQL suite passed before the latest plan fixture was added.
+
+SQL has existing partial live indexes, but the new 10/10000-history fixture found
+PostgreSQL choosing a sequential scan under skewed attribute/retraction statistics.
+The diagnostic is testing extended statistics before deciding whether a migration
+is required. Do not claim indexed cost is proved yet. KV now maintains an extra
+live-only ID index without removing historical keys. Existing stores explicitly
+backfill in bounded resumable batches after upgrading all writers; new stores are
+ready automatically. Tests pass for resume, upgraded mutations between batches,
+and bounded reads at 10 and 10,000 historical replacements and unrelated attributes.
+Further migration safety, final validation, documentation/Changeset and PR remain.
+
+A TX2 follow-up also needs a regression: `packages/host/src/Protocol.ts`'s
+`queryOptions` copies recordedAt/validAt but omits recordedPosition. Verify the host
+Datalog path and fix it in a separate TX2 follow-up PR; do not treat broad core
+position tests as proof of wrapper coverage.
+
+TX5's extended-statistics experiment did not give sufficiently selective lookup:
+it scanned 1,000 unrelated entities on the same attribute. A PostgreSQL-only live
+expression index plus a length-framed entity/attribute predicate fixes that case;
+SQL migration v6 creates it and analyzes triples. SQLite/Cloudflare retain their
+existing live compound indexes. The 10/10000 plan fixtures now pass. New KV tests
+also prove batch rollback on corrupt input and rejection of unknown index versions.
+Plaintext guards without blind equality fail closed, while exact stored-envelope
+comparison remains supported. Final report, clean evidence, cumulative checks and
+PR are still pending; no TX5 completion is claimed yet.
+
+TX5 final cumulative `pnpm check` and all 33 PostgreSQL integration tests pass,
+including the selective PostgreSQL lookup and the sensitive/raw-storage suites.
+Four KV migration/cost tests and the explicit no-blind guard test pass. An
+implementation checkpoint is next, followed by clean-revision plan capture,
+package validation and the PR. No TX5 PR has been opened yet.
