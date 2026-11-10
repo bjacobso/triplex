@@ -2,7 +2,7 @@
 
 Branch `feat/tx6-entity-filtered-feed`, based on
 [TX2 surface follow-up #67](https://github.com/bjacobso/triplex/pull/67).
-Implementation revision, raw clean evidence and PR link are pending final validation.
+Implementation: `de5703f3e6847190819df6583ad437a3cd626904`. PR link follows below.
 
 ## Public API and adoption
 
@@ -83,7 +83,8 @@ KV pins the committed head before scanning immutable journal references, excludi
 later commits from the scan's result. It does not populate the ordinary datom cache
 with every candidate. Selected IDs remain bounded by the requested limit; journal
 fact-ID order preserves the KV global feed's change ordering. SQL discovers its
-candidates in one statement and batch-loads their complete envelopes. Only journal-
+candidates in one statement and loads their complete envelopes via getByEntities;
+Cloudflare issues selected-envelope queries through its synchronous adapter. Only journal-
 typed facts participate, consistently with the global feed.
 
 Final cumulative commands:
@@ -97,8 +98,7 @@ pnpm --filter @triplex-build/triplex-cloudflare test
 
 `pnpm check` passes and all **34 PostgreSQL integration tests pass**, including
 the expanded prefix oracle and corrected cost fixture. Cloudflare passes 12
-native-harness and two workerd tests. Clean-revision evidence and package
-validation are next.
+native-harness and two workerd tests. `pnpm pack:check` verifies all 11 tarballs and a clean consumer install.
 FoundationDB's `/usr/local/lib/libfdb_c.dylib` is unavailable, so no native result
 is represented as passing.
 
@@ -108,7 +108,7 @@ The I/O fixture creates three related commands, each touching two matching homes
 and one other entity, plus 10 or 10,000 unrelated commands. KV instrumentation
 verifies only six matching changed-entity candidates are visited in either run;
 no fetched META record belongs to an unrelated transaction. It also rejects use
-of the global TYPE scan. Metadata-read counts are identical at both sizes.
+of the global TYPE scan. Metadata-read counts are 22 at both sizes.
 
 The SQL fixture uses actual related commands and complete synthetic unrelated
 command envelopes/business facts to isolate index discovery. It validates a
@@ -125,8 +125,13 @@ TRIPLEX_FEED_PLANS=/tmp/tx6-sqlite-plans.json pnpm --filter @triplex-build/tripl
 TRIPLEX_FEED_PLANS=/tmp/tx6-postgres-plans.json pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'entity-prefix transaction candidates'
 ```
 
-Raw clean-revision plans and counts will be attached after the implementation
-checkpoint. These are query-plan/I/O experiments, not throughput or latency
+Raw clean-revision artifacts: [KV I/O](tx6-kv-io.json),
+[SQLite plans](tx6-sqlite-plans.json), [PostgreSQL plans](tx6-postgres-plans.json).
+All record revision de5703f with dirty=false, Node v24.13.0, and measurement times.
+SQLite 3.50.4 uses idx_ref_target at both sizes. PostgreSQL 17.8 chooses a small-table
+sequential scan at 10 unrelated commands (six returned, 80 filtered rows), and an
+idx_tx_entity_prefix index-only scan at 10000 (six returned, six heap fetches,
+zero index rechecks removed, three shared buffer hits). These are query-plan/I/O experiments, not throughput or latency
 benchmarks. B-tree traversal may grow logarithmically with index size.
 
 **Cost limitation:** KV scans references in the matching prefix's history before

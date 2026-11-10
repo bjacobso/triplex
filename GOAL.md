@@ -111,7 +111,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [design](docs/rfcs/tx1-scoped-concurrency.md)  | Owner selected database-owned invariant scopes; authority/publication proof and prototype pending |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
-| 9     | TX6: filtered transaction feed         | active  | Uncommitted `feat/tx6-entity-filtered-feed`                                                                 | Prefix oracle KV/SQLite/Cloudflare passes; SQL cost evidence and final validation pending         |
+| 9     | TX6: filtered transaction feed         | active  | Implementation `de5703f`; [report](test/evidence/tx6.md)                                                    | Root, pack, 34 PG tests pass; clean cost evidence retained; PR preparation                        |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                           | Owner decision before any code                                                                    |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
 | 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
@@ -636,3 +636,9 @@ changes, then verified the noise receipt through Triplex. Both focused SQL plan
 cases now pass, followed by final `pnpm check` and all 34 PostgreSQL integrations.
 Preparing a clean implementation checkpoint and retained plan/I/O artifacts; no
 TX6 PR is open yet.
+
+TX6 implementation checkpoint `de5703f` has clean KV/SQLite/Postgres evidence.
+KV visits six references and 22 metadata rows at both unrelated-history sizes.
+Postgres uses the covering index at 10000 commands (six candidates); SQLite uses
+its existing reference index. Package validation verifies 11 tarballs and a clean
+consumer. FoundationDB opt-in skips for absent native client. Opening TX6 PR next.

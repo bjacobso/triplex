@@ -1,0 +1,63 @@
+{
+  "sourceRevision": "de5703f3e6847190819df6583ad437a3cd626904",
+  "dirty": false,
+  "node": "v24.13.0",
+  "databaseVersion": [
+    {
+      "version": "3.50.4"
+    }
+  ],
+  "measuredAt": "2026-11-10T19:46:09.393Z",
+  "evidence": [
+    {
+      "backend": "sqlite",
+      "unrelatedCommands": 10,
+      "statement": "SELECT DISTINCT entity_id, recorded_position FROM triples WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL AND value_string COLLATE BINARY >= ?1 AND recorded_position > ?2 AND value_string COLLATE BINARY < ?3 ORDER BY recorded_position, entity_id LIMIT ?4",
+      "plan": [
+        {
+          "id": 8,
+          "parent": 0,
+          "notused": 39,
+          "detail": "SEARCH triples USING INDEX idx_ref_target (attribute=? AND value_string>? AND value_string<?)"
+        },
+        {
+          "id": 38,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR DISTINCT"
+        },
+        {
+          "id": 39,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "unrelatedCommands": 10000,
+      "statement": "SELECT DISTINCT entity_id, recorded_position FROM triples WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL AND value_string COLLATE BINARY >= ?1 AND recorded_position > ?2 AND value_string COLLATE BINARY < ?3 ORDER BY recorded_position, entity_id LIMIT ?4",
+      "plan": [
+        {
+          "id": 8,
+          "parent": 0,
+          "notused": 97,
+          "detail": "SEARCH triples USING INDEX idx_ref_target (attribute=? AND value_string>? AND value_string<?)"
+        },
+        {
+          "id": 38,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR DISTINCT"
+        },
+        {
+          "id": 39,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    }
+  ]
+}

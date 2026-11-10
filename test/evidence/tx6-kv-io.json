@@ -1,0 +1,18 @@
+{
+  "sourceRevision": "de5703f3e6847190819df6583ad437a3cd626904",
+  "dirty": false,
+  "node": "v24.13.0",
+  "measuredAt": "2026-11-10T19:46:00.690Z",
+  "measurements": [
+    {
+      "unrelatedCommands": 10,
+      "prefixCandidates": 6,
+      "metadataReads": 22
+    },
+    {
+      "unrelatedCommands": 10000,
+      "prefixCandidates": 6,
+      "metadataReads": 22
+    }
+  ]
+}
