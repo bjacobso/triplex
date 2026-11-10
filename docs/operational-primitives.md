@@ -151,6 +151,9 @@ const backfill = Effect.gen(function* () {
 });
 ```
 
+For FoundationDB, provide `makeFdbKvBackend(config)` with the same cluster and subspace
+settings as the existing store.
+
 Each batch atomically persists its cursor and ID keys. It is safe to resume after a crash;
 upgraded transactional writers maintain the index while backfill proceeds. Retractions conflict
 with overlapping source reads and remove live keys atomically, while new assertions before an

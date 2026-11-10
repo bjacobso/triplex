@@ -65,7 +65,8 @@ const migrate = Effect.gen(function* () {
 });
 ```
 
-Provide that database's existing `KvBackend`. Batch sizes are 1–1000, default 500;
+Provide that database's existing `KvBackend`; FoundationDB's public
+`makeFdbKvBackend(config)` supplies it using the existing cluster/subspace settings. Batch sizes are 1–1000, default 500;
 reduce them to meet backend transaction time/size limits. Each batch commits its
 keys and durable cursor atomically, so restarting resumes safely. Upgraded
 transactional writers maintain the index during backfill: changes overlapping a
