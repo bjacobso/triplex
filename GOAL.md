@@ -107,8 +107,8 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 2b    | TX2 read-surface position follow-up    | pr-open | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                                 | Based on #66; host/HTTP/dashboard local checks pass                                                  |
 | 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                             | Based on TX2 PR #60                                                                                  |
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                            | Based on benchmark PR #61                                                                            |
-| 5     | TX1.3: late position allocation        | pending | [Draft #63](https://github.com/bjacobso/triplex/pull/63), [investigation #76](https://github.com/bjacobso/triplex/pull/76) | Owner receipt/read-profile decision pending; snapshot counterexample proved; production target unmet |
-| 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft #64](https://github.com/bjacobso/triplex/pull/64), [investigation #77](https://github.com/bjacobso/triplex/pull/77) | Seven mechanism tests pass; full planner and publication contract/proof remain                       |
+| 5     | TX1.3: late position allocation        | blocked | [Draft #63](https://github.com/bjacobso/triplex/pull/63), [investigation #76](https://github.com/bjacobso/triplex/pull/76) | Owner receipt/read-profile decision pending; snapshot counterexample proved; production target unmet |
+| 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft #64](https://github.com/bjacobso/triplex/pull/64), [investigation #77](https://github.com/bjacobso/triplex/pull/77) | Seven mechanism tests pass; full planner and publication contract/proof remain                       |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                                      | Based on #64; native FDB validated in #78                                                            |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                                      | Based on #65; native FDB/backfill validated in #78                                                   |
 | 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                                      | Based on #67; native prefix oracle validated in #78                                                  |
@@ -286,7 +286,7 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `test/foundationdb-operational-conformance`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: allocator receipt/read-profile owner decision pending. Independent
+- Goal status: blocked on the allocator receipt/read-profile owner decision. Independent
   deliverables, including FoundationDB native validation follow-up #78, are reviewable.
   TX1.3/4 production implementation, cross-adapter proof and benchmark rerun remain undone.
 - Integration tip / PR stack: `test/foundationdb-operational-conformance` (#78),
@@ -786,3 +786,22 @@ revision/run match b443a4b / 42897941855. Final ledger/evidence-only update reco
 that result. This continuation made concrete native-validation and cursor-fix
 progress; the same pending allocator contract decision remains, with no independent
 implementation left to start. The goal is still incomplete, not approved by default.
+
+### Blocked audit after native validation
+
+The receipt/read-profile decision requested on #76 remains unresolved across the
+original investigation turn, the native FoundationDB follow-up turn, and this
+continuation. The owner previously selected the investigation direction, but no
+new answer or owner PR comment selects the newly concrete public contract.
+GOAL rule 6 requires that choice; automatic continuation is not a choice among
+the proposed contracts. The old-writer counterexample prevents a transparent
+ambient allocator replacement without weakening the stated invariant.
+
+Revalidated current worktree (clean), remaining requirements and PR #76 comments/
+reviews. PR #78's latest code/evidence revision c26c8f8 passes every hosted check
+in run 42898854552, including native FoundationDB and PostgreSQL, Node 22/24,
+package consumer, docs/browser, stress and preview. No owned test containers remain.
+All independent implementation/RFC/issue deliverables are reviewable; remaining
+TX1 production work and benchmark rerun depend on the owner contract choice.
+The goal is therefore blocked, not complete. Resume from this canonical branch
+when the owner answers the existing question; preserve all constraints and PRs.
