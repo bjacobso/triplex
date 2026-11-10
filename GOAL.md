@@ -112,7 +112,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
 | 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                       | Based on #67; root/pack/34 PG pass; native FDB unavailable                                        |
-| 10    | TX3: host-sealing/erasure RFC only     | active  | —                                                                                                           | Owner decision before any code                                                                    |
+| 10    | TX3: host-sealing/erasure RFC only     | pr-open | —                                                                                                           | Owner decision before any code                                                                    |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
 | 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
 | 13    | Direct-read pagination issue           | pending | —                                                                                                           | Verify current APIs first                                                                         |
@@ -285,7 +285,7 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `docs/tx3-host-sealing-rfc`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX3 RFC only, next in sequence. TX6 is PR #68 with clean SQL/KV
+- Active item: issue-only deliverables after TX3 draft RFC #69. TX6 is PR #68 with clean SQL/KV
   evidence and passing root, package and 34-test PostgreSQL checks. Hosted CI pending.
 - Integration tip / PR stack: `feat/tx6-entity-filtered-feed`, based on
   `fix/tx2-host-position-basis` (#67), based on
@@ -293,9 +293,9 @@ not applicable rather than implying an implementation exists.
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: branch from TX6 for TX3 host-sealing/erasure RFC; inspect actual
-  KeyProvider, ValueCodec and raw sealed-storage contracts. No runtime implementation.
-  Then file verified issue-only deliverables before TX1 protocol investigation.
+- Next action: measure TX7 journal amplification, verify current API gaps and
+  existing issues, then file TX7/TX9/pagination/canonical-JSON/valid-time deliverables.
+  TX3 draft #69 passes pnpm check (38 docs); no API, migration or runtime change.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
@@ -649,3 +649,8 @@ explicit trusted-host import with registered equality/erasure domains, preservin
 plaintext-only default writes. Custom KeyProvider already supports opaque data-key
 subjects, but blindKey(database) lacks vault/retention scope and historical domain
 resolution requires more than a signature change. RFC only; no code or migration.
+
+Opened [draft TX3 RFC #69](https://github.com/bjacobso/triplex/pull/69), based on
+#68. `pnpm check` passes, including 38 checked documentation links. No package
+change or migration. Approval is required before any host-sealing implementation;
+the authorized RFC deliverable is ready for review. Issue-only work follows.
