@@ -14,6 +14,7 @@
 import { numericIndexPlan } from "../../../../test/fixtures/numeric-index.js";
 import { operationalEntryIndexPlan } from "../../../../test/fixtures/operational-entry-index.js";
 import { livePreconditionIndexPlan } from "../../../../test/fixtures/live-precondition-index.js";
+import { transactionPrefixIndexPlan } from "../../../../test/fixtures/transaction-prefix-index.js";
 import { positionIndexPlan } from "../../../../test/fixtures/position-index.js";
 import { describe, it, expect } from "vitest";
 import { Context, Deferred, Effect, Fiber, Layer, Redacted, Result } from "effect";
@@ -371,6 +372,13 @@ describe("PostgreSQL Integration", () => {
           expect(yield* sql`SELECT * FROM entry_host_receipts`).toHaveLength(1);
         }),
       );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "indexes entity-prefix transaction candidates with 10 and 10000 unrelated commands",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(transactionPrefixIndexPlan("postgres"));
     },
   );
   it.skipIf(!DOCKER_AVAILABLE)(

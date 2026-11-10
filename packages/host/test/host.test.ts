@@ -91,6 +91,67 @@ describe("tenant request boundary", () => {
     ["KV", KvTriples.layer],
     ["SQLite", SqliteTriples.layerMemory],
   ] as const)(
+    "forwards entity-prefix Transactions requests over %s",
+    async (_backend, backendLayer) => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const t = yield* Triples;
+          const after = yield* t.currentPosition();
+          const first = yield* t.transact(
+            [
+              {
+                op: "assert",
+                entityId: EntityId.make("host:feed:one"),
+                attribute: ":host/value",
+                value: { type: "number", value: 1 },
+              },
+              {
+                op: "assert",
+                entityId: EntityId.make("host:unrelated"),
+                attribute: ":host/value",
+                value: { type: "number", value: 2 },
+              },
+            ],
+            { actor: "host:feed" },
+          );
+          yield* t.assert({
+            entityId: EntityId.make("host:other"),
+            attribute: ":host/value",
+            value: { type: "number", value: 3 },
+          });
+          const target = identity("tenant-a");
+          const decoded = yield* decodeTenantDataRequest({
+            version: 1,
+            identity: target,
+            routingRevision: 1,
+            operation: { _tag: "Transactions", after, limit: 10, entityIdPrefix: "host:feed:" },
+          });
+          const result = yield* executeTenantDataRequest(
+            { identity: target, routingRevision: 1 },
+            { subject: "tenant-a" },
+            decoded,
+          );
+          expect(result).toMatchObject({
+            transactions: [
+              {
+                txId: first.txId,
+                actor: "host:feed",
+                changes: expect.arrayContaining([
+                  expect.objectContaining({ entityId: "host:feed:one" }),
+                  expect.objectContaining({ entityId: "host:unrelated" }),
+                ]),
+              },
+            ],
+            next: first.position,
+          });
+        }).pipe(Effect.provide(backendLayer), Effect.provide(AuthorizerLive)),
+      );
+    },
+  );
+  it.each([
+    ["KV", KvTriples.layer],
+    ["SQLite", SqliteTriples.layerMemory],
+  ] as const)(
     "preserves position cuts through decoded %s Query and QueryPage requests",
     async (_backend, backendLayer) => {
       await Effect.runPromise(

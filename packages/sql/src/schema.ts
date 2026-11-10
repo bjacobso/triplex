@@ -140,6 +140,11 @@ export const SEALED_BLIND_INDEX_DDL =
 export const ENTITY_RECORDED_POSITION_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_entity_recorded_position ON triples(entity_id, recorded_position)";
 
+/** Binary prefix bounds and covering columns for PostgreSQL journal candidates. */
+export const TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_tx_entity_prefix
+  ON triples (value_string COLLATE "C", recorded_position, entity_id)
+  WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL`;
+
 export const INDEX_DDLS = [
   ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,

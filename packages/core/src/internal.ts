@@ -140,3 +140,5 @@ export {
   executeWrappedQuery as executeKvWrappedQuery,
 } from "./kv/datalog/executor.js";
 export { KvTriplesLive } from "./kv/layers/KvTriplesLive.js";
+
+export { transactionPrefixBounds } from "./store/transactionPrefix.js";

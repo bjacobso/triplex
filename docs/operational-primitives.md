@@ -209,6 +209,53 @@ The feed covers every successful application fact write. Delivery built on repea
 at least once, so consumers retain a checkpoint and deduplicate by command or transaction identity.
 `ChangeEmitter` remains a best-effort wake-up mechanism and never replaces catch-up reads.
 
+### Entity-prefix transaction feeds
+
+`transactions({ after, limit, entityIdPrefix })` selects the ordered subsequence
+of the global journal touching any entity whose ID starts with the literal prefix.
+Matching is case-sensitive; `%`, `_`, and backslashes have no wildcard meaning.
+A transaction touching several matching entities appears once, with its complete
+metadata and all changes, including changes to other entities. Assertions and
+retractions both count. Omit the filter for the existing global feed. An explicit
+empty prefix selects transactions with at least one fact change, so empty commands
+and entry-only inbox/outbox commands do not match it.
+
+```ts check
+import { Effect } from "effect";
+import { Triples } from "@triplex-build/triplex";
+
+const followHomes = Effect.gen(function* () {
+  const triples = yield* Triples;
+  return yield* triples.transactions({
+    entityIdPrefix: "home:",
+    after: 0,
+    limit: 200,
+  });
+});
+```
+
+Resume with the returned `next` as the next `after`; it remains an exclusive global
+commit position, with gaps for non-matching commands. Limits keep their existing
+1–1000 range and default 100. Empty pages return no `next`. Keep the same prefix
+when resuming a consumer checkpoint; changing it intentionally changes the selected
+subsequence after that global position. The tenant protocol's `Transactions`
+operation accepts the same optional `entityIdPrefix` field.
+
+Discovery uses changed-entity references before hydrating only matching command
+records. SQLite/Cloudflare reuse the existing reference index. PostgreSQL SQL
+migration **v7** adds a binary-collation covering prefix/position index and analyzes
+triples; host-owned clients must migrate before layer acquisition. SQLite records
+v7 without extra DDL, and Cloudflare needs no new migration beyond v6. KV uses its
+existing AVET changed-entity prefix, pins the committed head for the scan, and
+retains a bounded candidate set before reading complete envelopes. No KV feed
+backfill is needed. Custom storage adapters implement `transactionIdsForEntityPrefix`.
+
+The filter avoids unrelated transaction metadata. Work can still grow with the
+matching prefix's history: KV scans those references and SQL can visit matching
+index candidates before sorting/deduplicating. The page limit bounds returned
+records, not a promise of history-independent candidate work. No entity-type
+membership or type-change semantics are introduced by this prefix filter.
+
 ### Consumer checkpoints
 
 `@triplex-build/triplex/operational` stores one reserved, queryable checkpoint entity per named
