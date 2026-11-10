@@ -30,10 +30,18 @@ const errors = [
   HttpApiSchema.WithHeaders(ErrorBody.pipe(HttpApiSchema.status(500)), snapshotHeaders),
 ] as const;
 
+const recordedPosition = Schema.optional(
+  Schema.Int.pipe(
+    Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+    Schema.check(Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)),
+  ),
+);
+
 const query = {
   limit: Schema.optional(Schema.Int),
   cursor: Schema.optional(Schema.String),
   recordedAt: Schema.optional(Schema.Number),
+  recordedPosition,
   validAt: Schema.optional(Schema.Number),
 };
 
@@ -59,6 +67,7 @@ const entityGroup = (entity: EntityDescriptor, prefix: string, writable: boolean
         params: { id: Schema.String },
         query: {
           recordedAt: Schema.optional(Schema.Number),
+          recordedPosition,
           validAt: Schema.optional(Schema.Number),
         },
         success: withSnapshotHeader(output),

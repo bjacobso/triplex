@@ -100,24 +100,24 @@ Statuses: `pending`, `active`, `pr-open`, `blocked`, `refuted`, `not-needed`.
 `pr-open` requires its acceptance evidence and checks; otherwise describe missing
 work explicitly. RFC approval and issue-only work do not authorize implementation.
 
-| Order | Item                                   | Status  | PR / issue / evidence                                                                                           | Dependency or blocker                                               |
-| ----- | -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                           | Browser baseline failures documented                                |
-| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                           | Based on TX8 PR #59                                                 |
-| 2b    | TX2 host-protocol position follow-up   | active  | `fix/tx2-host-position-basis`; [report](test/evidence/tx2-host.md)                                              | Based on #66; closes discovered wrapper gap                         |
-| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                  | Based on TX2 PR #60                                                 |
-| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                           |
-| 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
-| 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [decision](docs/rfcs/tx1-scoped-concurrency.md)    | Owner decision on mandatory scope authority and ordered publication |
-| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                           | Based on #64; native FDB unverified                                 |
-| 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                           | Based on #65; native FDB unverified                                 |
-| 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
-| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                      |
-| 11    | TX7: change-journal issue              | pending | —                                                                                                               | Issue only                                                          |
-| 12    | TX9: BlobStore issue                   | pending | —                                                                                                               | Issue only                                                          |
-| 13    | Direct-read pagination issue           | pending | —                                                                                                               | Verify current APIs first                                           |
-| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                                               | Verify existing exports first                                       |
-| 15    | Datalog valid-time binding issue       | pending | —                                                                                                               | Verify current binding support first                                |
+| Order | Item                                   | Status  | PR / issue / evidence                                                                                       | Dependency or blocker                                                                             |
+| ----- | -------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                       | Browser baseline failures documented                                                              |
+| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                       | Based on TX8 PR #59                                                                               |
+| 2b    | TX2 read-surface position follow-up    | active  | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                  | Host fix open; HTTP/dashboard corrections and final validation in progress                        |
+| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)              | Based on TX2 PR #60                                                                               |
+| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)             | Based on benchmark PR #61                                                                         |
+| 5     | TX1.3: late position allocation        | pending | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [diagnostic](docs/rfcs/tx1-late-allocation.md) | Owner selected staged ordered-publication investigation after independent packages; proof pending |
+| 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [design](docs/rfcs/tx1-scoped-concurrency.md)  | Owner selected database-owned invariant scopes; authority/publication proof and prototype pending |
+| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
+| 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
+| 9     | TX6: filtered transaction feed         | pending | —                                                                                                           | —                                                                                                 |
+| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                           | Owner decision before any code                                                                    |
+| 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
+| 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
+| 13    | Direct-read pagination issue           | pending | —                                                                                                           | Verify current APIs first                                                                         |
+| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                                           | Verify existing exports first                                                                     |
+| 15    | Datalog valid-time binding issue       | pending | —                                                                                                           | Verify current binding support first                                                              |
 
 ### TX8 — Schema-version guard and Postgres fixture
 
@@ -285,22 +285,23 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `fix/tx2-host-position-basis`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX2 host-protocol follow-up, then TX6 filtered transaction feed.
-  TX5 is open as #66 with all local checks passing; hosted verification is pending.
-  TX4's hosted CI is green on every check.
+- Active item: finish TX2 read-surface follow-up #67, then TX6 filtered feed,
+  TX3 RFC and issue-only deliverables. TX5 and TX4 have green hosted CI.
+  Owner selected staged ordered publication with database-owned invariant scopes
+  for investigation after independent packages; no production allocator proof is
+  assumed from that directional decision.
 - Integration tip / PR stack: `fix/tx2-host-position-basis`, based on
   `feat/tx5-cheap-preconditions` (#66), based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: finish root, package and PostgreSQL checks for the TX2 host
-  follow-up, open its PR, then implement TX6's entity-filtered transaction feed.
-  Continue independent work while allocator decisions are pending.
-- Decisions needed: TX1.3's options and recommendation are in its draft document;
-  final-statement allocation alone is insufficient. No production change authorized
-  by that draft is assumed.
-  TX1.4 also needs mandatory invariant-scope authority and an ordered-publication
-  profile that handles older writers' own snapshots; see its decision proposal.
+- Next action: complete #67's HTTP/dashboard position corrections and final
+  validation, rewrite its report/PR around all read surfaces, then continue TX6.
+- Decisions: owner chose investigation of staged ordered publication with
+  database-owned invariant scopes. Investigate it after independent deliverables.
+  Strict ordering, coherent older-writer snapshots and mandatory invariant scope
+  authority remain proof obligations. Do not weaken them or treat the direction
+  choice as proof that an implementable protocol exists.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
   FoundationDB native coverage is unavailable: `libfdb_c.dylib` is absent; its
@@ -556,3 +557,28 @@ and `pnpm pack:check` (11 tarballs plus clean consumer). TX5's hosted CI is also
 now green on every check. Preparing the host follow-up PR, then TX6.
 An asynchronous owner question was sent about allocator drafts #63/#64; no answer
 or approval is assumed. Independent work continues.
+
+### 2026-11-10 — Owner direction and expanded TX2 wrapper audit
+
+The owner answered the pending allocator question: "Investigate staged ordered
+publication with database-owned invariant scopes (recommended)" after independent
+packages. This resolves the directional decision behind drafts #63/#64 and queues
+that investigation/prototype; their production allocator targets remain unmet.
+The required ordering and snapshot guarantees are unchanged. No design is marked
+proved or implementation complete merely because this direction was selected.
+
+Host follow-up opened as [PR #67](https://github.com/bjacobso/triplex/pull/67),
+initial host implementation `80ab675`. The broader wrapper audit found HTTP's
+entity/list URI parser and dashboard fact/page helpers also omitted position.
+HTTP KV/SQLite historical reads failed first (Alicia instead of Alice), and the
+dashboard historical test included later entities. Focused corrected tests now
+pass. #67 is being expanded to include these TX2 corrections, validated position
+URI parameters/OpenAPI, and compatible dashboard cursors. Final root/package/
+PostgreSQL validation and report/PR rewrite remain before marking it pr-open.
+
+The expanded #67 scope passes focused HTTP KV/SQLite regressions and three
+Dashboard position/cursor cases. HTTP's generated OpenAPI tests pass after adding
+the optional parameter to v1/v2/latest fixtures. Final `pnpm check` and all 33
+PostgreSQL integrations pass for the expanded implementation. Package validation
+and PR/report rewrite remain. Owner direction was also recorded on draft PRs
+#63 and #64 without marking their protocols or allocator changes complete.
