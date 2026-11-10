@@ -282,7 +282,7 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `investigate/tx1-ordered-publication`. Carry the
+- Canonical ledger: this checkout, currently `investigate/tx1-invariant-scopes`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
 - Active item: TX1 staged ordered-publication investigation selected by owner.
@@ -686,3 +686,19 @@ and committed-only reads/private-table access (recommended), retain ambient
 full retries, or investigate post-commit publication. The earlier direction choice
 is preserved; this question concerns newly demonstrated receipt/read semantics,
 not permission to weaken ordering. Scope-authority diagnostics proceed independently.
+
+TX1.4 scope-authority investigation: seven native mechanism cases pass. Initial
+plain policy reads failed stale-authority assertions at RR/SER; FOR SHARE rejects
+those stale writers and permits 16 simultaneous policy readers/distinct claims
+while excluding activation. Absent scope contention and predecessor continuity
+are checked; partial multi-scope claims roll back host state. This is no complete
+graph planner, registry implementation or production allocator change. New design
+at `docs/rfcs/tx1-invariant-scope-investigation.md` records the remaining proof.
+
+Final scope checkpoint: `pnpm check` passes (40 docs), the full PostgreSQL gate
+passes 45 tests, focused scopes pass 7, and package validation verifies 11
+tarballs/clean consumer. Default PG test glob is now quoted in #76 (3149f11):
+adding multiple files had expanded it into unintended integration selection and
+omitted unit tests. Its six unit tests now run separately. Initial #76 hosted
+Node 22 timed out two 30-second testkit corpora under the accidental native load;
+CI is rerunning with the corrected selection. No timeout budgets were increased.
