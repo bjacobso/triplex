@@ -81,23 +81,23 @@ Statuses: `pending`, `active`, `pr-open`, `blocked`, `refuted`, `not-needed`.
 `pr-open` requires its acceptance evidence and checks; otherwise describe missing
 work explicitly. RFC approval and issue-only work do not authorize implementation.
 
-| Order | Item                                   | Status  | PR / issue / evidence                                                                                           | Dependency or blocker                                            |
-| ----- | -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                           | Browser baseline failures documented                             |
-| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                           | Based on TX8 PR #59                                              |
-| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                  | Based on TX2 PR #60                                              |
-| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                        |
-| 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change |
-| 6     | TX1.4: scoped concurrency, if needed   | pending | —                                                                                                               | Steps 2–3 insufficient; design settled                           |
-| 7     | TX4: inbox/outbox                      | pending | —                                                                                                               | —                                                                |
-| 8     | TX5: cheap preconditions               | pending | —                                                                                                               | —                                                                |
-| 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                |
-| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                   |
-| 11    | TX7: change-journal issue              | pending | —                                                                                                               | Issue only                                                       |
-| 12    | TX9: BlobStore issue                   | pending | —                                                                                                               | Issue only                                                       |
-| 13    | Direct-read pagination issue           | pending | —                                                                                                               | Verify current APIs first                                        |
-| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                                               | Verify existing exports first                                    |
-| 15    | Datalog valid-time binding issue       | pending | —                                                                                                               | Verify current binding support first                             |
+| Order | Item                                   | Status  | PR / issue / evidence                                                                                           | Dependency or blocker                                               |
+| ----- | -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                           | Browser baseline failures documented                                |
+| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                           | Based on TX8 PR #59                                                 |
+| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                  | Based on TX2 PR #60                                                 |
+| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                           |
+| 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
+| 6     | TX1.4: scoped concurrency, if needed   | blocked | [Decision proposal](docs/rfcs/tx1-scoped-concurrency.md)                                                        | Owner decision on mandatory scope authority and ordered publication |
+| 7     | TX4: inbox/outbox                      | pending | —                                                                                                               | —                                                                   |
+| 8     | TX5: cheap preconditions               | pending | —                                                                                                               | —                                                                   |
+| 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
+| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                      |
+| 11    | TX7: change-journal issue              | pending | —                                                                                                               | Issue only                                                          |
+| 12    | TX9: BlobStore issue                   | pending | —                                                                                                               | Issue only                                                          |
+| 13    | Direct-read pagination issue           | pending | —                                                                                                               | Verify current APIs first                                           |
+| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                                               | Verify existing exports first                                       |
+| 15    | Datalog valid-time binding issue       | pending | —                                                                                                               | Verify current binding support first                                |
 
 ### TX8 — Schema-version guard and Postgres fixture
 
@@ -262,18 +262,20 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `design/tx1-late-allocation`. Carry the
+- Canonical ledger: this checkout, currently `design/tx1-scoped-concurrency`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX1.4 conditional protocol assessment is next; TX1.3 draft #63 awaits an owner decision.
-- Integration tip / PR stack: `design/tx1-late-allocation`, based on
-  `feat/tx1-retryable-conflicts` (`bc9d101`, PR #62), then #61 → #60 → #59.
-- Next action: investigate TX1.4's global ordering
-  and mandatory conflict-scope decisions. Continue independent work while the
-  owner decision is pending; do not weaken ordering or invariant checks.
+- Active item: open TX1.4's decision draft, then implement TX4 inbox/outbox.
+- Integration tip / PR stack: `design/tx1-scoped-concurrency`, based on
+  `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
+- Next action: record the TX1.4 draft link, then start TX4 with a failing portable
+  transactional-entry test. Continue independent work while the allocator protocol
+  decisions are pending; do not weaken ordering or invariant checks.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
   final-statement allocation alone is insufficient. No production change authorized
   by that draft is assumed.
+  TX1.4 also needs mandatory invariant-scope authority and an ordered-publication
+  profile that handles older writers' own snapshots; see its decision proposal.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
   FoundationDB native coverage is unavailable: `libfdb_c.dylib` is absent; its
@@ -411,3 +413,14 @@ does not block the independent remaining packages.
 TX1.3's options and diagnostic opened as [draft PR #63](https://github.com/bjacobso/triplex/pull/63),
 tested source `074dde8`, based on #62. This is a decision checkpoint, not completion
 of the allocator change. Continue with TX1.4's conditional design assessment.
+
+### 2026-11-10 — TX1.4 decision gate
+
+The existing scoped-concurrency sketch does not settle mandatory scope derivation
+for mixed constraint versions/all writers, or a global publication protocol that
+removes the shared updater while preserving native ambient snapshots. The
+[proposal](docs/rfcs/tx1-scoped-concurrency.md) gives concrete options, recommendations,
+older-writer visibility obligations, and cross-backend proof gates. Scope heads
+alone cannot fix the demonstrated final-counter conflict. No scope API, schema,
+allocator, or constraint behavior was changed. `pnpm check` passes with 37 docs pages.
+TX1.4 remains blocked on its owner decisions; proceed independently with TX4.
