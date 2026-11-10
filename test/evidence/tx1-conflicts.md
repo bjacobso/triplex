@@ -3,6 +3,7 @@
 Date: 2026-11-10. Branch: `feat/tx1-retryable-conflicts`, based on benchmark
 [PR #61](https://github.com/bjacobso/triplex/pull/61). This changes error reporting;
 it does not change allocation, isolation, locking, or automatic retry behavior.
+PR: <https://github.com/bjacobso/triplex/pull/62>. Implementation tested: `7b37148`.
 
 ## Public API and adoption
 
