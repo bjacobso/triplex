@@ -526,3 +526,12 @@ including the selective PostgreSQL lookup and the sensitive/raw-storage suites.
 Four KV migration/cost tests and the explicit no-blind guard test pass. An
 implementation checkpoint is next, followed by clean-revision plan capture,
 package validation and the PR. No TX5 PR has been opened yet.
+
+TX5 implementation checkpoint `6673197` is cleanly measured in
+`test/evidence/tx5-{sqlite,postgres}-plans.json`. PostgreSQL's value lookup returns
+one row with zero filtered candidates and three shared buffer hits at both history
+sizes; missing attribute/entity checks return zero candidates. Root checks and
+all 33 PostgreSQL integrations pass; the final packed consumer is in progress.
+
+TX5 package validation passes: 11 tarballs and a clean consumer compile the new
+preconditions and `KvTriples.migrateLiveFacts`. Preparing the PR based on #65.

@@ -1,8 +1,8 @@
 # TX5: bounded live-value and absence guards
 
 Branch `feat/tx5-cheap-preconditions`, based on
-[TX4 PR #65](https://github.com/bjacobso/triplex/pull/65). Implementation revision,
-final evidence and PR link will be recorded after the checkpoint.
+[TX4 PR #65](https://github.com/bjacobso/triplex/pull/65). Implementation and clean measured revision: `6673197`. The PR link will be
+recorded after opening the PR.
 
 ## Public behavior and adoption
 
@@ -111,7 +111,8 @@ pnpm --filter @triplex-build/triplex exec vitest run test/sensitive/Sensitive.te
 
 `pnpm check` and all **33 PostgreSQL integration tests pass**, including the
 long-history plan case. Four KV migration/cost tests and the no-blind guard test
-also pass. Final clean-revision plan retention and tarball validation are pending.
+also pass. Clean-revision plans are retained below. `pnpm pack:check` also passes: 11 tarballs and a clean consumer exercising
+the three guard variants and KV backfill API.
 FoundationDB's missing `/usr/local/lib/libfdb_c.dylib` prevents native verification.
 
 ## Cost and design decisions
@@ -126,7 +127,20 @@ TRIPLEX_LIVE_PLANS=/tmp/tx5-sqlite-plans.json pnpm --filter @triplex-build/tripl
 TRIPLEX_LIVE_PLANS=/tmp/tx5-postgres-plans.json pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'bounds cheap guards'
 ```
 
-Clean-revision raw plans will be attached after the checkpoint. KV counts at both
+Raw plans: [SQLite](tx5-sqlite-plans.json), [PostgreSQL](tx5-postgres-plans.json).
+Both ran sequentially at clean `6673197`, without other builds or benchmarks.
+Environment: Node 24.13.0 on the same macOS arm64 host as TX4; SQLite 3.50.4 and
+PostgreSQL 17.8 arm64 (`postgres:17-alpine` testcontainer). These are query-plan and
+operation-count experiments, not throughput or latency benchmarks.
+
+At both history sizes, PostgreSQL's guarded-value expression-index scan returns
+one row with **zero rows filtered and three shared buffer hits**. Missing attribute
+and missing entity lookups return zero rows; at 10,000 history rows each uses the
+existing entity/attribute live index and two shared buffer hits. SQLite uses its
+live compound/entity indexes. The index choice may differ for small tables while
+retaining zero rejected candidates. No session planner setting or forced index is
+used.
+KV counts at both
 sizes are exactly three readiness lookups, one bounded live candidate, and one META
 lookup for three guards (value present, attribute absent, entity absent). Every
 range is limited to one or two. Thus irrelevant live attributes and retracted
