@@ -1,6 +1,7 @@
 /** Synthetic protocol investigation only; never changes Triplex's allocator. */
 import { Context, Deferred, Effect, Fiber, Layer, Redacted, Result } from "effect";
 import { SqlClient } from "effect/sql";
+import type { Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import { makePostgresqlLayerUnmigrated } from "@triplex-build/triplex-postgres";
 import {
@@ -10,7 +11,7 @@ import {
 } from "../fixtures/PgTestLayer.js";
 
 const experiment = <A, E>(
-  run: (writer: SqlClient.SqlClient, fresh: SqlClient.SqlClient) => Effect.Effect<A, E>,
+  run: (writer: SqlClient.SqlClient, fresh: SqlClient.SqlClient) => Effect.Effect<A, E, Scope.Scope>,
 ) =>
   Effect.runPromise(
     Effect.scoped(
