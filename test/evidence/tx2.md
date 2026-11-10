@@ -2,8 +2,7 @@
 
 Date: 2026-11-10. Branch: `feat/tx2-position-reads`, based on TX8 branch
 `feat/tx8-schema-guard` at `4ed65b1` ([PR #59](https://github.com/bjacobso/triplex/pull/59)).
-The PR link, final tested revision, and final check outcomes are recorded in
-`GOAL.md` when this unit is opened for review.
+PR: <https://github.com/bjacobso/triplex/pull/60>. Tested implementation: `735e05c`.
 
 ## Public API and adoption
 

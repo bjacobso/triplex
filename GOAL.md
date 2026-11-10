@@ -84,7 +84,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | Order | Item                                   | Status  | PR / issue / evidence                                                                 | Dependency or blocker                  |
 | ----- | -------------------------------------- | ------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
 | 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md) | Browser baseline failures documented   |
-| 2     | TX2: public commit-position reads      | active  | [Report](test/evidence/tx2.md)                                                        | Final validation and PR preparation    |
+| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md) | Based on TX8 PR #59                    |
 | 3     | TX1.1: contention baseline benchmark   | pending | —                                                                                     | —                                      |
 | 4     | TX1.2: typed retryable SQL conflicts   | pending | —                                                                                     | Baseline recorded                      |
 | 5     | TX1.3: late position allocation        | pending | —                                                                                     | Baseline confirms need; safety proven  |
@@ -265,10 +265,10 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `feat/tx2-position-reads`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX2; position reads, replay property tests, and index migrations implemented.
+- Active item: TX1.1 baseline benchmark is next; TX8 and TX2 are open for review.
 - Integration tip / PR stack: `feat/tx2-position-reads`, based on TX8's
   `feat/tx8-schema-guard` (`4ed65b1`, PR #59), based on `main` (`704b578`).
-- Next action: finish TX2 validation and open its dependent PR, then start TX1.1.
+- Next action: create a TX1.1 benchmark branch based on TX2 and measure contention.
 - Decisions needed: none identified yet.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
@@ -318,3 +318,8 @@ TX2 final checks pass: `pnpm check` (including 745 core tests and native workerd
 conformance), `pnpm test:postgres:integration` (27 passed), and `pnpm pack:check`
 (11 tarballs and a clean consumer). FoundationDB's native suite was attempted but
 skipped due to its missing client library; no native pass is claimed.
+
+TX2 opened as [PR #60](https://github.com/bjacobso/triplex/pull/60), tested
+implementation `735e05c`, with base branch `feat/tx8-schema-guard`. TX8's GitHub CI
+is green on Node 22 and 24, package-consumer, stress-smoke, docs-e2e, Postgres
+integration, and docs preview. Its local screenshot mismatch is environment-specific.
