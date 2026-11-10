@@ -3,7 +3,8 @@
 This package closes a validation gap in TX2/TX4/TX5/TX6 and fixes a FoundationDB
 cursor-scope defect exposed by that validation. Based on scope investigation #77;
 allocator implementation remains gated on the pending owner contract decision.
-Implementation revision and PR link follow after final checks.
+Implementation: `b443a4ba354368d50e4410570b4df155ec2a1cdd`.
+[PR #78](https://github.com/bjacobso/triplex/pull/78).
 
 ## Reproduced failures and changes
 
@@ -98,7 +99,10 @@ cursor rejection, legacy backfill and four watch cases. It takes 91.97 seconds
 on the local arm64 environment. The native TypeScript gate and frozen lockfile
 install pass. `pnpm check` passes, `pnpm pack:check` verifies 11 tarballs and a clean consumer,
 and `pnpm test:postgres:integration` passes 45 tests. Final docs build also passes
-40 local links. Hosted native Linux CI is pending PR creation.
+40 local links. All hosted checks pass for source b443a4b, including the new Linux native job.
+Its log confirms 19 passed tests (zero skipped) in 59.97 seconds, after checksum
+verification and native-binding preflight. Retained [CI metadata/excerpts](foundationdb-native-ci.json)
+link directly to the authoritative job.
 The raw sensitive test scans every application key/value in its isolated subspace,
 including META/history, journal copies and indexes, with a planted-plaintext detector
 and a positive non-sensitive Grace control. It does not claim to scan the server's
@@ -106,4 +110,5 @@ internal storage files, unrelated subspaces, backups or external copied data.
 
 No throughput benchmark is claimed. Native tests validate real adapter semantics;
 the earlier 10/10000 I/O/index experiments retain their original measured adapters.
-The new native CI job's hosted result must be inspected before claiming it passes.
+The new native CI job was inspected, including its actual test count rather than
+relying only on its green job conclusion.
