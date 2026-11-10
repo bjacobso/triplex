@@ -2,7 +2,8 @@
 
 Implementation: `feat/tx4-operational-entries`, based on draft #64
 (`design/tx1-scoped-concurrency`), following #63 → #62 → #61 → #60 → #59.
-PR and final tested revision will be recorded after validation. No allocator
+Implementation and clean measured revision: `23e0c44`. The PR link will be recorded
+after final validation. No allocator
 proposal is implemented by this change.
 
 ## API and adoption
@@ -91,9 +92,11 @@ pnpm test:postgres:integration
 pnpm --filter @triplex-build/triplex exec vitest run test/operational/Entries.test.ts
 ```
 
-Final clean-revision checks are in progress. Previous cumulative runs pass,
-including real workerd, all package typechecks, checked Markdown, and 11 clean
-consumer tarballs. FoundationDB's missing `/usr/local/lib/libfdb_c.dylib` remains
+`pnpm check` passes, including real workerd, all package typechecks and checked
+Markdown. `pnpm pack:check` passes for 11 tarballs and the clean consumer.
+All **32 PostgreSQL integration tests pass**, including the ambient host
+transaction regression and indexed-cost fixture. The focused KV entry file has
+four passing tests (two history sizes, cursor scope, and Unicode identities). FoundationDB's missing `/usr/local/lib/libfdb_c.dylib` remains
 an infrastructure limitation; its native suite has not passed.
 
 ## Indexed cost evidence
@@ -111,9 +114,29 @@ TRIPLEX_OPERATIONAL_PLANS=/tmp/tx4-sqlite-plans.json pnpm --filter @triplex-buil
 TRIPLEX_OPERATIONAL_PLANS=/tmp/tx4-postgres-plans.json pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'inbox/outbox operations indexed'
 ```
 
-Clean-revision raw plans and illustrative timings will be attached after the
-implementation checkpoint. Timings are single observations, not throughput or
-statistical latency claims. Plans and logical operation counts establish bounded
+Raw plans: [SQLite](tx4-sqlite-plans.json) and
+[PostgreSQL](tx4-postgres-plans.json), both measured at clean `23e0c44` sequentially,
+with no other benchmark or build running. Environment: Node 24.13.0 on macOS
+arm64, SQLite 3.50.4; PostgreSQL 17.8 arm64 in the repository's `postgres:17-alpine`
+testcontainer. Both fixtures use one append, two pending reads (scoped and global),
+and one acknowledgement per history size, with no retries. Timings below are
+single observations, not throughput or statistical latency claims.
+
+| Backend    | Acknowledged history | Append ms | Two pending reads ms | Ack ms |
+| ---------- | -------------------: | --------: | -------------------: | -----: |
+| SQLite     |                   10 |     0.350 |                1.418 |  0.458 |
+| SQLite     |                10000 |     0.201 |                0.371 |  0.441 |
+| PostgreSQL |                   10 |     1.561 |                2.285 |  1.777 |
+| PostgreSQL |                10000 |     2.038 |                1.065 |  1.936 |
+
+At 10,000 acknowledged records, PostgreSQL's primary lookup examines one row,
+the global limit-2 pending range returns two candidates, and the scoped range
+returns its one pending candidate without filtering acknowledged rows. SQLite uses
+the corresponding primary/global/scoped indexes. Acknowledgement also uses indexed
+access; the planner may choose a partial pending index instead of the primary key.
+The small PostgreSQL table can use a sequential scan (138 other rows) because its
+cost is lower; no plan is forced.
+Plans and logical operation counts establish bounded
 candidate work; B-tree traversal can grow logarithmically with index size.
 
 KV instrumentation counts only entry-prefix storage operations, excluding ordinary
