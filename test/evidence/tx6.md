@@ -2,7 +2,7 @@
 
 Branch `feat/tx6-entity-filtered-feed`, based on
 [TX2 surface follow-up #67](https://github.com/bjacobso/triplex/pull/67).
-Implementation: `de5703f3e6847190819df6583ad437a3cd626904`. PR link follows below.
+Implementation: `de5703f3e6847190819df6583ad437a3cd626904`. [PR #68](https://github.com/bjacobso/triplex/pull/68).
 
 ## Public API and adoption
 

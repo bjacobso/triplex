@@ -111,7 +111,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [design](docs/rfcs/tx1-scoped-concurrency.md)  | Owner selected database-owned invariant scopes; authority/publication proof and prototype pending |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
-| 9     | TX6: filtered transaction feed         | active  | Implementation `de5703f`; [report](test/evidence/tx6.md)                                                    | Root, pack, 34 PG tests pass; clean cost evidence retained; PR preparation                        |
+| 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                       | Based on #67; root/pack/34 PG pass; native FDB unavailable                                        |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                           | Owner decision before any code                                                                    |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
 | 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
@@ -285,20 +285,17 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `feat/tx6-entity-filtered-feed`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX6 entityIdPrefix feed. The portable global-oracle case passes on
-  KV/SQLite and Cloudflare harness/workerd. KV I/O is identical with 10/10000
-  unrelated commands. SQL plan diagnostics and final validation remain. #67's
-  expanded hosted CI is green on every check.
+- Active item: TX3 RFC only, next in sequence. TX6 is PR #68 with clean SQL/KV
+  evidence and passing root, package and 34-test PostgreSQL checks. Hosted CI pending.
 - Integration tip / PR stack: `feat/tx6-entity-filtered-feed`, based on
   `fix/tx2-host-position-basis` (#67), based on
   `feat/tx5-cheap-preconditions` (#66), based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: inspect the 10/10000 SQL prefix plans, keep only justified indexes,
-  complete native PostgreSQL and root/package checks, document/adopt TX6 and open
-  its PR. KV visits matching prefix history but no unrelated transaction metadata;
-  record that cost limitation honestly.
+- Next action: branch from TX6 for TX3 host-sealing/erasure RFC; inspect actual
+  KeyProvider, ValueCodec and raw sealed-storage contracts. No runtime implementation.
+  Then file verified issue-only deliverables before TX1 protocol investigation.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
@@ -642,3 +639,6 @@ KV visits six references and 22 metadata rows at both unrelated-history sizes.
 Postgres uses the covering index at 10000 commands (six candidates); SQLite uses
 its existing reference index. Package validation verifies 11 tarballs and a clean
 consumer. FoundationDB opt-in skips for absent native client. Opening TX6 PR next.
+
+TX6 opened as [PR #68](https://github.com/bjacobso/triplex/pull/68), based on #67.
+Independent work continues with TX3 RFC only; allocator direction remains queued.
