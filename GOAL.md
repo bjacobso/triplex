@@ -109,7 +109,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
 | 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [decision](docs/rfcs/tx1-scoped-concurrency.md)    | Owner decision on mandatory scope authority and ordered publication |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                           | Based on #64; native FDB unverified                                 |
-| 8     | TX5: cheap preconditions               | active  | Uncommitted implementation on `feat/tx5-cheap-preconditions`                                                    | —                                                                   |
+| 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                           | Based on #65; native FDB unverified                                 |
 | 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                      |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                               | Issue only                                                          |
@@ -284,18 +284,17 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `feat/tx5-cheap-preconditions`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX5 cheap preconditions, with uncommitted portable guards, SQL
-  bounded lookups, KV live-index maintenance and resumable backfill. Root checks
-  and all 33 PostgreSQL tests pass. TX4's hosted
-  CI is green on every check.
+- Active item: TX2 host-protocol follow-up, then TX6 filtered transaction feed.
+  TX5 is open as #66 with all local checks passing; hosted verification is pending.
+  TX4's hosted CI is green on every check.
 - Integration tip / PR stack: `feat/tx5-cheap-preconditions`, based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: finalize TX5's adoption report, retain clean-revision SQLite and
-  PostgreSQL plans, run final root/package/PostgreSQL checks, and open its PR.
-  Migration safety, sensitive no-blind guards, and the PostgreSQL expression-index
-  diagnostic pass. Continue independent work while allocator decisions are pending.
+- Next action: create the TX2 host-protocol follow-up branch from #66, write a
+  failing historical Query/QueryPage boundary test, preserve recordedPosition in
+  queryOptions, validate and open a separate PR, then continue TX6.
+  Continue independent work while allocator decisions are pending.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
   final-statement allocation alone is insufficient. No production change authorized
   by that draft is assumed.
@@ -535,3 +534,9 @@ all 33 PostgreSQL integrations pass; the final packed consumer is in progress.
 
 TX5 package validation passes: 11 tarballs and a clean consumer compile the new
 preconditions and `KvTriples.migrateLiveFacts`. Preparing the PR based on #65.
+
+TX5 opened as [PR #66](https://github.com/bjacobso/triplex/pull/66), implementation
+`6673197`, evidence `e1e9010`, adoption clarification `4a515e0`, based on #65.
+Root checks, all 33 PostgreSQL integrations, and 11 packed tarballs/clean consumer
+pass. Hosted checks are pending. Continue with the discovered TX2 host boundary
+regression in a separate follow-up PR, then TX6. No merge or release was performed.

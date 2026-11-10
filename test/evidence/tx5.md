@@ -1,8 +1,8 @@
 # TX5: bounded live-value and absence guards
 
 Branch `feat/tx5-cheap-preconditions`, based on
-[TX4 PR #65](https://github.com/bjacobso/triplex/pull/65). Implementation and clean measured revision: `6673197`. The PR link will be
-recorded after opening the PR.
+[TX4 PR #65](https://github.com/bjacobso/triplex/pull/65). Implementation and clean measured revision: `6673197`. PR: [#66](https://github.com/bjacobso/triplex/pull/66), evidence `e1e9010`,
+adoption clarification `4a515e0`.
 
 ## Public behavior and adoption
 
