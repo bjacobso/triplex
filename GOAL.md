@@ -678,3 +678,11 @@ can hide its own final publication, but all read paths, role isolation and pendi
 receipt semantics remain unimplemented. Draft design records a new commit-owned
 profile choice rather than silently breaking ambient composition or weakening
 the snapshot invariant. Root/native/pack checks run before its review checkpoint.
+
+Opened [draft TX1 investigation #76](https://github.com/bjacobso/triplex/pull/76),
+source 6205112, based on #75. Root, pack and 38 PostgreSQL integration cases pass.
+An owner question is pending under rule 6: opt-in commit-owned pending receipts
+and committed-only reads/private-table access (recommended), retain ambient
+full retries, or investigate post-commit publication. The earlier direction choice
+is preserved; this question concerns newly demonstrated receipt/read semantics,
+not permission to weaken ordering. Scope-authority diagnostics proceed independently.
