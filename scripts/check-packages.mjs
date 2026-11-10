@@ -200,6 +200,7 @@ import { PgTriples } from "@triplex-build/triplex-postgres";
 import * as Sql from "@triplex-build/triplex-sql";
 import { makeSqliteLayer } from "@triplex-build/triplex-sqlite";
 import * as Testkit from "@triplex-build/triplex-testkit";
+import { postgresSchemaLayer } from "@triplex-build/triplex-testkit/postgres";
 import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
 
 const triple: TripleInput = {
@@ -213,6 +214,11 @@ const transactionEntity: EntityId = transactionId;
 declare const triplesService: TriplesService;
 const timeline = triplesService.transactionsForEntity(triple.entityId, { limit: 20 });
 const ambientPostgres = PgTriples.layerFromSqlClient({ scope: "host/database" });
+const postgresFixture = postgresSchemaLayer({
+  url: "postgresql://localhost/test",
+  triples: PgTriples.layerFromSqlClient,
+});
+const schemaError = new Postgres.SchemaVersionError({ expectedVersion: 3, actualVersion: 2 });
 const scopedPostgres = PgTriples.layerForDatabase(
   { database: "application" },
   DatabaseId.make("tenant-a"),
@@ -241,6 +247,8 @@ void tripleId;
 void transactionEntity;
 void timeline;
 void ambientPostgres;
+void postgresFixture;
+void schemaError;
 void scopedPostgres;
 void query;
 void validateDatalogQuery;

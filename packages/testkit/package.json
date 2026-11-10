@@ -32,6 +32,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres.d.ts",
+      "import": "./dist/postgres.js",
+      "default": "./dist/postgres.js"
     }
   },
   "publishConfig": {
@@ -45,15 +50,23 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^"
+    "@triplex-build/triplex": "workspace:^",
+    "@triplex-build/triplex-sql": "workspace:^"
   },
   "devDependencies": {
+    "@effect/sql-pg": "catalog:",
     "@types/node": "catalog:",
     "effect": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@effect/sql-pg": "catalog:peers",
     "effect": "catalog:peers"
+  },
+  "peerDependenciesMeta": {
+    "@effect/sql-pg": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22"

@@ -605,7 +605,13 @@ importers:
       '@triplex-build/triplex':
         specifier: workspace:^
         version: link:../core
+      '@triplex-build/triplex-sql':
+        specifier: workspace:^
+        version: link:../sql
     devDependencies:
+      '@effect/sql-pg':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.1

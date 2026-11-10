@@ -54,6 +54,7 @@ import {
   makeTriplesConformanceSuite,
   sensitiveConformanceLayer,
 } from "@triplex-build/triplex-testkit";
+import { postgresSchemaLayer } from "@triplex-build/triplex-testkit/postgres";
 import {
   PgConnectionInfo,
   PgContainerLayer,
@@ -89,8 +90,8 @@ const runWithHostSql = <A, E>(effect: Effect.Effect<A, E, Triples | SqlClient.Sq
           // Production hosts run this from deployment tooling; the runtime
           // layer below deliberately performs no DDL.
           yield* runMigrations;
-          return yield* effect;
-        }).pipe(Effect.provide(triplex));
+          return yield* effect.pipe(Effect.provide(triplex));
+        }).pipe(Effect.provide(hostSql));
       }).pipe(Effect.provide(PgContainerLayer)),
     ),
   );
@@ -103,6 +104,187 @@ const prepareHostTables = Effect.gen(function* () {
 });
 
 describe("PostgreSQL Integration", () => {
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "rejects absent and newer migration histories and preserves unrelated SQL errors",
+    { timeout: 120_000 },
+    async () => {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const { url } = yield* PgConnectionInfo;
+            yield* Effect.gen(function* () {
+              const sql = yield* SqlClient.SqlClient;
+              yield* runMigrations;
+              for (const mode of ["missing", "newer", "malformed"] as const) {
+                // A malformed-history SQL failure aborts its transaction, so capture
+                // the failure outside the transaction rather than trying to continue it.
+                const result = yield* sql
+                  .withTransaction(
+                    Effect.gen(function* () {
+                      const schema = `schema_guard_${mode}`;
+                      yield* sql.unsafe(`CREATE SCHEMA ${schema}`);
+                      yield* sql.unsafe(`SET LOCAL search_path TO ${schema}, public, pg_catalog`);
+                      if (mode === "newer") {
+                        yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER)`;
+                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (4)`;
+                      } else if (mode === "malformed") {
+                        yield* sql`CREATE TABLE triplex_schema_migrations (wrong_column INTEGER)`;
+                      }
+                      const error = yield* Layer.build(
+                        PgTriples.layerFromSqlClient({ scope: `guard:${mode}` }),
+                      ).pipe(
+                        Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }),
+                      );
+                      if (mode === "malformed") {
+                        expect(error).toMatchObject({ _tag: "SqlError" });
+                        // Deliberately roll back: the failed SELECT aborted the transaction.
+                        return yield* Effect.fail("expected SQL failure");
+                      }
+                      expect(error).toMatchObject({
+                        _tag: "SchemaVersionError",
+                        expectedVersion: 3,
+                        actualVersion: mode === "missing" ? 0 : 4,
+                      });
+                      yield* sql.unsafe(`DROP SCHEMA ${schema} CASCADE`);
+                    }),
+                  )
+                  .pipe(Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }));
+                expect(result).toBe(mode === "malformed" ? "expected SQL failure" : undefined);
+              }
+            }).pipe(Effect.provide(makePostgresqlLayerUnmigratedFromUrl(url)));
+          }).pipe(Effect.provide(PgContainerLayer)),
+        ),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "isolates migrated test schemas across pooled connections and cleans up on failure",
+    { timeout: 120_000 },
+    async () => {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const { url } = yield* PgConnectionInfo;
+            const schemas: string[] = [];
+            const useFixture = (fail: boolean) =>
+              Effect.scoped(
+                Effect.gen(function* () {
+                  const context = yield* Layer.build(
+                    postgresSchemaLayer({
+                      url,
+                      triples: PgTriples.layerFromSqlClient,
+                    }),
+                  );
+                  const sql = Context.get(context, SqlClient.SqlClient);
+                  const triples = Context.get(context, Triples);
+                  const [row] = yield* sql<{ schema: string }>`SELECT current_schema() AS schema`;
+                  schemas.push(row!.schema);
+                  expect(
+                    yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`,
+                  ).toEqual(migrations.map(({ version }) => ({ version })));
+                  // Hold several connections concurrently so a one-off SET cannot pass.
+                  const connections = yield* Effect.all(
+                    Array.from({ length: 4 }, () =>
+                      sql.withTransaction(
+                        sql<{ schema: string }>`SELECT current_schema() AS schema, pg_sleep(0.02)`,
+                      ),
+                    ),
+                    { concurrency: "unbounded" },
+                  );
+                  expect(connections.flat().every((r) => r.schema === row!.schema)).toBe(true);
+                  expect(yield* triples.entity(EntityId.make("shared:fixture"))).toEqual([]);
+                  yield* triples.assert({
+                    entityId: "shared:fixture",
+                    attribute: ":name",
+                    value: string(row!.schema),
+                  });
+                  if (fail) return yield* Effect.fail("expected fixture failure");
+                }),
+              );
+            const results = yield* Effect.all(
+              [
+                useFixture(false),
+                useFixture(true).pipe(
+                  Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }),
+                ),
+              ],
+              { concurrency: "unbounded" },
+            );
+            expect(results[1]).toBe("expected fixture failure");
+            expect(new Set(schemas).size).toBe(2);
+            const failedLayer = postgresSchemaLayer({
+              url,
+              triples: () =>
+                Layer.effect(
+                  Triples,
+                  Effect.gen(function* () {
+                    const sql = yield* SqlClient.SqlClient;
+                    const [row] = yield* sql<{ schema: string }>`SELECT current_schema() AS schema`;
+                    schemas.push(row!.schema);
+                    return yield* Effect.fail("expected layer failure");
+                  }),
+                ),
+            });
+            const constructionError = yield* Effect.scoped(Layer.build(failedLayer)).pipe(
+              Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }),
+            );
+            expect(constructionError).toBe("expected layer failure");
+            expect(new Set(schemas).size).toBe(3);
+            yield* Effect.gen(function* () {
+              const sql = yield* SqlClient.SqlClient;
+              for (const schema of schemas) {
+                expect(
+                  yield* sql`SELECT nspname FROM pg_namespace WHERE nspname = ${schema}`,
+                ).toEqual([]);
+              }
+            }).pipe(Effect.provide(makePostgresqlLayerUnmigratedFromUrl(url)));
+          }).pipe(Effect.provide(PgContainerLayer)),
+        ),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "rejects a v2 schema during layer acquisition before any application effect",
+    { timeout: 120_000 },
+    async () => {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const { url } = yield* PgConnectionInfo;
+            yield* Effect.gen(function* () {
+              const sql = yield* SqlClient.SqlClient;
+              yield* sql.withTransaction(
+                Effect.gen(function* () {
+                  yield* sql`CREATE SCHEMA schema_guard_v2`;
+                  yield* sql`SET LOCAL search_path TO schema_guard_v2, pg_catalog`;
+                  yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at BIGINT NOT NULL)`;
+                  for (const migration of migrations.filter((m) => m.version <= 2)) {
+                    for (const statement of migration.up) yield* sql.unsafe(statement);
+                    yield* sql`INSERT INTO triplex_schema_migrations VALUES (${migration.version}, ${migration.name}, 0)`;
+                  }
+                  let applicationRan = false;
+                  const error = yield* Effect.sync(() => {
+                    applicationRan = true;
+                  }).pipe(
+                    Effect.provide(PgTriples.layerFromSqlClient({ scope: "guard:v2" })),
+                    Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }),
+                  );
+                  expect(applicationRan).toBe(false);
+                  expect(error).toMatchObject({
+                    _tag: "SchemaVersionError",
+                    expectedVersion: 3,
+                    actualVersion: 2,
+                  });
+                  expect(String(error)).toContain("runMigrations");
+                  yield* sql`DROP SCHEMA schema_guard_v2 CASCADE`;
+                }),
+              );
+            }).pipe(Effect.provide(makePostgresqlLayerUnmigratedFromUrl(url)));
+          }).pipe(Effect.provide(PgContainerLayer)),
+        ),
+      );
+    },
+  );
   it.skipIf(!DOCKER_AVAILABLE)(
     "uses an expression range index for live and snapshot actor due-work",
     { timeout: 120_000 },
@@ -152,42 +334,28 @@ describe("PostgreSQL Integration", () => {
 
   describe("sensitive values", () => {
     const withFreshDatabase = <A, E>(
-      name: string,
       use: (context: {
         readonly triples: Layer.Layer<Triples>;
         readonly sql: SqlClient.SqlClient;
       }) => Effect.Effect<A, E>,
     ) =>
       Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const { url } = yield* PgConnectionInfo;
-            const config = configFromUrl(url);
-            const database = DatabaseId.make(`${name}-${Date.now().toString(36)}`);
-            const context = yield* Layer.build(
-              PgTriples.layerForDatabaseMigrated(config, database),
-            );
-            const sql = Context.get(context, SqlClient.SqlClient);
-            const triples = Layer.succeed(Triples, Context.get(context, Triples));
-            return yield* use({ triples, sql }).pipe(
-              Effect.ensuring(
-                Effect.gen(function* () {
-                  const [schema] = yield* sql<{
-                    schema: string;
-                  }>`SELECT current_schema() AS schema`;
-                  yield* sql.unsafe(`DROP SCHEMA "${schema!.schema}" CASCADE`);
-                }).pipe(Effect.ignore),
-              ),
-            );
-          }).pipe(Effect.provide(PgContainerLayer)),
-        ),
+        Effect.gen(function* () {
+          const { url } = yield* PgConnectionInfo;
+          const context = yield* Layer.build(
+            postgresSchemaLayer({ url, triples: PgTriples.layerFromSqlClient }),
+          );
+          const sql = Context.get(context, SqlClient.SqlClient);
+          const triples = Layer.succeed(Triples, Context.get(context, Triples));
+          return yield* use({ triples, sql });
+        }).pipe(Effect.scoped, Effect.provide(PgContainerLayer)),
       );
 
     it.skipIf(!DOCKER_AVAILABLE)(
       "passes the sealed-storage engine contract",
       { timeout: 120_000 },
       async () => {
-        await withFreshDatabase("sealed-storage", ({ triples }) =>
+        await withFreshDatabase(({ triples }) =>
           makeSealedStorageSuite().pipe(Effect.provide(triples)),
         );
       },
@@ -197,7 +365,7 @@ describe("PostgreSQL Integration", () => {
       "passes the decorator contract and keeps the full Triples contract through it",
       { timeout: 120_000 },
       async () => {
-        await withFreshDatabase("sensitive-decorator", ({ triples }) =>
+        await withFreshDatabase(({ triples }) =>
           makeSensitiveConformanceSuite().pipe(
             Effect.andThen(makeTriplesConformanceSuite()),
             Effect.provide(sensitiveConformanceLayer(triples)),
@@ -210,7 +378,7 @@ describe("PostgreSQL Integration", () => {
       "never persists planted plaintext in any table, index or journal",
       { timeout: 120_000 },
       async () => {
-        const dump = await withFreshDatabase("sensitive-scan", ({ triples, sql }) =>
+        const dump = await withFreshDatabase(({ triples, sql }) =>
           Effect.gen(function* () {
             yield* makeSensitiveConformanceSuite().pipe(
               Effect.provide(sensitiveConformanceLayer(triples)),
