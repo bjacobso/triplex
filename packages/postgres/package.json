@@ -42,7 +42,7 @@
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "dev": "tsdown --watch",
     "test": "vitest --run --exclude test/integration/**",
-    "test:integration": "vitest --run test/integration/postgresql.test.ts",
+    "test:integration": "vitest --run test/integration",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
