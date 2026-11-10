@@ -108,7 +108,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                           |
 | 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
 | 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [decision](docs/rfcs/tx1-scoped-concurrency.md)    | Owner decision on mandatory scope authority and ordered publication |
-| 7     | TX4: inbox/outbox                      | active  | Uncommitted work on `feat/tx4-operational-entries`; no PR yet                                                   | Implementation, clean evidence, and local checks pass; PR pending   |
+| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                           | Based on #64; native FDB unverified                                 |
 | 8     | TX5: cheap preconditions               | pending | —                                                                                                               | —                                                                   |
 | 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                      |
@@ -284,15 +284,13 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `feat/tx4-operational-entries`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX4 inbox/outbox implementation covers KV, shared SQL, SQLite,
-  PostgreSQL, and Cloudflare, with portable transactional conformance tests.
-  Clean-revision index evidence is retained; PR preparation remains. No TX4 PR exists yet;
-  allocator drafts #63/#64 await owner decisions.
+- Active item: TX5 cheap preconditions is next. TX4 is open as PR #65 with passing
+  local checks and retained evidence; hosted verification is pending.
 - Integration tip / PR stack: `feat/tx4-operational-entries`, based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: open the validated TX4 PR based on #64, record its link, then
-  begin TX5 with a failing portable attribute-value/absence precondition test.
+- Next action: create TX5's branch from #65, verify existing precondition semantics,
+  and write failing portable attribute-value/absence tests before implementation.
   Continue independent work while allocator decisions are pending.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
   final-statement allocation alone is insufficient. No production change authorized
@@ -476,3 +474,9 @@ PostgreSQL's primary lookup returns one row and pending index ranges return only
 the bounded candidates. KV entry operation counts are identical at both history
 sizes. The final full PostgreSQL suite passes all 32 tests, and package validation
 passes all 11 tarballs plus the consumer. See [the report](test/evidence/tx4.md).
+
+TX4 opened as [PR #65](https://github.com/bjacobso/triplex/pull/65), based on #64,
+implementation `23e0c44` and evidence `2ce96f3`. Final `pnpm check`, `pnpm pack:check`,
+and all 32 PostgreSQL integrations pass. The complete stack is #59 → #60 → #61 →
+#62 → #63 (draft) → #64 (draft) → #65. Hosted verification is pending. Continue
+with TX5; no merge, release, or WorldVM edit was performed.

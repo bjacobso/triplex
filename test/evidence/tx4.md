@@ -2,8 +2,7 @@
 
 Implementation: `feat/tx4-operational-entries`, based on draft #64
 (`design/tx1-scoped-concurrency`), following #63 → #62 → #61 → #60 → #59.
-Implementation and clean measured revision: `23e0c44`. The PR link will be recorded
-after final validation. No allocator
+Implementation and clean measured revision: `23e0c44`. PR: [#65](https://github.com/bjacobso/triplex/pull/65); evidence commit `2ce96f3`. No allocator
 proposal is implemented by this change.
 
 ## API and adoption
