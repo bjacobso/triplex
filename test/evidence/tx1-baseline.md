@@ -2,6 +2,7 @@
 
 Date: 2026-11-10. Benchmark-only PR; no allocator or public API change.
 Base: TX2 [PR #60](https://github.com/bjacobso/triplex/pull/60).
+PR: <https://github.com/bjacobso/triplex/pull/61>.
 
 ## Finding
 

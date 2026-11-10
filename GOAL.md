@@ -265,11 +265,11 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `bench/tx1-position-contention`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: repair TX2's hosted full-conformance timeouts, then TX1.2.
+- Active item: TX1.2 typed retryable transaction conflicts is next.
 - Integration tip / PR stack: `bench/tx1-position-contention`, based on TX2's
-  `feat/tx2-position-reads` (`3f9e31a`, PR #60), based on TX8 PR #59 and main.
-- Next action: update aggregate conformance test budgets in TX2, carry the fix
-  into the benchmark stack, then start TX1.2 with a failing conflict test.
+  `feat/tx2-position-reads` (`9995d96`, PR #60), based on TX8 PR #59 and main.
+- Next action: create a TX1.2 branch based on the benchmark and write a failing
+  conflict-classification test. Watch the pending hosted checks on PRs #60/#61.
 - Decisions needed: none identified yet.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
@@ -357,3 +357,7 @@ Vitest's default five-second budget on SQLite and the Cloudflare public builder.
 The individual assertions pass locally; the aggregate suites need explicit budgets
 consistent with the existing 30-second full-corpus test in testkit. This repair
 precedes TX1.2, and no replay coverage will be removed.
+
+The aggregate-suite budget fix is committed as `9995d96` on TX2 and carried into
+the benchmark branch by rebase. `pnpm check` passes after that fix; assertions and
+generated-history coverage are unchanged. Hosted verification is pending again.
