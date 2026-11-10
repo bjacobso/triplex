@@ -100,24 +100,24 @@ Statuses: `pending`, `active`, `pr-open`, `blocked`, `refuted`, `not-needed`.
 `pr-open` requires its acceptance evidence and checks; otherwise describe missing
 work explicitly. RFC approval and issue-only work do not authorize implementation.
 
-| Order | Item                                   | Status  | PR / issue / evidence                                                                                       | Dependency or blocker                                                                             |
-| ----- | -------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                       | Browser baseline failures documented                                                              |
-| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                       | Based on TX8 PR #59                                                                               |
-| 2b    | TX2 read-surface position follow-up    | pr-open | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                  | Based on #66; host/HTTP/dashboard local checks pass                                               |
-| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)              | Based on TX2 PR #60                                                                               |
-| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)             | Based on benchmark PR #61                                                                         |
-| 5     | TX1.3: late position allocation        | active  | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [diagnostic](docs/rfcs/tx1-late-allocation.md) | Owner selected staged ordered-publication investigation after independent packages; proof pending |
-| 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [design](docs/rfcs/tx1-scoped-concurrency.md)  | Owner selected database-owned invariant scopes; authority/publication proof and prototype pending |
-| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
-| 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
-| 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                       | Based on #67; root/pack/34 PG pass; native FDB unavailable                                        |
-| 10    | TX3: host-sealing/erasure RFC only     | pr-open | —                                                                                                           | Owner decision before any code                                                                    |
-| 11    | TX7: change-journal issue              | pr-open | [Issue #70](https://github.com/bjacobso/triplex/issues/70)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
-| 12    | TX9: BlobStore issue                   | pr-open | [Issue #71](https://github.com/bjacobso/triplex/issues/71)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
-| 13    | Direct-read pagination issue           | pr-open | [Issue #72](https://github.com/bjacobso/triplex/issues/72)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
-| 14    | Canonical-JSON public encoding issue   | refuted | [Docs issue #74](https://github.com/bjacobso/triplex/issues/74)                                             | Issue-only audit/evidence retained; no runtime implementation                                     |
-| 15    | Datalog valid-time binding issue       | pr-open | [Issue #73](https://github.com/bjacobso/triplex/issues/73)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
+| Order | Item                                   | Status  | PR / issue / evidence                                                                                                      | Dependency or blocker                                                                                |
+| ----- | -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                                      | Browser baseline failures documented                                                                 |
+| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                                      | Based on TX8 PR #59                                                                                  |
+| 2b    | TX2 read-surface position follow-up    | pr-open | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                                 | Based on #66; host/HTTP/dashboard local checks pass                                                  |
+| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                             | Based on TX2 PR #60                                                                                  |
+| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                            | Based on benchmark PR #61                                                                            |
+| 5     | TX1.3: late position allocation        | pending | [Draft #63](https://github.com/bjacobso/triplex/pull/63), [investigation #76](https://github.com/bjacobso/triplex/pull/76) | Owner receipt/read-profile decision pending; snapshot counterexample proved; production target unmet |
+| 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft #64](https://github.com/bjacobso/triplex/pull/64), [investigation #77](https://github.com/bjacobso/triplex/pull/77) | Seven mechanism tests pass; full planner and publication contract/proof remain                       |
+| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                                      | Based on #64; native FDB unverified                                                                  |
+| 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                                      | Based on #65; native FDB unverified                                                                  |
+| 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                                      | Based on #67; root/pack/34 PG pass; native FDB unavailable                                           |
+| 10    | TX3: host-sealing/erasure RFC only     | pr-open | [Draft RFC #69](https://github.com/bjacobso/triplex/pull/69)                                                               | RFC deliverable ready; no implementation authorized                                                  |
+| 11    | TX7: change-journal issue              | pr-open | [Issue #70](https://github.com/bjacobso/triplex/issues/70)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
+| 12    | TX9: BlobStore issue                   | pr-open | [Issue #71](https://github.com/bjacobso/triplex/issues/71)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
+| 13    | Direct-read pagination issue           | pr-open | [Issue #72](https://github.com/bjacobso/triplex/issues/72)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
+| 14    | Canonical-JSON public encoding issue   | refuted | [Docs issue #74](https://github.com/bjacobso/triplex/issues/74)                                                            | Issue-only audit/evidence retained; no runtime implementation                                        |
+| 15    | Datalog valid-time binding issue       | pr-open | [Issue #73](https://github.com/bjacobso/triplex/issues/73)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
 
 ### TX8 — Schema-version guard and Postgres fixture
 
@@ -285,24 +285,30 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `investigate/tx1-invariant-scopes`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX1 staged ordered-publication investigation selected by owner.
+- Active item: allocator contract decision pending after completed investigations.
   Independent deliverables are reviewable: TX3 #69; issue evidence #75, issues #70–74.
-- Integration tip / PR stack: `feat/tx6-entity-filtered-feed`, based on
-  `fix/tx2-host-position-basis` (#67), based on
-  `feat/tx5-cheap-preconditions` (#66), based on
-  `feat/tx4-operational-entries` (#65), based on
-  `design/tx1-scoped-concurrency` (#64), based on
-  `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: branch for isolated PostgreSQL ordered-publication diagnostics.
-  Prove external snapshot ordering, rollback reuse and the older-writer own-view
-  hazard before choosing public staging/scope APIs. No production allocator change
-  is authorized by an unproved prototype. TX6 #68 and TX3 #69 hosted CI all green.
+  TX1.3/4 production implementation and required benchmark rerun remain incomplete.
+- Integration tip / PR stack: `investigate/tx1-invariant-scopes` (#77), based on
+  `investigate/tx1-ordered-publication` (#76, includes test-glob fix 3149f11), based on
+  `docs/operational-followup-issues` (#75), based on `docs/tx3-host-sealing-rfc` (#69),
+  based on `feat/tx6-entity-filtered-feed` (#68), then #67 → #66 → #65 → #64 → #63
+  → #62 → #61 → #60 → #59. No merges performed.
+- Next action: inspect hosted CI for #76/#77 and resolve concrete failures, then
+  await the pending owner answer before implementing a new public staged profile.
+  Recommended option in #76: opt-in commit-owned callback with pending receipts,
+  final positions after native commit, committed-only read paths and private-table
+  role controls. Keep strict ordering, ordinary profile compatibility, host atomicity
+  and all-reader snapshot proof. Do not treat a synthetic view as that implementation.
+  If approved, first produce the concrete API/adapter plan and failing cross-adapter
+  staging tests; scopes need a sound mandatory graph-dependency planner and registry
+  lifecycle, not just the tested conditional head update.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
   authority remain proof obligations. Do not weaken them or treat the direction
   choice as proof that an implementable protocol exists.
-- External blockers: none. Docker and GitHub authentication are available. Browser
+- Outstanding prerequisites: the new receipt/read-profile owner decision is pending.
+  Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
   FoundationDB native coverage is unavailable: `libfdb_c.dylib` is absent; its
   opt-in suite skips without running tests. Shared KV behavior is tested in memory.
@@ -702,3 +708,8 @@ adding multiple files had expanded it into unintended integration selection and
 omitted unit tests. Its six unit tests now run separately. Initial #76 hosted
 Node 22 timed out two 30-second testkit corpora under the accidental native load;
 CI is rerunning with the corrected selection. No timeout budgets were increased.
+
+Opened [draft scope investigation #77](https://github.com/bjacobso/triplex/pull/77),
+based on #76, implementation/diagnostic checkpoint 89b3f37. All independent
+deliverables have PRs/issues; TX1 production remains incomplete. Hosted #76/#77
+checks are pending after the corrected test selection; inspect them before stopping.
