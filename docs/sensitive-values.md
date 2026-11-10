@@ -429,6 +429,13 @@ Design, partially built:
 The shared corpora are exported from `@triplex-build/triplex-testkit` as `sealedStorageCases`,
 `sensitiveConformanceCases`, `sensitiveConformanceLayer` and `findPlaintext`.
 
+## Proposed host-sealing integration
+
+The [host-sealed values RFC](rfcs/tx3-host-sealed-values.md) proposes an explicit
+trusted-host import contract and compares a custom KeyProvider alternative. It
+requires an owner decision and changes no current behavior. Raw storage already
+round-trips sealed envelopes; the Sensitive decorator continues to reject them.
+
 ## Out of scope
 
 - Range, ordering, prefix and full-text queries over sealed values. Order-preserving or searchable

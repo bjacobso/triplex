@@ -112,7 +112,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
 | 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                       | Based on #67; root/pack/34 PG pass; native FDB unavailable                                        |
-| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                           | Owner decision before any code                                                                    |
+| 10    | TX3: host-sealing/erasure RFC only     | active  | —                                                                                                           | Owner decision before any code                                                                    |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
 | 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
 | 13    | Direct-read pagination issue           | pending | —                                                                                                           | Verify current APIs first                                                                         |
@@ -282,7 +282,7 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `feat/tx6-entity-filtered-feed`. Carry the
+- Canonical ledger: this checkout, currently `docs/tx3-host-sealing-rfc`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
 - Active item: TX3 RFC only, next in sequence. TX6 is PR #68 with clean SQL/KV
@@ -642,3 +642,10 @@ consumer. FoundationDB opt-in skips for absent native client. Opening TX6 PR nex
 
 TX6 opened as [PR #68](https://github.com/bjacobso/triplex/pull/68), based on #67.
 Independent work continues with TX3 RFC only; allocator direction remains queued.
+
+TX3 RFC drafted at `docs/rfcs/tx3-host-sealed-values.md`. Raw sealed storage
+already exists; decorator rejection is the actual policy boundary. Recommendation:
+explicit trusted-host import with registered equality/erasure domains, preserving
+plaintext-only default writes. Custom KeyProvider already supports opaque data-key
+subjects, but blindKey(database) lacks vault/retention scope and historical domain
+resolution requires more than a signature change. RFC only; no code or migration.
