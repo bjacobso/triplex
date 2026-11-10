@@ -107,7 +107,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 2b    | TX2 read-surface position follow-up    | pr-open | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                  | Based on #66; host/HTTP/dashboard local checks pass                                               |
 | 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)              | Based on TX2 PR #60                                                                               |
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)             | Based on benchmark PR #61                                                                         |
-| 5     | TX1.3: late position allocation        | pending | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [diagnostic](docs/rfcs/tx1-late-allocation.md) | Owner selected staged ordered-publication investigation after independent packages; proof pending |
+| 5     | TX1.3: late position allocation        | active  | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [diagnostic](docs/rfcs/tx1-late-allocation.md) | Owner selected staged ordered-publication investigation after independent packages; proof pending |
 | 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [design](docs/rfcs/tx1-scoped-concurrency.md)  | Owner selected database-owned invariant scopes; authority/publication proof and prototype pending |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
@@ -282,7 +282,7 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `docs/operational-followup-issues`. Carry the
+- Canonical ledger: this checkout, currently `investigate/tx1-ordered-publication`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
 - Active item: TX1 staged ordered-publication investigation selected by owner.
@@ -666,3 +666,23 @@ Report: `test/evidence/operational-followup-issues.md`. Hosted #68 is all green.
 Opened [issue-evidence PR #75](https://github.com/bjacobso/triplex/pull/75), based
 on #69. Root and packed-consumer checks pass. Independent work is reviewable;
 resuming owner-selected TX1 investigation with explicit old-snapshot proof gates.
+
+Owner-selected TX1 investigation now has a synthetic native PostgreSQL prototype
+in `staged-publication.test.ts`. A fresh-head immutable publisher behind an xact
+advisory gate succeeds for 1/4/16 prepared disjoint writers at RC/RR/SER (63
+transactions, no retries); this is not a production throughput benchmark. External
+ordering, held admission, abort/reuse and pinned reader tests pass. Crucially,
+the complete-cut assertion failed first at RR/SER: an older writer sees [2]
+without [1], and both transactions can commit. A committed-only experimental view
+can hide its own final publication, but all read paths, role isolation and pending
+receipt semantics remain unimplemented. Draft design records a new commit-owned
+profile choice rather than silently breaking ambient composition or weakening
+the snapshot invariant. Root/native/pack checks run before its review checkpoint.
+
+Opened [draft TX1 investigation #76](https://github.com/bjacobso/triplex/pull/76),
+source 6205112, based on #75. Root, pack and 38 PostgreSQL integration cases pass.
+An owner question is pending under rule 6: opt-in commit-owned pending receipts
+and committed-only reads/private-table access (recommended), retain ambient
+full retries, or investigate post-commit publication. The earlier direction choice
+is preserved; this question concerns newly demonstrated receipt/read semantics,
+not permission to weaken ordering. Scope-authority diagnostics proceed independently.
