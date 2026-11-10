@@ -104,7 +104,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | ----- | -------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                       | Browser baseline failures documented                                                              |
 | 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                       | Based on TX8 PR #59                                                                               |
-| 2b    | TX2 read-surface position follow-up    | active  | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                  | Host fix open; HTTP/dashboard corrections and final validation in progress                        |
+| 2b    | TX2 read-surface position follow-up    | pr-open | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                  | Based on #66; host/HTTP/dashboard local checks pass                                               |
 | 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)              | Based on TX2 PR #60                                                                               |
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)             | Based on benchmark PR #61                                                                         |
 | 5     | TX1.3: late position allocation        | pending | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [diagnostic](docs/rfcs/tx1-late-allocation.md) | Owner selected staged ordered-publication investigation after independent packages; proof pending |
@@ -285,18 +285,18 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `fix/tx2-host-position-basis`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: finish TX2 read-surface follow-up #67, then TX6 filtered feed,
-  TX3 RFC and issue-only deliverables. TX5 and TX4 have green hosted CI.
-  Owner selected staged ordered publication with database-owned invariant scopes
-  for investigation after independent packages; no production allocator proof is
-  assumed from that directional decision.
+- Active item: TX6 filtered transaction feed is next. Expanded TX2 follow-up #67
+  passes all local checks; hosted verification of its newest scope is pending.
+  TX5 and TX4 have green hosted CI. Owner selected staged publication/database-owned
+  scopes for investigation after the independent packages; proof remains required.
 - Integration tip / PR stack: `fix/tx2-host-position-basis`, based on
   `feat/tx5-cheap-preconditions` (#66), based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: complete #67's HTTP/dashboard position corrections and final
-  validation, rewrite its report/PR around all read surfaces, then continue TX6.
+- Next action: create TX6's branch from #67, write failing portable prefix-filtered
+  feed tests against the global-feed oracle, then implement indexed candidate
+  discovery and preserve complete transaction records/order/cursors across adapters.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
@@ -582,3 +582,11 @@ the optional parameter to v1/v2/latest fixtures. Final `pnpm check` and all 33
 PostgreSQL integrations pass for the expanded implementation. Package validation
 and PR/report rewrite remain. Owner direction was also recorded on draft PRs
 #63 and #64 without marking their protocols or allocator changes complete.
+
+The expanded TX2 follow-up #67 is validated at implementation `20d26d9`:
+`pnpm check`, all 33 PostgreSQL integrations and `pnpm pack:check` (11 tarballs and
+clean consumer) pass. The report covers the host, HTTP and dashboard scope, before/
+after examples, exact commands, direct versus shared adapter coverage, new HTTP
+parameter/OpenAPI, compatible dashboard cursors and adoption with no new migration.
+Continue TX6, then the RFC and issues; investigate the selected allocator direction
+after those independent deliverables. Hosted checks will be monitored as work proceeds.

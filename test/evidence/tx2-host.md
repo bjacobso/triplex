@@ -91,8 +91,8 @@ pnpm test:postgres:integration
 
 The host-only checkpoint `80ab675` passed root checks, all 33 PostgreSQL
 integrations and 11 tarballs/clean consumer, and opened as
-[PR #67](https://github.com/bjacobso/triplex/pull/67). The expanded HTTP/dashboard scope also passes `pnpm check` and all 33
-PostgreSQL integrations. Its package check and final revision record are next. The original broad core conformance did not prove this host wrapper;
+[PR #67](https://github.com/bjacobso/triplex/pull/67). Expanded implementation `20d26d9` passes `pnpm check`, all **33 PostgreSQL
+integrations**, and `pnpm pack:check` (**11 tarballs and a clean consumer**). The original broad core conformance did not prove this host wrapper;
 the missing forwarding was found by inspecting the current host implementation.
 
 The HTTP example OpenAPI fixtures were regenerated intentionally with:
