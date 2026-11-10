@@ -1,0 +1,46 @@
+{
+  "sourceRevision": "4315e578495e24b527f2bbb37428e4a7dba22a2c",
+  "dirty": false,
+  "node": "v24.13.0",
+  "measuredAt": "2026-11-10T19:51:24.063Z",
+  "databaseVersion": [
+    {
+      "version": "3.50.4"
+    }
+  ],
+  "measurements": [
+    {
+      "payloadBytes": 16,
+      "historyRows": 5,
+      "changeRows": 1,
+      "fullChangeJsonBytes": 263,
+      "idOnlyJsonBytes": 55,
+      "estimatedChangeJsonBytesSaved": 208,
+      "estimatedRowsSavedIfKeepingOneIdOnlyRow": 0
+    },
+    {
+      "payloadBytes": 1024,
+      "historyRows": 5,
+      "changeRows": 1,
+      "fullChangeJsonBytes": 1273,
+      "idOnlyJsonBytes": 55,
+      "estimatedChangeJsonBytesSaved": 1218,
+      "estimatedRowsSavedIfKeepingOneIdOnlyRow": 0
+    },
+    {
+      "payloadBytes": 65536,
+      "historyRows": 5,
+      "changeRows": 1,
+      "fullChangeJsonBytes": 65786,
+      "idOnlyJsonBytes": 55,
+      "estimatedChangeJsonBytesSaved": 65731,
+      "estimatedRowsSavedIfKeepingOneIdOnlyRow": 0
+    }
+  ],
+  "canonicalPublicExport": "{\"a\":[null,1],\"z\":0}",
+  "datalogPatterns": {
+    "threeTermsAccepted": true,
+    "fourTermsAccepted": true,
+    "sixTermsAccepted": false
+  }
+}

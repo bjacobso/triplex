@@ -321,6 +321,11 @@ void HttpAuthorizationAllowAll;
   writeFileSync(
     join(consumerDir, "smoke.mjs"),
     `import { Effect } from "effect";
+import { CanonicalJson } from "@triplex-build/triplex/content";
+
+if (CanonicalJson.encodeOrThrow({ z: -0, a: [undefined, 1] }) !== JSON.stringify({ a: [null, 1], z: 0 })) {
+  throw new Error("Public canonical JSON encoding is unavailable or inconsistent");
+}
 import { EntityId, Triples, string } from "@triplex-build/triplex";
 import { Runtime, DatabaseScope } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
