@@ -113,11 +113,11 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
 | 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                       | Based on #67; root/pack/34 PG pass; native FDB unavailable                                        |
 | 10    | TX3: host-sealing/erasure RFC only     | pr-open | —                                                                                                           | Owner decision before any code                                                                    |
-| 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
-| 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
-| 13    | Direct-read pagination issue           | pending | —                                                                                                           | Verify current APIs first                                                                         |
-| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                                           | Verify existing exports first                                                                     |
-| 15    | Datalog valid-time binding issue       | pending | —                                                                                                           | Verify current binding support first                                                              |
+| 11    | TX7: change-journal issue              | pr-open | [Issue #70](https://github.com/bjacobso/triplex/issues/70)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
+| 12    | TX9: BlobStore issue                   | pr-open | [Issue #71](https://github.com/bjacobso/triplex/issues/71)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
+| 13    | Direct-read pagination issue           | pr-open | [Issue #72](https://github.com/bjacobso/triplex/issues/72)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
+| 14    | Canonical-JSON public encoding issue   | refuted | [Docs issue #74](https://github.com/bjacobso/triplex/issues/74)                                             | Issue-only audit/evidence retained; no runtime implementation                                     |
+| 15    | Datalog valid-time binding issue       | pr-open | [Issue #73](https://github.com/bjacobso/triplex/issues/73)                                                  | Issue-only audit/evidence retained; no runtime implementation                                     |
 
 ### TX8 — Schema-version guard and Postgres fixture
 
@@ -282,7 +282,7 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `docs/tx3-host-sealing-rfc`. Carry the
+- Canonical ledger: this checkout, currently `docs/operational-followup-issues`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
 - Active item: issue-only deliverables after TX3 draft RFC #69. TX6 is PR #68 with clean SQL/KV
@@ -654,3 +654,10 @@ Opened [draft TX3 RFC #69](https://github.com/bjacobso/triplex/pull/69), based o
 #68. `pnpm check` passes, including 38 checked documentation links. No package
 change or migration. Approval is required before any host-sealing implementation;
 the authorized RFC deliverable is ready for review. Issue-only work follows.
+
+Filed issue-only deliverables #70 (TX7), #71 (TX9), #72 (direct reads), #73
+(Datalog intervals), #74 (existing canonical JSON discoverability). The last
+missing-export premise is refuted by a public import and packed-consumer check.
+TX7 clean experiment confirms five rows but zero row reduction for one retained
+ID-only row; byte estimates are explicitly hypothetical, not disk/throughput data.
+Report: `test/evidence/operational-followup-issues.md`. Hosted #68 is all green.
