@@ -70,6 +70,7 @@ import { TxAttributes } from "../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
+import { tripleAtRecordedPosition } from "./temporalView.js";
 
 // =============================================================================
 // Row to Triple Conversion
@@ -524,14 +525,20 @@ export const TriplesLive = Layer.effect(
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
         const rows = yield* adapter.getByEntity(entityId, resolved);
-        return rows.map(rowToTriple);
+        return rows.map((row) =>
+          tripleAtRecordedPosition(rowToTriple(row), basis?.recordedPosition),
+        );
       });
 
     const entities: TriplesService["entities"] = (entityIds, basis) =>
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
         const rows = yield* adapter.getByEntities(entityIds, resolved);
-        return entityIds.map((id) => (rows.get(id) ?? []).map(rowToTriple));
+        return entityIds.map((id) =>
+          (rows.get(id) ?? []).map((row) =>
+            tripleAtRecordedPosition(rowToTriple(row), basis?.recordedPosition),
+          ),
+        );
       });
 
     const entityPage: TriplesService["entityPage"] = (request) =>
@@ -562,7 +569,16 @@ export const TriplesLive = Layer.effect(
         const selected = ids.slice(0, prepared.limit);
         const rows = yield* adapter.getByEntities(selected, prepared.basis);
         return {
-          entities: selected.map((id) => (rows.get(id) ?? []).map(rowToTriple)),
+          entities: selected.map((id) =>
+            (rows.get(id) ?? []).map((row) =>
+              tripleAtRecordedPosition(
+                rowToTriple(row),
+                prepared.basis.recordedAt === undefined
+                  ? prepared.basis.recordedPosition
+                  : undefined,
+              ),
+            ),
+          ),
           snapshot: prepared.basis,
           ...(ids.length > prepared.limit
             ? { nextCursor: encodeEntityPageCursor(prepared, selected.at(-1)!) }
@@ -574,7 +590,9 @@ export const TriplesLive = Layer.effect(
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
         const rows = yield* adapter.query(pattern, resolved);
-        return rows.map(rowToTriple);
+        return rows.map((row) =>
+          tripleAtRecordedPosition(rowToTriple(row), basis?.recordedPosition),
+        );
       });
 
     const history = (entityId: EntityId): Effect.Effect<readonly Triple[], ReadError> =>

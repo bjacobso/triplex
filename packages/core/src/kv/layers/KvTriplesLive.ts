@@ -64,6 +64,7 @@ import * as ContentIds from "../../content/ContentId.js";
 import { unsafe } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
+import { tripleAtRecordedPosition } from "../../store/temporalView.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
 const COMMAND_RECEIPT_PREFIX = 0x22;
@@ -654,10 +655,14 @@ const makeKvTriplesService = Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* runtime.now);
         const syncDatoms = hexaStore.scanCollectTemporal({ entity: entityId }, resolved);
         if (syncDatoms !== null) {
-          return syncDatoms.map(datomToTriple);
+          return syncDatoms.map((datom) =>
+            tripleAtRecordedPosition(datomToTriple(datom), basis?.recordedPosition),
+          );
         }
         const datoms = yield* hexaStore.scanCollectTemporalAsync({ entity: entityId }, resolved);
-        return datoms.map(datomToTriple);
+        return datoms.map((datom) =>
+          tripleAtRecordedPosition(datomToTriple(datom), basis?.recordedPosition),
+        );
       }).pipe(
         Effect.catch((e) =>
           Effect.fail(new ReadError({ message: `Entity failed: ${String(e)}`, cause: e })),
@@ -670,7 +675,13 @@ const makeKvTriplesService = Effect.gen(function* () {
         return yield* Effect.forEach(entityIds, (entityId) =>
           hexaStore
             .scanCollectTemporalAsync({ entity: entityId }, resolved)
-            .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
+            .pipe(
+              Effect.map((datoms) =>
+                datoms.map((datom) =>
+                  tripleAtRecordedPosition(datomToTriple(datom), basis?.recordedPosition),
+                ),
+              ),
+            ),
         );
       }).pipe(
         Effect.catch((e) =>
@@ -712,7 +723,16 @@ const makeKvTriplesService = Effect.gen(function* () {
             .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
         );
         return {
-          entities: rows,
+          entities: rows.map((facts) =>
+            facts.map((fact) =>
+              tripleAtRecordedPosition(
+                fact,
+                prepared.basis.recordedAt === undefined
+                  ? prepared.basis.recordedPosition
+                  : undefined,
+              ),
+            ),
+          ),
           snapshot: prepared.basis,
           ...(ids.length > prepared.limit
             ? { nextCursor: encodeEntityPageCursor(prepared, selected.at(-1)!) }
@@ -729,7 +749,11 @@ const makeKvTriplesService = Effect.gen(function* () {
     match: (pattern, basis) =>
       Effect.gen(function* () {
         return yield* match(pattern, resolveTemporalBasis(basis, yield* runtime.now));
-      }),
+      }).pipe(
+        Effect.map((facts) =>
+          facts.map((fact) => tripleAtRecordedPosition(fact, basis?.recordedPosition)),
+        ),
+      ),
 
     history: (entityId: EntityId) =>
       Effect.gen(function* () {

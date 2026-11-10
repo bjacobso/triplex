@@ -38,7 +38,7 @@ const PaginationCursorEnvelopeSchema = Schema.Struct({
   queryFingerprint: Schema.String,
   scopeFingerprint: Schema.String,
   basis: Schema.Struct({
-    recordedAt: Schema.Number,
+    recordedAt: Schema.optional(Schema.Number),
     recordedPosition: Schema.Number,
     validAt: Schema.Number,
   }),
@@ -50,7 +50,7 @@ interface PaginationCursorEnvelope {
   readonly queryFingerprint: string;
   readonly scopeFingerprint: string;
   readonly basis: {
-    readonly recordedAt: number;
+    readonly recordedAt?: number;
     readonly recordedPosition: number;
     readonly validAt: number;
   };
@@ -63,7 +63,7 @@ export interface PreparedPagination {
   readonly query: WrappedQuery;
   readonly logicalQuery: WrappedQuery;
   readonly basis: ResolvedTemporalBasis & {
-    readonly recordedAt: number;
+    readonly recordedAt?: number;
     readonly recordedPosition: number;
   };
   readonly orderBy: readonly OrderBySpec[];
@@ -126,7 +126,7 @@ export const normalizePaginationOrder = (query: WrappedQuery): readonly OrderByS
 const queryFingerprint = (
   query: WrappedQuery,
   basis: ResolvedTemporalBasis & {
-    readonly recordedAt: number;
+    readonly recordedAt?: number;
     readonly recordedPosition: number;
   },
 ): string =>
@@ -135,7 +135,7 @@ const queryFingerprint = (
     CanonicalJson.encodeOrThrow({
       query: query as unknown as CanonicalJson.CanonicalValue,
       basis: {
-        recordedAt: basis.recordedAt,
+        ...(basis.recordedAt === undefined ? {} : { recordedAt: basis.recordedAt }),
         recordedPosition: basis.recordedPosition,
         validAt: basis.validAt,
       },
@@ -175,8 +175,8 @@ const decodeEnvelope = (cursor: string): PaginationCursorEnvelope => {
   }
   const { basis, values } = result.success;
   if (
-    !Number.isFinite(basis.recordedAt) ||
-    basis.recordedAt < 0 ||
+    (basis.recordedAt !== undefined &&
+      (!Number.isFinite(basis.recordedAt) || basis.recordedAt < 0)) ||
     !Number.isFinite(basis.validAt) ||
     basis.validAt < 0 ||
     !Number.isSafeInteger(basis.recordedPosition) ||
@@ -188,7 +188,14 @@ const decodeEnvelope = (cursor: string): PaginationCursorEnvelope => {
       message: "Pagination cursor contains an invalid temporal basis or ordering value",
     });
   }
-  return result.success;
+  return {
+    ...result.success,
+    basis: {
+      ...(basis.recordedAt === undefined ? {} : { recordedAt: basis.recordedAt }),
+      recordedPosition: basis.recordedPosition,
+      validAt: basis.validAt,
+    },
+  };
 };
 
 export const preparePagination = (input: {
@@ -233,15 +240,18 @@ export const preparePagination = (input: {
     input.query.cursor === undefined ? undefined : decodeEnvelope(input.query.cursor);
 
   let basis: ResolvedTemporalBasis & {
-    readonly recordedAt: number;
+    readonly recordedAt?: number;
     readonly recordedPosition: number;
   };
   if (envelope !== undefined) {
     basis = envelope.basis;
     if (input.basis !== undefined) {
+      resolveTemporalBasis(input.basis, input.now);
       const requested = input.basis;
       if (
         (requested.recordedAt !== undefined && requested.recordedAt !== basis.recordedAt) ||
+        (requested.recordedPosition !== undefined &&
+          requested.recordedPosition !== basis.recordedPosition) ||
         (requested.validAt !== undefined && requested.validAt !== basis.validAt)
       ) {
         throw new PaginationCursorError({
@@ -253,8 +263,13 @@ export const preparePagination = (input: {
   } else {
     const resolved = resolveTemporalBasis(input.basis, input.now);
     basis = {
-      recordedAt: resolved.recordedAt ?? input.now,
-      recordedPosition: input.recordedPosition,
+      ...(resolved.recordedPosition === undefined
+        ? { recordedAt: resolved.recordedAt ?? input.now }
+        : {}),
+      recordedPosition: Math.min(
+        resolved.recordedPosition ?? input.recordedPosition,
+        input.recordedPosition,
+      ),
       validAt: resolved.validAt,
     };
   }

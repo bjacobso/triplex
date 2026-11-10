@@ -44,6 +44,32 @@ const taskQuery = {
 
 describe("content-addressed derivations", () => {
   it.effect(
+    "round-trips a materialized commit-position basis and distinguishes different cuts",
+    () =>
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const written = yield* triples.transact(
+          placementFacts("placement:position").map((fact) => ({ op: "assert" as const, ...fact })),
+        );
+        const definition = yield* Derivation.make({
+          name: "position.materialization",
+          query: requirementQuery,
+          identity: ["?worker", "?scope"],
+          configSnapshot: "config:position",
+        });
+        const basis = { validAt: 150, recordedPosition: written.position };
+        yield* Materialization.materialize(triples, definition, { basis });
+        const restored = yield* Materialization.current(triples, definition, { basis });
+        expect(restored.status).toBe("current");
+        expect(restored.basis).toEqual(basis);
+        expect(restored.candidates).toHaveLength(1);
+        const otherCut = yield* Materialization.current(triples, definition, {
+          basis: { ...basis, recordedPosition: written.position + 1 },
+        });
+        expect(otherCut.status).toBe("stale");
+      }).pipe(Effect.provide(KvTriples.layer)),
+  );
+  it.effect(
     "deduplicates compliance candidates, explains them, and reconciles temporal changes",
     () =>
       Effect.gen(function* () {

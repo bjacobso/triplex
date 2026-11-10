@@ -1,4 +1,8 @@
-import { NUMERIC_VALUE_INDEX_DDL, SEALED_BLIND_INDEX_DDL } from "@triplex-build/triplex-sql";
+import {
+  NUMERIC_VALUE_INDEX_DDL,
+  SEALED_BLIND_INDEX_DDL,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
+} from "@triplex-build/triplex-sql";
 
 /**
  * Cloudflare database schema support.
@@ -74,6 +78,7 @@ export const INDEX_DDLS = [
   ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
 ] as const;
 
 const TRIPLES_V3_COLUMNS =
@@ -114,6 +119,7 @@ export const INDEX_NAMES = [
   "idx_ref_target",
   "idx_temporal",
   "idx_recorded_position",
+  "idx_entity_recorded_position",
   "idx_entity_attr",
   "idx_tx_id",
 ] as const;

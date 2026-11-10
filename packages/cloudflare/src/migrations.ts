@@ -7,6 +7,7 @@ import {
 } from "./schema.js";
 import {
   NUMERIC_VALUE_INDEX_DDL,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
@@ -43,5 +44,10 @@ export const migrations: readonly Migration[] = [
     version: 4,
     name: "triplex_sealed_values",
     up: SEALED_VALUES_DDLS,
+  },
+  {
+    version: 5,
+    name: "triplex_entity_recorded_position_index",
+    up: [ENTITY_RECORDED_POSITION_INDEX_DDL],
   },
 ];

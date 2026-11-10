@@ -138,9 +138,40 @@ transactions share the same recorded millisecond. Cursor decoding and reuse fail
 ### Bitemporal query basis
 
 Facts carry separate recorded and valid intervals. Direct matching, entity reads, batched reads,
-and Datalog accept the same `{ recordedAt?, validAt? }` basis, so every clause in a join,
+and Datalog accept the same `{ recordedAt?, recordedPosition?, validAt? }` basis, so every clause in a join,
 negation, or rule sees one coherent cut. Historical corrections append new facts; they do not
 rewrite the recorded history.
+
+Supply at most one of `recordedAt` and `recordedPosition`. The latter selects an
+exact committed fact cut and survives later assertions and retractions without a
+history/transaction lookup loop. Positions must be non-negative safe integers;
+zero selects no facts. Specify `validAt` too when replay must preserve the same
+business-time instant. Facts returned at an explicit position cut omit later
+retraction metadata, reproducing the earlier read. Full `history` and `get` audit
+reads retain the stored retraction information.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
+
+export const replay = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const entityId = EntityId.make("home:1");
+  const original = yield* triples.transact([
+    { op: "assert", entityId, attribute: ":home/status", value: string("draft"), validFrom: 0 },
+  ]);
+  yield* triples.transact([
+    { op: "retract", id: original.triples[0]!.id },
+    { op: "assert", entityId, attribute: ":home/status", value: string("ready"), validFrom: 0 },
+  ]);
+  return yield* triples.entity(entityId, { recordedPosition: original.position, validAt: 1 });
+}).pipe(Effect.provide(KvTriples.layer));
+```
+
+The returned fact still has value `draft`. SQL migration v4 adds
+`idx_entity_recorded_position` for selective entity replay; Cloudflare's equivalent
+is migration v5. Host-owned SQL migrations must run before acquiring an unmigrated
+Postgres layer. KV uses its existing temporal hexastore; no KV migration is needed.
 
 ### Portable derivations and pure reconciliation
 

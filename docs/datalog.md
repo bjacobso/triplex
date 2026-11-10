@@ -133,6 +133,18 @@ const historicalQuery = Effect.gen(function* () {
 Omitted recorded time means the latest recorded state. Omitted valid time means the runtime's
 current business time. Every pattern, join, negation, and rule in the query sees the same cut.
 
+Use `basis: { recordedPosition: receipt.position, validAt: businessInstant }` to
+read an exact commit cut, including across joins, rules, and negation. This works
+with `query`, `queryAll`, and `queryPage`, as well as `entity`, `entities`, `match`,
+and `entityPage`. Do not supply `recordedAt` with `recordedPosition`.
+
+Pages retain the requested cut in their cursor, and reject reuse with a different
+position. A requested position beyond the current head is capped at that head for
+pagination so later pages cannot gain new commits. Omit the basis on continuation
+to reuse the captured cut. Explicit position pages do not add a wall-clock filter;
+their entity-page snapshot therefore omits `recordedAt`. Existing timestamp-based
+and default pages keep their timestamp and position snapshots.
+
 ## Predicates and clause order
 
 Comparison clauses use `>`, `>=`, `<`, `<=`, `=`, and `!=`:

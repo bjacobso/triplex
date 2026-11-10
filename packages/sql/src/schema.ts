@@ -136,10 +136,15 @@ export const NUMERIC_VALUE_INDEX_DDL =
 export const SEALED_BLIND_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_attr_blind ON triples(attribute, value_blind) WHERE value_type = 'sealed'";
 
+/** Entity replay at a position must not scan all of that entity's later facts. */
+export const ENTITY_RECORDED_POSITION_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_entity_recorded_position ON triples(entity_id, recorded_position)";
+
 export const INDEX_DDLS = [
   ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
 ] as const;
 
 /**
@@ -158,6 +163,7 @@ export const INDEX_NAMES = [
   "idx_ref_target",
   "idx_temporal",
   "idx_recorded_position",
+  "idx_entity_recorded_position",
   "idx_entity_attr",
   "idx_tx_id",
 ] as const;
