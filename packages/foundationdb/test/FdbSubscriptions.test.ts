@@ -24,10 +24,6 @@ const fdbAvailable = (() => {
   }
 })();
 
-const describeFdb = fdbAvailable
-  ? layer(FdbContainerLayer, { timeout: "60 seconds" })
-  : (name: string, _fn: () => void) => describe.skip(name, () => {});
-
 const deps = (overrides: Partial<QueryDependencies>): QueryDependencies => ({
   attributes: new Set(),
   hasDynamicAttributes: false,
@@ -39,8 +35,14 @@ const deps = (overrides: Partial<QueryDependencies>): QueryDependencies => ({
   ...overrides,
 });
 
+const nativeSuite = layer(FdbContainerLayer, { timeout: "60 seconds", excludeTestServices: true });
+const describeFdb: typeof nativeSuite = fdbAvailable
+  ? nativeSuite
+  : (name: unknown) =>
+      describe.skip(typeof name === "string" ? name : "FoundationDB native suite", () => {});
+
 describeFdb("FdbSubscriptions", (it) => {
-  it.effect("invalidates a watcher when a matching attribute is signaled", () =>
+  it.effect("invalidates a type watcher when another attribute of that type changes", () =>
     Effect.gen(function* () {
       const { clusterFilePath } = yield* FdbClusterFile;
       const subspace = Buffer.from(`__watch_${Date.now()}_${Math.random().toString(36).slice(2)}/`);
@@ -62,13 +64,13 @@ describeFdb("FdbSubscriptions", (it) => {
       yield* subscriptions.signal({
         txId: "tx-watch-1",
         timestamp: Date.now(),
-        changes: [{ operation: "assert", entityId: "emp:alice", attribute: ":employee/name" }],
+        changes: [{ operation: "assert", entityId: "emp:alice", attribute: ":employee/email" }],
       });
 
       yield* Deferred.await(invalidated).pipe(
-        Effect.timeoutFail({
+        Effect.timeoutOrElse({
           duration: "5 seconds",
-          onTimeout: () => new Error("Timed out waiting for FDB watch invalidation"),
+          orElse: () => Effect.fail(new Error("Timed out waiting for FDB watch invalidation")),
         }),
       );
       yield* handle.close();
@@ -89,7 +91,6 @@ describeFdb("FdbSubscriptions", (it) => {
       const handle = yield* subscriptions.watchDependencies(
         deps({
           attributes: new Set([":employee/name"]),
-          entityTypes: new Set(["employee"]),
         }),
         () =>
           Ref.update(count, (n) => n + 1).pipe(
@@ -112,9 +113,10 @@ describeFdb("FdbSubscriptions", (it) => {
         changes: [{ operation: "assert", entityId: "emp:alice", attribute: ":employee/name" }],
       });
       yield* Deferred.await(invalidated).pipe(
-        Effect.timeoutFail({
+        Effect.timeoutOrElse({
           duration: "5 seconds",
-          onTimeout: () => new Error("Timed out waiting for related FDB watch invalidation"),
+          orElse: () =>
+            Effect.fail(new Error("Timed out waiting for related FDB watch invalidation")),
         }),
       );
       expect(yield* Ref.get(count)).toBe(1);
@@ -151,9 +153,9 @@ describeFdb("FdbSubscriptions", (it) => {
       });
 
       yield* Deferred.await(invalidated).pipe(
-        Effect.timeoutFail({
+        Effect.timeoutOrElse({
           duration: "5 seconds",
-          onTimeout: () => new Error("Timed out waiting for ChangeEmitter invalidation"),
+          orElse: () => Effect.fail(new Error("Timed out waiting for ChangeEmitter invalidation")),
         }),
       );
       yield* handle.close();
@@ -206,9 +208,9 @@ describeFdb("FdbSubscriptions", (it) => {
         changes: [{ operation: "assert", entityId: "emp:alice", attribute: ":employee/name" }],
       });
       yield* Deferred.await(invalidatedA).pipe(
-        Effect.timeoutFail({
+        Effect.timeoutOrElse({
           duration: "5 seconds",
-          onTimeout: () => new Error("Timed out waiting for tenant A invalidation"),
+          orElse: () => Effect.fail(new Error("Timed out waiting for tenant A invalidation")),
         }),
       );
       yield* Effect.sleep("100 millis");
@@ -221,9 +223,9 @@ describeFdb("FdbSubscriptions", (it) => {
         changes: [{ operation: "assert", entityId: "emp:alice", attribute: ":employee/name" }],
       });
       yield* Deferred.await(invalidatedB).pipe(
-        Effect.timeoutFail({
+        Effect.timeoutOrElse({
           duration: "5 seconds",
-          onTimeout: () => new Error("Timed out waiting for tenant B invalidation"),
+          orElse: () => Effect.fail(new Error("Timed out waiting for tenant B invalidation")),
         }),
       );
       expect(yield* Ref.get(countA)).toBe(1);

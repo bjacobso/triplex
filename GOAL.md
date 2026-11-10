@@ -119,6 +119,8 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 14    | Canonical-JSON public encoding issue   | refuted | [Docs issue #74](https://github.com/bjacobso/triplex/issues/74)                                                            | Issue-only audit/evidence retained; no runtime implementation                                        |
 | 15    | Datalog valid-time binding issue       | pr-open | [Issue #73](https://github.com/bjacobso/triplex/issues/73)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
 
+| 16 | Native FoundationDB coverage follow-up | active | [Report](test/evidence/foundationdb-native.md) | 19 native tests/root/pack/45 PG pass; PR and Linux CI pending |
+
 ### TX8 — Schema-version guard and Postgres fixture
 
 - Verify `layerFromSqlClient` does no DDL and currently permits an incompatible
@@ -282,27 +284,26 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `investigate/tx1-invariant-scopes`. Carry the
+- Canonical ledger: this checkout, currently `test/foundationdb-operational-conformance`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: allocator contract decision pending after completed investigations.
+- Active item: native FoundationDB validation follow-up, then the pending allocator contract decision.
   Independent deliverables are reviewable: TX3 #69; issue evidence #75, issues #70–74.
   TX1.3/4 production implementation and required benchmark rerun remain incomplete.
-- Integration tip / PR stack: `investigate/tx1-invariant-scopes` (#77), based on
+- Integration tip / PR stack: `test/foundationdb-operational-conformance` (PR pending),
+  based on `investigate/tx1-invariant-scopes` (#77), based on
   `investigate/tx1-ordered-publication` (#76, includes test-glob fix 3149f11), based on
   `docs/operational-followup-issues` (#75), based on `docs/tx3-host-sealing-rfc` (#69),
   based on `feat/tx6-entity-filtered-feed` (#68), then #67 → #66 → #65 → #64 → #63
   → #62 → #61 → #60 → #59. No merges performed.
-- Next action: await the pending owner answer before implementing a new public
-  staged profile. All hosted checks pass for #76 at 3cb0118 and #77 at f18cb2c,
-  including Node 22/24, native PostgreSQL, package consumer, docs/browser and stress.
-  Recommended option in #76: opt-in commit-owned callback with pending receipts,
-  final positions after native commit, committed-only read paths and private-table
-  role controls. Keep strict ordering, ordinary profile compatibility, host atomicity
-  and all-reader snapshot proof. Do not treat a synthetic view as that implementation.
-  If approved, first produce the concrete API/adapter plan and failing cross-adapter
-  staging tests; scopes need a sound mandatory graph-dependency planner and registry
-  lifecycle, not just the tested conditional head update.
+- Next action: open the FoundationDB follow-up PR based on #77, inspect its new
+  native Linux CI job, and resolve concrete failures. Local native suite passes 19,
+  root/type checks pass, package validation verifies 11 tarballs, and PostgreSQL
+  passes 45 tests. Then await the pending owner answer before implementing a new
+  staged profile. The current implementation drafts #76/#77 have green hosted CI.
+  Recommended pending option in #76: opt-in commit-owned callback with pending
+  receipts, final positions after native commit, committed-only read paths and
+  private-table role controls. No direction selection substitutes for that proof.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
@@ -311,8 +312,9 @@ not applicable rather than implying an implementation exists.
 - Outstanding prerequisites: the new receipt/read-profile owner decision is pending.
   Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
-  FoundationDB native coverage is unavailable: `libfdb_c.dylib` is absent; its
-  opt-in suite skips without running tests. Shared KV behavior is tested in memory.
+  FoundationDB native coverage now runs using the verified 7.3.75 client extracted
+  under /tmp with direct Node/DYLD_LIBRARY_PATH; see the new report for exact commands.
+  Nothing was installed system-wide. The hosted Linux job must also pass.
 
 Append dated progress entries below. Update the ledger and handoff before ending
 a session, after each PR/issue, and whenever evidence changes a decision. Resume
@@ -740,3 +742,32 @@ public staged receipt/read semantics. No independent deliverables remain to
 start; TX1 implementation, cross-adapter proofs and baseline rerun remain undone.
 This final ledger-only update does not claim the goal complete or approve its
 own recommended contract. Working tree is preserved on the canonical #77 branch.
+
+A continuation found independent native FoundationDB validation work despite the
+allocator decision gate. Downloaded/checksum-verified official 7.3.75 arm64 package
+and extracted only under /tmp; direct Node with DYLD_LIBRARY_PATH loads the native
+module without system installation. Initial native suite failed on removed
+Effect.timeoutFail and a moved KvBackend import; fixed the fixtures and all 10 old
+native tests pass. Added shared Triples/sealed/sensitive corpora with live clocks
+(the virtual clock had suspended real-time waits). The corpora pass natively.
+Native scope testing then confirmed FdbTriples accepted a foreign-subspace cursor;
+the same default runtime scope caused it. A config-derived scope fixes the focused
+regression. Backfill/raw plaintext scans and complete native run are in progress
+on `test/foundationdb-operational-conformance`; its own typed native tests and
+pinned-client CI job prevent the old silent coverage gap. No allocator change.
+
+FoundationDB full native run now passes 19 tests in 91.97 seconds, including
+shared raw/decorated Triples conformance, raw key/value plaintext absence with
+positive control, bounded legacy backfill across writes/retraction, cursor
+isolation and four watches. The backfill fixture was corrected to delete hex
+0x26/0x01 (not decimal 26) before validating migration behavior. Native test
+typechecking and frozen install pass. Private FdbTriples runtime scope now hashes
+configured cluster-file/subspace; existing opaque cursors restart, no data migration.
+The new pinned-client native CI job still needs its hosted result. Root/PG/package
+validation is underway before the follow-up PR. Required allocator decision remains
+pending; this validation work does not implement or weaken its contract.
+
+FoundationDB local gates pass: 19 native tests, default root/type checks, 45 PG
+tests and 11-tarball clean consumer. Preparing a standalone package follow-up PR
+with explicit cursor compatibility note and native CI, based on #77. The allocator
+owner question is unchanged and still pending; no dependent production work began.

@@ -11,18 +11,33 @@
  * ```
  */
 
-import { Effect, Layer } from "effect";
+import { Context, Effect, Layer, Stream } from "effect";
 import { describe, expect, layer } from "@effect/vitest";
 import { createRequire } from "node:module";
-import { Triples } from "@triplex-build/triplex";
-import { KvTriplesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
+import {
+  EntityId,
+  KvTriples,
+  Triples,
+  string as str,
+  number as num,
+  ref,
+} from "@triplex-build/triplex";
+import { KvBackend, KvTriplesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
 import { FdbTestLayer } from "./fixtures/FdbTestLayer.js";
+import { FdbClusterFile } from "./fixtures/FdbTestLayer.js";
+import { FdbTriples } from "../src/index.js";
+import { Outbox } from "@triplex-build/triplex/operational";
+import {
+  makeTriplesConformanceSuite,
+  makeSealedStorageSuite,
+  makeSensitiveConformanceSuite,
+  sensitiveConformanceLayer,
+  findPlaintext,
+} from "@triplex-build/triplex-testkit";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const str = (value: string) => ({ type: "string" as const, value });
-const num = (value: number) => ({ type: "number" as const, value });
-const refVal = (value: string) => ({ type: "ref" as const, value });
+const refVal = (value: string) => ref(EntityId.make(value));
 const require = createRequire(import.meta.url);
 const fdbAvailable = (() => {
   try {
@@ -37,16 +52,132 @@ const fdbAvailable = (() => {
 
 const FdbTriplesLayer = KvTriplesLive.pipe(
   Layer.provide(TripleStoreRuntimeLayer),
-  Layer.provide(FdbTestLayer),
+  Layer.provideMerge(FdbTestLayer),
 );
-
-const describeFdb = fdbAvailable
-  ? layer(FdbTriplesLayer, { timeout: "60 seconds" })
-  : (name: string, _fn: () => void) => describe.skip(name, () => {});
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
+const nativeSuite = layer(FdbTriplesLayer, { timeout: "60 seconds", excludeTestServices: true });
+const describeFdb: typeof nativeSuite = fdbAvailable
+  ? nativeSuite
+  : (name: unknown) =>
+      describe.skip(typeof name === "string" ? name : "FoundationDB native suite", () => {});
+
 describeFdb("FDB Integration: Triples", (it) => {
+  it.effect(
+    "passes the shared transaction, temporal, operational and query contract",
+    () => makeTriplesConformanceSuite(),
+    120000,
+  );
+
+  it.effect("passes the sealed-storage engine contract", () => makeSealedStorageSuite(), 120000);
+
+  it.effect(
+    "passes sensitive and full Triples conformance in a fresh subspace",
+    () =>
+      Effect.gen(function* () {
+        const context = yield* Layer.build(Layer.fresh(FdbTriplesLayer));
+        const raw = Context.get(context, Triples);
+        const kv = Context.get(context, KvBackend);
+        yield* makeSensitiveConformanceSuite().pipe(
+          Effect.andThen(makeTriplesConformanceSuite()),
+          Effect.provide(sensitiveConformanceLayer(Layer.succeed(Triples, raw))),
+        );
+        const entries = yield* Stream.runCollect(
+          kv.getRange({ start: new Uint8Array(), end: new Uint8Array([255]) }),
+        );
+        const dump = entries
+          .map(
+            ([key, value]) =>
+              Buffer.from(key).toString("utf8") + "\n" + Buffer.from(value).toString("utf8"),
+          )
+          .join("\n");
+        expect(entries.length).toBeGreaterThan(0);
+        expect(findPlaintext(dump, "Grace").length).toBeGreaterThan(0);
+        expect(findPlaintext(dump)).toEqual([]);
+      }),
+    120000,
+  );
+
+  it.effect(
+    "rejects an operational cursor from a foreign subspace",
+    () =>
+      Effect.gen(function* () {
+        const { clusterFilePath } = yield* FdbClusterFile;
+        const namespace = `__cursor_${crypto.randomUUID()}/`;
+        const a = Layer.fresh(
+          FdbTriples.layer({
+            clusterFile: clusterFilePath,
+            subspace: Buffer.from(namespace + "a/"),
+          }),
+        );
+        const b = Layer.fresh(
+          FdbTriples.layer({
+            clusterFile: clusterFilePath,
+            subspace: Buffer.from(namespace + "b/"),
+          }),
+        );
+        const scope = EntityId.make("cursor:home");
+        const cursor = yield* Effect.gen(function* () {
+          const t = yield* Triples;
+          yield* t.transact([
+            Outbox.append({ scope, idempotencyKey: "a", payload: 1 }),
+            Outbox.append({ scope, idempotencyKey: "b", payload: 2 }),
+          ]);
+          return (yield* Outbox.pending(t, { limit: 1 })).nextCursor!;
+        }).pipe(Effect.provide(a));
+        const error = yield* Effect.gen(function* () {
+          const t = yield* Triples;
+          expect((yield* Outbox.pending(t, {})).entries).toEqual([]);
+          return yield* Outbox.pending(t, { cursor }).pipe(Effect.flip);
+        }).pipe(Effect.provide(b));
+        expect(error).toMatchObject({ _tag: "PaginationCursorError" });
+      }),
+    30000,
+  );
+
+  it.effect(
+    "resumes the legacy live-index backfill on native transactions",
+    () =>
+      Effect.gen(function* () {
+        const context = yield* Layer.build(Layer.fresh(FdbTriplesLayer));
+        const t = Context.get(context, Triples),
+          kv = Context.get(context, KvBackend);
+        const entityId = EntityId.make("native:legacy");
+        const first = yield* t.assert({ entityId, attribute: ":native/value", value: num(1) });
+        // Reproduce the pre-live-index durable format without importing core source.
+        const live = yield* Stream.runCollect(
+          kv.getRange({ start: new Uint8Array([6]), end: new Uint8Array([7]) }),
+        );
+        yield* kv.transact((tx) =>
+          Effect.gen(function* () {
+            for (const [key] of live) yield* tx.delete(key);
+            yield* tx.delete(new Uint8Array([0x26, 0x01]));
+          }),
+        );
+        const unavailable = yield* t
+          .transact([], {
+            preconditions: [{ _tag: "AttributeAbsent", entityId, attribute: ":missing" }],
+          })
+          .pipe(Effect.flip);
+        expect(unavailable.message).toContain("migrateLiveFacts");
+        const migrate = () =>
+          KvTriples.migrateLiveFacts({ batchSize: 1 }).pipe(Effect.provideService(KvBackend, kv));
+        expect((yield* migrate()).complete).toBe(false);
+        yield* t.retract(first.id);
+        yield* t.assert({ entityId, attribute: ":native/value", value: num(2) });
+        let done = false;
+        for (let batch = 0; batch < 100 && !done; batch++) done = (yield* migrate()).complete;
+        expect(done).toBe(true);
+        yield* t.transact([], {
+          preconditions: [
+            { _tag: "AttributeValue", entityId, attribute: ":native/value", value: num(2) },
+          ],
+        });
+        expect(yield* migrate()).toEqual({ complete: true, processed: 0 });
+      }),
+    30000,
+  );
   // ── Triples CRUD ────────────────────────────────────────────────────────
 
   it.effect("asserts and retrieves a single triple", () =>
@@ -54,7 +185,7 @@ describeFdb("FDB Integration: Triples", (it) => {
       const store = yield* Triples;
 
       const triple = yield* store.assert({
-        entityId: "emp:alice",
+        entityId: EntityId.make("emp:alice"),
         attribute: ":employee/name",
         value: str("Alice"),
       });
@@ -70,10 +201,18 @@ describeFdb("FDB Integration: Triples", (it) => {
       const store = yield* Triples;
 
       const triples = yield* store.assertBatch([
-        { entityId: "emp:batch-a", attribute: ":employee/name", value: str("Alice") },
-        { entityId: "emp:batch-a", attribute: ":employee/age", value: num(30) },
-        { entityId: "emp:batch-b", attribute: ":employee/name", value: str("Bob") },
-        { entityId: "emp:batch-b", attribute: ":employee/age", value: num(25) },
+        {
+          entityId: EntityId.make("emp:batch-a"),
+          attribute: ":employee/name",
+          value: str("Alice"),
+        },
+        { entityId: EntityId.make("emp:batch-a"), attribute: ":employee/age", value: num(30) },
+        {
+          entityId: EntityId.make("emp:batch-b"),
+          attribute: ":employee/name",
+          value: str("Bob"),
+        },
+        { entityId: EntityId.make("emp:batch-b"), attribute: ":employee/age", value: num(25) },
       ]);
 
       expect(triples).toHaveLength(4);
@@ -85,9 +224,13 @@ describeFdb("FDB Integration: Triples", (it) => {
       const store = yield* Triples;
 
       yield* store.assertBatch([
-        { entityId: "emp:qe-alice", attribute: ":employee/name", value: str("Alice") },
-        { entityId: "emp:qe-alice", attribute: ":employee/age", value: num(30) },
-        { entityId: "emp:qe-bob", attribute: ":employee/name", value: str("Bob") },
+        {
+          entityId: EntityId.make("emp:qe-alice"),
+          attribute: ":employee/name",
+          value: str("Alice"),
+        },
+        { entityId: EntityId.make("emp:qe-alice"), attribute: ":employee/age", value: num(30) },
+        { entityId: EntityId.make("emp:qe-bob"), attribute: ":employee/name", value: str("Bob") },
       ]);
 
       const aliceTriples = yield* store.entity("emp:qe-alice" as any);
@@ -104,9 +247,13 @@ describeFdb("FDB Integration: Triples", (it) => {
       const store = yield* Triples;
 
       yield* store.assertBatch([
-        { entityId: "emp:qp-alice", attribute: ":employee/name", value: str("Alice") },
-        { entityId: "emp:qp-bob", attribute: ":employee/name", value: str("Bob") },
-        { entityId: "emp:qp-alice", attribute: ":employee/age", value: num(30) },
+        {
+          entityId: EntityId.make("emp:qp-alice"),
+          attribute: ":employee/name",
+          value: str("Alice"),
+        },
+        { entityId: EntityId.make("emp:qp-bob"), attribute: ":employee/name", value: str("Bob") },
+        { entityId: EntityId.make("emp:qp-alice"), attribute: ":employee/age", value: num(30) },
       ]);
 
       const names = yield* store.match({ attribute: ":employee/name" });
@@ -120,7 +267,7 @@ describeFdb("FDB Integration: Triples", (it) => {
       const store = yield* Triples;
 
       const triple = yield* store.assert({
-        entityId: "emp:retract-test",
+        entityId: EntityId.make("emp:retract-test"),
         attribute: ":employee/name",
         value: str("Alice"),
       });
@@ -128,7 +275,7 @@ describeFdb("FDB Integration: Triples", (it) => {
       yield* store.retract(triple.id);
 
       const result = yield* store.match({
-        entityId: "emp:retract-test",
+        entityId: EntityId.make("emp:retract-test"),
         attribute: ":employee/name",
       });
       expect(result).toHaveLength(0);
@@ -142,13 +289,13 @@ describeFdb("FDB Integration: Triples", (it) => {
       const result = yield* store.transact([
         {
           op: "assert",
-          entityId: "emp:tx-carol",
+          entityId: EntityId.make("emp:tx-carol"),
           attribute: ":employee/name",
           value: str("Carol"),
         },
         {
           op: "assert",
-          entityId: "emp:tx-carol",
+          entityId: EntityId.make("emp:tx-carol"),
           attribute: ":employee/age",
           value: num(28),
         },
@@ -169,8 +316,8 @@ describeFdb("FDB Integration: Triples", (it) => {
       const datalog = yield* Triples;
 
       yield* store.assertBatch([
-        { entityId: "emp:dl-alice", attribute: ":emp/name", value: str("Alice") },
-        { entityId: "emp:dl-bob", attribute: ":emp/name", value: str("Bob") },
+        { entityId: EntityId.make("emp:dl-alice"), attribute: ":emp/name", value: str("Alice") },
+        { entityId: EntityId.make("emp:dl-bob"), attribute: ":emp/name", value: str("Bob") },
       ]);
 
       const result = yield* datalog.query({
@@ -190,10 +337,14 @@ describeFdb("FDB Integration: Triples", (it) => {
       const datalog = yield* Triples;
 
       yield* store.assertBatch([
-        { entityId: "emp:join-alice", attribute: ":person/name", value: str("Alice") },
-        { entityId: "emp:join-alice", attribute: ":person/age", value: num(30) },
-        { entityId: "emp:join-bob", attribute: ":person/name", value: str("Bob") },
-        { entityId: "emp:join-bob", attribute: ":person/age", value: num(25) },
+        {
+          entityId: EntityId.make("emp:join-alice"),
+          attribute: ":person/name",
+          value: str("Alice"),
+        },
+        { entityId: EntityId.make("emp:join-alice"), attribute: ":person/age", value: num(30) },
+        { entityId: EntityId.make("emp:join-bob"), attribute: ":person/name", value: str("Bob") },
+        { entityId: EntityId.make("emp:join-bob"), attribute: ":person/age", value: num(25) },
       ]);
 
       const result = yield* datalog.query({
@@ -216,10 +367,18 @@ describeFdb("FDB Integration: Triples", (it) => {
       const datalog = yield* Triples;
 
       yield* store.assertBatch([
-        { entityId: "dept:ref-eng", attribute: ":dept/name", value: str("Engineering") },
-        { entityId: "emp:ref-alice", attribute: ":employee/name", value: str("Alice") },
         {
-          entityId: "emp:ref-alice",
+          entityId: EntityId.make("dept:ref-eng"),
+          attribute: ":dept/name",
+          value: str("Engineering"),
+        },
+        {
+          entityId: EntityId.make("emp:ref-alice"),
+          attribute: ":employee/name",
+          value: str("Alice"),
+        },
+        {
+          entityId: EntityId.make("emp:ref-alice"),
           attribute: ":employee/dept",
           value: refVal("dept:ref-eng"),
         },
@@ -246,12 +405,20 @@ describeFdb("FDB Integration: Triples", (it) => {
       const datalog = yield* Triples;
 
       yield* store.assertBatch([
-        { entityId: "emp:pred-alice", attribute: ":person/name", value: str("Alice") },
-        { entityId: "emp:pred-alice", attribute: ":person/age", value: num(30) },
-        { entityId: "emp:pred-bob", attribute: ":person/name", value: str("Bob") },
-        { entityId: "emp:pred-bob", attribute: ":person/age", value: num(25) },
-        { entityId: "emp:pred-carol", attribute: ":person/name", value: str("Carol") },
-        { entityId: "emp:pred-carol", attribute: ":person/age", value: num(35) },
+        {
+          entityId: EntityId.make("emp:pred-alice"),
+          attribute: ":person/name",
+          value: str("Alice"),
+        },
+        { entityId: EntityId.make("emp:pred-alice"), attribute: ":person/age", value: num(30) },
+        { entityId: EntityId.make("emp:pred-bob"), attribute: ":person/name", value: str("Bob") },
+        { entityId: EntityId.make("emp:pred-bob"), attribute: ":person/age", value: num(25) },
+        {
+          entityId: EntityId.make("emp:pred-carol"),
+          attribute: ":person/name",
+          value: str("Carol"),
+        },
+        { entityId: EntityId.make("emp:pred-carol"), attribute: ":person/age", value: num(35) },
       ]);
 
       const result = yield* datalog.query({

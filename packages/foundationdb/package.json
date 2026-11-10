@@ -39,9 +39,9 @@
   "scripts": {
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "dev": "tsdown --watch",
-    "test": "vitest --run --exclude test/fdb-triples.test.ts",
-    "test:integration": "vitest --run test/fdb-triples.test.ts",
-    "typecheck": "tsc --noEmit",
+    "test": "vitest --run --exclude test/fdb-triples.test.ts --exclude test/FdbSubscriptions.test.ts",
+    "test:integration": "vitest --run test/fdb-triples.test.ts test/FdbSubscriptions.test.ts",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.native-tests.json",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@triplex-build/triplex-testkit": "workspace:^",
     "@types/node": "catalog:",
     "effect": "catalog:",
     "testcontainers": "catalog:",
