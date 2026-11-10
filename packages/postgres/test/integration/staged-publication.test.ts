@@ -11,7 +11,10 @@ import {
 } from "../fixtures/PgTestLayer.js";
 
 const experiment = <A, E>(
-  run: (writer: SqlClient.SqlClient, fresh: SqlClient.SqlClient) => Effect.Effect<A, E, Scope.Scope>,
+  run: (
+    writer: SqlClient.SqlClient,
+    fresh: SqlClient.SqlClient,
+  ) => Effect.Effect<A, E, Scope.Scope>,
 ) =>
   Effect.runPromise(
     Effect.scoped(
