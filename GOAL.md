@@ -285,17 +285,18 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `docs/operational-followup-issues`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: issue-only deliverables after TX3 draft RFC #69. TX6 is PR #68 with clean SQL/KV
-  evidence and passing root, package and 34-test PostgreSQL checks. Hosted CI pending.
+- Active item: TX1 staged ordered-publication investigation selected by owner.
+  Independent deliverables are reviewable: TX3 #69; issue evidence #75, issues #70–74.
 - Integration tip / PR stack: `feat/tx6-entity-filtered-feed`, based on
   `fix/tx2-host-position-basis` (#67), based on
   `feat/tx5-cheap-preconditions` (#66), based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: measure TX7 journal amplification, verify current API gaps and
-  existing issues, then file TX7/TX9/pagination/canonical-JSON/valid-time deliverables.
-  TX3 draft #69 passes pnpm check (38 docs); no API, migration or runtime change.
+- Next action: branch for isolated PostgreSQL ordered-publication diagnostics.
+  Prove external snapshot ordering, rollback reuse and the older-writer own-view
+  hazard before choosing public staging/scope APIs. No production allocator change
+  is authorized by an unproved prototype. TX6 #68 and TX3 #69 hosted CI all green.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
@@ -661,3 +662,7 @@ missing-export premise is refuted by a public import and packed-consumer check.
 TX7 clean experiment confirms five rows but zero row reduction for one retained
 ID-only row; byte estimates are explicitly hypothetical, not disk/throughput data.
 Report: `test/evidence/operational-followup-issues.md`. Hosted #68 is all green.
+
+Opened [issue-evidence PR #75](https://github.com/bjacobso/triplex/pull/75), based
+on #69. Root and packed-consumer checks pass. Independent work is reviewable;
+resuming owner-selected TX1 investigation with explicit old-snapshot proof gates.
