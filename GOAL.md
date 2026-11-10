@@ -85,7 +85,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | ----- | -------------------------------------- | ------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
 | 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md) | Browser baseline failures documented   |
 | 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md) | Based on TX8 PR #59                    |
-| 3     | TX1.1: contention baseline benchmark   | pending | —                                                                                     | —                                      |
+| 3     | TX1.1: contention baseline benchmark   | active  | [Report](test/evidence/tx1-baseline.md)                                               | Measurements complete; preparing PR    |
 | 4     | TX1.2: typed retryable SQL conflicts   | pending | —                                                                                     | Baseline recorded                      |
 | 5     | TX1.3: late position allocation        | pending | —                                                                                     | Baseline confirms need; safety proven  |
 | 6     | TX1.4: scoped concurrency, if needed   | pending | —                                                                                     | Steps 2–3 insufficient; design settled |
@@ -262,13 +262,13 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `feat/tx2-position-reads`. Carry the
+- Canonical ledger: this checkout, currently `bench/tx1-position-contention`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX1.1 baseline benchmark is next; TX8 and TX2 are open for review.
-- Integration tip / PR stack: `feat/tx2-position-reads`, based on TX8's
-  `feat/tx8-schema-guard` (`4ed65b1`, PR #59), based on `main` (`704b578`).
-- Next action: create a TX1.1 benchmark branch based on TX2 and measure contention.
+- Active item: TX1.1 benchmark measured and validated; preparing its PR.
+- Integration tip / PR stack: `bench/tx1-position-contention`, based on TX2's
+  `feat/tx2-position-reads` (`3f9e31a`, PR #60), based on TX8 PR #59 and main.
+- Next action: open the benchmark PR, then start TX1.2 with a failing conflict test.
 - Decisions needed: none identified yet.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
@@ -327,3 +327,25 @@ integration, and docs preview. Its local screenshot mismatch is environment-spec
 TX2's initial hosted verification caught a report-only TypeScript fence with
 `yield*` outside a generator, added after the successful local root check. Wrapped
 that fragment in `Effect.gen` and rechecked the Markdown; product code is unchanged.
+
+### 2026-11-10 — TX1.1 baseline measured
+
+Added an opt-in private stress harness, then ran the complete 1/4/16-writer,
+three-isolation matrix three times without retries, with 5 ms and zero post-call
+host hold. Both runs used clean measured source `32a3360`, preserved on remote
+branch `bench/tx1-baseline-source`. The benchmark branch then rebased on TX2's
+report-only fix; no measured product behavior changed.
+
+Each run attempted 9,450 commands, committed 4,050, and recorded 5,400 serialization
+failures with no deadlocks. Every serialization failure was at position allocation.
+At 16 writers, repeatable read and serializable each rejected 2,250 of 2,400
+attempts across repetitions in both workloads. The 5 ms baseline median rates at
+1/4/16 writers were 85.5/94.8/97.0 commits/s for read committed,
+89.6/84.9/80.4 for repeatable read, and 97.6/84.3/78.7 for serializable.
+Up to 15 workers blocked at once, overwhelmingly on the allocator statement.
+
+All sampled journal-prefix checks and final atomicity counts passed. `pnpm check`,
+`pnpm pack:check`, and the stress harness typecheck pass. See the
+[report](test/evidence/tx1-baseline.md) and linked raw data for exact commands,
+environment, counts, limitations, and the zero-hold comparison. TX1.2 is justified;
+shortening lock duration alone must not be confused with fixing snapshot conflicts.
