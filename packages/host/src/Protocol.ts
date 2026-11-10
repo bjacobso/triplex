@@ -94,12 +94,7 @@ const queryOptions = (
   options:
     | {
         readonly debug?: boolean | undefined;
-        readonly basis?:
-          | {
-              readonly recordedAt?: number | undefined;
-              readonly validAt?: number | undefined;
-            }
-          | undefined;
+        readonly basis?: TemporalBasis | undefined;
       }
     | undefined,
 ): TriplesQueryOptions | undefined =>
@@ -114,6 +109,9 @@ const queryOptions = (
                 ...(options.basis.recordedAt === undefined
                   ? {}
                   : { recordedAt: options.basis.recordedAt }),
+                ...(options.basis.recordedPosition === undefined
+                  ? {}
+                  : { recordedPosition: options.basis.recordedPosition }),
                 ...(options.basis.validAt === undefined ? {} : { validAt: options.basis.validAt }),
               },
             }),

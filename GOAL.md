@@ -104,6 +104,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | ----- | -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                           | Browser baseline failures documented                                |
 | 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                           | Based on TX8 PR #59                                                 |
+| 2b    | TX2 host-protocol position follow-up   | active  | `fix/tx2-host-position-basis`; [report](test/evidence/tx2-host.md)                                              | Based on #66; closes discovered wrapper gap                         |
 | 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                  | Based on TX2 PR #60                                                 |
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                           |
 | 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
@@ -281,19 +282,19 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `feat/tx5-cheap-preconditions`. Carry the
+- Canonical ledger: this checkout, currently `fix/tx2-host-position-basis`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
 - Active item: TX2 host-protocol follow-up, then TX6 filtered transaction feed.
   TX5 is open as #66 with all local checks passing; hosted verification is pending.
   TX4's hosted CI is green on every check.
-- Integration tip / PR stack: `feat/tx5-cheap-preconditions`, based on
+- Integration tip / PR stack: `fix/tx2-host-position-basis`, based on
+  `feat/tx5-cheap-preconditions` (#66), based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: create the TX2 host-protocol follow-up branch from #66, write a
-  failing historical Query/QueryPage boundary test, preserve recordedPosition in
-  queryOptions, validate and open a separate PR, then continue TX6.
+- Next action: finish root, package and PostgreSQL checks for the TX2 host
+  follow-up, open its PR, then implement TX6's entity-filtered transaction feed.
   Continue independent work while allocator decisions are pending.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
   final-statement allocation alone is insufficient. No production change authorized
@@ -540,3 +541,18 @@ TX5 opened as [PR #66](https://github.com/bjacobso/triplex/pull/66), implementat
 Root checks, all 33 PostgreSQL integrations, and 11 packed tarballs/clean consumer
 pass. Hosted checks are pending. Continue with the discovered TX2 host boundary
 regression in a separate follow-up PR, then TX6. No merge or release was performed.
+
+### 2026-11-10 — TX2 host boundary follow-up
+
+The decoded KV and SQLite tenant-boundary tests both failed first: a historical
+Datalog request returned Alicia/Carol from later commits. The host mapper now
+uses TemporalBasis and forwards recordedPosition. Eight host tests pass,
+including Query/QueryPage, continuation, position zero, authorization/identity,
+and rejection of ambiguous timestamp+position. Root/package/PostgreSQL checks
+are next; no follow-up PR yet. See [the report](test/evidence/tx2-host.md).
+
+The TX2 host follow-up passes `pnpm check`, all 33 PostgreSQL integrations,
+and `pnpm pack:check` (11 tarballs plus clean consumer). TX5's hosted CI is also
+now green on every check. Preparing the host follow-up PR, then TX6.
+An asynchronous owner question was sent about allocator drafts #63/#64; no answer
+or approval is assumed. Independent work continues.
