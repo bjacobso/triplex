@@ -293,8 +293,9 @@ not applicable rather than implying an implementation exists.
   `docs/operational-followup-issues` (#75), based on `docs/tx3-host-sealing-rfc` (#69),
   based on `feat/tx6-entity-filtered-feed` (#68), then #67 → #66 → #65 → #64 → #63
   → #62 → #61 → #60 → #59. No merges performed.
-- Next action: inspect hosted CI for #76/#77 and resolve concrete failures, then
-  await the pending owner answer before implementing a new public staged profile.
+- Next action: await the pending owner answer before implementing a new public
+  staged profile. All hosted checks pass for #76 at 3cb0118 and #77 at f18cb2c,
+  including Node 22/24, native PostgreSQL, package consumer, docs/browser and stress.
   Recommended option in #76: opt-in commit-owned callback with pending receipts,
   final positions after native commit, committed-only read paths and private-table
   role controls. Keep strict ordering, ordinary profile compatibility, host atomicity
@@ -730,3 +731,12 @@ PG. #76’s type-only cd14228 initially failed formatting on its longer callback
 signature; fixed upstream in 3cb0118 and carried into this tip. Final CI reruns
 are expected for these type/config/format-only changes; runtime evidence remains
 45 passing PG tests and no allocator implementation. Owner answer still pending.
+
+Final source-revision audit: #76 at 3cb0118 and #77 at f18cb2c now pass every
+hosted check (Node 22/24, native PG, package consumer, docs/browser, stress and
+preview). Local root, 11-tarball consumer and 45 native PG results are retained
+above. The remaining owner question is required under rule 6 before changing
+public staged receipt/read semantics. No independent deliverables remain to
+start; TX1 implementation, cross-adapter proofs and baseline rerun remain undone.
+This final ledger-only update does not claim the goal complete or approve its
+own recommended contract. Working tree is preserved on the canonical #77 branch.
