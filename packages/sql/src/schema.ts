@@ -285,3 +285,31 @@ export const SEALED_VALUES_POSTGRES_DDLS = [
   "ALTER TABLE triples DROP CONSTRAINT IF EXISTS triples_sealed_envelope_check",
   "ALTER TABLE triples ADD CONSTRAINT triples_sealed_envelope_check CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)",
 ] as const;
+
+/** Entries retain history; partial indexes contain only unacknowledged work. */
+export const OPERATIONAL_ENTRIES_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_operational_entries (
+    id TEXT PRIMARY KEY NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('inbox', 'outbox')),
+    scope TEXT NOT NULL,
+    scope_token TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    recorded_position BIGINT NOT NULL,
+    recorded_at BIGINT NOT NULL,
+    tx_id TEXT NOT NULL,
+    acknowledged_position BIGINT,
+    acknowledged_at BIGINT,
+    acknowledged_tx_id TEXT,
+    CHECK ((acknowledged_position IS NULL AND acknowledged_at IS NULL AND acknowledged_tx_id IS NULL)
+      OR (acknowledged_position IS NOT NULL AND acknowledged_at IS NOT NULL AND acknowledged_tx_id IS NOT NULL))
+  )
+`;
+export const OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL = OPERATIONAL_ENTRIES_TABLE_DDL.replace(
+  "id TEXT PRIMARY KEY",
+  'id TEXT COLLATE "C" PRIMARY KEY',
+);
+export const OPERATIONAL_ENTRY_INDEX_DDLS = [
+  `CREATE INDEX IF NOT EXISTS idx_operational_pending_global ON triplex_operational_entries (kind, recorded_position, id) WHERE acknowledged_position IS NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_operational_pending_scope ON triplex_operational_entries (kind, scope_token, recorded_position, id) WHERE acknowledged_position IS NULL`,
+];

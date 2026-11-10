@@ -355,6 +355,7 @@ export const project = (
         projected = projected.filter((_, factIndex) => !matches[factIndex]);
         continue;
       }
+      if (op.op !== "assert") continue;
       projected.push({
         id: `constraint-pending-${index}` as Triple["id"],
         entityId: op.entityId as Triple["entityId"],

@@ -12,6 +12,7 @@ import { Context, Data, Effect, Layer } from "effect";
 import type {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
+  OperationalEntryConflictError,
   DatalogQueryError,
   ReadError,
   TransactionConflictError,
@@ -77,6 +78,7 @@ export class CorruptConfigStoreError extends Data.TaggedError("CorruptConfigStor
 
 export type LoadError = ReadError | CorruptConfigStoreError;
 export type CommitError =
+  | OperationalEntryConflictError
   | LoadError
   | WriteError
   | TransactionConflictError
@@ -113,6 +115,7 @@ export interface ConfigStoreService {
     | TransactionConflictError
     | CommandAlreadyCommittedError
     | ConstraintViolationError
+    | OperationalEntryConflictError
     | InMemoryConfigStore.UnknownSnapshotError
   >;
   readonly resolveRef: (

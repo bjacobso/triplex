@@ -12,6 +12,7 @@
  */
 
 import { numericIndexPlan } from "../../../../test/fixtures/numeric-index.js";
+import { operationalEntryIndexPlan } from "../../../../test/fixtures/operational-entry-index.js";
 import { positionIndexPlan } from "../../../../test/fixtures/position-index.js";
 import { describe, it, expect } from "vitest";
 import { Context, Deferred, Effect, Fiber, Layer, Redacted, Result } from "effect";
@@ -26,6 +27,7 @@ import {
   number,
   ref,
 } from "@triplex-build/triplex";
+import { Outbox } from "@triplex-build/triplex/operational";
 import { compile } from "@triplex-build/triplex/datalog";
 import { ConfigNode, ConfigStore, GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -306,6 +308,75 @@ describe("PostgreSQL Integration", () => {
           yield* sql`DROP FUNCTION reject_position()`;
         }),
       );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "commits and rolls back inbox/outbox with the caller's outer SQL transaction",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const t = yield* Triples;
+          const scope = EntityId.make("entry:ambient");
+          yield* sql`CREATE TABLE entry_host_receipts (id TEXT PRIMARY KEY)`;
+          const before = yield* t.currentPosition();
+          const marker = new Error("host abort after nested Triplex success");
+          const aborted = yield* sql
+            .withTransaction(
+              Effect.gen(function* () {
+                yield* sql`INSERT INTO entry_host_receipts VALUES ('aborted')`;
+                yield* t.transact(
+                  [
+                    {
+                      op: "assert",
+                      entityId: scope,
+                      attribute: ":entry/state",
+                      value: string("aborted"),
+                    },
+                    Outbox.append({
+                      scope,
+                      idempotencyKey: "aborted",
+                      payload: { receipt: "aborted" },
+                    }),
+                  ],
+                  { commandId: "entry:ambient:aborted" },
+                );
+                return yield* Effect.fail(marker);
+              }),
+            )
+            .pipe(Effect.result);
+          expect(Result.isFailure(aborted) && aborted.failure).toBe(marker);
+          expect(yield* Outbox.get(t, Outbox.id(scope, "aborted"))).toBeNull();
+          expect(yield* t.currentPosition()).toBe(before);
+          expect(yield* t.transactionByCommand("entry:ambient:aborted")).toBeNull();
+          expect(yield* t.entity(scope)).toHaveLength(0);
+          expect(yield* sql`SELECT * FROM entry_host_receipts`).toHaveLength(0);
+          const committed = yield* sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`INSERT INTO entry_host_receipts VALUES ('committed')`;
+              return yield* t.transact([
+                Outbox.append({
+                  scope,
+                  idempotencyKey: "committed",
+                  payload: { receipt: "committed" },
+                }),
+              ]);
+            }),
+          );
+          expect((yield* Outbox.get(t, Outbox.id(scope, "committed")))!.recordedPosition).toBe(
+            committed.position,
+          );
+          expect(yield* sql`SELECT * FROM entry_host_receipts`).toHaveLength(1);
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "keeps inbox/outbox operations indexed with 10 and 10000 acknowledged entries",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(operationalEntryIndexPlan("postgres"));
     },
   );
   it.skipIf(!DOCKER_AVAILABLE)(

@@ -44,6 +44,7 @@ import {
   TransactionConflictError,
   ConstraintViolationError,
   PaginationCursorError,
+  OperationalEntryConflictError,
 } from "../errors/index.js";
 import { unsafe } from "../Branded.js";
 import * as Constraint from "../Constraint.js";
@@ -70,6 +71,13 @@ import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagina
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
 import { tripleAtRecordedPosition } from "./temporalView.js";
+import {
+  applyEntryOperation,
+  decodeEntry,
+  preparePendingEntries,
+  finishPendingEntries,
+} from "../operational/entryStorage.js";
+import { isContentId } from "../content/ContentId.js";
 
 // =============================================================================
 // Row to Triple Conversion
@@ -257,6 +265,7 @@ export const TriplesLive = Layer.effect(
       | TransactionConflictError
       | CommandAlreadyCommittedError
       | ConstraintViolationError
+      | OperationalEntryConflictError
     > =>
       adapter.withTransaction(
         Effect.gen(function* () {
@@ -392,6 +401,11 @@ export const TriplesLive = Layer.effect(
             }
 
             switch (op.op) {
+              case "append-entry":
+              case "acknowledge-entry": {
+                yield* applyEntryOperation(op, adapter, { txId, position, instant: timestamp });
+                break;
+              }
               case "retract": {
                 const current = yield* adapter.getById(op.id as string);
                 if (current && !isSystemWriteAuthorized(meta)) {
@@ -718,6 +732,27 @@ export const TriplesLive = Layer.effect(
       );
 
     return {
+      operationalEntry: (id) =>
+        Effect.gen(function* () {
+          if (!isContentId(id))
+            return yield* new ReadError({ message: "Invalid operational entry ID" });
+          const record = yield* adapter.getOperationalEntry(id);
+          return record === null ? null : yield* decodeEntry(record);
+        }),
+      pendingOperationalEntries: (kind, request = {}) =>
+        Effect.gen(function* () {
+          const prepared = yield* Effect.try({
+            try: () => preparePendingEntries(kind, request, runtime.scope),
+            catch: (cause) =>
+              cause instanceof PaginationCursorError
+                ? cause
+                : new ReadError({ message: "Invalid operational pending request", cause }),
+          });
+          return yield* finishPendingEntries(
+            prepared,
+            yield* adapter.pendingOperationalEntries(prepared.scan),
+          );
+        }),
       assert: assert_,
       assertBatch,
       retract,

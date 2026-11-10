@@ -8,6 +8,7 @@ export {
   type CapabilitySet,
 } from "./Capabilities.js";
 export { StorageAdapter, type StorageAdapterService } from "../storage/StorageAdapter.js";
+export type { OperationalEntryRecord, PendingEntriesScan } from "../operational/Entry.js";
 export {
   QueryExecutor,
   type QueryExecutorService,
