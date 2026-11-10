@@ -81,23 +81,23 @@ Statuses: `pending`, `active`, `pr-open`, `blocked`, `refuted`, `not-needed`.
 `pr-open` requires its acceptance evidence and checks; otherwise describe missing
 work explicitly. RFC approval and issue-only work do not authorize implementation.
 
-| Order | Item                                   | Status  | PR / issue / evidence                                                                          | Dependency or blocker                  |
-| ----- | -------------------------------------- | ------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
-| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)          | Browser baseline failures documented   |
-| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)          | Based on TX8 PR #59                    |
-| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md) | Based on TX2 PR #60                    |
-| 4     | TX1.2: typed retryable SQL conflicts   | pending | —                                                                                              | Baseline recorded                      |
-| 5     | TX1.3: late position allocation        | pending | —                                                                                              | Baseline confirms need; safety proven  |
-| 6     | TX1.4: scoped concurrency, if needed   | pending | —                                                                                              | Steps 2–3 insufficient; design settled |
-| 7     | TX4: inbox/outbox                      | pending | —                                                                                              | —                                      |
-| 8     | TX5: cheap preconditions               | pending | —                                                                                              | —                                      |
-| 9     | TX6: filtered transaction feed         | pending | —                                                                                              | —                                      |
-| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                              | Owner decision before any code         |
-| 11    | TX7: change-journal issue              | pending | —                                                                                              | Issue only                             |
-| 12    | TX9: BlobStore issue                   | pending | —                                                                                              | Issue only                             |
-| 13    | Direct-read pagination issue           | pending | —                                                                                              | Verify current APIs first              |
-| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                              | Verify existing exports first          |
-| 15    | Datalog valid-time binding issue       | pending | —                                                                                              | Verify current binding support first   |
+| Order | Item                                   | Status  | PR / issue / evidence                                                                          | Dependency or blocker                       |
+| ----- | -------------------------------------- | ------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)          | Browser baseline failures documented        |
+| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)          | Based on TX8 PR #59                         |
+| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md) | Based on TX2 PR #60                         |
+| 4     | TX1.2: typed retryable SQL conflicts   | active  | [Report](test/evidence/tx1-conflicts.md)                                                       | Final package validation and PR preparation |
+| 5     | TX1.3: late position allocation        | pending | —                                                                                              | Baseline confirms need; safety proven       |
+| 6     | TX1.4: scoped concurrency, if needed   | pending | —                                                                                              | Steps 2–3 insufficient; design settled      |
+| 7     | TX4: inbox/outbox                      | pending | —                                                                                              | —                                           |
+| 8     | TX5: cheap preconditions               | pending | —                                                                                              | —                                           |
+| 9     | TX6: filtered transaction feed         | pending | —                                                                                              | —                                           |
+| 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                              | Owner decision before any code              |
+| 11    | TX7: change-journal issue              | pending | —                                                                                              | Issue only                                  |
+| 12    | TX9: BlobStore issue                   | pending | —                                                                                              | Issue only                                  |
+| 13    | Direct-read pagination issue           | pending | —                                                                                              | Verify current APIs first                   |
+| 14    | Canonical-JSON public encoding issue   | pending | —                                                                                              | Verify existing exports first               |
+| 15    | Datalog valid-time binding issue       | pending | —                                                                                              | Verify current binding support first        |
 
 ### TX8 — Schema-version guard and Postgres fixture
 
@@ -262,14 +262,14 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `bench/tx1-position-contention`. Carry the
+- Canonical ledger: this checkout, currently `feat/tx1-retryable-conflicts`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX1.2 typed retryable transaction conflicts is next.
-- Integration tip / PR stack: `bench/tx1-position-contention`, based on TX2's
-  `feat/tx2-position-reads` (`9995d96`, PR #60), based on TX8 PR #59 and main.
-- Next action: create a TX1.2 branch based on the benchmark and write a failing
-  conflict-classification test. Watch the pending hosted checks on PRs #60/#61.
+- Active item: TX1.2 implementation and tests pass; package validation/PR remain.
+- Integration tip / PR stack: `feat/tx1-retryable-conflicts`, based on benchmark
+  `bench/tx1-position-contention` (`b5483c2`, PR #61), then TX2 #60 and TX8 #59.
+- Next action: finish TX1.2 package validation and open its PR, then assess safe
+  late allocation for TX1.3 against the measured snapshot conflicts and constraints.
 - Decisions needed: none identified yet.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
@@ -361,3 +361,19 @@ precedes TX1.2, and no replay coverage will be removed.
 The aggregate-suite budget fix is committed as `9995d96` on TX2 and carried into
 the benchmark branch by rebase. `pnpm check` passes after that fix; assertions and
 generated-history coverage are unchanged. Hosted verification is pending again.
+
+### 2026-11-10 — TX1.2 typed conflicts
+
+TX2 and the benchmark now have green hosted CI, including Node 22/24, package
+consumer, Postgres integration, docs/browser, and stress-smoke checks.
+
+Added structured Postgres serialization/deadlock conversion and
+`PgTriples.withTransaction` for the host's outer boundary. Existing precondition
+conflicts expose `isRetryable: true`; convenience writes and the sensitive layer
+preserve the distinct error. Tests failed first with the old `WriteError` behavior,
+then passed with typed conflicts and rollback, including a failure deferred until
+the outer commit. `pnpm check` and all 29 Postgres integration tests pass. See
+[the report](test/evidence/tx1-conflicts.md); package validation is next.
+
+`pnpm pack:check` also passes for TX1.2 (11 tarballs and a clean consumer), including
+the new public helper signature. Preparing the PR and a real-concurrency smoke run.

@@ -107,6 +107,135 @@ const prepareHostTables = Effect.gen(function* () {
 
 describe("PostgreSQL Integration", () => {
   it.skipIf(!DOCKER_AVAILABLE)(
+    "types outer-commit conflicts after the nested Triplex call returns",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const triples = yield* Triples;
+          yield* prepareHostTables;
+          yield* sql.unsafe(`CREATE FUNCTION reject_outer_commit() RETURNS trigger AS $$
+        BEGIN RAISE EXCEPTION 'planted commit conflict' USING ERRCODE = '40001'; END;
+        $$ LANGUAGE plpgsql`);
+          yield* sql.unsafe(`CREATE CONSTRAINT TRIGGER reject_outer_commit AFTER INSERT ON host_records
+        DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_outer_commit()`);
+          let nestedReturned = false;
+          const error = yield* PgTriples.withTransaction(
+            Effect.gen(function* () {
+              yield* triples.transact(
+                [
+                  {
+                    op: "assert",
+                    entityId: EntityId.make("conflict:outer"),
+                    attribute: ":name",
+                    value: string("rolled back"),
+                  },
+                ],
+                { commandId: "conflict:outer" },
+              );
+              nestedReturned = true;
+              yield* sql`INSERT INTO host_records VALUES ('outer', 'rolled back')`;
+            }),
+          ).pipe(Effect.flip);
+          expect(nestedReturned).toBe(true);
+          expect(error).toMatchObject({
+            _tag: "TransactionConflictError",
+            reason: "serialization",
+            isRetryable: true,
+          });
+          expect(yield* triples.entity(EntityId.make("conflict:outer"))).toEqual([]);
+          expect(yield* triples.currentPosition()).toBe(0);
+          expect(yield* triples.transactionByCommand("conflict:outer")).toBeNull();
+          expect(yield* sql`SELECT * FROM host_records`).toEqual([]);
+          yield* sql`DROP TRIGGER reject_outer_commit ON host_records`;
+          yield* sql`DROP FUNCTION reject_outer_commit()`;
+
+          const syntax = yield* PgTriples.withTransaction(sql.unsafe("SELECT FROM")).pipe(
+            Effect.flip,
+          );
+          expect(syntax).toMatchObject({ _tag: "SqlError", reason: { _tag: "SqlSyntaxError" } });
+          const domain = new Error("host domain failure");
+          expect(yield* PgTriples.withTransaction(Effect.fail(domain)).pipe(Effect.flip)).toBe(
+            domain,
+          );
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "surfaces SQL transaction conflicts without partial writes",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const triples = yield* Triples;
+          for (const [code, reason] of [
+            ["40001", "serialization"],
+            ["40P01", "deadlock"],
+          ] as const) {
+            // Exercise the driver's real structured SQL error, not a mocked SqlClient.
+            yield* sql.unsafe(`CREATE OR REPLACE FUNCTION reject_position() RETURNS trigger AS $$
+          BEGIN RAISE EXCEPTION 'planted transaction conflict' USING ERRCODE = '${code}'; END;
+          $$ LANGUAGE plpgsql`);
+            yield* sql`CREATE TRIGGER reject_position BEFORE INSERT OR UPDATE ON triplex_commit_position FOR EACH ROW EXECUTE FUNCTION reject_position()`;
+            const error = yield* triples
+              .transact(
+                [
+                  {
+                    op: "assert",
+                    entityId: EntityId.make("conflict:failed"),
+                    attribute: ":name",
+                    value: string("must roll back"),
+                  },
+                ],
+                { commandId: `conflict:${code}` },
+              )
+              .pipe(Effect.flip);
+            expect(error).toMatchObject({
+              _tag: "TransactionConflictError",
+              reason,
+              isRetryable: true,
+            });
+            expect(yield* triples.entity(EntityId.make("conflict:failed"))).toEqual([]);
+            expect(yield* triples.transactionByCommand(`conflict:${code}`)).toBeNull();
+            expect(yield* triples.currentPosition()).toBe(0);
+            const input = {
+              entityId: EntityId.make("conflict:convenience"),
+              attribute: ":name",
+              value: string("rolled back"),
+            };
+            for (const write of [
+              triples.assert(input),
+              triples.assertBatch([input]),
+              triples.retract(unsafe.tripleId("00000000000000000000000000")),
+              triples.retractByPattern({ entityId: input.entityId }),
+            ]) {
+              const failure = yield* write.pipe(Effect.flip);
+              expect(failure).toMatchObject({
+                _tag: "TransactionConflictError",
+                reason,
+                isRetryable: true,
+              });
+            }
+            yield* Effect.gen(function* () {
+              const decorated = yield* Triples;
+              const failure = yield* decorated.assert(input).pipe(Effect.flip);
+              expect(failure).toMatchObject({
+                _tag: "TransactionConflictError",
+                reason,
+                isRetryable: true,
+              });
+            }).pipe(Effect.provide(sensitiveConformanceLayer(Layer.succeed(Triples, triples))));
+            yield* sql`DROP TRIGGER reject_position ON triplex_commit_position`;
+          }
+          yield* sql`DROP FUNCTION reject_position()`;
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
     "uses an entity-position index for a selective historical cut",
     { timeout: 120_000 },
     async () => {

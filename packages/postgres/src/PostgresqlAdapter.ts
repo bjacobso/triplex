@@ -24,6 +24,7 @@ import {
 import { packValue, runMigrations } from "@triplex-build/triplex-sql";
 import { PostgresqlDialect } from "./dialect.js";
 import { checkSchemaVersion } from "./SchemaVersion.js";
+import { transactionConflict } from "./TransactionConflict.js";
 
 /**
  * Create a PostgreSQL StorageAdapter layer.
@@ -53,16 +54,18 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
 
       const withTransaction: StorageAdapterService["withTransaction"] = (effect) =>
         sql.withTransaction(effect).pipe(
-          Effect.mapError((error) =>
-            error instanceof WriteError ||
-            error instanceof TransactionConflictError ||
-            error instanceof CommandAlreadyCommittedError ||
-            error instanceof ConstraintViolationError
-              ? error
-              : new WriteError({
-                  message: `Transaction failed: ${String(error)}`,
-                  cause: error,
-                }),
+          Effect.mapError(
+            (error) =>
+              transactionConflict(error) ??
+              (error instanceof WriteError ||
+              error instanceof TransactionConflictError ||
+              error instanceof CommandAlreadyCommittedError ||
+              error instanceof ConstraintViolationError
+                ? error
+                : new WriteError({
+                    message: `Transaction failed: ${String(error)}`,
+                    cause: error,
+                  })),
           ),
         );
 

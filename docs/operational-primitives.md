@@ -35,6 +35,14 @@ graph-constraint enforcement path also atomically protects declared required, ca
 uniqueness, and reference-target invariants by evaluating them inside the serialized commit
 boundary.
 
+`TransactionConflictError.isRetryable` is always true: reload the state used to
+decide the command, then retry its complete transaction. PostgreSQL also uses this
+type for native serialization and deadlock failures, with `reason` set to
+`serialization` or `deadlock` and the original failure retained as `cause`.
+`PgTriples.withTransaction` extends that typed boundary over host statements and
+the host's outer commit. Other write failures are not reclassified as conflicts,
+and Triplex does not choose retry/backoff policy for the host.
+
 ### Entity-state preconditions
 
 `{ _tag: "EntityState", entityId, tripleIds }` is the check-then-write guard for one entity. After

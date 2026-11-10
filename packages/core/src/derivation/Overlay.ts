@@ -6,7 +6,12 @@ import * as CanonicalJson from "../content/CanonicalJson.js";
 import * as ContentIds from "../content/ContentId.js";
 import { unsafe } from "../Branded.js";
 import { isNotClause, isPatternClause } from "../datalog/schema.js";
-import type { DatalogQueryError, ReadError, WriteError } from "../errors/index.js";
+import type {
+  DatalogQueryError,
+  ReadError,
+  WriteError,
+  TransactionConflictError,
+} from "../errors/index.js";
 import { KvTriples } from "../kv/layers/KvTriplesLive.js";
 import { Triples, type TriplesService } from "../store/Triples.js";
 import type { Triple, TripleInput } from "../Triple.js";
@@ -39,6 +44,7 @@ export class UnsupportedOverlayDefinitionError extends Data.TaggedError(
 }> {}
 
 export type OverlayError =
+  | TransactionConflictError
   | ReadError
   | WriteError
   | DatalogQueryError
