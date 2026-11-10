@@ -14,7 +14,7 @@
 import { numericIndexPlan } from "../../../../test/fixtures/numeric-index.js";
 import { positionIndexPlan } from "../../../../test/fixtures/position-index.js";
 import { describe, it, expect } from "vitest";
-import { Context, Effect, Layer, Redacted } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer, Redacted, Result } from "effect";
 import { SqlClient } from "effect/sql";
 import {
   DatabaseId,
@@ -106,6 +106,79 @@ const prepareHostTables = Effect.gen(function* () {
 });
 
 describe("PostgreSQL Integration", () => {
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "a final-statement counter still conflicts with an older disjoint-writer snapshot",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          // Separate host tables avoid incidental SSI conflicts from a shared
+          // heap/index page. Only the synthetic counter is a shared mutable row.
+          yield* sql`CREATE TABLE late_home_a (version INTEGER NOT NULL)`;
+          yield* sql`CREATE TABLE late_home_b (version INTEGER NOT NULL)`;
+          yield* sql`CREATE TABLE late_counter (singleton INTEGER PRIMARY KEY, position BIGINT NOT NULL)`;
+          yield* sql`INSERT INTO late_home_a VALUES (0)`;
+          yield* sql`INSERT INTO late_home_b VALUES (0)`;
+          yield* sql`INSERT INTO late_counter VALUES (1, 0)`;
+          for (const isolation of ["REPEATABLE READ", "SERIALIZABLE"] as const) {
+            yield* sql`UPDATE late_home_a SET version = 0`;
+            yield* sql`UPDATE late_home_b SET version = 0`;
+            yield* sql`UPDATE late_counter SET position = 0`;
+            yield* Effect.scoped(
+              Effect.gen(function* () {
+                const ready = yield* Deferred.make<void>();
+                const release = yield* Deferred.make<void>();
+                let stage = "host-write";
+                const second = yield* PgTriples.withTransaction(
+                  Effect.gen(function* () {
+                    yield* sql.unsafe(`SET TRANSACTION ISOLATION LEVEL ${isolation}`);
+                    yield* sql`SELECT version FROM late_home_b`;
+                    yield* sql`UPDATE late_home_b SET version = 1`;
+                    yield* Deferred.succeed(ready, undefined);
+                    yield* Deferred.await(release);
+                    stage = "final-counter";
+                    yield* sql`INSERT INTO late_counter VALUES (1, 1) ON CONFLICT(singleton)
+                DO UPDATE SET position = late_counter.position + 1`;
+                  }),
+                ).pipe(Effect.result, Effect.forkScoped);
+                yield* Deferred.await(ready);
+                yield* PgTriples.withTransaction(
+                  Effect.gen(function* () {
+                    yield* sql.unsafe(`SET TRANSACTION ISOLATION LEVEL ${isolation}`);
+                    yield* sql`SELECT version FROM late_home_a`;
+                    yield* sql`UPDATE late_home_a SET version = 1`;
+                    // The counter is the final SQL statement, with no deliberate hold.
+                    yield* sql`INSERT INTO late_counter VALUES (1, 1) ON CONFLICT(singleton)
+                DO UPDATE SET position = late_counter.position + 1`;
+                  }),
+                );
+                yield* Deferred.succeed(release, undefined);
+                const outcome = yield* Fiber.join(second);
+                expect(Result.isFailure(outcome)).toBe(true);
+                if (Result.isFailure(outcome))
+                  expect(outcome.failure).toMatchObject({
+                    _tag: "TransactionConflictError",
+                    reason: "serialization",
+                    isRetryable: true,
+                  });
+                expect(stage).toBe("final-counter");
+                expect(yield* sql`SELECT version FROM late_home_a`).toEqual([{ version: 1 }]);
+                expect(yield* sql`SELECT version FROM late_home_b`).toEqual([{ version: 0 }]);
+                expect(
+                  Number(
+                    (yield* sql<{ position: string }>`SELECT position FROM late_counter`)[0]!
+                      .position,
+                  ),
+                ).toBe(1);
+              }),
+            ).pipe(Effect.timeout("10 seconds"));
+          }
+          yield* sql`DROP TABLE late_home_a, late_home_b, late_counter`;
+        }),
+      );
+    },
+  );
   it.skipIf(!DOCKER_AVAILABLE)(
     "types outer-commit conflicts after the nested Triplex call returns",
     { timeout: 120_000 },
