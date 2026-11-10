@@ -1,7 +1,7 @@
 # TX8: schema guard and Postgres fixture
 
 Date: 2026-11-10. Branch: `feat/tx8-schema-guard`; base: `main` at `704b578`.
-PR URL and tested implementation commit are recorded in `GOAL.md` after opening.
+PR: <https://github.com/bjacobso/triplex/pull/59>. Tested implementation: `105b37a`.
 
 ## Result and adoption
 
