@@ -251,13 +251,13 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 1: make wrong things loud
 
-| ID   | Item                                       | Lane | Depends         | Status      | Evidence                |
-| ---- | ------------------------------------------ | ---- | --------------- | ----------- | ----------------------- |
-| P1.1 | Reject unknown attributes in bound queries | A    |                 | active      | 2026-11-11: `ergo/p1.1` |
-| P1.2 | Stable error codes with a suggested fix    | A, C |                 | pending     |                         |
-| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner |                         |
-| P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending     |                         |
-| P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending     |                         |
+| ID   | Item                                       | Lane | Depends         | Status      | Evidence                                                                                                                                                                            |
+| ---- | ------------------------------------------ | ---- | --------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1.1 | Reject unknown attributes in bound queries | A    |                 | done        | 2026-11-11: merged `ergo/p1.1` (`6133995`); `SchemaBound.layer`, `UnknownAttributeError`. Note: `match` reports it as `ReadError.cause` until the write-path error union is widened |
+| P1.2 | Stable error codes with a suggested fix    | A, C |                 | active      | 2026-11-11: core half as `ergo/p1.2a`; CLI envelope half pending                                                                                                                    |
+| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner |                                                                                                                                                                                     |
+| P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending     |                                                                                                                                                                                     |
+| P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending     |                                                                                                                                                                                     |
 
 - **P1.1** A query checked against a config release must fail before execution when it names an
   attribute the release does not define. Today it returns `[]`. Add an opt-in check that takes
@@ -285,15 +285,15 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 2: one front door
 
-| ID   | Item                                      | Lane  | Depends    | Status      | Evidence                                                    |
-| ---- | ----------------------------------------- | ----- | ---------- | ----------- | ----------------------------------------------------------- |
-| P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | active      | 2026-11-11: `ergo/p2.1`; D1 answered                        |
-| P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | pending     | D7 answered 2026-11-11; conflicts unchanged after `9f4e703` |
-| P2.3 | Typed decode of entity facts              | B     | P2.1       | pending     |                                                             |
-| P2.4 | Temporal verbs                            | B     | P2.1       | pending     |                                                             |
-| P2.5 | Client RFC: the `Database` service        | B     | P2.3, P2.4 | pending     |                                                             |
-| P2.6 | Client implementation                     | B     | P2.5       | needs-owner |                                                             |
-| P2.7 | Re-run the trial against the phase 2 gate | C     | P2.6       | pending     |                                                             |
+| ID   | Item                                      | Lane  | Depends    | Status      | Evidence                                                                                                                                                                                                                                    |
+| ---- | ----------------------------------------- | ----- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | done        | 2026-11-11: merged `ergo/p2.1`; #45 folded in, sensitive-modifier fix, `nodesOf`, memoized `pinned`, one declaration form. `trials/vendor-risk` stays on the old API as a historical record. Owner may close #45 once the session PR exists |
+| P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | pending     | D7 answered 2026-11-11; conflicts unchanged after `9f4e703`                                                                                                                                                                                 |
+| P2.3 | Typed decode of entity facts              | B     | P2.1       | pending     |                                                                                                                                                                                                                                             |
+| P2.4 | Temporal verbs                            | B     | P2.1       | active      | 2026-11-11: `ergo/p2.4`                                                                                                                                                                                                                     |
+| P2.5 | Client RFC: the `Database` service        | B     | P2.3, P2.4 | pending     |                                                                                                                                                                                                                                             |
+| P2.6 | Client implementation                     | B     | P2.5       | needs-owner |                                                                                                                                                                                                                                             |
+| P2.7 | Re-run the trial against the phase 2 gate | C     | P2.6       | pending     |                                                                                                                                                                                                                                             |
 
 - **P2.1** Rebase `conductor/entity-write-helpers` on `main` and bring it to a reviewable state.
   It adds `EntityType.assert`, `Type.where` and `Type.not`, `GraphConstraint.pinned`, and concise
@@ -400,19 +400,23 @@ Update this section last in every session.
 
 - **Last updated:** 2026-11-11, D1, D7 and D8 answered; #48 merged; #46 closed.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
-  - P2.1: block `block:01a1cc24-1af0-7710-b7d0-d839d9b18554`
-  - P1.1: block `block:01a1cc24-5bd4-7dea-a249-d125805adeee`
+  - P2.4: block `block:01a1cc2e-c170-76f9-8244-e6aa5f9bf09d`
+  - P1.2a: block `block:01a1cc2d-8687-73dc-b1f3-1dba46ab7d61`
   - P3.1: block `block:01a1cc2a-5d4b-7e53-b07f-ffab0f46ff42`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.1,p1.1,p3.1}` on
-  `ergo/p2.1`, `ergo/p1.1` and `ergo/p3.1`, all from `ergonomics/next` at `d4f636a`.
-- **Next action:** start P2.1 (#45 rebase, lane B), P0.1 (lane C) and P1.1 (lane A) in parallel.
-  Then P3.1 in lane B. Run P2.2 (#52) alone, when no other subagent is active.
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.4,p1.2a,p3.1}` on
+  `ergo/p2.4`, `ergo/p1.2a` and `ergo/p3.1`.
+- **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
+  the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
+  `pnpm check` passed on `ergonomics/next` after P2.1 merged; `pnpm test:postgres:integration`,
+  `pnpm test:e2e` (screenshots) and `pnpm pack:check` are still to run before the session PR.
 - **Known blockers:** D2 holds P1.3.
 
 ## Progress log
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P1.1 and P2.1 merged. Started P1.2a (core error diagnostics) and P2.4 (temporal
+  verbs).
 - 2026-11-11: P0.1 and P0.2 merged into `ergonomics/next`. P2.1 stopped at undeclared caller
   paths; scope widened and it resumed.
 - 2026-11-11: owner set greenfield and one PR per session. Created `ergonomics/next`, started
