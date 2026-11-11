@@ -287,15 +287,15 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 2: one front door
 
-| ID   | Item                                      | Lane  | Depends    | Status      | Evidence                                                                                                                                                                                                                                    |
-| ---- | ----------------------------------------- | ----- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | done        | 2026-11-11: merged `ergo/p2.1`; #45 folded in, sensitive-modifier fix, `nodesOf`, memoized `pinned`, one declaration form. `trials/vendor-risk` stays on the old API as a historical record. Owner may close #45 once the session PR exists |
-| P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | active      | 2026-11-11: `ergo/p2.2`, running alone; D7 answered                                                                                                                                                                                         |
-| P2.3 | Typed decode of entity facts              | B     | P2.1       | done        | 2026-11-11: core half merged (`ergo/p2.3`): `Type.decode`, literal requiredness in `Use<D, C, R>`, sealed markers, `withFacts` metadata. Core 813/813, integration 209/209. Switching HTTP `encodeEntity` to it is a follow-up              |
-| P2.4 | Temporal verbs                            | B     | P2.1       | done        | 2026-11-11: merged `ergo/p2.4`; `Change.end/replace/correct/combine`, typed `Type.end/replace/correct`, sealed re-assertion only from a same-transaction retracted fact. Core 805/805, integration 208/208                                  |
-| P2.5 | Client RFC: the `Database` service        | B     | P2.3, P2.4 | done        | 2026-11-11: merged `ergo/p2.5`; `docs/rfcs/database-client.md` (`@triplex-build/triplex/database`, startup compatibility check, admission-time pin, receipt on retry). P2.6 waits on D3                                                     |
-| P2.6 | Client implementation                     | B     | P2.5       | needs-owner | Waits on D3                                                                                                                                                                                                                                 |
-| P2.7 | Re-run the trial against the phase 2 gate | C     | P2.6       | pending     |                                                                                                                                                                                                                                             |
+| ID   | Item                                      | Lane  | Depends    | Status      | Evidence                                                                                                                                                                                                                                                   |
+| ---- | ----------------------------------------- | ----- | ---------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | done        | 2026-11-11: merged `ergo/p2.1`; #45 folded in, sensitive-modifier fix, `nodesOf`, memoized `pinned`, one declaration form. `trials/vendor-risk` stays on the old API as a historical record. Owner may close #45 once the session PR exists                |
+| P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | done        | 2026-11-11: merged `ergo/p2.2`; #52 folded in, validators see entries in before/after views (D7). Orchestrator renamed the code to `transaction.commit-rejected` with allowlisted findings. Postgres 46/46. Owner may close #52 once the session PR exists |
+| P2.3 | Typed decode of entity facts              | B     | P2.1       | done        | 2026-11-11: core half merged (`ergo/p2.3`): `Type.decode`, literal requiredness in `Use<D, C, R>`, sealed markers, `withFacts` metadata. Core 813/813, integration 209/209. Switching HTTP `encodeEntity` to it is a follow-up                             |
+| P2.4 | Temporal verbs                            | B     | P2.1       | done        | 2026-11-11: merged `ergo/p2.4`; `Change.end/replace/correct/combine`, typed `Type.end/replace/correct`, sealed re-assertion only from a same-transaction retracted fact. Core 805/805, integration 208/208                                                 |
+| P2.5 | Client RFC: the `Database` service        | B     | P2.3, P2.4 | done        | 2026-11-11: merged `ergo/p2.5`; `docs/rfcs/database-client.md` (`@triplex-build/triplex/database`, startup compatibility check, admission-time pin, receipt on retry). P2.6 waits on D3                                                                    |
+| P2.6 | Client implementation                     | B     | P2.5       | needs-owner | Waits on D3                                                                                                                                                                                                                                                |
+| P2.7 | Re-run the trial against the phase 2 gate | C     | P2.6       | pending     |                                                                                                                                                                                                                                                            |
 
 - **P2.1** Rebase `conductor/entity-write-helpers` on `main` and bring it to a reviewable state.
   It adds `EntityType.assert`, `Type.where` and `Type.not`, `GraphConstraint.pinned`, and concise
@@ -403,25 +403,25 @@ work. Record a request for any of these in the decision queue instead of startin
 
 Update this section last in every session.
 
-- **Last updated:** 2026-11-11, D1, D7 and D8 answered; #48 merged; #46 closed.
-- **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
-  - P2.2 (alone): block `block:01a1cc4f-dc61-7bc3-80e5-4c72678ed9da`
-- **Open worktrees and branches from this plan:** `../triplex-wt/p2.2` on `ergo/p2.2`.
-- **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
-  the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
-  `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
-  `ergonomics/next` after P2.1 merged. `pnpm pack:check` passed (11 tarballs, clean
-  consumer). `pnpm test:e2e`: 9 passed, 4 screenshot failures (dashboard overview, temporal
-  controls, docs home light and dark), the same four that fail on untouched `main` on macOS
-  (`test/evidence/tx8.md`). Do not regenerate baselines on macOS; let the PR's Linux `docs-e2e`
-  job decide whether P2.1's homepage change needs new baselines. Start OrbStack (`orbctl start`) first: with Docker down the
-  Postgres suite skips 41 of 45 tests and still exits 0.
-- **Known blockers:** D2 holds P1.3.
+- **Last updated:** 2026-11-11, session 1 complete; session PR opened from `ergonomics/next`.
+- **Running subagents:** none.
+- **Open worktrees and branches from this plan:** none; all item branches are merged and deleted.
+- **Next action:** after the owner merges the session PR, start session 2 from `main`. Eligible
+  without owner input: switch HTTP `encodeEntity` to `Type.decode` (P2.3 follow-up), derive the
+  CLI command name from the command tree instead of a flag list, P1.4 (pinned-without-enforce
+  docs) and P1.5 (rerun the trial harness against the phase 1 gate). Implementation of P2.6, P3.2,
+  P1.3 and P4.4 waits on D3, D9, D2 with D10, and D11.
+  Final checks on `32320a1`: `pnpm check` passed (27 typecheck, 26 test, 14 build tasks, docs build),
+  `pnpm test:postgres:integration` 46/46, `pnpm pack:check` 11 tarballs and a clean consumer.
+  `pnpm test:e2e`: 9 passed, the 4 known macOS screenshot failures (`test/evidence/tx8.md`).
+- **Known blockers:** owner decisions D2, D3, D9, D10 and D11.
 
 ## Progress log
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P2.2 (#52) merged; CLI process tests switched to the built CLI (59 s and 85 s
+  down to 6 s and 9 s). All checks pass; session PR opened.
 - 2026-11-11: full `pnpm check` passed on `ergonomics/next` at `c669cf1` (25 test tasks, 14 builds,
   docs build). It first failed on two dead links in `docs/rfcs/datalog-time.md`; agents now also run
   `pnpm docs:build`.
