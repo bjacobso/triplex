@@ -268,7 +268,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P1.4  | Loud pin-without-enforce                                                                                            | B     | P2.1            | pending     |                                                                                                                                                                                                                                                                                                           |
 | P1.5  | Re-run the trial against the phase 1 gate                                                                           | C     | P0.2, P1.1–P1.4 | done        | 2026-11-11: `trials/runs/vendor-risk-2026-11-11/` (METRICS.md): first run 11/15, green on run 2, about 5 min, 0 silent traps observed. Gate NOT demonstrated: the author never used the schema path, so unknown-attribute and enforcement protections went unexercised. Different model from the baseline |
 | P1.6  | Unify `CommitValidation.View.query` with `Triples.query` result shapes                                              | A     | P1.5            | done        | 2026-11-11: merged `ergo/p1.6`; `CommitValidation.View.query` returns `QueryResponse` like `queryAll`. Core 837, SQLite 19, integration 227 tests pass                                                                                                                                                    |
-| P1.7  | Backend layers expose only `Triples` (internals behind a separate layer)                                            | alone | P1.5            | pending     | Trial finding 2                                                                                                                                                                                                                                                                                           |
+| P1.7  | Backend layers expose only `Triples` (internals behind a separate layer)                                            | alone | P1.5            | active      | 2026-11-11: `ergo/p1.7` on `ergonomics/next-2` (stacked on #81)                                                                                                                                                                                                                                           |
 | P1.8  | Make the schema path the one newcomers find: lead `docs/agents.md` and getting-started with `Database` (after P2.6) | C     | P2.6            | done        | 2026-11-11: merged `ergo/p1.8`; agents and getting-started guides lead with the client (checked client snippets); `database.md` first in `llms.txt`. Orchestrator fixed `llms.txt` advertising `effect@4.0.0-rc.112` (pre-existing)                                                                       |
 | P1.9  | Second cold trial (certification expiry) after the docs lead with the client                                        | C     | P1.8            | done        | 2026-11-11: `trials/runs/certification-expiry-2026-11-11/`: 17/17 first run, type-clean on run 2, about 6 min. Author read README, derivations and Datalog pages only, never `agents.md` or `database.md`, and again used raw `Triples`. See D12                                                          |
 | P1.10 | README "Start here" leads with the client and modeling guide                                                        | C     | D12             | needs-owner |                                                                                                                                                                                                                                                                                                           |
@@ -431,7 +431,8 @@ work. Record a request for any of these in the decision queue instead of startin
 Update this section last in every session.
 
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
-- **Running subagents:** none.
+- **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
+  - P1.7: block `block:01a1ccf8-d81f-7639-aece-32c9265f331e`
 - **Open worktrees and branches from this plan:** none. #81 (`ergonomics/next`) is complete and
   awaiting the owner; further work goes on `ergonomics/next-2`, stacked on it.
 - **Next action:** P1.7 alone on `ergonomics/next-2`, then P2.6c alone. Open their PR after #81
@@ -443,6 +444,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: started P1.7 on `ergonomics/next-2`, the branch for the next PR.
 - 2026-11-11: P4.4c and P3.5 merged; full check (29/27/15), Postgres 60/60 and pack check pass at
   `6102049`. #81 closed to new work. D5 answered (MCP stays private).
 - 2026-11-11: P3.2 merged (`why`, `assertion(id)`); full check (29/27/15), Postgres 50/50 and pack
