@@ -167,12 +167,12 @@ Depends column allows.
 
 ### Phase 0: groundwork
 
-| ID   | Item                                     | Lane | Depends | Status  | Evidence                                                               |
-| ---- | ---------------------------------------- | ---- | ------- | ------- | ---------------------------------------------------------------------- |
-| P0.1 | Record the three-backend policy          | C    |         | pending |                                                                        |
-| P0.2 | Cold-author trial harness                | C    |         | pending |                                                                        |
-| P0.3 | Triage open PRs #45, #48 and #52         | —    |         | done    | 2026-11-11; see PR triage below                                        |
-| P0.4 | Land ConfigStore targeted reads (PR #48) | B    | P0.3    | done    | 2026-11-11: merged by the owner as `9f4e703`; #46 closed as superseded |
+| ID   | Item                                     | Lane | Depends | Status | Evidence                                                                                        |
+| ---- | ---------------------------------------- | ---- | ------- | ------ | ----------------------------------------------------------------------------------------------- |
+| P0.1 | Record the three-backend policy          | C    |         | active | 2026-11-11: `ergo/p0.1-p0.2`; `GOAL.md` rule 4 updated by the orchestrator on `ergonomics/next` |
+| P0.2 | Cold-author trial harness                | C    |         | active | 2026-11-11: `ergo/p0.1-p0.2`                                                                    |
+| P0.3 | Triage open PRs #45, #48 and #52         | —    |         | done   | 2026-11-11; see PR triage below                                                                 |
+| P0.4 | Land ConfigStore targeted reads (PR #48) | B    | P0.3    | done   | 2026-11-11: merged by the owner as `9f4e703`; #46 closed as superseded                          |
 
 - **P0.1** Update `GOAL.md` execution rule 4, `docs/roadmap.md`, `CONTRIBUTING.md` and
   `docs/current-state.md` to state the backend decision above. Documentation only. Accept when
@@ -244,13 +244,13 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 1: make wrong things loud
 
-| ID   | Item                                       | Lane | Depends         | Status      | Evidence |
-| ---- | ------------------------------------------ | ---- | --------------- | ----------- | -------- |
-| P1.1 | Reject unknown attributes in bound queries | A    |                 | pending     |          |
-| P1.2 | Stable error codes with a suggested fix    | A, C |                 | pending     |          |
-| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner |          |
-| P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending     |          |
-| P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending     |          |
+| ID   | Item                                       | Lane | Depends         | Status      | Evidence                |
+| ---- | ------------------------------------------ | ---- | --------------- | ----------- | ----------------------- |
+| P1.1 | Reject unknown attributes in bound queries | A    |                 | active      | 2026-11-11: `ergo/p1.1` |
+| P1.2 | Stable error codes with a suggested fix    | A, C |                 | pending     |                         |
+| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner |                         |
+| P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending     |                         |
+| P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending     |                         |
 
 - **P1.1** A query checked against a config release must fail before execution when it names an
   attribute the release does not define. Today it returns `[]`. Add an opt-in check that takes
@@ -280,7 +280,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 | ID   | Item                                      | Lane  | Depends    | Status      | Evidence                                                    |
 | ---- | ----------------------------------------- | ----- | ---------- | ----------- | ----------------------------------------------------------- |
-| P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | pending     | D1 answered 2026-11-11; conflicts unchanged after `9f4e703` |
+| P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | active      | 2026-11-11: `ergo/p2.1`; D1 answered                        |
 | P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | pending     | D7 answered 2026-11-11; conflicts unchanged after `9f4e703` |
 | P2.3 | Typed decode of entity facts              | B     | P2.1       | pending     |                                                             |
 | P2.4 | Temporal verbs                            | B     | P2.1       | pending     |                                                             |
@@ -392,8 +392,12 @@ work. Record a request for any of these in the decision queue instead of startin
 Update this section last in every session.
 
 - **Last updated:** 2026-11-11, D1, D7 and D8 answered; #48 merged; #46 closed.
-- **Running subagents:** none.
-- **Open worktrees and branches from this plan:** none.
+- **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
+  - P2.1: block `block:01a1cc24-1af0-7710-b7d0-d839d9b18554`
+  - P1.1: block `block:01a1cc24-5bd4-7dea-a249-d125805adeee`
+  - P0.1 and P0.2: block `block:01a1cc24-5c00-7d8c-81d3-9e701c93cbcc`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.1,p1.1,p0.1-p0.2}` on
+  `ergo/p2.1`, `ergo/p1.1` and `ergo/p0.1-p0.2`, all from `ergonomics/next` at `d4f636a`.
 - **Next action:** start P2.1 (#45 rebase, lane B), P0.1 (lane C) and P1.1 (lane A) in parallel.
   Then P3.1 in lane B. Run P2.2 (#52) alone, when no other subagent is active.
 - **Known blockers:** D2 holds P1.3.
@@ -402,6 +406,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: owner set greenfield and one PR per session. Created `ergonomics/next`, started
+  Codex agents for P2.1, P1.1, and P0.1 with P0.2. Updated `GOAL.md` rule 4.
 - 2026-11-11: owner answered D1, D7 and D8 (all as recommended) and merged #48 as `9f4e703`. #46
   closed as superseded. #45 and #52 conflict lists unchanged against the new `main`.
 - 2026-11-11: P0.3 triage. #48 merges cleanly; #45 and #52 conflict. Found a sensitive-modifier

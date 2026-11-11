@@ -85,10 +85,12 @@ required and none may be edited.
 3. Write the failing regression test before each behavioral change. For unconfirmed
    claims, first produce a confirming or refuting test/benchmark. If refuted, record
    the evidence and skip the unnecessary implementation; continue the goal.
-4. Cover every adapter implementing an affected interface, including shared SQL,
-   SQLite, Postgres, Cloudflare, and KV/FoundationDB where applicable. Document
-   exclusions and actual test coverage; experimental status does not excuse a
-   broken shared contract. Keep core browser-safe and use public package exports.
+4. Cover the in-memory KV, SQLite, and Postgres adapters (and shared SQL) for
+   any affected interface. Since 2026-11-11 Cloudflare and FoundationDB are frozen:
+   they must keep compiling and their existing tests must keep passing, but new
+   surface does not have to cover them (see `PLAN.md`, "Owner decisions").
+   Document exclusions and actual test coverage. Keep core browser-safe and use
+   public package exports.
 5. Preserve existing public behavior unless a requirement explicitly changes it.
    Add a Changeset for each publishable package change, excluding private packages
    from frontmatter. Call out breaking changes and migration requirements.
