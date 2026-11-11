@@ -395,7 +395,8 @@ Design, partially built:
 
 Built: per-subject keys, key destruction in the test provider, typed `key-destroyed` opening and
 the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure fact. Both need a
-new optional `StorageAdapter` maintenance method on every backend.
+new optional `StorageAdapter` maintenance method on the in-memory KV, SQLite and PostgreSQL
+backends; Cloudflare and FoundationDB are frozen and need not implement it.
 
 ## Key rotation
 
