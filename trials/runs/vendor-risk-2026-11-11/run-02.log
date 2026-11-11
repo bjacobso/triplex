@@ -1,0 +1,29 @@
+
+ RUN  v5.0.4 /Users/benjacobson/Development/personal/triplex-trials/vendor-risk-2026-11-11
+
+(node:96321) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q1/Q2/Q3: review work, invalid active vendors, and exceptions within 30 days 19ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q1/Q3/Q5: half-open expiry boundaries, calendar months, and no-write expiry 9ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q3: 30-day horizon includes day 30, excludes day 31 and already expired 2ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q4: past state and asserting actor, then later recorded correction 5ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q5: runtime guards reject unauthorized/missing-reason/overlong exceptions and roll back 5ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q5: direct signature/activation rejected; complete same-command review accepted; DPA still required with exception 5ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q5: raw backend bypass permits direct activation and invalid exceptions; queries detect violations 2ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q2/Q5: expiry without writes reopens active-review work; expired evidence cannot authorize new activation 2ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q1/Q2/Q3: review work, invalid active vendors, and exceptions within 30 days 16ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q1/Q3/Q5: half-open expiry boundaries, calendar months, and no-write expiry 9ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q3: 30-day horizon includes day 30, excludes day 31 and already expired 4ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q4: past state and asserting actor, then later recorded correction 5ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q5: runtime guards reject unauthorized/missing-reason/overlong exceptions and roll back 8ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q5: direct signature/activation rejected; complete same-command review accepted; DPA still required with exception 7ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q5: raw backend bypass permits direct activation and invalid exceptions; queries detect violations 4ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q2/Q5: expiry without writes reopens active-review work; expired evidence cannot authorize new activation 5ms
+ ✓ test/vendor-risk.test.ts > BRIEF Q6: identical portable Q1–Q3 answers on KV and SQLite 12ms
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  13:42:08
+   Duration  525ms (import 50%, tests 27%, transform 22%, worker 1%)
+
+0

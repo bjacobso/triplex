@@ -1,0 +1,75 @@
+
+ RUN  v5.0.4 /Users/benjacobson/Development/personal/triplex-trials/vendor-risk-2026-11-11
+
+(node:91924) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q1/Q2/Q3: review work, invalid active vendors, and exceptions within 30 days 25ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q1/Q3/Q5: half-open expiry boundaries, calendar months, and no-write expiry 11ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q3: 30-day horizon includes day 30, excludes day 31 and already expired 2ms
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q4: past state and asserting actor, then later recorded correction 12ms
+ × test/vendor-risk.test.ts > KV > BRIEF Q5: runtime guards reject unauthorized/missing-reason/overlong exceptions and roll back 5ms
+   → Cannot read properties of undefined (reading 'map')
+ × test/vendor-risk.test.ts > KV > BRIEF Q5: direct signature/activation rejected; complete same-command review accepted; DPA still required with exception 2ms
+   → Cannot read properties of undefined (reading 'map')
+ ✓ test/vendor-risk.test.ts > KV > BRIEF Q5: raw backend bypass permits direct activation and invalid exceptions; queries detect violations 2ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q1/Q2/Q3: review work, invalid active vendors, and exceptions within 30 days 38ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q1/Q3/Q5: half-open expiry boundaries, calendar months, and no-write expiry 34ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q3: 30-day horizon includes day 30, excludes day 31 and already expired 5ms
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q4: past state and asserting actor, then later recorded correction 7ms
+ × test/vendor-risk.test.ts > SQLite > BRIEF Q5: runtime guards reject unauthorized/missing-reason/overlong exceptions and roll back 4ms
+   → Cannot read properties of undefined (reading 'map')
+ × test/vendor-risk.test.ts > SQLite > BRIEF Q5: direct signature/activation rejected; complete same-command review accepted; DPA still required with exception 8ms
+   → Cannot read properties of undefined (reading 'map')
+ ✓ test/vendor-risk.test.ts > SQLite > BRIEF Q5: raw backend bypass permits direct activation and invalid exceptions; queries detect violations 11ms
+ ✓ test/vendor-risk.test.ts > BRIEF Q6: identical portable Q1–Q3 answers on KV and SQLite 15ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/vendor-risk.test.ts > KV > BRIEF Q5: runtime guards reject unauthorized/missing-reason/overlong exceptions and roll back
+ FAIL  test/vendor-risk.test.ts > KV > BRIEF Q5: direct signature/activation rejected; complete same-command review accepted; DPA still required with exception
+ FAIL  test/vendor-risk.test.ts > SQLite > BRIEF Q5: runtime guards reject unauthorized/missing-reason/overlong exceptions and roll back
+TypeError: Cannot read properties of undefined (reading 'map')
+ ❯ src/model.ts:75:53
+     73|   }
+     74|   const provenance = yield* c.after.query(actorQuery, { validAt: c.tra…
+     75|   const actors: Actors = new Map(provenance.results.map(r => [String(r…
+       |                                                     ^
+     76|   // Check every affected entity at changed interval starts and now. N…
+     77|   // the command is an observation/scheduling concern, not a transacti…
+ ❯ IteratorImpl.~effect/Effect/successCont ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:1482:28
+ ❯ FiberImpl.succeedWith ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:757:30
+ ❯ ContImpl.mapCont [as ~effect/Effect/successCont] ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:1587:16
+ ❯ ExitPrimitive.~effect/Effect/evaluate ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/core.ts:587:30
+ ❯ FiberImpl.runLoop ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:700:41
+ ❯ FiberImpl.evaluate ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:635:23
+ ❯ ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:5755:9
+ ❯ ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:5833:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/vendor-risk.test.ts > SQLite > BRIEF Q5: direct signature/activation rejected; complete same-command review accepted; DPA still required with exception
+TypeError: Cannot read properties of undefined (reading 'map')
+ ❯ src/model.ts:75:53
+     73|   }
+     74|   const provenance = yield* c.after.query(actorQuery, { validAt: c.tra…
+     75|   const actors: Actors = new Map(provenance.results.map(r => [String(r…
+       |                                                     ^
+     76|   // Check every affected entity at changed interval starts and now. N…
+     77|   // the command is an observation/scheduling concern, not a transacti…
+ ❯ IteratorImpl.~effect/Effect/successCont ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:1482:28
+ ❯ FiberImpl.succeedWith ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:757:30
+ ❯ ContImpl.mapCont [as ~effect/Effect/successCont] ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:1587:16
+ ❯ ExitPrimitive.~effect/Effect/evaluate ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/core.ts:587:30
+ ❯ FiberImpl.runLoop ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:700:41
+ ❯ FiberImpl.evaluate ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:635:23
+ ❯ FiberImpl.evaluate ../../triplex-wt/trial-base/node_modules/.pnpm/effect@4.1.1/node_modules/effect/src/internal/effect.ts:624:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 11 passed (15)
+   Start at  13:40:58
+   Duration  2.45s (transform 76%, import 16%, tests 8%)
+
+1
