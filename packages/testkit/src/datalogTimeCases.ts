@@ -684,8 +684,8 @@ export const datalogTimeConformanceCases: readonly ConformanceCase[] = [
             name: "time:view",
             validate: (context) =>
               Effect.gen(function* () {
-                beforeCount = (yield* context.before.query(all)).length;
-                afterCount = (yield* context.after.query(all)).length;
+                beforeCount = (yield* context.before.query(all)).results.length;
+                afterCount = (yield* context.after.query(all)).results.length;
                 const invalid = yield* Effect.result(context.before.query(all, { validAt: M }));
                 rejected =
                   invalid._tag === "Failure" && invalid.failure instanceof DatalogValidationError;
