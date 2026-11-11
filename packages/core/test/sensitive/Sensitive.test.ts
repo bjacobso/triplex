@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit, Layer, Option, Stream } from "effect";
 
 import { EntityId } from "../../src/Branded.js";
+import * as Change from "../../src/Change.js";
+import type { TransactOp } from "../../src/Triple.js";
 import * as Attribute from "../../src/config/Attribute.js";
 import * as EntityType from "../../src/config/EntityType.js";
 import * as GraphConstraint from "../../src/config/GraphConstraint.js";
@@ -161,6 +163,106 @@ const plaintextForms = (plaintext: string): readonly string[] => [
   Buffer.from(JSON.stringify(plaintext)).toString("base64url"),
   Buffer.from(plaintext).toString("base64url"),
 ];
+
+describe("sealed temporal changes", () => {
+  for (const verb of ["end", "replace"] as const) {
+    it(`${verb} keeps the sealed past and stores no plaintext`, async () => {
+      const backend = makeTestKvBackend();
+      const replacement = "628-44-9182";
+      await run(
+        Effect.gen(function* () {
+          const triples = yield* Triples;
+          const fact = yield* triples.assert({
+            entityId: id("ee:temporal"),
+            entityType: "Employee",
+            attribute: Ssn.key,
+            value: { type: "string", value: PLANTED },
+            validFrom: 10,
+            validTo: 40,
+          });
+          const change =
+            verb === "end"
+              ? Change.end(fact, 20)
+              : Change.replace(fact, { type: "string", value: replacement }, 20);
+          yield* triples.transact(change.ops, change);
+          for (const validAt of [10, 19, 20, 39, 40]) {
+            const facts = yield* triples.match({ entityId: fact.entityId }, { validAt });
+            const opened = yield* Sensitive.open(facts);
+            expect(opened.map((f) => f.value)).toEqual(
+              validAt === 40 || (verb === "end" && validAt >= 20)
+                ? []
+                : [{ type: "string", value: validAt < 20 ? PLANTED : replacement }],
+            );
+            if (validAt < 20) expect(facts[0]?.value).toEqual(fact.value);
+            expect(facts.every((f) => f.value.type === "sealed")).toBe(true);
+          }
+        }),
+        backend,
+      );
+      const raw = await Effect.runPromise(allKvBytes(backend));
+      for (const value of [PLANTED, replacement]) {
+        for (const form of plaintextForms(value)) expect(raw).not.toContain(form);
+      }
+    });
+  }
+
+  it("rejects sealed inputs unless an explicit matching retraction proves their origin", async () => {
+    await run(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const fact = yield* triples.assert({
+          entityId: id("ee:reuse"),
+          attribute: Ssn.key,
+          value: { type: "string", value: PLANTED },
+          validFrom: 10,
+        });
+        const different = yield* triples.assert({
+          entityId: fact.entityId,
+          attribute: Ssn.key,
+          value: { type: "string", value: "different" },
+          validFrom: 10,
+        });
+        if (fact.value.type !== "sealed") throw new Error("expected sealed fact");
+        const assert = {
+          op: "assert",
+          entityId: fact.entityId,
+          attribute: fact.attribute,
+          value: fact.value,
+          validFrom: 10,
+        } as const;
+        const retract = { op: "retract", id: fact.id } as const;
+        const cases: ReadonlyArray<ReadonlyArray<TransactOp>> = [
+          [assert], // Even an exact stored value needs a same-transaction explicit retraction.
+          [{ op: "retract", id: different.id }, assert],
+          [retract, { ...assert, attribute: BirthDate.key }],
+          [retract, { ...assert, entityId: id("ee:other") }],
+          [{ op: "retract-pattern", pattern: { entityId: fact.entityId } }, assert],
+          ...[
+            { ciphertext: fact.value.ciphertext + "x" },
+            { keyId: fact.value.keyId + "x" },
+            { valueType: "number" as const },
+            { blind: (fact.value.blind ?? "") + "x" },
+            { blind: undefined },
+          ].map(
+            (patch) =>
+              [
+                retract,
+                { ...assert, value: { ...(fact.value as SealedValue), ...patch } },
+              ] as ReadonlyArray<TransactOp>,
+          ),
+        ];
+        for (const operations of cases) {
+          const error = yield* triples.transact(operations).pipe(Effect.flip);
+          expect(error).toMatchObject({
+            _tag: "WriteError",
+            cause: { _tag: "SensitiveValueError", reason: "sealed-input" },
+          });
+          expect((yield* triples.get(fact.id))?.retractedAt).toEqual(Option.none());
+        }
+      }),
+    );
+  });
+});
 
 describe("sensitive attribute marking", () => {
   it("is part of the attribute's content identity without moving existing IDs", async () => {

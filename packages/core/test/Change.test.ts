@@ -253,7 +253,7 @@ describe("Change", () => {
     );
   });
 
-  it.effect("documents the existing sensitive-layer blocker for reasserting sealed pasts", () => {
+  it.effect("ends and replaces sealed pasts through the sensitive layer", () => {
     const Secret = EntityType.make("Secret", {
       status: Attribute.sensitive(Attribute.text(":secret/status")),
     });
@@ -263,16 +263,18 @@ describe("Change", () => {
         Secret.assert(vendor, { status: "secret" }, { validFrom: 10 }),
       );
       const fact = result.triples[0]!;
-      for (const change of [Secret.end(fact, 20), Secret.replace(fact, { status: "new" }, 20)]) {
-        const error = yield* triples.transact(change.ops, change).pipe(Effect.flip);
-        expect(error).toMatchObject({
-          _tag: "WriteError",
-          cause: { _tag: "SensitiveValueError", reason: "sealed-input" },
-        });
-      }
-      expect(
-        (yield* triples.match({ entityId: vendor }, { validAt: 25 })).map((f) => f.id),
-      ).toEqual([fact.id]);
+      const replaced = Secret.replace(fact, { status: "new" }, 20);
+      yield* triples.transact(replaced.ops, replaced);
+      const past = yield* triples.match({ entityId: vendor }, { validAt: 19 });
+      expect(past[0]?.value).toEqual(fact.value);
+      const [current] = yield* triples.match({ entityId: vendor }, { validAt: 20 });
+      const ended = Secret.end(current!, 30);
+      yield* triples.transact(ended.ops, ended);
+      const beforeEnd = yield* Sensitive.open(
+        yield* triples.match({ entityId: vendor }, { validAt: 29 }),
+      );
+      expect(beforeEnd.map((f) => f.value)).toEqual([string("new")]);
+      expect(yield* triples.match({ entityId: vendor }, { validAt: 30 })).toEqual([]);
     }).pipe(
       Effect.provide(
         Sensitive.layer({ database: "change-test", attributes: [Secret] }).pipe(

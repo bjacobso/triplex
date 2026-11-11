@@ -120,7 +120,7 @@ Follow these rules for every write:
    `Vendor.replace(fact, { status: "active" }, T)` to preserve the past and replace from `T`.
    Use `Change.end(fact, T)` when there is no replacement, and `Change.combine` to collect changes
    to several facts. Always pass the generated preconditions to the same transaction. See
-   [ending a fact at a time](/concepts#end-a-fact-at-a-time), including the current sealed-value limitation.
+   [ending a fact at a time](/concepts#end-a-fact-at-a-time).
 9. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
    and then writes, pass `{ _tag: "EntityState", entityId, tripleIds }` with the live fact IDs you
    read. Another writer's change in between fails the command with `TransactionConflictError`. See

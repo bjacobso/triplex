@@ -310,7 +310,7 @@ export const makeSensitivity = (options: {
 // Triples decorator
 // =============================================================================
 
-const asWriteError = (cause: SensitiveQueryError | SensitiveValueError) =>
+const asWriteError = (cause: SensitiveQueryError | SensitiveValueError | ReadError) =>
   new WriteError({ message: cause.message, cause });
 
 const asReadError = (cause: SensitiveQueryError) =>
@@ -323,37 +323,64 @@ const asReadError = (cause: SensitiveQueryError) =>
  */
 /**
  * Seal sensitive values in a transaction's operations and check enforced
- * rules. Pure with respect to storage: the inner store sees only sealed values.
+ * rules. Existing ciphertext may be reused only from an explicitly retracted
+ * fact read through the inner store, on the same entity and attribute.
  */
 const prepareOperations = (
   sensitivity: SensitivityService,
   operations: readonly TransactOp[],
-): Effect.Effect<readonly TransactOp[], SensitiveValueError | SensitiveQueryError> =>
-  Effect.forEach(
-    operations,
-    (op): Effect.Effect<TransactOp, SensitiveValueError | SensitiveQueryError> => {
-      switch (op.op) {
-        case "assert":
-          return sensitivity
-            .sealValue(op.entityId, op.attribute, op.value)
-            .pipe(Effect.map((value) => ({ ...op, value })));
-        case "retract":
-        case "append-entry":
-        case "acknowledge-entry":
-          return Effect.succeed(op);
-        case "retract-pattern":
-          return sensitivity.preparePattern(op.pattern as Pattern).pipe(
-            Effect.map((pattern) => ({
-              ...op,
-              pattern: {
-                ...op.pattern,
-                ...(pattern.value === undefined ? {} : { value: pattern.value as TripleValue }),
-              },
-            })),
-          );
-      }
-    },
-  );
+  inner: TriplesService,
+): Effect.Effect<readonly TransactOp[], SensitiveValueError | SensitiveQueryError | ReadError> =>
+  Effect.gen(function* () {
+    const retracted = operations.some((op) => op.op === "assert" && op.value.type === "sealed")
+      ? yield* Effect.forEach(
+          [...new Set(operations.flatMap((op) => (op.op === "retract" ? [op.id] : [])))],
+          (id) => inner.get(id),
+        )
+      : [];
+    return yield* Effect.forEach(
+      operations,
+      (op): Effect.Effect<TransactOp, SensitiveValueError | SensitiveQueryError> => {
+        switch (op.op) {
+          case "assert": {
+            const value = op.value;
+            if (
+              value.type === "sealed" &&
+              retracted.some(
+                (fact) =>
+                  fact !== null &&
+                  fact.entityId === op.entityId &&
+                  fact.attribute === op.attribute &&
+                  fact.value.type === "sealed" &&
+                  fact.value.valueType === value.valueType &&
+                  fact.value.keyId === value.keyId &&
+                  fact.value.ciphertext === value.ciphertext &&
+                  fact.value.blind === value.blind,
+              )
+            )
+              return Effect.succeed(op);
+            return sensitivity
+              .sealValue(op.entityId, op.attribute, op.value)
+              .pipe(Effect.map((value) => ({ ...op, value })));
+          }
+          case "retract":
+          case "append-entry":
+          case "acknowledge-entry":
+            return Effect.succeed(op);
+          case "retract-pattern":
+            return sensitivity.preparePattern(op.pattern as Pattern).pipe(
+              Effect.map((pattern) => ({
+                ...op,
+                pattern: {
+                  ...op.pattern,
+                  ...(pattern.value === undefined ? {} : { value: pattern.value as TripleValue }),
+                },
+              })),
+            );
+        }
+      },
+    );
+  });
 
 const decorate = (inner: TriplesService, sensitivity: SensitivityService): TriplesService => {
   const transact: TriplesService["transact"] = (operations, meta) =>
@@ -373,7 +400,7 @@ const decorate = (inner: TriplesService, sensitivity: SensitivityService): Tripl
           );
         }
       }
-      const prepared = yield* prepareOperations(sensitivity, operations).pipe(
+      const prepared = yield* prepareOperations(sensitivity, operations, inner).pipe(
         Effect.mapError(asWriteError),
       );
       const preconditions = yield* Effect.forEach(meta?.preconditions ?? [], (condition) =>

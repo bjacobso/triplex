@@ -146,10 +146,9 @@ and `Vendor.correct(fact, { status: "active" })`. These check the fact's entity 
 and encode exactly one alias through its attribute definition. For cardinality-many attributes,
 the alias takes one value because the change targets one fact.
 
-The builders never open sensitive values. `correct` takes plaintext, which `Sensitive.layer`
-seals on write. `end` preserves the original sealed value in its generated assertion, but the
-current sensitive decorator rejects sealed input, so submitting `end` or `replace` for a sealed
-fact through `Sensitive.layer` requires further decorator support.
+The builders never open sensitive values. `end` and `replace` preserve the old sealed value for
+the past; `Sensitive.layer` verifies it against the explicitly retracted fact before reusing it.
+`replace` and `correct` take plaintext replacements, which the layer seals on write as usual.
 
 Operations are `{ op: "assert", entityId, attribute, value, entityType?, validFrom?, validTo? }`,
 `{ op: "retract", id }` for one assertion by its `TripleId`, and
