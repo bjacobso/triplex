@@ -490,6 +490,14 @@ describe("history-preserving interval indexes", () => {
       reloaded.scanCollectDatalog(pattern, { recordedPosition: 1 })?.map((d) => d.tripleId),
     ).toEqual([datoms[500]!.tripleId]);
     expect(reloaded.scanCollectDatalog(pattern, { recordedPosition: 2 })).toEqual([]);
+    for (const position of [1, 2]) {
+      const fallback = reloaded
+        .scanCollectDatalog({ attribute: pattern.attribute }, { recordedPosition: position })!
+        .filter((datom) => datom.validTo !== null && datom.validTo >= 1500 && datom.validTo < 1501);
+      expect(reloaded.scanCollectDatalog(pattern, { recordedPosition: position })).toEqual(
+        fallback,
+      );
+    }
     const startPattern = {
       attribute: ":employee/name",
       intervalRange: {
