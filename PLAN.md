@@ -346,7 +346,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P3.1 | `why` RFC                                                     | B     |            | done    | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run                                                                                                                                                                                                                 |
 | P3.0 | `Triples.resolveRecordedBasis` and `dependencyStateAll` reads | alone | D9, D11    | done    | 2026-11-11: merged (`dc402c7`): KV timestamp trie and covering projections, SQL migration 9, Cloudflare returns typed unsupported errors. Orchestrator resolved an import conflict with P4.4a-fix                                                                                                                        |
 | P3.2 | `why` implementation                                          | B     | P3.1       | active  | 2026-11-11: `ergo/p3.2` from `dc402c7`                                                                                                                                                                                                                                                                                   |
-| P3.3 | Preview a command on an overlay                               | B     | P2.6       | active  | 2026-11-11: `ergo/p3.3`; `db.preview` in the client                                                                                                                                                                                                                                                                      |
+| P3.3 | Preview a command on an overlay                               | B     | P2.6       | done    | 2026-11-11: merged; `db.preview` returns ops, changes, violations (same `Constraint` functions as `transact`), derivation candidates and existing receipts; never calls `transact`. Client 22, integration 9 tests pass                                                                                                  |
 | P3.4 | Describe from the live release                                | C     |            | done    | 2026-11-11: merged `ergo/p3.4`; `describe` returns the release schema, constraints, rules and examples verified by `transaction apply`. Suite timeout raised (flaky at 5 s); rule 5 now cites `Change.replace`                                                                                                           |
 | P3.5 | CLI commands for `why` and preview                            | C     | P3.2, P3.3 | pending |                                                                                                                                                                                                                                                                                                                          |
 | P3.6 | MCP server package                                            | C     | P3.4, P3.5 | done    | 2026-11-11: first cut merged (`ergo/p3.6`): private `@triplex-build/triplex-mcp`, `triplex-mcp` stdio bin, 14 tools over the CLI `execute`, diagnostics on failure, sealed redaction. Orchestrator added the lockfile entry and smoke-tested `initialize` and `tools/list`. `why` and preview tools follow P3.2 and P3.3 |
@@ -433,8 +433,7 @@ Update this section last in every session.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P3.2: block `block:01a1ccc9-2256-7562-bf7e-9503184e00dd`
   - P4.4b: block `block:01a1ccc9-2287-7616-b230-8c90a72e5a3d`
-  - P3.3: block `block:01a1ccce-ac34-7213-9f8d-edd71a77ca9d`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p3.2,p4.4b,p3.3}`. #80 merged
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p3.2,p4.4b}`. #80 merged
   (squash `3b6c09e`); the open session PR is #81 from `ergonomics/next`.
 - **Next action:** review Wave C (P3.2, P4.4b, P2.6b); then P1.7 alone; then add `why` and
   preview tools to the MCP server (P3.5/P3.6 follow-up). Push to #81 after each green full check.
@@ -444,6 +443,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P3.3 merged (`db.preview`).
 - 2026-11-11: P2.6b merged; added P2.6c. Started P3.3 (`db.preview`) (indexed live facts for `tx.get`).
 - 2026-11-11: P3.0 merged; full check (29/27/15) and Postgres 48/48 pass on `dc402c7`. Pushed to #81.
   Started Wave C: P3.2 (`why`), P4.4b (live queries), P2.6b (client on
