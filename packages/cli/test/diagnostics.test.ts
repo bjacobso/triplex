@@ -103,6 +103,13 @@ it("reports actionable diagnostics and exits nonzero over a SQLite file", () => 
     expect(JSON.parse(missing.stderr)).toMatchObject({
       error: { code: "cli.input-read", fix: expect.any(String) },
     });
+    const beforeSubcommand = invoke(["query", "run", "--limit", "bad"]);
+    expect(beforeSubcommand.status).not.toBe(0);
+    // invoke places --sqlite <path> before query run.
+    expect(JSON.parse(beforeSubcommand.stderr)).toMatchObject({
+      command: "query.run",
+      error: { code: "cli.arguments" },
+    });
     const badArgs = invoke(["entity", "list", "--limit", "bad"]);
     expect(badArgs.status).not.toBe(0);
     expect(JSON.parse(badArgs.stderr)).toMatchObject({
