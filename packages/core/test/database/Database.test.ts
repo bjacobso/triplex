@@ -30,6 +30,48 @@ const publish = Effect.gen(function* () {
 });
 
 describe("Database compilation", () => {
+  it("tx.get loads two live assertions rather than 1,000 retracted assertions", async () => {
+    await run(
+      Effect.gen(function* () {
+        yield* publish;
+        const triples = yield* Triples;
+        const input = {
+          entityId: id,
+          entityType: "Person",
+          attribute: ":person/name",
+          value: { type: "string" as const, value: "Ada" },
+        };
+        const history = yield* triples.assertBatch(Array.from({ length: 1000 }, () => input));
+        yield* triples.transact(history.map((f) => ({ op: "retract" as const, id: f.id })));
+        const live = yield* triples.assertBatch([
+          { ...input, validFrom: 0, validTo: 1 },
+          { ...input, validFrom: Date.now() + 1000000 },
+        ]);
+        const historySpy = vi.spyOn(triples, "history");
+        const liveSpy = vi.spyOn(triples, "liveFacts");
+        const transactSpy = vi.spyOn(triples, "transact");
+        yield* Effect.gen(function* () {
+          const db = yield* Database.Database;
+          yield* db.command({ actor: "reader", commandId: "read-history" }, (tx) =>
+            Effect.gen(function* () {
+              expect(yield* tx.get(Person, id, { validAt: 2 })).toBeNull();
+            }),
+          );
+        }).pipe(Effect.provide(client));
+        expect(historySpy).not.toHaveBeenCalled();
+        expect(liveSpy).toHaveBeenCalledExactlyOnceWith(id);
+        expect(yield* liveSpy.mock.results[0]!.value).toHaveLength(2);
+        expect(transactSpy.mock.calls[0]?.[1]?.preconditions).toEqual([
+          {
+            _tag: "EntityState",
+            entityId: id,
+            tripleIds: expect.arrayContaining(live.map((f) => f.id)),
+          },
+        ]);
+      }),
+    );
+  });
+
   it("checks the local reference-target closure even when only the referring type is supplied", async () => {
     const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
     const Placement = EntityType.make("Placement", {
@@ -136,6 +178,7 @@ describe("Database compilation", () => {
           const facts = history.filter((f) => f.attribute === Person.tags.key);
           const name = history.find((f) => f.attribute === Person.name.key)!;
           const historySpy = vi.spyOn(triples, "history");
+          const liveFactsSpy = vi.spyOn(triples, "liveFacts");
           const getSpy = vi.spyOn(triples, "get");
           const assertion = (fact: typeof name) => ({
             op: "assert" as const,
@@ -180,7 +223,8 @@ describe("Database compilation", () => {
               yield* tx.correct(Person, facts[1]!, { tags: "c" });
             }),
           );
-          expect(historySpy).toHaveBeenCalledTimes(1);
+          expect(historySpy).not.toHaveBeenCalled();
+          expect(liveFactsSpy).toHaveBeenCalledExactlyOnceWith(id);
           expect(getSpy).toHaveBeenCalledWith(name.id);
           expect(transact.mock.calls[1]).toStrictEqual([
             edits.flatMap((e) => e.ops),

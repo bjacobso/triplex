@@ -931,6 +931,9 @@ const makeKvTriplesService = Effect.gen(function* () {
         ),
       ),
 
+    liveFacts: (entityId) =>
+      hexaStore.liveFacts(entityId).pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
+
     history: (entityId: EntityId) =>
       Effect.gen(function* () {
         const datoms = yield* Stream.runCollect(hexaStore.entityHistory(entityId));

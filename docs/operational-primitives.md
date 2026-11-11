@@ -52,16 +52,15 @@ assertion, retraction, or replacement by another writer since your read) fails t
 transaction with `TransactionConflictError`; nothing commits. Unlike `TripleLive`, it needs no
 matching `retract` operation, so it also guards an "assert only when nothing changed" write.
 
-Observe the set from `history(entityId)`, which includes every valid time, keeping the facts whose
-`retractedAt` is `None`. `entity(entityId)` applies a valid-time basis and would omit future or
+Observe the set from `liveFacts(entityId)`, an indexed read of unretracted assertions across every
+valid time at the current recorded cut. Its cost follows live state rather than retained history.
+`entity(entityId)` applies a valid-time basis and would omit future or
 expired facts, so its IDs can differ from the set the precondition compares.
 
 ```ts
 const activate = Effect.gen(function* () {
   const triples = yield* Triples;
-  const observed = (yield* triples.history(vendor)).filter((fact) =>
-    Option.isNone(fact.retractedAt),
-  );
+  const observed = yield* triples.liveFacts(vendor);
   // Decide from `observed` (and any Datalog check) whether the command is allowed, then:
   yield* triples.transact(operations, {
     actor,

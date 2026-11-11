@@ -264,6 +264,8 @@ export interface TriplesService {
   readonly get: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
   /** Fetch the retained assertion by ID, including retraction metadata. */
   readonly assertion: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
+  /** Indexed unretracted assertions across all valid time at the current recorded cut. */
+  readonly liveFacts: (entityId: EntityId) => Effect.Effect<readonly Triple[], ReadError>;
   /** Fetch all live triples for an entity. */
   readonly entity: (
     entityId: EntityId,

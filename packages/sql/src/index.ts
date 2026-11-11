@@ -55,6 +55,6 @@ export { DatabaseManagerLive } from "./DatabaseManagerLayer.js";
 
 export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";
 
-export { makeSqlLivePreconditionLookup } from "./LivePreconditions.js";
+export { makeSqlLivePreconditionLookup, makeSqlLiveFactsLookup } from "./LivePreconditions.js";
 
 export { makeSqlTransactionPrefixLookup } from "./TransactionFeed.js";

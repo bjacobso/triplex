@@ -560,9 +560,7 @@ export const layer = (
                   yield* instant(validAt, "command.get.validAt");
                   let facts = observed.get(id);
                   if (!facts) {
-                    facts = (yield* triples.history(id)).filter((f) =>
-                      Option.isNone(f.retractedAt),
-                    );
+                    facts = yield* triples.liveFacts(id);
                     observed.set(id, facts);
                     add(
                       [],

@@ -102,8 +102,9 @@ The builder becomes invalid when the callback ends. Failed callbacks submit noth
 all successful builds submit exactly one `Triples.transact`.
 
 There is no read-your-writes overlay. `tx.get` and `tx.fact` read persisted facts,
-even after queued writes. `tx.get` observes each entity history once, retaining all
-unretracted fact IDs, including past and future intervals; different `validAt`
+even after queued writes. `tx.get` observes each entity once through the indexed
+`Triples.liveFacts` read, loading only unretracted facts, including past and future intervals;
+different `validAt`
 reads filter that observation. Its default time is the command-start Effect Clock.
 A `tx.fact` read alone adds no guard; consuming it in a retracting verb adds
 `TripleLive`. There are no builder Datalog or list methods; use

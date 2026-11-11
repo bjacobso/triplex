@@ -230,6 +230,7 @@ describe("public runtime composition", () => {
           recordedPositionAt: unused,
           claimCommand: unused,
           livePreconditionFacts: unused,
+          liveFacts: unused,
           transactionIdsForEntityPrefix: unused,
           getOperationalEntry: unused,
           pendingOperationalEntries: unused,
