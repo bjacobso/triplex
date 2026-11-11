@@ -3501,3 +3501,6 @@ export function runtimeConformance(
 export * from "./sensitive.js";
 
 export { recordedReadsConformance } from "./recordedReadsCases.js";
+export { whyConformance, whyTestLayer } from "./whyCases.js";
+export { assertionConformance } from "./assertionCases.js";
+export { whyReadBoundaryConformance } from "./whyReadBoundaryCases.js";

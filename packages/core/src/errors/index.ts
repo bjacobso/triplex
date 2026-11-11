@@ -312,3 +312,25 @@ export type TripleStoreError =
   | DatalogErrorUnion
   | ValidationError
   | MigrationError;
+
+/** Invalid explanation input; never includes definitions or fact values. */
+export class WhyInvalidRequest extends Data.TaggedError("WhyInvalidRequest")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}
+export class WhySubjectNotFound extends Data.TaggedError("WhySubjectNotFound")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}
+export class WhyCandidateRevisionMismatch extends Data.TaggedError("WhyCandidateRevisionMismatch")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}
+export class WhyIncompleteHistory extends Data.TaggedError("WhyIncompleteHistory")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}

@@ -39,6 +39,19 @@ const defaults = {
     "constraint.violation",
     "Correct the violated constraints and ensure all of an entity's facts share one valid-time interval.",
   ],
+  WhyInvalidRequest: [
+    "why.invalid-request",
+    "Supply a valid basis and causation depth from 0 to 32.",
+  ],
+  WhySubjectNotFound: ["why.subject-not-found", "Check the subject ID and recorded basis."],
+  WhyCandidateRevisionMismatch: [
+    "why.candidate-revision-mismatch",
+    "Replay the exact candidate revision and basis.",
+  ],
+  WhyIncompleteHistory: [
+    "why.incomplete-history",
+    "Inspect missing or inconsistent journal attribution.",
+  ],
   ReadError: ["read.failed", "Check the read input and storage availability."],
   EntityNotFoundError: ["entity.not-found", "Check the entity ID and temporal basis."],
   TripleNotFoundError: ["triple.not-found", "Reload the entity and use a current fact ID."],
