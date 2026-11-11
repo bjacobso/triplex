@@ -324,15 +324,15 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 3: why, and the agent door
 
-| ID   | Item                               | Lane | Depends    | Status  | Evidence |
-| ---- | ---------------------------------- | ---- | ---------- | ------- | -------- |
-| P3.1 | `why` RFC                          | B    |            | pending |          |
-| P3.2 | `why` implementation               | B    | P3.1       | pending |          |
-| P3.3 | Preview a command on an overlay    | B    | P2.6       | pending |          |
-| P3.4 | Describe from the live release     | C    |            | pending |          |
-| P3.5 | CLI commands for `why` and preview | C    | P3.2, P3.3 | pending |          |
-| P3.6 | MCP server package                 | C    | P3.4, P3.5 | pending |          |
-| P3.7 | Run the phase 3 gate               | C    | P3.6       | pending |          |
+| ID   | Item                               | Lane | Depends    | Status  | Evidence                |
+| ---- | ---------------------------------- | ---- | ---------- | ------- | ----------------------- |
+| P3.1 | `why` RFC                          | B    |            | active  | 2026-11-11: `ergo/p3.1` |
+| P3.2 | `why` implementation               | B    | P3.1       | pending |                         |
+| P3.3 | Preview a command on an overlay    | B    | P2.6       | pending |                         |
+| P3.4 | Describe from the live release     | C    |            | pending |                         |
+| P3.5 | CLI commands for `why` and preview | C    | P3.2, P3.3 | pending |                         |
+| P3.6 | MCP server package                 | C    | P3.4, P3.5 | pending |                         |
+| P3.7 | Run the phase 3 gate               | C    | P3.6       | pending |                         |
 
 - **P3.1** RFC only, and it can start in parallel with phase 1. Define one result shape that
   explains a fact, an entity's current state, or a derivation candidate: the asserting
@@ -402,9 +402,9 @@ Update this section last in every session.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P2.1: block `block:01a1cc24-1af0-7710-b7d0-d839d9b18554`
   - P1.1: block `block:01a1cc24-5bd4-7dea-a249-d125805adeee`
-  - P0.1 and P0.2: finished; pane `block:01a1cc24-5c00-7d8c-81d3-9e701c93cbcc` free
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.1,p1.1,p0.1-p0.2}` on
-  `ergo/p2.1`, `ergo/p1.1` and `ergo/p0.1-p0.2`, all from `ergonomics/next` at `d4f636a`.
+  - P3.1: block `block:01a1cc2a-5d4b-7e53-b07f-ffab0f46ff42`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.1,p1.1,p3.1}` on
+  `ergo/p2.1`, `ergo/p1.1` and `ergo/p3.1`, all from `ergonomics/next` at `d4f636a`.
 - **Next action:** start P2.1 (#45 rebase, lane B), P0.1 (lane C) and P1.1 (lane A) in parallel.
   Then P3.1 in lane B. Run P2.2 (#52) alone, when no other subagent is active.
 - **Known blockers:** D2 holds P1.3.
