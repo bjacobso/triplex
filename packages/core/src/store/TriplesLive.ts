@@ -1,3 +1,4 @@
+import { resolveRecordedBasis } from "./recordedBasis.js";
 import { assertQueryBasis, queryBasisForView, resolveQueryBasis } from "../datalog/temporal.js";
 /**
  * TriplesLive — the canonical `Triples` implementation over `StorageAdapter`
@@ -905,6 +906,12 @@ export const TriplesLive = Layer.effect(
       transactions,
       transactionsForEntity: entityTransactions,
       currentPosition: adapter.currentCommitPosition,
+      resolveRecordedBasis: (basis) =>
+        resolveRecordedBasis(adapter.currentCommitPosition, adapter.recordedPositionAt, now, basis),
+      dependencyStateAll: (basis) =>
+        Effect.gen(function* () {
+          return yield* adapter.dependencyStateAll(resolveTemporalBasis(basis, yield* now));
+        }),
       dependencyState: (attributes, basis) =>
         Effect.gen(function* () {
           const resolved = resolveTemporalBasis(basis, yield* now);

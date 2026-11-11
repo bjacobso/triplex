@@ -226,6 +226,8 @@ describe("public runtime composition", () => {
           nextCommitPosition: unused,
           currentCommitPosition: unused,
           dependencyState: unused,
+          dependencyStateAll: unused,
+          recordedPositionAt: unused,
           claimCommand: unused,
           livePreconditionFacts: unused,
           transactionIdsForEntityPrefix: unused,

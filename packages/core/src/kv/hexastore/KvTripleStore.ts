@@ -1,3 +1,4 @@
+import { readIndexEntries, READ_INDEX_READY } from "./readIndexes.js";
 import type { QueryTemporalBasis } from "../../datalog/temporal.js";
 /**
  * Hexastore triple store implementation on ordered KV storage.
@@ -534,6 +535,28 @@ export class KvTripleStore {
 
   constructor(private readonly kv: KvBackendService) {}
 
+  /** One-time backfill for stores created before the public indexed reads. */
+  initializeReadIndexes(): Effect.Effect<void, ReadError> {
+    return Effect.gen({ self: this }, function* () {
+      if ((yield* this.kv.get(READ_INDEX_READY)) !== null) return;
+      yield* this.kv.transact((tx) =>
+        Effect.gen(function* () {
+          const rows = yield* Stream.runCollect(
+            tx.getRange({ start: META_PREFIX, end: increment(META_PREFIX) }),
+          );
+          for (const [, bytes] of rows)
+            for (const [key, value] of readIndexEntries(deserializeDatom(bytes)))
+              yield* tx.set(key, value);
+          yield* tx.set(READ_INDEX_READY, new Uint8Array([1]));
+        }),
+      );
+    }).pipe(
+      Effect.mapError(
+        (cause) => new ReadError({ message: "Failed to initialize KV read indexes", cause }),
+      ),
+    );
+  }
+
   /** Prefix-only candidate scan; retain a bounded earliest-position set, never hydrate unrelated journals. */
   transactionIdsForEntityPrefix(
     prefix: string,
@@ -661,6 +684,7 @@ export class KvTripleStore {
         tripleIdValue,
       ]);
     entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
+    entries.push(...readIndexEntries(datom));
 
     // TYPE index for entityType queries
     if (datom.entityType !== null) {
@@ -717,6 +741,7 @@ export class KvTripleStore {
           tripleIdValue,
         ]);
       entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
+      entries.push(...readIndexEntries(datom));
 
       if (datom.entityType !== null) {
         entries.push([typeKey(datom.entityType, datom.tripleId), tripleIdValue]);
@@ -774,6 +799,7 @@ export class KvTripleStore {
           tripleIdValue,
         ];
       entries[idx++] = [metaKeyStr(tripleIdStr), serializeDatom(datom)];
+      for (const [key, value] of readIndexEntries(datom)) entries[idx++] = [keyString(key), value];
 
       if (datom.entityType !== null) {
         const etStr = encodeStringStr(datom.entityType);
@@ -818,6 +844,7 @@ export class KvTripleStore {
       };
 
       yield* this.kv.set(key, serializeDatom(updated));
+      for (const [key, value] of readIndexEntries(updated)) yield* this.kv.set(key, value);
       yield* this.kv.delete(liveFactKey(datom.entity, datom.attribute, datom.tripleId));
       // Update cache
       this.datomCache.set(tripleId, updated);

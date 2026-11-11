@@ -8,6 +8,7 @@
   },
   "include": [
     "test/integration/staged-publication.test.ts",
-    "test/integration/invariant-scopes.test.ts"
+    "test/integration/invariant-scopes.test.ts",
+    "test/integration/recorded-reads.test.ts"
   ]
 }
