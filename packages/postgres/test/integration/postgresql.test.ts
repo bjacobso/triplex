@@ -12,6 +12,7 @@
  */
 
 import { numericIndexPlan } from "../../../../test/fixtures/numeric-index.js";
+import { positionIndexPlan } from "../../../../test/fixtures/position-index.js";
 import { describe, it, expect } from "vitest";
 import { Context, Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
@@ -64,6 +65,7 @@ import {
 
 // Skip all container-based tests if Docker is not available
 const DOCKER_AVAILABLE = checkDockerAvailable();
+const EXPECTED_SCHEMA_VERSION = Math.max(...migrations.map(({ version }) => version));
 
 const configFromUrl = (url: string): PostgresqlConfig => {
   const parsed = new URL(url);
@@ -105,6 +107,13 @@ const prepareHostTables = Effect.gen(function* () {
 
 describe("PostgreSQL Integration", () => {
   it.skipIf(!DOCKER_AVAILABLE)(
+    "uses an entity-position index for a selective historical cut",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(positionIndexPlan("postgres"));
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
     "rejects absent and newer migration histories and preserves unrelated SQL errors",
     { timeout: 120_000 },
     async () => {
@@ -126,7 +135,7 @@ describe("PostgreSQL Integration", () => {
                       yield* sql.unsafe(`SET LOCAL search_path TO ${schema}, public, pg_catalog`);
                       if (mode === "newer") {
                         yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER)`;
-                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (4)`;
+                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (${EXPECTED_SCHEMA_VERSION + 1})`;
                       } else if (mode === "malformed") {
                         yield* sql`CREATE TABLE triplex_schema_migrations (wrong_column INTEGER)`;
                       }
@@ -142,8 +151,8 @@ describe("PostgreSQL Integration", () => {
                       }
                       expect(error).toMatchObject({
                         _tag: "SchemaVersionError",
-                        expectedVersion: 3,
-                        actualVersion: mode === "missing" ? 0 : 4,
+                        expectedVersion: EXPECTED_SCHEMA_VERSION,
+                        actualVersion: mode === "missing" ? 0 : EXPECTED_SCHEMA_VERSION + 1,
                       });
                       yield* sql.unsafe(`DROP SCHEMA ${schema} CASCADE`);
                     }),
@@ -272,7 +281,7 @@ describe("PostgreSQL Integration", () => {
                   expect(applicationRan).toBe(false);
                   expect(error).toMatchObject({
                     _tag: "SchemaVersionError",
-                    expectedVersion: 3,
+                    expectedVersion: EXPECTED_SCHEMA_VERSION,
                     actualVersion: 2,
                   });
                   expect(String(error)).toContain("runMigrations");
@@ -314,7 +323,7 @@ describe("PostgreSQL Integration", () => {
               yield* runMigrations;
               expect(
                 yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`,
-              ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+              ).toEqual(migrations.map(({ version }) => ({ version })));
               expect(yield* sql`SELECT value_number FROM triples`).toEqual([{ value_number: 42 }]);
               // v3 admits sealed values with an envelope and a blind-index token.
               yield* sql`INSERT INTO triples (id, entity_id, attribute, value_type, value_sealed, value_blind, recorded_at, recorded_position, valid_from) VALUES ('sealed', 'old', ':secret', 'sealed', '{}', 'token', 2, 2, 2)`;

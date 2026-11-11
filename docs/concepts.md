@@ -155,9 +155,12 @@ The same `validAt` date can produce a different answer as knowledge changes:
 | recorded Mar 2, valid Feb 15  | No                   | The corrected interval ended on Feb 1.       |
 | recorded Mar 2, valid Jan 15  | Yes                  | The corrected assertion still covers Jan 15. |
 
-Public reads accept one `{ recordedAt?, validAt? }` basis for the complete read, including every
+Public reads accept one `{ recordedAt?, recordedPosition?, validAt? }` basis for the complete read, including every
 clause of a Datalog query. Times are non-negative epoch milliseconds and interval ends are
-exclusive. If `recordedAt` is omitted, Triplex uses the latest recorded state; if `validAt` is
+exclusive. Supply either `recordedAt` or `recordedPosition`; giving both is rejected.
+A position is a non-negative safe integer, with zero selecting the empty cut.
+Position cuts distinguish commits even when their recorded timestamps are identical.
+If both recorded fields are omitted, Triplex uses the latest recorded state; if `validAt` is
 omitted, it uses the runtime's current time. Setting only one axis does not freeze the other.
 
 Recorded time is the commit clock. The Triplex transaction boundary assigns it, and there is no

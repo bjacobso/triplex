@@ -2682,6 +2682,102 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
     }),
   },
   {
+    name: "commit-position cuts replay a generated transaction history on every read surface",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      // Deterministic generated histories: failures reproduce by seed and cut.
+      // Assert, retract, replace, future-effective, and expired facts are mixed.
+      for (const seed of [1, 7, 19, 42, 2026, 65537]) {
+        let state = seed;
+        const random = (max: number) => {
+          state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+          return state % max;
+        };
+        const ids = [eid(`conf:position:${seed}:a`), eid(`conf:position:${seed}:b`)];
+        const live: Array<{ id: Parameters<typeof t.retract>[0]; entityId: (typeof ids)[number] }> =
+          [];
+        const query = {
+          find: ["?value"],
+          where: [[ids[0]!, ":conf/position-value", "?value"]],
+        } as const;
+        const joined = {
+          find: ["?left", "?right"],
+          where: [
+            [ids[0]!, ":conf/position-value", "?left"],
+            [ids[1]!, ":conf/position-value", "?right"],
+            ["not", [ids[0]!, ":conf/position-blocked", "?right"]],
+          ],
+        } as const;
+        const read = (recordedPosition?: number) =>
+          Effect.gen(function* () {
+            const basis = {
+              validAt: 50,
+              ...(recordedPosition === undefined ? {} : { recordedPosition }),
+            };
+            const entity = yield* t.entity(ids[0]!, basis);
+            const entities = yield* t.entities(ids, basis);
+            const matched = yield* t.match({ entityId: ids[0]! }, basis);
+            const all = yield* t.queryAll(query, { basis });
+            const bounded = yield* t.query(query, { basis });
+            const page = yield* t.queryPage({ inner: query, limit: 100 }, { basis });
+            const entityPage = yield* t.entityPage({ entityType: `Position${seed}`, basis });
+            const factIds = (facts: typeof entity) => facts.map((f) => JSON.stringify(f)).sort();
+            const rows = (results: typeof all.results) =>
+              results.map((row) => JSON.stringify(row)).sort();
+            return {
+              entity: factIds(entity),
+              entities: entities.map(factIds),
+              match: factIds(matched),
+              queryAll: rows(all.results),
+              query: rows(bounded.results),
+              page: rows(page.results),
+              joinAndNegation: rows((yield* t.queryAll(joined, { basis })).results),
+              entityPage: entityPage.entities.flatMap(factIds).sort(),
+            };
+          });
+        const cuts: Array<{ position: number; view: Effect.Success<ReturnType<typeof read>> }> = [];
+        // Capture position zero as well as every transaction's current state.
+        const empty = yield* read(0);
+        yield* check(
+          empty.entity.length === 0 && empty.queryAll.length === 0,
+          `seed ${seed}: cut zero must be empty`,
+        );
+        for (let step = 0; step < 12; step++) {
+          const target = ids[random(2)]!;
+          const previous = live.length === 0 ? undefined : live[random(live.length)];
+          const mode = random(3);
+          const operations: Parameters<typeof t.transact>[0][number][] = [];
+          if (previous && mode !== 0) {
+            operations.push({ op: "retract", id: previous.id });
+            live.splice(live.indexOf(previous), 1);
+          }
+          if (!previous || mode !== 1) {
+            const validFrom = random(3) === 0 ? 80 : 0;
+            operations.push({
+              op: "assert",
+              entityId: target,
+              entityType: `Position${seed}`,
+              attribute: ":conf/position-value",
+              value: string(`${seed}:${step}`),
+              validFrom,
+              ...(random(4) === 0 ? { validTo: validFrom + 40 } : {}),
+            });
+          }
+          const result = yield* t.transact(operations);
+          for (const fact of result.triples) live.push({ id: fact.id, entityId: fact.entityId });
+          cuts.push({ position: result.position, view: yield* read() });
+        }
+        for (const cut of cuts) {
+          const replayed = yield* read(cut.position);
+          yield* check(
+            JSON.stringify(replayed) === JSON.stringify(cut.view),
+            `seed ${seed}: position ${cut.position} must replay the captured fact/value cut on every read surface`,
+          );
+        }
+      }
+    }),
+  },
+  {
     name: "historical corrections preserve what was previously recorded",
     run: Effect.gen(function* () {
       const t = yield* Triples;

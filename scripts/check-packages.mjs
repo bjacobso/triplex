@@ -213,6 +213,8 @@ const tripleId = TripleId.make("00000000000000000000000000");
 const transactionEntity: EntityId = transactionId;
 declare const triplesService: TriplesService;
 const timeline = triplesService.transactionsForEntity(triple.entityId, { limit: 20 });
+const historicalEntity = triplesService.entity(triple.entityId, { recordedPosition: 0 });
+const historicalQuery = triplesService.queryAll({ find: ["?value"], where: [[triple.entityId, ":person/name", "?value"]] }, { basis: { recordedPosition: 0, validAt: 1 } });
 const ambientPostgres = PgTriples.layerFromSqlClient({ scope: "host/database" });
 const postgresFixture = postgresSchemaLayer({
   url: "postgresql://localhost/test",
@@ -246,6 +248,8 @@ void transactionId;
 void tripleId;
 void transactionEntity;
 void timeline;
+void historicalEntity;
+void historicalQuery;
 void ambientPostgres;
 void postgresFixture;
 void schemaError;

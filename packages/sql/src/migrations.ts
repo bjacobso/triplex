@@ -8,6 +8,7 @@ import {
   SEALED_BLIND_INDEX_DDL,
   SEALED_VALUES_POSTGRES_DDLS,
   SEALED_VALUES_SQLITE_DDLS,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
@@ -62,6 +63,11 @@ export const migrations: readonly Migration[] = [
     name: "triplex_sealed_values",
     dialects: { sqlite: SEALED_VALUES_SQLITE_DDLS, pg: SEALED_VALUES_POSTGRES_DDLS },
     up: [SEALED_BLIND_INDEX_DDL],
+  },
+  {
+    version: 4,
+    name: "triplex_entity_recorded_position_index",
+    up: [ENTITY_RECORDED_POSITION_INDEX_DDL],
   },
 ];
 

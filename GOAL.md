@@ -84,7 +84,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | Order | Item                                   | Status  | PR / issue / evidence                                                                 | Dependency or blocker                  |
 | ----- | -------------------------------------- | ------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
 | 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md) | Browser baseline failures documented   |
-| 2     | TX2: public commit-position reads      | pending | —                                                                                     | —                                      |
+| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md) | Based on TX8 PR #59                    |
 | 3     | TX1.1: contention baseline benchmark   | pending | —                                                                                     | —                                      |
 | 4     | TX1.2: typed retryable SQL conflicts   | pending | —                                                                                     | Baseline recorded                      |
 | 5     | TX1.3: late position allocation        | pending | —                                                                                     | Baseline confirms need; safety proven  |
@@ -262,15 +262,18 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `feat/tx8-schema-guard`. Carry the
+- Canonical ledger: this checkout, currently `feat/tx2-position-reads`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX2 is next; TX8 is open for review.
-- Integration tip / PR stack: `feat/tx8-schema-guard`, based on `main` (`704b578`).
-- Next action: create a TX2 branch based on TX8, then write a failing test.
+- Active item: TX1.1 baseline benchmark is next; TX8 and TX2 are open for review.
+- Integration tip / PR stack: `feat/tx2-position-reads`, based on TX8's
+  `feat/tx8-schema-guard` (`4ed65b1`, PR #59), based on `main` (`704b578`).
+- Next action: create a TX1.1 benchmark branch based on TX2 and measure contention.
 - Decisions needed: none identified yet.
 - External blockers: none. Docker and GitHub authentication are available. Browser
   screenshot baselines fail on untouched main as described in the TX8 report.
+  FoundationDB native coverage is unavailable: `libfdb_c.dylib` is absent; its
+  opt-in suite skips without running tests. Shared KV behavior is tested in memory.
 
 Append dated progress entries below. Update the ledger and handoff before ending
 a session, after each PR/issue, and whenever evidence changes a decision. Resume
@@ -296,3 +299,31 @@ TX8 opened as [PR #59](https://github.com/bjacobso/triplex/pull/59), implementat
 commit `105b37a`. The GitHub connector returned a permission error; authenticated
 `gh pr create --body-file /tmp/triplex-tx8-pr-body.md` succeeded. No merge or release
 was performed. Continue with TX2 on a dependent branch.
+
+### 2026-11-10 — TX2 implementation
+
+Public position reads and page cursors now preserve an exact cut. Requests giving
+both recorded timestamp and position are rejected. Generated histories compare
+complete fact bodies and Datalog results, including joins and negation; a separate
+fixed-clock test distinguishes same-millisecond commits. Position reads hide later
+retraction metadata without changing full audit reads. Position-only page snapshots
+omit their timestamp, and persisted derivations retain the position basis.
+
+Plan evidence justified a composite index: Postgres scanned 20,000 rows for ten
+results before it, versus ten indexed candidates afterward. SQL migration v4 and
+Cloudflare v5 add it. See [the report](test/evidence/tx2.md) and
+[raw plans](test/evidence/tx2-plans.json). Final cumulative checks are in progress.
+
+TX2 final checks pass: `pnpm check` (including 745 core tests and native workerd
+conformance), `pnpm test:postgres:integration` (27 passed), and `pnpm pack:check`
+(11 tarballs and a clean consumer). FoundationDB's native suite was attempted but
+skipped due to its missing client library; no native pass is claimed.
+
+TX2 opened as [PR #60](https://github.com/bjacobso/triplex/pull/60), tested
+implementation `735e05c`, with base branch `feat/tx8-schema-guard`. TX8's GitHub CI
+is green on Node 22 and 24, package-consumer, stress-smoke, docs-e2e, Postgres
+integration, and docs preview. Its local screenshot mismatch is environment-specific.
+
+TX2's initial hosted verification caught a report-only TypeScript fence with
+`yield*` outside a generator, added after the successful local root check. Wrapped
+that fragment in `Effect.gen` and rechecked the Markdown; product code is unchanged.

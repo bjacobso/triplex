@@ -283,6 +283,8 @@ const temporalBoundaryFromJournal = (
     while (true) {
       const page = yield* triples.transactions({ after, limit: 1_000 });
       for (const transaction of page.transactions) {
+        if (basis.recordedPosition !== undefined && transaction.position > basis.recordedPosition)
+          continue;
         if (basis.recordedAt !== undefined && transaction.instant > basis.recordedAt) continue;
         if (!transactionIsRelevant(definition, transaction)) continue;
         for (const change of transaction.changes) {

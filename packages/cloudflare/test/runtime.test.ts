@@ -36,7 +36,12 @@ describe("public Cloudflare runtime", () => {
     expect(await Effect.runPromise(adapter.getByEntity("existing"))).toHaveLength(1);
     expect(
       sql.exec("SELECT version FROM triplex_schema_migrations ORDER BY version").toArray(),
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
+    ).toEqual(migrations.map(({ version }) => ({ version })));
+    expect(
+      sql
+        .exec("SELECT name FROM sqlite_master WHERE name = 'idx_entity_recorded_position'")
+        .toArray(),
+    ).toHaveLength(1);
     expect(
       sql.exec("SELECT name FROM sqlite_master WHERE name = 'idx_attr_blind'").toArray(),
     ).toHaveLength(1);
@@ -59,7 +64,7 @@ describe("public Cloudflare runtime", () => {
     ).toHaveLength(1);
     expect(sql.exec("SELECT * FROM entity_snapshots").toArray()).toEqual([]);
   });
-  it("passes shared conformance through the public builder", async () => {
+  it("passes shared conformance through the public builder", { timeout: 30_000 }, async () => {
     await Effect.runPromise(
       runtimeConformance(makeCloudflareRuntime(makeMockDOState()), {
         scope: DatabaseScope.test("cloudflare-conformance"),
