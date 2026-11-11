@@ -21,6 +21,17 @@ receipts are atomically unique and durable consumer checkpoints are available th
 ambient host-owned `SqlClient` or validated database-scoped pool are also delivered; relational
 host rows, Triplex facts/journal, and outbox writes can share one Effect SQL transaction.
 
+## Backend and API policy
+
+New surface targets in-memory KV, SQLite and PostgreSQL. KV and SQLite are supported;
+PostgreSQL remains a pre-1.0 production candidate. Cloudflare and FoundationDB are frozen,
+experimental backends: they must keep compiling and their existing tests must keep passing,
+but new features do not have to cover them.
+
+Triplex is greenfield before 1.0. Breaking public API changes are allowed when they make the API
+right. Update callers and record each break in a Changeset rather than retaining compatibility
+shims, deprecations or opt-in flags for old shapes.
+
 ## Immediate release gate
 
 - Delivered: a Changesets v3 GitHub workflow maintains the version PR, publishes stable releases,
@@ -39,7 +50,7 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
 
 - [Custom runtime composition](/custom-runtimes) now has public adapter contracts, structured
   scopes, typed capability providers, and a public-only Cloudflare implementation. Before stable
-  adoption, validate each adapter's migrations, durability, isolation, and capability behavior;
+  adoption of a target backend, validate its migrations, durability, isolation, and capability behavior;
   the shared Triples conformance suite alone does not establish those guarantees.
 
 - The conformance corpus now runs identical typed projections, scalar joins, predicates, negation,
@@ -74,8 +85,8 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
   binary and identity-only. Same-named definitions union, repeated variables unify, and unsupported
   recursion fails during typed preflight.
 - Keep PostgreSQL labelled as a pre-1.0 production candidate while its now-required CI corpus gains
-  operational history. Keep FoundationDB and Cloudflare private and experimental until each passes
-  the shared conformance and differential suites.
+  operational history. Keep FoundationDB and Cloudflare private, experimental and frozen, preserving compilation
+  and existing tests without requiring new surface coverage.
 
 ## 1. Schema-Aware Constraints & Enforcement
 
@@ -91,8 +102,11 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
 - Delivered: indexed constraint candidate loading by source entity type and referenced target type,
   with batched subject expansion instead of a full live-fact scan.
 - Graph constraints remain separate from value-local `TypeExpr` definitions.
+- Delivered: [commit validators](/commit-validators), the host's in-transaction seam for domain
+  rules over db-before and db-after views, including Datalog. They return typed rejections and can
+  write durable rejection records.
 - Next: explicitly modelled general Datalog invariants. Observation mode remains available for
-  migrations and audit.
+  migrations and audit. Commit validators are the escape hatch until then.
 
 ## 1a. Sensitive values
 
@@ -106,7 +120,7 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
   See [Sensitive values](/sensitive-values).
 - Next: erasure that scrubs an erased subject's blind tokens through a backend maintenance
   operation and records an erasure fact; in-place rewrap under rotated data keys; dual-version
-  blind lookups for blind-key rotation; FoundationDB native coverage; and an explicit host opt-in
+  blind lookups for blind-key rotation; and an explicit host opt-in
   for opening sealed values in `ConfigRuntime` rules.
 
 ## 2. Reactive "Live" Queries (Watch API)
@@ -128,6 +142,9 @@ host rows, Triplex facts/journal, and outbox writes can share one Effect SQL tra
 - Delivered foundation: explicit database scope, branded `DatabaseId`, scope-bound cursors, and
   PostgreSQL schema-per-database isolation. SQLite hosts use one file/layer per database and KV
   callers use an explicitly named scope.
+- Delivered foundation: runtime-wide commit validators let a host enforce write authorization
+  (for example, per-attribute asserter rules) inside the transaction. Triplex deliberately ships no
+  declarative policy grammar.
 - Keep authenticated account-to-database selection and authorization above raw `Triples` until
   there is a complete threat model and a backend-portable query/write policy contract.
 - Do not add an ambient `tenantId` column that silently changes query semantics.

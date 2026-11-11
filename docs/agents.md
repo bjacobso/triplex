@@ -59,7 +59,8 @@ Check these constraints with the people you work for before adopting it:
 - Attribute keys are global keywords of the form `:namespace/name`, matching
   `^:[a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*$`. An attribute owns its identity and value type.
 - An entity type owns how it uses an attribute: `required`, `cardinality` (`"one"` or `"many"`),
-  and `unique`. The same attribute can be required in one type and optional in another.
+  and `unique`. The same attribute can be required in one type and optional in another. Declare a
+  use with `.required()`, `.many()`, or `.unique()`; a bare attribute is optional and single-valued.
 - Model relationships as `Attribute.ref(key, TargetType)`. There are no join tables. Datalog joins
   on shared values.
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
@@ -67,6 +68,7 @@ Check these constraints with the people you work for before adopting it:
   `instant` (epoch milliseconds or a `Date`) for anything you compare or expire. See the
   [value-type table](/configuration#ontology-dsl).
 - Set `entityType` on every assertion so type-level reads and constraints can find the entity.
+  `Type.assert(id, values, options?)` does this for you and types each value by its attribute.
 
 <<< @/snippets/home/site-safety/app.ts#model
 
@@ -98,6 +100,7 @@ Follow these rules for every write:
    triggering command or event for causation.
 4. **Pin `configSnapshot` and pass `enforce` from the same release.** Pinning alone only records
    which rules applied. Constraints are checked only when you also pass them with `enforce`.
+   `GraphConstraint.pinned(release)` returns both from one snapshot.
 5. **Put business time on the assertion.** Use `validFrom` and `validTo` when the dates define when
    the fact holds. Intervals are half-open: `[validFrom, validTo)`. Omitted `validFrom` means the
    commit time.
@@ -108,15 +111,16 @@ Follow these rules for every write:
    references an entity that does not exist yet, and the write fails with
    `ConstraintViolationError`. Read `error.violations`: each entry carries the `validAt` at which
    it fails.
-7. **Correct facts; don't delete them.** Retract the wrong assertion and assert the correct one in
-   the same transaction. For facts that other writers may also change, add a
-   `{ _tag: "TripleLive", id }` precondition so a concurrent change fails with a conflict instead
-   of being lost. Retract operations are `{ op: "retract", id }`, where `id` is the assertion's
-   `TripleId`.
+7. **Correct facts; don't delete them.** Use `Change.correct(fact, value)` or
+   `Vendor.correct(fact, { status: "active" })` for a value that was wrong over its whole interval.
+   Submit `change.ops` and `{ preconditions: change.preconditions }` to the same `transact` call.
+   The generated `TripleLive` guard makes a concurrent change fail with `TransactionConflictError`.
 8. **End a value at a time; don't erase its past.** A retraction removes the assertion from all of
-   valid time. To change a state from time `T` on (prospect to active), retract the open assertion,
-   re-assert the same value with `validTo: T`, and assert the new value from `T`, all in one
-   transaction. See [ending a fact at a time](/concepts#end-a-fact-at-a-time).
+   valid time. Use `Change.replace(fact, string("active"), T)` or
+   `Vendor.replace(fact, { status: "active" }, T)` to preserve the past and replace from `T`.
+   Use `Change.end(fact, T)` when there is no replacement, and `Change.combine` to collect changes
+   to several facts. Always pass the generated preconditions to the same transaction. See
+   [ending a fact at a time](/concepts#end-a-fact-at-a-time).
 9. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
    and then writes, pass `{ _tag: "EntityState", entityId, tripleIds }` with the live fact IDs you
    read. Another writer's change in between fails the command with `TransactionConflictError`. See
@@ -135,6 +139,7 @@ Read more in [Operational primitives](/operational-primitives) and
 
 - Write the obligation as a Datalog query. Positive patterns describe the situation, and a `not`
   clause describes the missing evidence. Every variable in `not` must be bound outside it.
+  `Type.where(entity, { alias: "?var" })` and `Type.not(...)` build those clauses from aliases.
 - Set `identity` to the variables that name one obligation, such as worker and site. Candidate IDs
   are then stable across re-evaluations.
 - Use `Derivation.evaluate` for reads and previews, and
@@ -186,29 +191,33 @@ Triplex facts, the journal, and an outbox row commit together. See
 
 ## Anti-patterns
 
-| Don't                                                               | Do instead                                                         |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`  |
-| Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                       |
-| Retract a fact in one command and assert its replacement in another | Do both in one transaction                                         |
-| Retract an open state to change it from a date on                   | Retract it and re-assert it with `validTo`, in one transaction     |
-| Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                      |
-| Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                 |
-| Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`           |
-| Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                  |
-| Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation     |
-| Call `queryAll` on request paths                                    | Use `query` and follow `nextCursor` (100 rows per page by default) |
-| Encode authorization as Datalog over the same store                 | Authorize in the host before providing `Triples`                   |
+| Don't                                                               | Do instead                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`         |
+| Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                              |
+| Retract a fact in one command and assert its replacement in another | Use `Change.correct` and submit its ops and preconditions together        |
+| Retract an open state to change it from a date on                   | Use `Change.replace`; use `Change.end` to end without replacement         |
+| Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                             |
+| Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                        |
+| Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`                  |
+| Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                         |
+| Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation            |
+| Call `queryAll` on request paths                                    | Use `query` and follow `nextCursor` (100 rows per page by default)        |
+| Encode authorization as Datalog over the same store                 | Authorize in the host before providing `Triples`                          |
+| Check a write rule before `transact`, then write                    | Enforce it in a commit validator, which reads the state that would commit |
 
 ## Inspect with the CLI
 
 The CLI is non-interactive and prints one JSON envelope per command:
-`{ "ok": true, "command": ..., "data": ... }` on success, and `{ "ok": false, "error": ... }` on
-stderr with a nonzero exit on failure. Writes require `meta.actor` and `meta.commandId`.
+`{ "ok": true, "command": ..., "data": ... }` on success, and `{ "ok": false, "command": ..., "error": Diagnostic }` on
+stderr with a nonzero exit on failure. The diagnostic has `code`, `message`, `retryable`,
+and optional `path`, `fix`, and `details`. Branch on `code`; use `fix` to correct the input.
+Only retry a retryable conflict after reloading facts. Add `--debug` to include the original
+`cause` string; see [Error diagnostics](/errors). Writes require `meta.actor` and `meta.commandId`.
 
 ```sh
 npm install --global @triplex-build/triplex-cli
-triplex --sqlite ./app.db describe                  # capability manifest
+triplex --sqlite ./app.db describe                  # capabilities and live release schema
 triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db entity facts worker:maria
 triplex --sqlite ./app.db entity history worker:maria --limit 25
@@ -216,6 +225,13 @@ triplex --sqlite ./app.db query explain --input query.json
 triplex --sqlite ./app.db journal receipt placement:create:maria-harbor
 triplex --sqlite ./app.db config release --ref live
 ```
+
+Start with `describe`: `data.schema` includes the release identity, all entity types and attributes,
+usage constraints and sensitivity, graph constraints, configuration/derivation objects, write rules,
+and one `{ entityType, input }` example per type. Each input pins and enforces the same release.
+Replace its synthetic placeholders with application values, create referenced targets first, and
+submit the input to `transaction apply`. Use `describe --ref preview` to inspect another ref.
+If the ref has no release, `data.schema` is `null` and `data.hint` explains how to publish one.
 
 The unscoped `triplex` package on npm is an unrelated project. See [CLI and dashboard](/tools) for
 the full command set.

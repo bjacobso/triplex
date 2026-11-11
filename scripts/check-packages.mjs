@@ -247,9 +247,7 @@ const query: DatalogQuery = {
 };
 const EmployerName = Attribute.text(":employer/name");
 const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: true }),
-  },
+  name: Attribute.use(EmployerName, { required: true }),
 });
 const nameAssertion = Employer.attributes.name.assertion("Acme");
 const sensitiveLayer = Sensitive.layer({

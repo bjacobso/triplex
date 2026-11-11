@@ -1,11 +1,13 @@
 import {
   CommandAlreadyCommittedError,
+  CommitRejectedError,
+  type Diagnostic,
   ConstraintViolationError,
   SensitiveValueError,
   TransactionConflictError,
   WriteError,
 } from "@triplex-build/triplex";
-import { Cause, Effect, Result } from "effect";
+import { Cause, Effect, Option, Result } from "effect";
 import { Base64Url } from "effect/encoding";
 import type { HttpServerRequest } from "effect/http/HttpServerRequest";
 import { HttpRouter, HttpServerResponse } from "effect/http";
@@ -19,6 +21,8 @@ import {
   type ExposureOptions,
 } from "./ConfigApi.js";
 import {
+  diagnoseHttp,
+  httpDiagnostic,
   CursorConflictError,
   DataShapeConflictError,
   EntityNotFoundHttpError,
@@ -26,7 +30,6 @@ import {
   ReadOnlyVersionError,
   RequestValidationError,
   ScheduledFactsConflictError,
-  SensitiveStorageRequiredError,
   UnauthorizedError,
   VersionNotFoundError,
 } from "./Errors.js";
@@ -53,7 +56,7 @@ const temporalBasis = (url: URL) => {
     const parsed = Number(raw);
     if (!Number.isFinite(parsed) || parsed < 0) {
       throw new RequestValidationError({
-        code: "invalid_request",
+        code: "http.invalid-request",
         path: `$.${name}`,
         message: `${name} must be a non-negative epoch-millisecond instant`,
       });
@@ -71,14 +74,14 @@ const temporalBasis = (url: URL) => {
       recordedPosition! < 0)
   ) {
     throw new RequestValidationError({
-      code: "invalid_request",
+      code: "http.invalid-request",
       path: "$.recordedPosition",
       message: "recordedPosition must be a non-negative safe integer",
     });
   }
   if (recordedAt !== undefined && recordedPosition !== undefined) {
     throw new RequestValidationError({
-      code: "invalid_request",
+      code: "http.invalid-request",
       path: "$.recordedPosition",
       message: "recordedAt and recordedPosition cannot both be supplied",
     });
@@ -98,7 +101,7 @@ const listLimit = (url: URL): number | undefined => {
   const limit = Number(raw);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
     throw new RequestValidationError({
-      code: "invalid_request",
+      code: "http.invalid-request",
       path: "$.limit",
       message: "limit must be an integer between 1 and 200",
     });
@@ -106,51 +109,51 @@ const listLimit = (url: URL): number | undefined => {
   return limit;
 };
 
-const jsonError = (
-  status: number,
-  code: string,
-  message: string,
-  options: { readonly path?: string; readonly allow?: string } = {},
-) =>
+const diagnosticResponse = (status: number, error: Diagnostic, allow?: string) =>
   HttpServerResponse.jsonUnsafe(
-    { code, message, ...(options.path === undefined ? {} : { path: options.path }) },
+    { error },
     {
       status,
-      headers: options.allow === undefined ? undefined : { allow: options.allow },
+      headers: {
+        ...(allow === undefined ? {} : { allow }),
+        ...(error.retryable ? { "retry-after": "0" } : {}),
+      },
     },
   );
 
+const jsonError = (
+  status: number,
+  code: Parameters<typeof httpDiagnostic>[0],
+  message: string,
+  options: { readonly path?: string; readonly allow?: string } = {},
+) => diagnosticResponse(status, httpDiagnostic(code, message, options.path), options.allow);
+
 const mapError = (error: unknown) => {
-  if (error instanceof RequestValidationError)
-    return jsonError(400, error.code, error.message, { path: error.path });
-  if (error instanceof UnauthorizedError) return jsonError(401, error.code, error.message);
-  if (error instanceof ForbiddenError) return jsonError(403, error.code, error.message);
-  if (error instanceof VersionNotFoundError) return jsonError(404, error.code, error.message);
-  if (error instanceof EntityNotFoundHttpError) return jsonError(404, error.code, error.message);
-  if (error instanceof ReadOnlyVersionError)
-    return jsonError(405, error.code, error.message, { allow: error.allow });
-  if (error instanceof DataShapeConflictError)
-    return jsonError(409, error.code, error.message, { path: error.path });
-  if (error instanceof ScheduledFactsConflictError)
-    return jsonError(409, error.code, error.message);
-  if (error instanceof CursorConflictError) return jsonError(409, error.code, error.message);
-  if (error instanceof ConstraintViolationError)
-    return jsonError(
-      409,
-      "constraint_violation",
-      error.message,
-      error.violations[0]?.path === undefined ? {} : { path: error.violations[0].path },
-    );
-  if (error instanceof TransactionConflictError)
-    return jsonError(409, "transaction_conflict", error.message);
-  if (error instanceof CommandAlreadyCommittedError)
-    return jsonError(409, "command_already_committed", error.message);
-  if (error instanceof SensitiveStorageRequiredError)
-    return jsonError(500, error.code, error.message);
-  // The sealing layer rejected a value; its message names the attribute, never the value.
+  let status = 500;
+  if (error instanceof RequestValidationError) status = 400;
+  else if (error instanceof UnauthorizedError) status = 401;
+  else if (error instanceof ForbiddenError) status = 403;
+  else if (error instanceof VersionNotFoundError || error instanceof EntityNotFoundHttpError)
+    status = 404;
+  else if (error instanceof ReadOnlyVersionError) status = 405;
+  else if (
+    error instanceof DataShapeConflictError ||
+    error instanceof ScheduledFactsConflictError ||
+    error instanceof CursorConflictError ||
+    error instanceof CommitRejectedError ||
+    error instanceof ConstraintViolationError ||
+    error instanceof TransactionConflictError ||
+    error instanceof CommandAlreadyCommittedError
+  )
+    status = 409;
+  // The sealing layer's typed failure names the attribute, never the value.
   if (error instanceof WriteError && error.cause instanceof SensitiveValueError)
-    return jsonError(400, "invalid_request", error.cause.message);
-  return jsonError(500, "internal_error", "The request could not be completed");
+    return diagnosticResponse(400, diagnoseHttp(error.cause));
+  return diagnosticResponse(
+    status,
+    diagnoseHttp(error),
+    error instanceof ReadOnlyVersionError ? error.allow : undefined,
+  );
 };
 
 const withSnapshot = <A extends ReturnType<typeof HttpServerResponse.jsonUnsafe>>(
@@ -165,7 +168,7 @@ const rejectWriteTemporal = (url: URL) => {
     url.searchParams.has("validAt")
   ) {
     throw new RequestValidationError({
-      code: "invalid_request",
+      code: "http.invalid-request",
       path: "$",
       message: "recordedAt, recordedPosition and validAt are read-only parameters",
     });
@@ -177,7 +180,7 @@ const requestJson = (request: HttpServerRequest) =>
     Effect.mapError(
       (error) =>
         new RequestValidationError({
-          code: "invalid_request",
+          code: "http.invalid-request",
           path: "$",
           message: `Request body must be valid JSON: ${error.message}`,
         }),
@@ -261,7 +264,7 @@ const decodeCursor = (
       value.collection !== expected.collection
     ) {
       throw new CursorConflictError({
-        code: "cursor_conflict",
+        code: "http.cursor-conflict",
         message: "The collection cursor belongs to a different configuration; restart pagination",
       });
     }
@@ -269,7 +272,7 @@ const decodeCursor = (
   } catch (error) {
     if (error instanceof CursorConflictError) throw error;
     throw new RequestValidationError({
-      code: "invalid_request",
+      code: "http.invalid-request",
       path: "$.cursor",
       message: "cursor must be a valid Triplex collection cursor",
     });
@@ -286,18 +289,18 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
     const url = new URL(request.url, "http://triplex.invalid");
     const restPrefix = `${options.basePath}/rest/`;
     if (!url.pathname.startsWith(restPrefix)) {
-      return jsonError(404, "not_found", "Route not found");
+      return jsonError(404, "http.not-found", "Route not found");
     }
     const path = url.pathname.slice(restPrefix.length).split("/");
     let segments: string[];
     try {
       segments = path.map(decodeURIComponent);
     } catch {
-      return jsonError(400, "invalid_request", "Path contains invalid percent encoding");
+      return jsonError(400, "http.invalid-request", "Path contains invalid percent encoding");
     }
     const version = segments.shift();
     if (version === undefined || version.length === 0) {
-      return jsonError(404, "version_not_found", "Configuration version is missing");
+      return jsonError(404, "http.version-not-found", "Configuration version is missing");
     }
     const resolved = yield* resolver.resolve(version);
     const snapshotId = resolved.snapshot.id;
@@ -362,14 +365,14 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
     if (entity === undefined) {
       yield* authorize("schema");
       return withSnapshot(
-        jsonError(404, "collection_not_found", "Collection not found"),
+        jsonError(404, "http.collection-not-found", "Collection not found"),
         snapshotId,
       );
     }
     const rawId = tail[1];
     if (tail.length > 2) {
       yield* authorize("schema");
-      return withSnapshot(jsonError(404, "not_found", "Route not found"), snapshotId);
+      return withSnapshot(jsonError(404, "http.not-found", "Route not found"), snapshotId);
     }
 
     if (request.method === "GET" && rawId === undefined && entity.operations.includes("read")) {
@@ -427,7 +430,7 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
       yield* authorize("create", entity);
       if (!resolved.writable)
         return yield* new ReadOnlyVersionError({
-          code: "read_only_version",
+          code: "http.read-only-version",
           allow: operationAllow(entity, "collection", false),
           message: "This configuration version is read-only",
         });
@@ -453,7 +456,7 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
       yield* authorize("replace", entity, rawId);
       if (!resolved.writable)
         return yield* new ReadOnlyVersionError({
-          code: "read_only_version",
+          code: "http.read-only-version",
           allow: operationAllow(entity, "entity", false),
           message: "This configuration version is read-only",
         });
@@ -476,7 +479,7 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
       yield* authorize("delete", entity, rawId);
       if (!resolved.writable)
         return yield* new ReadOnlyVersionError({
-          code: "read_only_version",
+          code: "http.read-only-version",
           allow: operationAllow(entity, "entity", false),
           message: "This configuration version is read-only",
         });
@@ -497,7 +500,7 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
               : "read";
     yield* authorize(deniedOperation, entity, rawId);
     return withSnapshot(
-      jsonError(405, "method_not_allowed", "Method not allowed", {
+      jsonError(405, "http.method-not-allowed", "Method not allowed", {
         allow: operationAllow(
           entity,
           rawId === undefined ? "collection" : "entity",
@@ -508,12 +511,13 @@ export const handle = (request: HttpServerRequest, options: HandlerOptions) => {
     );
   }).pipe(
     Effect.catchCause((cause) => {
-      const error = Cause.squash(cause);
-      return Effect.logError("Triplex HTTP request failed", error).pipe(
+      const error = Cause.findErrorOption(cause);
+      const failure = Option.getOrElse(error, () => Cause.squash(cause));
+      return Effect.logError("Triplex HTTP request failed", Cause.squash(cause)).pipe(
         Effect.as(
           responseSnapshot === undefined
-            ? mapError(error)
-            : withSnapshot(mapError(error), responseSnapshot),
+            ? mapError(failure)
+            : withSnapshot(mapError(failure), responseSnapshot),
         ),
       );
     }),

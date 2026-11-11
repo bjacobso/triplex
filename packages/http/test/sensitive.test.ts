@@ -12,11 +12,9 @@ const PersonName = Attribute.text(":person/name");
 const PersonSsn = Attribute.sensitive(Attribute.text(":person/ssn"));
 const PersonAlias = Attribute.sensitive(Attribute.text(":person/alias"));
 const Person = EntityType.make("Person", {
-  attributes: {
-    name: Attribute.use(PersonName, { required: true }),
-    ssn: Attribute.use(PersonSsn, { unique: true }),
-    aliases: Attribute.use(PersonAlias, { cardinality: "many" }),
-  },
+  name: Attribute.use(PersonName, { required: true }),
+  ssn: Attribute.use(PersonSsn, { unique: true }),
+  aliases: Attribute.use(PersonAlias, { cardinality: "many" }),
 });
 
 const PLANTED = "zq-http-planted-123-45-6789";
@@ -138,7 +136,9 @@ describe("sensitive attributes over HTTP", () => {
       );
       const body = await response.text();
       expect(response.status).toBe(500);
-      expect(JSON.parse(body)).toMatchObject({ code: "sensitive_storage_required" });
+      expect(JSON.parse(body)).toMatchObject({
+        error: { code: "http.sensitive-storage-required", retryable: false },
+      });
       expect(body).toMatch(/requires a Sensitive.layer/);
       expect(body).not.toContain(PLANTED);
       const stored = await Effect.runPromise(web.triples().match({ attribute: ":person/ssn" }));
@@ -150,10 +150,8 @@ describe("sensitive attributes over HTTP", () => {
 
   it("renders sealed values as markers even for a non-sensitive release", async () => {
     const Plain = EntityType.make("Person", {
-      attributes: {
-        name: Attribute.use(PersonName, { required: true }),
-        ssn: Attribute.use(Attribute.text(":person/ssn")),
-      },
+      name: Attribute.use(PersonName, { required: true }),
+      ssn: Attribute.use(Attribute.text(":person/ssn")),
     });
     const objects = await Effect.runPromise(Plain.nodes);
     let triplesStore: TriplesService | undefined;

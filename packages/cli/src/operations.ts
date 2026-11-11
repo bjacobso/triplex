@@ -14,7 +14,10 @@ import { ConfigStore, InMemoryConfigStore } from "@triplex-build/triplex/config"
 import type { ContentId } from "@triplex-build/triplex/content";
 import { Effect, Option } from "effect";
 
+import { describeRelease, manifest } from "./describe.js";
+
 export type ExecuteOptions =
+  | { readonly _tag: "describe"; readonly ref: string }
   | { readonly _tag: "status" }
   | { readonly _tag: "entity-types"; readonly includeSystem: boolean }
   | {
@@ -201,6 +204,17 @@ const executeRaw = (
     const triples = yield* Triples;
 
     switch (options._tag) {
+      case "describe": {
+        const config = yield* ConfigStore.ConfigStore;
+        const snapshot = yield* config.resolveRef(options.ref);
+        return snapshot === undefined
+          ? {
+              ...manifest,
+              schema: null,
+              hint: `Publish a release with config.commit({ label, objects, ref: ${JSON.stringify(options.ref)} }) in your application; CLI config set-ref can move an existing release to that ref.`,
+            }
+          : { ...manifest, schema: yield* describeRelease(snapshot, options.ref) };
+      }
       case "status": {
         const config = yield* ConfigStore.ConfigStore;
         const [position, store] = yield* Effect.all([triples.currentPosition(), config.load()]);

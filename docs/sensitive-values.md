@@ -40,10 +40,8 @@ const ssn = Attribute.sensitive(Attribute.text(":employee/ssn"));
 const name = Attribute.text(":employee/name");
 
 const Employee = EntityType.make("Employee", {
-  attributes: {
-    ssn: Attribute.use(ssn, { unique: true }),
-    name: Attribute.use(name, { required: true }),
-  },
+  ssn: Attribute.use(ssn, { unique: true }),
+  name: Attribute.use(name, { required: true }),
 });
 
 // Decorate any backend's Triples. Test keys are for tests only.
@@ -219,8 +217,11 @@ is bound into every ciphertext, so it must not change for the life of the databa
 - seal every `assert` whose attribute is sensitive, after checking the value against the declared
   type (number and datetime are interchangeable), and pass only the sealed value to the inner
   store;
-- reject a caller-supplied `sealed` value for any attribute. Sealing is a store capability, not
-  an input format, and accepting foreign ciphertext would let a caller forge blind tokens;
+- reject a caller-supplied `sealed` value for any attribute, except when the same transaction
+  explicitly retracts a fact by ID on the same entity and attribute whose stored envelope and
+  blind token are byte-identical. The layer verifies that fact through the inner `Triples.get`;
+  a pattern retraction does not qualify. This lets `Change.end` and `Change.replace` preserve a
+  sealed past without opening it while rejecting foreign ciphertext and forged blind tokens;
 - rewrite `retract-pattern` value constants on sensitive attributes to blind matches;
 - reject unique enforcement on a sensitive attribute when the codec has no blind index.
 
@@ -231,6 +232,12 @@ value. This keeps the `Triples` write signature unchanged.
 
 Plaintext exists only in the caller's request and in the codec call. The commit's
 `TransactionResult.triples` already carry the sealed values.
+
+Use [the temporal verbs](/concepts#end-a-fact-at-a-time) with sealed facts just as with plaintext
+facts. `end` reuses the verified ciphertext for the shortened interval; `replace` does the same
+for the past and seals its new plaintext value from the split onward. `correct` seals its plaintext
+replacement over the original interval. Submit the generated `TripleLive` preconditions with
+the operations so a concurrent retraction fails with `TransactionConflictError`.
 
 ### Reads
 
@@ -395,7 +402,8 @@ Design, partially built:
 
 Built: per-subject keys, key destruction in the test provider, typed `key-destroyed` opening and
 the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure fact. Both need a
-new optional `StorageAdapter` maintenance method on every backend.
+new optional `StorageAdapter` maintenance method on the in-memory KV, SQLite and PostgreSQL
+backends; Cloudflare and FoundationDB are frozen and need not implement it.
 
 ## Key rotation
 

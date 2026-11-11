@@ -12,6 +12,29 @@ whether either entity has some site fact.
 
 ## Query shape
 
+For release-bound attribute checking, install `SchemaBound.layer` from the config subpath.
+It checks constant attributes in patterns, negation, every disjunction alternative, rules, and
+wrapped queries before `query`, `queryAll`, `queryPage`, `explain`, `explainPage`, and constant
+attribute `match` reads. Unknown keys fail with `UnknownAttributeError` including `key`, `path`,
+and a nearby spelling in `suggestion` when available; `match` exposes it through `ReadError.cause`.
+Variable attributes are skipped. Reserved `:triplex/*` and `:_tx/*` keys remain legal.
+
+```ts check
+import { Layer } from "effect";
+import { KvTriples } from "@triplex-build/triplex";
+import { ConfigStore, SchemaBound } from "@triplex-build/triplex/config";
+
+const storage = KvTriples.layer;
+const config = ConfigStore.layer.pipe(Layer.provideMerge(storage));
+const bound = SchemaBound.layer({ ref: "live" }).pipe(Layer.provideMerge(config));
+```
+
+Commit a release with `ConfigStore.commit({ label, objects, ref: "live" })` before using bound
+reads. The default ref is `"live"`; it is resolved per call, so moving it changes which attributes
+are legal. A missing ref fails with `DatalogError` (`ReadError.cause` for `match`). Keep `ConfigStore`
+built over the underlying storage as above. Without this layer, unknown attributes retain the
+ordinary empty-result behavior.
+
 ```ts
 const program = Effect.gen(function* () {
   const triples = yield* Triples;

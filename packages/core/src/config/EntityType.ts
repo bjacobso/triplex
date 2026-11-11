@@ -1,13 +1,33 @@
 /** Ergonomic entity-type declarations compiled to content-addressed config nodes. */
 
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 
+import type { EntityId } from "../Branded.js";
+import * as Change from "../Change.js";
 import * as CanonicalJson from "../content/CanonicalJson.js";
+import type { NotClause, PatternClause, Term } from "../datalog/schema.js";
+import type { Triple, TransactAssertOp } from "../Triple.js";
+import type { TripleValue } from "../Value.js";
 import * as Attribute from "./Attribute.js";
 import * as ConfigNode from "./ConfigNode.js";
 import { ENTITY_SCHEMA_KIND } from "./EntityValidation.js";
+import {
+  decode,
+  type DecodeOptions,
+  type DecodeResult,
+  type EntityDecodeError,
+} from "./EntityDecode.js";
 import * as GraphConstraint from "./GraphConstraint.js";
 import * as TypeExpr from "./TypeExpr.js";
+
+export {
+  EntityDecodeError,
+  type DecodeOptions,
+  type SealedMarker,
+  type Decoded,
+  type DecodeResult,
+  type WithFacts,
+} from "./EntityDecode.js";
 
 const ENTITY_TYPE_NAME = /^[A-Z][A-Za-z0-9]*$/;
 const RESERVED_PROPERTIES = new Set([
@@ -17,9 +37,31 @@ const RESERVED_PROPERTIES = new Set([
   "nodes",
   "attributes",
   "constraints",
+  "assert",
+  "decode",
+  "end",
+  "replace",
+  "correct",
+  "where",
+  "not",
 ]);
 
 type Uses = Readonly<Record<string, Attribute.Use<Attribute.AnyDefinition>>>;
+
+/** An attribute field: a configured use, or a bare definition for an optional single value. */
+export type Field = Attribute.Use<Attribute.AnyDefinition> | Attribute.AnyDefinition;
+
+/** Normalize fields so a bare definition becomes its optional, cardinality-one use. */
+export type UsesOf<F extends Readonly<Record<string, Field>>> = {
+  readonly [P in keyof F]: F[P] extends Attribute.Use<infer D, infer C, infer R>
+    ? Attribute.Use<D, C, R>
+    : F[P] extends Attribute.AnyDefinition
+      ? Attribute.Use<F[P], "one", false>
+      : never;
+};
+
+/** A Datalog variable such as `?worker`. */
+export type Variable = `?${string}`;
 
 export interface AttributeHandle<D extends Attribute.AnyDefinition> {
   readonly key: D["key"];
@@ -35,6 +77,41 @@ export interface AttributeHandle<D extends Attribute.AnyDefinition> {
     options?: Attribute.AssertionOptions,
   ) => Attribute.Assertion<D["key"]>;
 }
+
+/** The value one attribute use accepts: an array exactly when the use is cardinality-many. */
+export type UseValue<U> =
+  U extends Attribute.Use<infer D, infer C>
+    ? [C] extends ["many"]
+      ? ReadonlyArray<Attribute.ValueOf<D>>
+      : [C] extends ["one"]
+        ? Attribute.ValueOf<D>
+        : Attribute.ValueOf<D> | ReadonlyArray<Attribute.ValueOf<D>>
+    : never;
+
+/**
+ * Attribute values keyed by an entity type's TypeScript aliases. Every alias is
+ * optional, and `undefined` is skipped, because requiredness is a property of
+ * the entity's post-transaction state that graph-constraint enforcement checks
+ * atomically, not of any single write.
+ */
+export type Values<A extends Uses> = {
+  readonly [P in keyof A]?: UseValue<A[P]> | undefined;
+};
+
+/** Exactly one aliased value for one fact, including a cardinality-many fact. */
+export type ChangeValue<A extends Uses> = {
+  [P in keyof A]: { readonly [K in P]: Attribute.ValueOf<A[P]["attribute"]> } & {
+    readonly [K in Exclude<keyof A, P>]?: never;
+  };
+}[keyof A];
+
+/**
+ * Pattern values keyed by alias: a variable, or a constant typed by the
+ * attribute. A cardinality-many attribute matches one value per pattern.
+ */
+export type Patterns<A extends Uses> = {
+  readonly [P in keyof A]?: Variable | Attribute.ValueOf<A[P]["attribute"]>;
+};
 
 type Handles<A extends Uses> = {
   readonly [P in keyof A]: AttributeHandle<A[P]["attribute"]>;
@@ -53,6 +130,37 @@ export type EntityType<N extends string, A extends Uses> = {
     | CanonicalJson.CanonicalEncodingError
     | import("effect").Schema.SchemaError
   >;
+  /**
+   * Build one `assert` operation per value, tagged with this entity type, in
+   * attribute declaration order. Cardinality-many attributes take an array.
+   * `options` applies the same valid-time interval to every operation.
+   */
+  readonly assert: (
+    entityId: EntityId,
+    values: Values<A>,
+    options?: Attribute.AssertionOptions,
+  ) => ReadonlyArray<TransactAssertOp>;
+  /** Decode already-visible facts; temporal selection belongs to the read operation. */
+  readonly decode: <const O extends DecodeOptions = {}>(
+    facts: ReadonlyArray<Triple>,
+    options?: O,
+  ) => Effect.Effect<DecodeResult<A, O>, EntityDecodeError>;
+  /** End a fact belonging to this type. Throws ChangeRangeError for an invalid split. */
+  readonly end: (fact: Triple, at: number) => Change.Change;
+  /** Encode one aliased replacement and preserve the fact's past and original end. */
+  readonly replace: (fact: Triple, value: ChangeValue<A>, at: number) => Change.Change;
+  /** Encode one aliased correction over the fact's whole original interval. */
+  readonly correct: (fact: Triple, value: ChangeValue<A>) => Change.Change;
+  /**
+   * Datalog pattern clauses for `entity`, one per alias in declaration order,
+   * so a query names attributes by alias instead of by key.
+   */
+  readonly where: (
+    entity: Variable | EntityId,
+    patterns: Patterns<A>,
+  ) => ReadonlyArray<PatternClause>;
+  /** A `not` clause excluding entities that match all of these patterns. */
+  readonly not: (entity: Variable | EntityId, patterns: Patterns<A>) => NotClause;
   /** Attribute definition nodes followed by the entity-schema node. */
   readonly nodes: Effect.Effect<
     ReadonlyArray<ConfigNode.ConfigNode>,
@@ -68,12 +176,34 @@ const DefinitionType = TypeExpr.struct({
   attributes: TypeExpr.required(TypeExpr.any),
 });
 
-export const make = <const N extends string, const A extends Uses>(
+const isField = (value: unknown): value is Field =>
+  typeof value === "object" &&
+  value !== null &&
+  "_tag" in value &&
+  (value._tag === "Attribute" || value._tag === "AttributeUse");
+
+/**
+ * Declare an entity type from aliased attribute fields:
+ * `EntityType.make("Worker", { name: Attribute.text(":worker/name").required() })`.
+ * A bare attribute definition is an optional, cardinality-one use.
+ */
+export function make<const N extends string, const F extends Readonly<Record<string, Field>>>(
   name: N,
-  definition: { readonly attributes: A },
-): EntityType<N, A> => {
+  fields: F,
+): EntityType<N, UsesOf<F>>;
+export function make(
+  name: string,
+  input: Readonly<Record<string, unknown>>,
+): EntityType<string, Uses> {
   if (!ENTITY_TYPE_NAME.test(name)) {
     throw new TypeError(`Entity type identity must be PascalCase; received ${name}`);
+  }
+  const attributeUses: Record<string, Attribute.Use<Attribute.AnyDefinition>> = {};
+  for (const [property, field] of Object.entries(input)) {
+    if (!isField(field)) {
+      throw new TypeError(`Entity attribute alias ${property} must be an attribute or its use`);
+    }
+    attributeUses[property] = field._tag === "Attribute" ? Attribute.use(field) : field;
   }
 
   const fields: Record<string, TypeExpr.StructField> = {};
@@ -82,7 +212,7 @@ export const make = <const N extends string, const A extends Uses>(
   const definitions = new Map<string, Attribute.AnyDefinition>();
   const constraints: GraphConstraint.Definition[] = [];
 
-  for (const [property, attributeUse] of Object.entries(definition.attributes)) {
+  for (const [property, attributeUse] of Object.entries(attributeUses)) {
     if (RESERVED_PROPERTIES.has(property)) {
       throw new TypeError(`Entity attribute alias ${property} is reserved by the EntityType API`);
     }
@@ -144,14 +274,134 @@ export const make = <const N extends string, const A extends Uses>(
       .map((attribute) => attribute.node),
     node,
   ]);
+  const assert = (
+    entityId: EntityId,
+    values: Values<Uses>,
+    options: Attribute.AssertionOptions = {},
+  ): ReadonlyArray<TransactAssertOp> => {
+    const input = values as Readonly<Record<string, unknown>>;
+    for (const property of Object.keys(input)) {
+      if (!Object.prototype.hasOwnProperty.call(handles, property)) {
+        throw new TypeError(`Entity type ${name} has no attribute alias ${property}`);
+      }
+    }
+    const operations: TransactAssertOp[] = [];
+    for (const [property, handle] of Object.entries(handles)) {
+      const value = input[property];
+      if (value === undefined) continue;
+      const many = handle.cardinality === "many";
+      if (Array.isArray(value) !== many) {
+        throw new TypeError(
+          `${name}.${property} is cardinality-${handle.cardinality}; pass ${many ? "an array of values" : "a single value"}`,
+        );
+      }
+      for (const item of many ? (value as ReadonlyArray<unknown>) : [value]) {
+        operations.push({
+          op: "assert",
+          entityId,
+          entityType: name,
+          ...handle.assertion(item, options),
+        });
+      }
+    }
+    return operations;
+  };
+  const where = (
+    entity: Variable | EntityId,
+    patterns: Patterns<Uses>,
+  ): ReadonlyArray<PatternClause> => {
+    const input = patterns as Readonly<Record<string, unknown>>;
+    for (const property of Object.keys(input)) {
+      if (!Object.prototype.hasOwnProperty.call(handles, property)) {
+        throw new TypeError(`Entity type ${name} has no attribute alias ${property}`);
+      }
+    }
+    const clauses: PatternClause[] = [];
+    for (const [property, handle] of Object.entries(handles)) {
+      const value = input[property];
+      if (value === undefined) continue;
+      clauses.push([entity, handle.key, term(`${name}.${property}`, handle.definition, value)]);
+    }
+    return clauses;
+  };
+  const not = (entity: Variable | EntityId, patterns: Patterns<Uses>): NotClause => {
+    const clauses = where(entity, patterns);
+    if (clauses.length === 0 || clauses.length > 9) {
+      throw new TypeError(`${name}.not takes between one and nine patterns`);
+    }
+    return ["not", ...clauses] as unknown as NotClause;
+  };
+  const checkFact = (fact: Triple): void => {
+    if (
+      !Option.isSome(fact.entityType) ||
+      fact.entityType.value !== name ||
+      !definitions.has(fact.attribute)
+    ) {
+      throw new TypeError(`Fact ${fact.id} does not belong to entity type ${name}`);
+    }
+  };
+  const changeValue = (fact: Triple, value: ChangeValue<Uses>): TripleValue => {
+    checkFact(fact);
+    const entries = Object.entries(value);
+    if (entries.length !== 1)
+      throw new TypeError(`${name} changes take exactly one attribute alias`);
+    const [alias, item] = entries[0]!;
+    if (
+      !Object.prototype.hasOwnProperty.call(handles, alias) ||
+      handles[alias]!.key !== fact.attribute
+    ) {
+      throw new TypeError(`${name}.${alias} does not match fact attribute ${fact.attribute}`);
+    }
+    return handles[alias]!.definition.encode(item);
+  };
   const entity = {
     entityType: name,
     schema,
-    attributes: handles as Handles<A>,
+    attributes: handles as Handles<Uses>,
     constraints,
     node,
     nodes,
+    assert,
+    decode: (facts: ReadonlyArray<Triple>, options?: DecodeOptions) =>
+      decode(name, handles, facts, options),
+    end: (fact: Triple, at: number) => {
+      checkFact(fact);
+      return Change.end(fact, at);
+    },
+    replace: (fact: Triple, value: ChangeValue<Uses>, at: number) =>
+      Change.replace(fact, changeValue(fact, value), at),
+    correct: (fact: Triple, value: ChangeValue<Uses>) =>
+      Change.correct(fact, changeValue(fact, value)),
+    where,
+    not,
     ...handles,
   };
-  return entity as EntityType<N, A>;
+  return entity as unknown as EntityType<string, Uses>;
+}
+
+/**
+ * Nodes for publishing several entity types together. Shared attribute and
+ * entity-schema nodes occur once by content ID, in first-declaration order.
+ */
+export const nodesOf = (
+  ...types: ReadonlyArray<{ readonly nodes: EntityType<string, Uses>["nodes"] }>
+): EntityType<string, Uses>["nodes"] =>
+  Effect.map(Effect.all(types.map((type) => type.nodes)), (groups) => [
+    ...new Map(groups.flat().map((node) => [node.cid, node])).values(),
+  ]);
+
+/** A pattern-position term: variables pass through, constants encode as their attribute does. */
+const term = (path: string, definition: Attribute.AnyDefinition, value: unknown): Term => {
+  if (typeof value === "string" && value.startsWith("?")) return value;
+  const encoded = definition.encode(value);
+  switch (encoded.type) {
+    case "ref":
+      return { type: "ref", value: encoded.value };
+    case "string":
+    case "number":
+    case "boolean":
+      return encoded.value;
+    default:
+      throw new TypeError(`${path} has ${encoded.type} values, which are not Datalog constants`);
+  }
 };

@@ -49,26 +49,14 @@ import { Attribute, EntityType } from "@triplex-build/triplex/config";
 export const EmployerName = Attribute.text(":employer/name");
 
 export const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, {
-      required: true,
-      unique: true,
-    }),
-  },
+  name: EmployerName.required({ unique: true }),
 });
 
-export const EmployerSummary = EntityType.make("EmployerSummary", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: false }),
-  },
-});
-
-export const EmploymentEmployer = Attribute.ref(":employment/employer", Employer);
+// A bare attribute is an optional, single-valued use.
+export const EmployerSummary = EntityType.make("EmployerSummary", { name: EmployerName });
 
 export const Employment = EntityType.make("Employment", {
-  attributes: {
-    employer: Attribute.use(EmploymentEmployer, { required: true }),
-  },
+  employer: Attribute.ref(":employment/employer", Employer).required(),
 });
 
 const validFrom = Date.now();
@@ -103,9 +91,146 @@ value, or a `validTo` that is not later than `validFrom`, throws.
 Requiredness is not inherently true of `:employer/name`; it is true of the way `Employer` uses the
 attribute. Reference attributes follow the same separation.
 
+`.required()`, `.many()`, and `.unique()` describe a use and accept the remaining options, for
+example `.required({ unique: true })` or `.many({ required: true })`. They are shorthands for
+`Attribute.use(attribute, options)`, which remains available. Declare entity types with
+`EntityType.make(name, fields)`, passing aliased fields directly.
+
 `Employer.nodes` yields the independently identified attribute definitions followed by the entity
-schema. `Employer.constraints` yields independently content-addressed required, cardinality,
-uniqueness, and reference-target rules. Handles remain convenient at the application boundary:
+schema. Use `EntityType.nodesOf(Employer, EmployerSummary, Employment)` to publish several types
+together: it deduplicates shared attribute nodes by content ID before `ConfigStore.commit`.
+`Employer.constraints` yields independently content-addressed required, cardinality,
+uniqueness, and reference-target rules.
+
+## Reading typed entities
+
+`Type.decode(facts, options?)` returns an Effect that turns visible facts into an object
+keyed by the declaration's aliases. Read the desired temporal basis first; the decoder does
+not filter historical or retracted facts itself.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples } from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
+
+const Worker = EntityType.make("Worker", {
+  name: Attribute.text(":worker/name").required(),
+  roles: Attribute.text(":worker/role").many(),
+  joined: Attribute.instant(":worker/joined"),
+});
+
+export const readWorker = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const facts = yield* triples.match(
+    { entityId: EntityId.make("worker:maria") },
+    { validAt: Date.UTC(2026, 0, 1) },
+  );
+  const decoded = yield* Worker.decode(facts, { withFacts: true });
+  // name is present; roles is an array; joined may be undefined.
+  // Sealable values also admit a {$sealed: {valueType, keyId}} marker.
+  const name = decoded.values.name;
+  if (typeof name === "string") console.log(name);
+  // Original facts include IDs and intervals for Worker.replace/end/correct.
+  return { values: decoded.values, nameFacts: decoded.facts.name };
+});
+```
+
+Optional scalar aliases decode to `undefined` when absent; cardinality-many aliases always
+return readonly arrays, including `[]` when absent. Required aliases must have at least one
+fact unless `{ allowPartial: true }` is passed, which also makes required scalar types admit
+`undefined`. Two visible facts for a scalar alias fail even if their values are equal.
+Cardinality-many values are deduplicated and sorted by canonical identity, so their order
+need not match assertion order. Instants decode to epoch-millisecond numbers, including when
+written with a `Date`; calendar dates remain strings, enums retain their literal union, and
+references retain `EntityId`.
+
+All facts must have the declared entity type and belong to one entity. Incompatible stored
+values, missing required aliases, and ambiguous scalar aliases produce typed
+`EntityType.EntityDecodeError` failures with a `reason` and optional `alias`.
+An empty input is a missing entity body: it fails if required aliases exist, otherwise it
+decodes to empty arrays and undefined scalars. The decoder cannot distinguish a nonexistent
+entity from an entity with no visible facts.
+
+Undeclared attributes are ignored by default. `{ unknownAttributes: "reject" }` rejects them;
+`{ withFacts: true }` returns `{ values, facts, unknownFacts }` with original facts grouped by
+alias and undeclared facts separately. Metadata preserves every supplied fact, including
+multiple facts that decode to the same many-value.
+
+A sealed stored value always becomes a marker containing only its value type and key ID,
+even if the declaration no longer marks it sensitive. For this reason sealable output types
+include `EntityType.SealedMarker`; narrow them before using plaintext. Sensitive attributes
+with unsealed stored values fail. Opening stays an explicit `Sensitive.open` call on the
+original facts; the decoder never opens values. Metadata contains those original facts,
+including their sealed envelopes when present, so use `values` as the display object.
+
+## Writing entities
+
+`Type.assert(id, values, options?)` turns attribute values, keyed by the TypeScript aliases, into
+`assert` operations tagged with the entity type. Values are typed by their attribute, and a
+cardinality-many use takes an array, so `trainedFor: [harbor]` asserts one fact per element.
+Every alias is optional and `undefined` is skipped: requiredness is a property of the entity's
+state after the transaction, which `enforce` checks atomically, not of each write. `validFrom` and
+`validTo` set the half-open business-time interval `[validFrom, validTo)` on every operation; call
+`assert` more than once when facts hold for different intervals.
+
+`GraphConstraint.pinned(release)` returns the `configSnapshot` and `enforce` metadata for one
+release, so a write records and enforces the same rules:
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples } from "@triplex-build/triplex";
+import { Attribute, ConfigStore, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
+
+const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
+
+const Worker = EntityType.make("Worker", {
+  name: Attribute.text(":worker/name").required(),
+  trainedFor: Attribute.ref(":worker/trained-for", Site).many(),
+});
+
+const harbor = EntityId.make("site:harbor");
+const maria = EntityId.make("worker:maria");
+const training = { validFrom: Date.UTC(2026, 2, 1), validTo: Date.UTC(2026, 5, 1) };
+
+export const onboard = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const release = yield* (yield* ConfigStore.ConfigStore).resolveRef("live");
+  if (release === undefined) return yield* Effect.die("no live release");
+  return yield* triples.transact(
+    [
+      ...Site.assert(harbor, { name: "Harbor" }),
+      ...Worker.assert(maria, { name: "Maria" }),
+      ...Worker.assert(maria, { trainedFor: [harbor] }, training),
+    ],
+    { actor: "user:hr", commandId: "onboard:maria", ...(yield* GraphConstraint.pinned(release)) },
+  );
+});
+```
+
+Single-attribute handles remain available for hand-built operations:
+`Worker.name.assertion("Maria", { validFrom, validTo })` returns the `attribute`, encoded `value`,
+and valid-time fields to spread into an `assert` operation.
+
+## Querying by alias
+
+`Type.where(entity, patterns)` returns one Datalog pattern clause per alias, and `Type.not(entity,
+patterns)` returns a `not` clause over them. Values are variables or constants typed by the
+attribute; reference constants become typed `ref` constants, so they match exactly. A
+cardinality-many attribute matches one value per pattern.
+
+```ts
+const untrained = {
+  find: ["?worker", "?site"],
+  where: [
+    ...Placement.where("?placement", { worker: "?worker", site: "?site" }),
+    Worker.not("?worker", { trainedFor: "?site" }),
+  ],
+};
+```
+
+The clauses are ordinary Datalog, so they combine with raw patterns, predicates, and rules.
+Datetime, JSON, and blob values are not Datalog constants; bind them to a variable and compare
+with a predicate.
 
 ## Releases and refs
 

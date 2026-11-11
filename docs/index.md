@@ -125,7 +125,7 @@ npm install @triplex-build/triplex effect@4.1.1
 <div class="th-step__head">
 <p class="th-step__num">Step 03 <span>· Command</span></p>
 <h3 id="record-a-command">One command, one atomic transaction.</h3>
-<p>Dana’s placement records who acted, a command ID that makes retries safe, and the release whose constraints were checked in the same transaction.</p>
+<p><code>Placement.assert</code> turns typed attribute values into facts. Dana’s placement records who acted, a command ID that makes retries safe, and, through <code>GraphConstraint.pinned</code>, the release whose constraints were checked in the same transaction.</p>
 <p>Under <code>hr-2026.2</code>, the same command is rejected. It writes no facts, no receipt, and no journal entry.</p>
 <a class="th-more" href="/operational-primitives">Transactions and the journal →</a>
 </div>

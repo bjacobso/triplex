@@ -7,6 +7,7 @@
 
 export * from "./Branded.js";
 export * from "./Triple.js";
+export * as Change from "./Change.js";
 export * from "./Temporal.js";
 export {
   DEFAULT_QUERY_PAGE_SIZE,
@@ -20,7 +21,9 @@ export {
 } from "./EntityPage.js";
 export * from "./Value.js";
 export * as Constraint from "./Constraint.js";
+export * as CommitValidation from "./store/CommitValidation.js";
 export * from "./errors/index.js";
+export { diagnose, type Diagnostic } from "./errors/diagnostic.js";
 export * from "./types/Pattern.js";
 export { isVariable as isPatternVariable } from "./types/Pattern.js";
 export {

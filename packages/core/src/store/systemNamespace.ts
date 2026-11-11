@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
 import type { TransactOp } from "../Triple.js";
-import { WriteError } from "../errors/index.js";
+import { WriteError, type CommitRejectedError } from "../errors/index.js";
 import type { TransactionMeta, TransactionResult, TriplesService } from "./Triples.js";
 
 const systemWriteAuthorization: unique symbol = Symbol("triplex/SystemWriteAuthorization");
@@ -18,16 +18,40 @@ export const isSystemWriteAuthorized = (meta: TransactionMeta | undefined): bool
 export const isJournalSuppressed = (meta: TransactionMeta | undefined): boolean =>
   (meta as InternalTransactionMeta | undefined)?.[journalSuppression] === true;
 
+type SystemTransactError = Exclude<
+  ReturnType<TriplesService["transact"]> extends Effect.Effect<unknown, infer E> ? E : never,
+  CommitRejectedError
+>;
+
+/**
+ * System writes never run commit validators: Triplex owns the invariants of
+ * its reserved facts. Strip any per-call validators and keep the rejection
+ * error out of every system service's error channel.
+ */
+const runSystem = (
+  triples: TriplesService,
+  operations: readonly TransactOp[],
+  meta: InternalTransactionMeta,
+): Effect.Effect<TransactionResult, SystemTransactError> => {
+  const { validate: _validate, ...rest } = meta;
+  return triples
+    .transact(operations, rest as InternalTransactionMeta)
+    .pipe(
+      Effect.catchTag("CommitRejectedError", (error) =>
+        Effect.fail(
+          new WriteError({ message: `System write was rejected: ${error.message}`, cause: error }),
+        ),
+      ),
+    );
+};
+
 /** Internal-only entry point for core services that own reserved facts. */
 export const transactSystem = (
   triples: TriplesService,
   operations: readonly TransactOp[],
   meta?: TransactionMeta,
-): Effect.Effect<
-  TransactionResult,
-  ReturnType<TriplesService["transact"]> extends Effect.Effect<unknown, infer E> ? E : never
-> =>
-  triples.transact(operations, {
+): Effect.Effect<TransactionResult, SystemTransactError> =>
+  runSystem(triples, operations, {
     ...meta,
     [systemWriteAuthorization]: true,
   } as InternalTransactionMeta);
@@ -41,7 +65,7 @@ export const transactSystemUnjournaled = (
   operations: readonly TransactOp[],
   meta?: TransactionMeta,
 ): ReturnType<typeof transactSystem> =>
-  triples.transact(operations, {
+  runSystem(triples, operations, {
     ...meta,
     [systemWriteAuthorization]: true,
     [journalSuppression]: true,

@@ -33,18 +33,14 @@ describe("entity validation observations", () => {
       });
       const MembershipNote = Attribute.text(":membership/note");
       const Organization = EntityType.make("Organization", {
-        attributes: {
-          name: Attribute.use(OrganizationName, { required: true, unique: true }),
-        },
+        name: Attribute.use(OrganizationName, { required: true, unique: true }),
       });
       const Person = EntityType.make("Person", {
-        attributes: { name: Attribute.use(PersonName, { required: true }) },
+        name: Attribute.use(PersonName, { required: true }),
       });
       const Membership = EntityType.make("Membership", {
-        attributes: {
-          organization: Attribute.use(MembershipOrganization, { required: true }),
-          note: Attribute.use(MembershipNote),
-        },
+        organization: Attribute.use(MembershipOrganization, { required: true }),
+        note: Attribute.use(MembershipNote),
       });
 
       const config = yield* ConfigStore.ConfigStore;

@@ -38,7 +38,7 @@ export const layer = (
           Effect.gen(function* () {
             if (!safeVersion.test(version)) {
               return yield* new VersionNotFoundError({
-                code: "version_not_found",
+                code: "http.version-not-found",
                 version,
                 message: `Unknown configuration version ${version}`,
               });
@@ -52,7 +52,7 @@ export const layer = (
                   );
             if (snapshot === undefined) {
               return yield* new VersionNotFoundError({
-                code: "version_not_found",
+                code: "http.version-not-found",
                 version,
                 message: `Unknown configuration version ${version}`,
               });

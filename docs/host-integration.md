@@ -200,9 +200,7 @@ The host can compile its own ergonomic DSL into independently addressed Triplex 
 const RecordName = Attribute.text(":record/name");
 
 const Record = EntityType.make("Record", {
-  attributes: {
-    name: Attribute.use(RecordName, { required: true }),
-  },
+  name: Attribute.use(RecordName, { required: true }),
 });
 ```
 
@@ -215,7 +213,8 @@ Store the resulting `ConfigSnapshot` ID on operational transactions through
 `EntityValidation` records queryable observations for attribute cardinality, required facts,
 reference target types, and uniqueness. The same collected `GraphConstraint` definitions can be
 passed to `Triples.transact` for atomic enforcement. The host remains responsible for
-authorization and higher-order policy invariants.
+authorization and higher-order policy invariants. [Commit validators](/commit-validators) let
+it enforce them inside the same transaction, reading the state that would commit.
 
 ## Batch entity reads
 
@@ -237,8 +236,11 @@ Translate a validated command into `TransactOp` values and call one `Triples.tra
 - the idempotency key as `commandId`;
 - `correlationId` and `causationId` from the host operation context;
 - the pinned `configSnapshot`;
-- graph constraints from that exact snapshot in `enforce`; and
-- a `TripleLive` precondition for each optimistic fact being replaced.
+- graph constraints from that exact snapshot in `enforce` (`GraphConstraint.pinned(snapshot)`
+  returns both); and
+- a `TripleLive` precondition for each optimistic fact being replaced; and
+- command-specific [commit validators](/commit-validators) in `validate`. Install authorization
+  and other always-on rules once with `CommitValidation.layer`.
 
 Use `transaction(txId)` to construct an audit response. Retraction changes include the old typed
 value and original assertion transaction; assertions include the replacement. Command IDs are
@@ -256,7 +258,8 @@ typed assertion and retraction changes. Do not create a second audit log.
 
 ## Remaining limitations
 
-- Authorization and general cross-entity Datalog invariants remain host-owned.
+- Authorization and general cross-entity Datalog invariants remain host-defined. Run them inside
+  the transaction with [commit validators](/commit-validators).
 - Inbox and outbox records, response caching, retries, and timer delivery remain host-owned.
 - Derivation provenance rejects recursive rules, disjunction, aggregation, and dynamic attributes
   rather than returning an incomplete explanation.

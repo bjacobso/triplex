@@ -9,6 +9,12 @@
 import { Data } from "effect";
 import type { ViolationAt } from "../Constraint.js";
 import type { EntityId, TransactionId, TripleId } from "../Branded.js";
+import type {
+  Attempt as CommitAttempt,
+  CommitRejection,
+  RecordedReference,
+} from "../store/CommitValidation.js";
+import type { TransactionChange } from "../store/Triples.js";
 
 // Write operation errors
 export class WriteError extends Data.TaggedError("WriteError")<{
@@ -85,6 +91,24 @@ export class ConstraintViolationError extends Data.TaggedError("ConstraintViolat
   readonly message: string;
 }> {}
 
+/**
+ * One or more commit validators rejected the transaction. Its facts, operational
+ * entries and acknowledgements, journal envelope, command receipt, and commit position were rolled back; the
+ * attempted transaction ID never commits.
+ */
+export class CommitRejectedError extends Data.TaggedError("CommitRejectedError")<{
+  readonly message: string;
+  /** Names of the validators that ran, in order. */
+  readonly validators: readonly string[];
+  /** Every finding, stamped with the validator that produced it. */
+  readonly rejections: readonly CommitRejection[];
+  readonly attempt: CommitAttempt;
+  /** The changes the transaction attempted, as the journal would have recorded them. */
+  readonly changes: readonly TransactionChange[];
+  /** Present when a durable rejection record was written after the rollback. */
+  readonly recorded?: RecordedReference;
+}> {}
+
 // Read operation errors
 export class ReadError extends Data.TaggedError("ReadError")<{
   readonly message: string;
@@ -139,23 +163,40 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
 }> {}
 
 // Datalog query errors
+/** A constant attribute is absent from the release bound to a query. */
+export class UnknownAttributeError extends Data.TaggedError("UnknownAttributeError")<{
+  readonly key: string;
+  readonly path: string;
+  readonly suggestion?: string;
+  readonly message: string;
+}> {}
+
 export class DatalogError extends Data.TaggedError("DatalogError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
 export class UnboundVariableError extends Data.TaggedError("UnboundVariableError")<{
+  readonly code?: string;
+  readonly path?: string;
+  readonly fix?: string;
   readonly variable: string;
   readonly clause: unknown;
   readonly message: string;
 }> {}
 
 export class InvalidPredicateError extends Data.TaggedError("InvalidPredicateError")<{
+  readonly code?: string;
+  readonly path?: string;
+  readonly fix?: string;
   readonly predicate: unknown;
   readonly message: string;
 }> {}
 
 export class DatalogValidationError extends Data.TaggedError("DatalogValidationError")<{
+  readonly code?: string;
+  readonly path?: string;
+  readonly fix?: string;
   readonly message: string;
   readonly query: unknown;
   readonly cause?: unknown;
@@ -243,7 +284,8 @@ export type WriteErrorUnion =
   | TransactionError
   | TransactionConflictError
   | CommandAlreadyCommittedError
-  | ConstraintViolationError;
+  | ConstraintViolationError
+  | CommitRejectedError;
 
 export type ReadErrorUnion = ReadError | EntityNotFoundError | TripleNotFoundError;
 
@@ -256,7 +298,8 @@ export type DatalogQueryError =
   | UnboundVariableError
   | InvalidPredicateError
   | DatalogValidationError
-  | SensitiveQueryError;
+  | SensitiveQueryError
+  | UnknownAttributeError;
 
 export type DatalogErrorUnion = DatalogQueryError | PaginationCursorError;
 

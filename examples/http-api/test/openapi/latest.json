@@ -76,7 +76,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -157,7 +158,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -238,7 +240,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -382,7 +385,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -464,7 +468,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -592,7 +597,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -675,7 +681,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -761,7 +768,8 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/TriplexHttpError" } }
             },
             "headers": {
-              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true }
+              "x-triplex-config-snapshot": { "schema": { "type": "string" }, "required": true },
+              "retry-after": { "schema": { "type": "string" }, "required": false }
             }
           },
           "500": {
@@ -781,12 +789,21 @@
     "schemas": {
       "TriplexHttpError": {
         "type": "object",
+        "properties": { "error": { "$ref": "#/components/schemas/TriplexDiagnostic" } },
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "TriplexDiagnostic": {
+        "type": "object",
         "properties": {
           "code": { "type": "string" },
           "message": { "type": "string" },
-          "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+          "path": { "type": "string" },
+          "fix": { "type": "string" },
+          "retryable": { "type": "boolean" },
+          "details": { "type": "object" }
         },
-        "required": ["code", "message"],
+        "required": ["code", "message", "retryable"],
         "additionalProperties": false
       },
       "Employee": {

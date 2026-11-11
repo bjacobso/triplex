@@ -49,6 +49,17 @@ OIDC-capable npm CLI.
 Keep private packages out of Changeset frontmatter. Changesets cannot version a public release
 when a Changeset mixes private and publishable packages.
 
+## Backend and API policy
+
+New surface targets in-memory KV, SQLite and PostgreSQL. KV and SQLite are supported;
+PostgreSQL remains a pre-1.0 production candidate. Cloudflare and FoundationDB are frozen,
+experimental backends: they must keep compiling and their existing tests must keep passing,
+but new features do not have to cover them.
+
+Triplex is greenfield before 1.0. Breaking public API changes are allowed when they make the API
+right. Update callers and record each break in a Changeset rather than retaining compatibility
+shims, deprecations or opt-in flags for old shapes.
+
 ## Dependency compatibility
 
 The workspace tests Effect and its platform, SQL, and Vitest companions at 4.1.1,

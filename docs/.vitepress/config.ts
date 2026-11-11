@@ -34,6 +34,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Configuration", link: "/configuration" },
       { text: "Operational primitives", link: "/operational-primitives" },
       { text: "Sensitive values", link: "/sensitive-values" },
+      { text: "Commit validators", link: "/commit-validators" },
       { text: "Configuration HTTP API", link: "/http-api" },
       { text: "Performance", link: "/performance" },
       {
@@ -49,6 +50,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Data explorer", link: "/explorer" },
       { text: "Host integration", link: "/host-integration" },
       { text: "Troubleshooting and FAQ", link: "/troubleshooting" },
+      { text: "Error diagnostics", link: "/errors" },
       { text: "Releasing", link: "/releasing" },
     ],
   },
@@ -142,6 +144,7 @@ export default defineConfig({
           { text: "Configuration", link: "/configuration" },
           { text: "Operational primitives", link: "/operational-primitives" },
           { text: "Sensitive values", link: "/sensitive-values" },
+          { text: "Commit validators", link: "/commit-validators" },
           { text: "HTTP API", link: "/http-api" },
           { text: "Performance", link: "/performance" },
         ],

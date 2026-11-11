@@ -87,14 +87,12 @@ export const SensitiveFixture = (() => {
   const name = Attribute.text(":sc-employee/name");
   const applicantSsn = Attribute.sensitive(Attribute.text(":sc-applicant/ssn"));
   const employee = EntityType.make("ScEmployee", {
-    attributes: {
-      ssn: Attribute.use(ssn, { unique: true }),
-      birthDate: Attribute.use(birthDate),
-      salary: Attribute.use(salary),
-      verified: Attribute.use(verified),
-      hiredAt: Attribute.use(hiredAt),
-      name: Attribute.use(name, { required: true }),
-    },
+    ssn: Attribute.use(ssn, { unique: true }),
+    birthDate: Attribute.use(birthDate),
+    salary: Attribute.use(salary),
+    verified: Attribute.use(verified),
+    hiredAt: Attribute.use(hiredAt),
+    name: Attribute.use(name, { required: true }),
   });
   return { ssn, birthDate, salary, verified, hiredAt, name, applicantSsn, employee };
 })();

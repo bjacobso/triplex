@@ -20,14 +20,52 @@ above runs the same CLI from a source checkout. The unscoped
 
 - Successful commands write one `{ "ok": true, "command": "...", "data": ... }` JSON value to
   stdout.
-- Runtime and schema failures write `{ "ok": false, "error": ... }` to stderr and exit nonzero.
-- `describe` returns a machine-readable capability manifest; `--help` returns Effect CLI help.
+- Failures write `{ "ok": false, "command": ..., "error": Diagnostic }` to stderr and exit nonzero.
+- `describe` returns a machine-readable capability manifest and release schema; `--help` returns Effect CLI help.
 - JSON payloads come from `--input <file>` or stdin with `--input -`.
 - External entity, triple, transaction, database, query, value, and transaction-operation values
   are decoded by the same Effect schemas as the public Triplex API.
 - Mutations through `transaction apply` require `meta.actor` and `meta.commandId` so agent writes
   are attributed and safely retryable.
+- `error.code` is stable; `message` explains the failure, `path` locates input, and `fix` suggests recovery. `retryable` is always present. Reload facts before retrying a retryable conflict; use the journal receipt for duplicate command IDs.
+- Input failures have `cli.arguments`, `cli.input-read`, `cli.input-json`, or `cli.input-schema` codes. Core failures retain their diagnostic codes.
+- Add `--debug` to include a top-level `cause` string for debugging; it may contain input or storage details.
 - Output is compact by default. Add `--pretty` before the subcommand for readable JSON.
+
+## Discover the write schema
+
+```sh
+triplex --sqlite ./app.db describe
+triplex --sqlite ./app.db describe --ref preview
+```
+
+`data.commands` retains the command manifest. `data.schema` describes the immutable release at
+`live` by default, or the ref selected with `--ref`:
+
+- `release`: `id`, `label`, `rootContentId`, and the requested `ref`.
+- `entityTypes`: sorted `{ name, attributes }` entries. Each attribute has `key`, `valueType`
+  (the full TypeExpr, including enum `values`), `required`, `cardinality`, `unique`,
+  `referenceTarget` (a type name or `null`), and `sensitive`.
+- `attributes`: every `{ key, valueType }` in the release, including unused attributes.
+- `constraints`: enforced graph constraint `{ key, kind }` entries.
+- `derivations`: `{ kind, key }` entries for derivations and other configuration objects.
+- `examples`: one `{ entityType, input }` entry per type, with a `transaction apply` input.
+- `rules`: five plain-string reminders about command atomicity, deterministic IDs, pinning and
+  enforcement, valid intervals, and ending a value without erasing its past.
+
+Examples assert every required attribute and carry `entityType` on every fact. For a type with
+only optional attributes, the example asserts its first attribute so that the entity exists.
+Replace synthetic IDs, `"<text>"`, actor, and command ID placeholders with application values.
+Numbers start at `0`, booleans at `false`, dates at `"2000-01-01"`, instants at epoch `0`, and enums
+use their first member. Reference placeholders such as `"<entity-id of Site>"` must name an
+existing target valid at the example's commit time. Choose fresh values for unique attributes.
+Examples include both `meta.configSnapshot` and `meta.enforce` from the described release; submit
+`input` to `transaction apply --input <file>` after substitution. Pin that release for the whole
+command, even if its ref moves later.
+
+When the selected ref has no release, `data.schema` is `null` and `data.hint` explains how to publish
+one using application-owned `config.commit`, or move an existing release with `config set-ref`.
+`describe` opens the selected database and uses the same migration behavior as other data commands.
 
 ## Databases
 

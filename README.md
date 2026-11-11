@@ -186,17 +186,13 @@ import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/run
 
 // 1. Describe the domain once. Attributes own identity and type; entity types own usage rules.
 const WorkerName = Attribute.text(":worker/name");
-const Worker = EntityType.make("Worker", {
-  attributes: { name: Attribute.use(WorkerName, { required: true }) },
-});
+const Worker = EntityType.make("Worker", { name: Attribute.use(WorkerName, { required: true }) });
 
 const PlacementWorker = Attribute.ref(":placement/worker", Worker);
 const PlacementSite = Attribute.text(":placement/site");
 const Placement = EntityType.make("Placement", {
-  attributes: {
-    worker: Attribute.use(PlacementWorker, { required: true }),
-    site: Attribute.use(PlacementSite, { required: true }),
-  },
+  worker: Attribute.use(PlacementWorker, { required: true }),
+  site: Attribute.use(PlacementSite, { required: true }),
 });
 
 const SafetyTraining = Attribute.text(":evidence/site-safety");
@@ -210,7 +206,7 @@ const program = Effect.gen(function* () {
   // 2. Publish the schema as an immutable, content-addressed release.
   const release = yield* config.commit({
     label: "hr-2026.1",
-    objects: [...(yield* Worker.nodes), ...(yield* Placement.nodes), yield* SafetyTraining.node],
+    objects: [...(yield* EntityType.nodesOf(Worker, Placement)), yield* SafetyTraining.node],
     ref: "live",
   });
   const enforce = GraphConstraint.enforcement([...Worker.constraints, ...Placement.constraints]);
@@ -322,12 +318,10 @@ import { Attribute, EntityType } from "@triplex-build/triplex/config";
 export const EmployerName = Attribute.text(":employer/name");
 
 export const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, {
-      required: true,
-      unique: true,
-    }),
-  },
+  name: Attribute.use(EmployerName, {
+    required: true,
+    unique: true,
+  }),
 });
 
 Employer.attributes.name.key; // ":employer/name"

@@ -1,4 +1,5 @@
 import {
+  CommitValidation,
   EntityId,
   KvTriples,
   TransactionConflictError,
@@ -23,28 +24,21 @@ const EmployerName = Attribute.text(":employer/name");
 const EmployerNote = Attribute.text(":employer/note");
 const EmployerTag = Attribute.text(":employer/tag");
 const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: true, unique: true }),
-    note: Attribute.use(EmployerNote),
-    tags: Attribute.use(EmployerTag, { cardinality: "many" }),
-  },
+  name: Attribute.use(EmployerName, { required: true, unique: true }),
+  note: Attribute.use(EmployerNote),
+  tags: Attribute.use(EmployerTag, { cardinality: "many" }),
 });
 const EmploymentEmployer = Attribute.ref(":employment/employer", Employer);
 const EmploymentRole = Attribute.enumOf(":employment/role", ["engineer", "manager"]);
 const Employment = EntityType.make("Employment", {
-  attributes: {
-    employer: Attribute.use(EmploymentEmployer, { required: true }),
-    role: Attribute.use(EmploymentRole, { required: true }),
-  },
+  employer: Attribute.use(EmploymentEmployer, { required: true }),
+  role: Attribute.use(EmploymentRole, { required: true }),
 });
 
-const uniqueNodes = async () => {
-  const nodes = await Effect.runPromise(Effect.all([Employer.nodes, Employment.nodes]));
-  return [...new Map(nodes.flat().map((node) => [`${node.kind}\u0000${node.key}`, node])).values()];
-};
+const uniqueNodes = () => Effect.runPromise(EntityType.nodesOf(Employer, Employment));
 
 interface ErrorResponse {
-  readonly code: string;
+  readonly error: { readonly code: string };
 }
 
 interface DocumentResponse {
@@ -118,6 +112,43 @@ const cases = [
 ] as const;
 
 describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLayer) => {
+  it("reports retryable transaction conflicts with Retry-After", async () => {
+    let conflict = false;
+    const failing = Layer.effect(
+      Triples,
+      Effect.map(Triples, (triples) => ({
+        ...triples,
+        transact: (...args: Parameters<TriplesService["transact"]>) =>
+          conflict
+            ? Effect.fail(new TransactionConflictError({ message: "Concurrent update" }))
+            : triples.transact(...args),
+      })),
+    ).pipe(Layer.provide(triplesLayer));
+    const web = await makeWebHandler(failing);
+    try {
+      conflict = true;
+      const response = await web.handler(
+        new Request("http://triplex.test/api/rest/latest/employers", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ attributes: { ":employer/name": "Race" } }),
+        }),
+      );
+      expect(response.status).toBe(409);
+      expect(response.headers.get("retry-after")).toBe("0");
+      expect(await response.json()).toEqual({
+        error: {
+          code: "transaction.conflict.precondition",
+          message: "Concurrent update",
+          retryable: true,
+          fix: "Reload current facts and retry the whole command.",
+        },
+      });
+    } finally {
+      await web.dispose();
+    }
+  });
+
   it("preserves commit-position entity reads and collection cursors", async () => {
     const web = await makeWebHandler(triplesLayer);
     try {
@@ -230,10 +261,15 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
           const token = request.headers["authorization"];
           return token === undefined
             ? Effect.fail(
-                new UnauthorizedError({ code: "unauthorized", message: "Authentication required" }),
+                new UnauthorizedError({
+                  code: "http.unauthorized",
+                  message: "Authentication required",
+                }),
               )
             : token !== "Bearer allowed"
-              ? Effect.fail(new ForbiddenError({ code: "forbidden", message: "Access denied" }))
+              ? Effect.fail(
+                  new ForbiddenError({ code: "http.forbidden", message: "Access denied" }),
+                )
               : Effect.void;
         },
         canReadEntity: () => Effect.succeed(true),
@@ -246,7 +282,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         new Request("http://triplex.test/api/rest/latest/schema"),
       );
       expect(unauthorized.status).toBe(401);
-      expect((await responseJson<ErrorResponse>(unauthorized)).code).toBe("unauthorized");
+      expect((await responseJson<ErrorResponse>(unauthorized)).error.code).toBe(
+        "http.unauthorized",
+      );
 
       const forbidden = await web.handler(
         new Request("http://triplex.test/api/rest/latest/schema", {
@@ -254,7 +292,43 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         }),
       );
       expect(forbidden.status).toBe(403);
-      expect((await responseJson<ErrorResponse>(forbidden)).code).toBe("forbidden");
+      expect((await responseJson<ErrorResponse>(forbidden)).error.code).toBe("http.forbidden");
+    } finally {
+      await web.dispose();
+    }
+  });
+
+  it("maps commit validator rejections to 409 while configuration writes bypass them", async () => {
+    const noForbiddenNames = CommitValidation.make("employer.names", (commit) =>
+      Effect.succeed(
+        commit.changes.flatMap((change) =>
+          change.op === "assert" &&
+          change.attribute === ":employer/name" &&
+          change.value?.type === "string" &&
+          change.value.value === "Forbidden Corp"
+            ? [{ code: "forbidden_name", message: "This employer name is not allowed" }]
+            : [],
+        ),
+      ),
+    );
+    const web = await makeWebHandler(
+      CommitValidation.layer({ validators: [noForbiddenNames] }).pipe(Layer.provide(triplesLayer)),
+    );
+    try {
+      const create = (name: string) =>
+        web.handler(
+          new Request("http://triplex.test/api/rest/latest/employers", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ attributes: { ":employer/name": name } }),
+          }),
+        );
+      const rejected = await create("Forbidden Corp");
+      expect(rejected.status).toBe(409);
+      expect((await responseJson<ErrorResponse>(rejected)).error.code).toBe(
+        "transaction.commit-rejected",
+      );
+      expect((await create("Allowed Corp")).status).toBe(201);
     } finally {
       await web.dispose();
     }
@@ -343,6 +417,27 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
       expect(openapi.status).toBe(200);
       const latestOpenApi = await responseJson<OpenApiResponse>(openapi);
       expect(Object.keys(latestOpenApi.paths)).toContain("/api/rest/latest/employers");
+      expect(latestOpenApi).toMatchObject({
+        components: {
+          schemas: {
+            TriplexHttpError: {
+              properties: { error: { $ref: "#/components/schemas/TriplexDiagnostic" } },
+              required: ["error"],
+            },
+            TriplexDiagnostic: {
+              required: ["code", "message", "retryable"],
+              properties: {
+                code: { type: "string" },
+                message: { type: "string" },
+                retryable: { type: "boolean" },
+                fix: { type: "string" },
+                path: { type: "string" },
+                details: { type: "object" },
+              },
+            },
+          },
+        },
+      });
       expect(latestOpenApi.paths["/api/rest/latest/employers"].post).toBeDefined();
 
       const historicalOpenApi = await web.handler(
@@ -363,6 +458,14 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         }),
       );
       expect(invalid.status).toBe(400);
+      expect(await invalid.clone().json()).toMatchObject({
+        error: {
+          code: "http.invalid-request",
+          path: expect.any(String),
+          fix: expect.any(String),
+          retryable: false,
+        },
+      });
       expect(invalid.headers.get("x-triplex-config-snapshot")).toBe(web.snapshotId());
 
       const malformed = await web.handler(
@@ -413,6 +516,13 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         ),
       );
       expect(wrongCollection.status).toBe(404);
+      expect(await wrongCollection.json()).toMatchObject({
+        error: {
+          code: "http.entity-not-found",
+          fix: expect.any(String),
+          retryable: false,
+        },
+      });
 
       const invalidReference = await web.handler(
         new Request("http://triplex.test/api/rest/latest/employments", {
@@ -427,6 +537,14 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         }),
       );
       expect(invalidReference.status).toBe(409);
+      expect(await invalidReference.json()).toMatchObject({
+        error: {
+          code: "constraint.violation",
+          path: expect.any(String),
+          fix: expect.any(String),
+          retryable: false,
+        },
+      });
 
       const invalidEnum = await web.handler(
         new Request("http://triplex.test/api/rest/latest/employments", {
@@ -492,7 +610,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         new Request("http://triplex.test/api/rest/latest/employers?cursor=forged"),
       );
       expect(forgedCursor.status).toBe(400);
-      expect((await responseJson<ErrorResponse>(forgedCursor)).code).toBe("invalid_request");
+      expect((await responseJson<ErrorResponse>(forgedCursor)).error.code).toBe(
+        "http.invalid-request",
+      );
 
       const nextSnapshot = await web.advanceLive();
       expect(nextSnapshot).not.toBe(web.snapshotId());
@@ -502,7 +622,13 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         ),
       );
       expect(movedContinuation.status).toBe(409);
-      expect((await responseJson<ErrorResponse>(movedContinuation)).code).toBe("cursor_conflict");
+      expect(await movedContinuation.json()).toMatchObject({
+        error: {
+          code: "http.cursor-conflict",
+          fix: expect.any(String),
+          retryable: false,
+        },
+      });
 
       const historicalWrite = await web.handler(
         new Request(`http://triplex.test/api/rest/${web.snapshotId()}/employers`, {
@@ -543,7 +669,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         new Request("http://triplex.test/api/rest/latest/employers/employer%3Acorrupt"),
       );
       expect(corrupt.status).toBe(409);
-      expect((await responseJson<ErrorResponse>(corrupt)).code).toBe("data_shape_conflict");
+      expect((await responseJson<ErrorResponse>(corrupt)).error.code).toBe(
+        "http.data-shape-conflict",
+      );
 
       await web.assertFact({
         entityId: EntityId.make(secondEmployerBody.id),
@@ -563,7 +691,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         ),
       );
       expect(scheduledReplace.status).toBe(409);
-      expect((await responseJson<ErrorResponse>(scheduledReplace)).code).toBe("scheduled_facts");
+      expect((await responseJson<ErrorResponse>(scheduledReplace)).error.code).toBe(
+        "http.scheduled-facts",
+      );
 
       const blockedDelete = await web.handler(
         new Request(

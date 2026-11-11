@@ -15,6 +15,7 @@ import {
   type TripleRow,
   CommandAlreadyCommittedError,
   ConstraintViolationError,
+  CommitRejectedError,
   TransactionConflictError,
   OperationalEntryConflictError,
   WriteError,
@@ -105,7 +106,8 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
             error instanceof OperationalEntryConflictError ||
             error instanceof TransactionConflictError ||
             error instanceof CommandAlreadyCommittedError ||
-            error instanceof ConstraintViolationError
+            error instanceof ConstraintViolationError ||
+            error instanceof CommitRejectedError
               ? error
               : new WriteError({
                   message: `Transaction failed: ${String(error)}`,

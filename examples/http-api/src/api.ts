@@ -7,15 +7,13 @@ const EmployeeEmail = Attribute.text(":employee/email");
 
 // First deployment: Employee has one exposed attribute.
 const EmployeeV1 = EntityType.make("Employee", {
-  attributes: { name: Attribute.use(EmployeeName, { required: true, unique: true }) },
+  name: Attribute.use(EmployeeName, { required: true, unique: true }),
 });
 
 // Second deployment: the persisted schema adds an optional email attribute.
 const EmployeeV2 = EntityType.make("Employee", {
-  attributes: {
-    name: Attribute.use(EmployeeName, { required: true, unique: true }),
-    email: Attribute.use(EmployeeEmail),
-  },
+  name: Attribute.use(EmployeeName, { required: true, unique: true }),
+  email: Attribute.use(EmployeeEmail),
 });
 
 export const routes = Layer.unwrap(
@@ -23,11 +21,11 @@ export const routes = Layer.unwrap(
     const store = yield* ConfigStore.ConfigStore;
     const v1 = yield* store.commit({
       label: "http-example-v1",
-      objects: yield* EmployeeV1.nodes,
+      objects: yield* EntityType.nodesOf(EmployeeV1),
     });
     const v2 = yield* store.commit({
       label: "http-example-v2",
-      objects: yield* EmployeeV2.nodes,
+      objects: yield* EntityType.nodesOf(EmployeeV2),
       ref: "live",
     });
     return EntityHttp.layer({

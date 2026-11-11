@@ -18,10 +18,8 @@ const snapshot = Effect.gen(function* () {
   const Name = Attribute.text(":employer/name");
   const Tags = Attribute.text(":employer/tag");
   const Employer = EntityType.make("Employer", {
-    attributes: {
-      name: Attribute.use(Name, { required: true }),
-      tags: Attribute.use(Tags, { cardinality: "many" }),
-    },
+    name: Attribute.use(Name, { required: true }),
+    tags: Attribute.use(Tags, { cardinality: "many" }),
   });
   return (yield* InMemoryConfigStore.commit(InMemoryConfigStore.empty(), {
     label: "v1",
@@ -111,18 +109,9 @@ describe("ConfigApi", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const SharedName = Attribute.text(":shared/name");
-        const Alpha = EntityType.make("Alpha", {
-          attributes: { primaryName: Attribute.use(SharedName) },
-        });
-        const Beta = EntityType.make("Beta", {
-          attributes: { displayName: Attribute.use(SharedName) },
-        });
-        const allNodes = yield* Effect.all([Alpha.nodes, Beta.nodes]);
-        const nodes = [
-          ...new Map(
-            allNodes.flat().map((node) => [`${node.kind}\u0000${node.key}`, node]),
-          ).values(),
-        ];
+        const Alpha = EntityType.make("Alpha", { primaryName: Attribute.use(SharedName) });
+        const Beta = EntityType.make("Beta", { displayName: Attribute.use(SharedName) });
+        const nodes = yield* EntityType.nodesOf(Alpha, Beta);
         const release = yield* InMemoryConfigStore.commit(InMemoryConfigStore.empty(), {
           label: "shared",
           objects: nodes,
