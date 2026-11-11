@@ -308,7 +308,8 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `test/foundationdb-operational-conformance`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Execution status: stopped following explicit owner scope deferral. Keep the
+- Execution status: blocked by explicit owner scope deferral, not by a pending
+  contract-choice question. Keep the
   existing safe allocator, transaction/position guarantees and typed whole-command
   retries. TX1.3/TX1.4 production redesign is deferred, not awaiting a contract choice.
   All independent deliverables remain reviewable; the original full goal is not achieved.
@@ -850,3 +851,17 @@ That deferral remains the sole obstacle to the original full objective; the
 zero-allocation-conflict target remains unmet. This is the first audit after
 reactivation, so the goal remains active under the fresh blocked-audit rule.
 No contract-choice question is reopened and no deferred production work starts.
+
+### Resumed blocked audit concluded
+
+The same explicit owner deferral remains across three consecutive resumed goal
+turns. The first revalidated the worktree and recorded the deferral; the second
+confirmed CI run 42975237788 was live; the third polled that same run until it
+completed successfully for 52bcf91. Every job passed, including both Node versions,
+native FoundationDB/PostgreSQL, package consumer, docs/browser and stress.
+
+No eligible independent task or validation failure remains. TX1.3/TX1.4 production
+work is explicitly deferred, so the original zero-allocation-conflict target and
+full goal remain unachieved. Mark the goal blocked by that scope deferral. No
+contract-choice question is pending or reopened; resume deferred implementation
+only on a new explicit owner request. All PRs/evidence are preserved.
