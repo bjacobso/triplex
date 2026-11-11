@@ -8,7 +8,7 @@ import {
   Triples,
   string,
 } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { sqliteInternalLayer } from "./SqliteInternalLayer.js";
 
 const record = EntityId.make("host:record:1");
 
@@ -36,7 +36,7 @@ const approvals = CommitValidation.make("host.approvals", (commit) =>
 
 const database = (recordRejections: boolean) =>
   CommitValidation.layer({ validators: [approvals], recordRejections }).pipe(
-    Layer.provideMerge(SqliteTriples.layerMemoryWithScope(`host-tx-${recordRejections}`)),
+    Layer.provideMerge(sqliteInternalLayer(`host-tx-${recordRejections}`)),
   );
 
 const status = (value: string) =>
@@ -68,7 +68,7 @@ const run = <A, E>(
     Effect.gen(function* () {
       yield* setup;
       return yield* effect;
-    }).pipe(Effect.provide(database(recordRejections)), Effect.scoped) as Effect.Effect<A, E>,
+    }).pipe(Effect.provide(database(recordRejections)), Effect.scoped),
   );
 
 describe("SQLite host-owned transactions with commit validators", () => {

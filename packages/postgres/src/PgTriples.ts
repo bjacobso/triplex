@@ -11,7 +11,7 @@
  */
 
 import { Layer } from "effect";
-import type { SqlClient } from "effect/sql";
+import { SqlClient } from "effect/sql";
 import {
   TriplesLive,
   CurrentDialect,
@@ -52,7 +52,12 @@ const make = <E, R>(
   clientLayer: Layer.Layer<SqlClient.SqlClient, E, R>,
   scope: string,
   migrate: boolean,
-) => fromSqlClient(scope, migrate).pipe(Layer.provideMerge(clientLayer));
+) =>
+  fromSqlClient(scope, migrate).pipe(
+    Layer.provideMerge(
+      Layer.effect(SqlClient.SqlClient, SqlClient.SqlClient).pipe(Layer.provide(clientLayer)),
+    ),
+  );
 
 const scopeFromConfig = (config: PostgresqlConfig): string =>
   `postgresql://${config.host ?? "localhost"}:${config.port ?? 5432}/${config.database}`;
@@ -67,10 +72,11 @@ export const PgTriples = {
   withTransaction: withPostgresqlTransaction,
   /** `Triples` over a pooled PostgreSQL connection (migrations applied). */
   layer: (config: PostgresqlConfig) =>
-    make(makePostgresqlLayer(config), scopeFromConfig(config), false),
+    fromSqlClient(scopeFromConfig(config), false).pipe(Layer.provide(makePostgresqlLayer(config))),
 
   /** `Triples` from a connection URL, e.g. `postgresql://user:pw@host:5432/db`. */
-  layerFromUrl: (url: string) => make(makePostgresqlLayerFromUrl(url), scopeFromUrl(url), false),
+  layerFromUrl: (url: string) =>
+    fromSqlClient(scopeFromUrl(url), false).pipe(Layer.provide(makePostgresqlLayerFromUrl(url))),
 
   /**
    * Build `Triples` from a host-provided ambient `SqlClient`. No pool is
