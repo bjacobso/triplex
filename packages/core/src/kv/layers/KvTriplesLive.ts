@@ -849,6 +849,7 @@ const makeKvTriplesService = Effect.gen(function* () {
       ),
 
     transactions: (request = {}) => {
+      const prefix = request.entityIdPrefix;
       const after = request.after ?? 0;
       const limit = request.limit ?? 100;
       if (!Number.isSafeInteger(after) || after < 0) {
@@ -860,6 +861,39 @@ const makeKvTriplesService = Effect.gen(function* () {
         return Effect.fail(
           new ReadError({ message: "Transaction page limit must be between 1 and 1000" }),
         );
+      }
+      if (prefix !== undefined) {
+        if (typeof prefix !== "string")
+          return Effect.fail(
+            new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+          );
+        return Effect.gen(function* () {
+          const head = yield* currentKvCommitPosition(kvBackend);
+          const candidates = yield* hexaStore.transactionIdsForEntityPrefix(
+            prefix,
+            after,
+            limit,
+            head,
+          );
+          const page = [];
+          for (const candidate of candidates) {
+            // Global KV journal reads use TYPE order (journal fact ID), unlike EAVT's value order.
+            const datoms = (yield* hexaStore.scanCollectAsync({ entity: candidate.txId }))
+              .filter((datom) => datom.entityType === "_Transaction")
+              .sort((a, b) => (a.tripleId < b.tripleId ? -1 : a.tripleId > b.tripleId ? 1 : 0));
+            const record = transactionRecordFromTriples(
+              unsafe.transactionId(candidate.txId),
+              datoms.map(datomToTriple),
+            );
+            if (record === null || record.position !== candidate.position)
+              return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
+            page.push(record);
+          }
+          return {
+            transactions: page,
+            ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
+          };
+        });
       }
       return match({ entityType: "_Transaction" }).pipe(
         Effect.map((triples) => {

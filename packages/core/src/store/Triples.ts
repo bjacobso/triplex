@@ -128,6 +128,8 @@ export interface TransactionRecord {
 }
 
 export interface TransactionPageRequest {
+  /** Literal, case-sensitive prefix of any changed entity ID. Empty matches transactions with changes. */
+  readonly entityIdPrefix?: string;
   /** Return transactions strictly after this commit position. Defaults to 0. */
   readonly after?: number;
   /** Maximum number of transactions to return. Defaults to 100; maximum 1,000. */

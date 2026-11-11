@@ -213,6 +213,7 @@ const transactionId = TransactionId.make("_tx/00000000000000000000000000");
 const tripleId = TripleId.make("00000000000000000000000000");
 const transactionEntity: EntityId = transactionId;
 declare const triplesService: TriplesService;
+const filteredFeed = triplesService.transactions({entityIdPrefix: "home:", after: 0, limit: 10});
 const timeline = triplesService.transactionsForEntity(triple.entityId, { limit: 20 });
 const historicalEntity = triplesService.entity(triple.entityId, { recordedPosition: 0 });
 const hostTransaction = PgTriples.withTransaction(triplesService.transact([]));

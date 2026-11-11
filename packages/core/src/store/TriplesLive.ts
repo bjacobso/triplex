@@ -638,6 +638,7 @@ export const TriplesLive = Layer.effect(
         );
 
     const transactions: TriplesService["transactions"] = (request = {}) => {
+      const prefix = request.entityIdPrefix;
       const after = request.after ?? 0;
       const limit = request.limit ?? 100;
       if (!Number.isSafeInteger(after) || after < 0) {
@@ -649,6 +650,34 @@ export const TriplesLive = Layer.effect(
         return Effect.fail(
           new ReadError({ message: "Transaction page limit must be between 1 and 1000" }),
         );
+      }
+      if (prefix !== undefined) {
+        if (typeof prefix !== "string")
+          return Effect.fail(
+            new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+          );
+        return Effect.gen(function* () {
+          const candidates = yield* adapter.transactionIdsForEntityPrefix(prefix, after, limit);
+          const grouped = yield* adapter.getByEntities(
+            candidates.map((candidate) => candidate.txId),
+          );
+          const page = [];
+          for (const candidate of candidates) {
+            const record = transactionRecordFromTriples(
+              unsafe.transactionId(candidate.txId),
+              (grouped.get(candidate.txId) ?? [])
+                .filter((row) => row.entity_type === "_Transaction")
+                .map(rowToTriple),
+            );
+            if (record === null || record.position !== candidate.position)
+              return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
+            page.push(record);
+          }
+          return {
+            transactions: page,
+            ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
+          };
+        });
       }
       return adapter.query({ entityType: "_Transaction" }).pipe(
         Effect.map((rows) => {

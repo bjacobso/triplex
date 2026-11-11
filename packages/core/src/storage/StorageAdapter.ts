@@ -24,6 +24,12 @@ import type { TransactionId } from "../Branded.js";
  * StorageAdapterService - Backend-agnostic storage primitives
  */
 export interface StorageAdapterService {
+  /** Indexed changed-entity prefix candidates, deduplicated and ordered by global position. */
+  readonly transactionIdsForEntityPrefix: (
+    prefix: string,
+    after: number,
+    limit: number,
+  ) => Effect.Effect<readonly { readonly txId: string; readonly position: number }[], ReadError>;
   /** Bounded live (unretracted, across all valid time) lookup using a live index. */
   readonly livePreconditionFacts: (
     entityId: string,

@@ -111,7 +111,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 6     | TX1.4: scoped concurrency, if needed   | pending | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [design](docs/rfcs/tx1-scoped-concurrency.md)  | Owner selected database-owned invariant scopes; authority/publication proof and prototype pending |
 | 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                       | Based on #64; native FDB unverified                                                               |
 | 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                       | Based on #65; native FDB unverified                                                               |
-| 9     | TX6: filtered transaction feed         | pending | —                                                                                                           | —                                                                                                 |
+| 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                       | Based on #67; root/pack/34 PG pass; native FDB unavailable                                        |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                           | Owner decision before any code                                                                    |
 | 11    | TX7: change-journal issue              | pending | —                                                                                                           | Issue only                                                                                        |
 | 12    | TX9: BlobStore issue                   | pending | —                                                                                                           | Issue only                                                                                        |
@@ -282,21 +282,20 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `fix/tx2-host-position-basis`. Carry the
+- Canonical ledger: this checkout, currently `feat/tx6-entity-filtered-feed`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX6 filtered transaction feed is next. Expanded TX2 follow-up #67
-  passes all local checks; hosted verification of its newest scope is pending.
-  TX5 and TX4 have green hosted CI. Owner selected staged publication/database-owned
-  scopes for investigation after the independent packages; proof remains required.
-- Integration tip / PR stack: `fix/tx2-host-position-basis`, based on
+- Active item: TX3 RFC only, next in sequence. TX6 is PR #68 with clean SQL/KV
+  evidence and passing root, package and 34-test PostgreSQL checks. Hosted CI pending.
+- Integration tip / PR stack: `feat/tx6-entity-filtered-feed`, based on
+  `fix/tx2-host-position-basis` (#67), based on
   `feat/tx5-cheap-preconditions` (#66), based on
   `feat/tx4-operational-entries` (#65), based on
   `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: create TX6's branch from #67, write failing portable prefix-filtered
-  feed tests against the global-feed oracle, then implement indexed candidate
-  discovery and preserve complete transaction records/order/cursors across adapters.
+- Next action: branch from TX6 for TX3 host-sealing/erasure RFC; inspect actual
+  KeyProvider, ValueCodec and raw sealed-storage contracts. No runtime implementation.
+  Then file verified issue-only deliverables before TX1 protocol investigation.
 - Decisions: owner chose investigation of staged ordered publication with
   database-owned invariant scopes. Investigate it after independent deliverables.
   Strict ordering, coherent older-writer snapshots and mandatory invariant scope
@@ -590,3 +589,56 @@ after examples, exact commands, direct versus shared adapter coverage, new HTTP
 parameter/OpenAPI, compatible dashboard cursors and adoption with no new migration.
 Continue TX6, then the RFC and issues; investigate the selected allocator direction
 after those independent deliverables. Hosted checks will be monitored as work proceeds.
+
+### 2026-11-10 — TX6 prefix-filtered feed in progress
+
+The portable global-oracle regression failed first because entityIdPrefix was
+ignored (`/tmp/triplex-tx6-red.log`). Prefix reads now retain complete records,
+deduplicate transactions touching several matching entities, preserve global
+position ordering and resume tokens, and handle case/literal wildcard/Unicode
+prefixes. The same case passes on KV, SQLite and Cloudflare harness/workerd.
+The tenant protocol forwards the new field; its focused regressions pass after
+fixing its test config to actually invoke workspaceAliases (avoiding stale dist).
+
+KV reuses the changed-entity AVET prefix, pins a head, and retains only bounded
+candidate IDs before hydrating matching journals. Its I/O test sees the same six
+matching candidates and no unrelated transaction metadata with 10 and 10000
+unrelated commands. It still scans matching prefix history, so do not claim
+history-independent filtered-cursor work. SQL uses literal binary/C prefix bounds
+and a position predicate. A v7 covering index is under plan validation; SQLite's
+small fixture chooses its existing idx_ref_target range. Keep only indexes justified
+by the larger plans. A PostgreSQL focused plan case passes; full native/root/package
+validation, migration/adoption docs, Changeset and PR remain. No TX6 PR yet.
+
+TX6's large SQLite plan also prefers its existing idx_ref_target range, which
+selects only matching references. Removed the redundant SQLite/Cloudflare index
+DDL: SQL v7 is PostgreSQL-only covering-index creation plus ANALYZE; SQLite records
+v7 with no extra DDL, and Cloudflare needs no migration beyond v6. Full PostgreSQL
+integration passes all 34 tests, including the global-oracle corpus and cost fixture;
+Cloudflare passes its native harness and real workerd suites. Root checks pass
+before the latest quote/surrogate case and evidence-writer additions. Final
+validation, clean evidence, report and PR remain.
+
+TX6's migration/adoption docs and Changeset are written. The final implementation
+uses PostgreSQL SQL v7 only (C-collation covering index plus ANALYZE), records v7
+without DDL on SQLite, and leaves Cloudflare's schema at v6. The report at
+`test/evidence/tx6.md` explicitly distinguishes no unrelated-envelope reads from
+matching-history scan cost. Final root/native checks include added quote/backslash
+and maximal-surrogate cases and evidence writers; package checks, clean-revision
+artifacts and PR preparation follow.
+
+The added SQL receipt validation caught invalid synthetic IDs/change fields in the
+cost fixture. Replaced them with valid deterministic ULIDs and tripleId-bearing
+changes, then verified the noise receipt through Triplex. Both focused SQL plan
+cases now pass, followed by final `pnpm check` and all 34 PostgreSQL integrations.
+Preparing a clean implementation checkpoint and retained plan/I/O artifacts; no
+TX6 PR is open yet.
+
+TX6 implementation checkpoint `de5703f` has clean KV/SQLite/Postgres evidence.
+KV visits six references and 22 metadata rows at both unrelated-history sizes.
+Postgres uses the covering index at 10000 commands (six candidates); SQLite uses
+its existing reference index. Package validation verifies 11 tarballs and a clean
+consumer. FoundationDB opt-in skips for absent native client. Opening TX6 PR next.
+
+TX6 opened as [PR #68](https://github.com/bjacobso/triplex/pull/68), based on #67.
+Independent work continues with TX3 RFC only; allocator direction remains queued.

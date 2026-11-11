@@ -59,6 +59,7 @@ export const DataOperation = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal("TransactionByCommand"), commandId: Schema.String }),
   Schema.Struct({
     _tag: Schema.Literal("Transactions"),
+    entityIdPrefix: Schema.optional(Schema.String),
     after: Schema.optional(Schema.Number),
     limit: Schema.optional(Schema.Number),
   }),
@@ -153,6 +154,9 @@ export const executeDataOperation = (
       return triples.transactionByCommand(operation.commandId);
     case "Transactions":
       return triples.transactions({
+        ...(operation.entityIdPrefix === undefined
+          ? {}
+          : { entityIdPrefix: operation.entityIdPrefix }),
         ...(operation.after === undefined ? {} : { after: operation.after }),
         ...(operation.limit === undefined ? {} : { limit: operation.limit }),
       });

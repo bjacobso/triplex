@@ -18,9 +18,12 @@ import { decodeSealedEnvelope, encodeSealedEnvelope, type TripleValue } from "..
 import type { KvBackendService } from "../kv/KvBackend.js";
 import type { ResolvedTemporalBasis } from "../../Temporal.js";
 import { ReadError, MigrationError } from "../../errors/index.js";
-import { concat } from "../kv/encoding.js";
+import { concat, increment } from "../kv/encoding.js";
+import { transactionPrefixBounds } from "../../store/transactionPrefix.js";
+import { TxAttributes } from "../../utils/id.js";
 import { unsafe } from "../../Branded.js";
 import {
+  AVET_PREFIX,
   liveFactKey,
   liveFactKeyStr,
   liveFactRange,
@@ -41,7 +44,7 @@ import {
   metaKeyStr,
   typeKeyStr,
 } from "./indexes.js";
-import { tString, encodeStringStr } from "./tuple.js";
+import { tString, tRef, encodeTuple, encodeStringStr } from "./tuple.js";
 import { valueToTuplePart, type ScanPattern, patternToScan, valueToPartStr } from "./scan.js";
 
 // ─── Datom: The fundamental unit of data ───────────────────────────────────
@@ -526,6 +529,62 @@ export class KvTripleStore {
   private readonly datomCache = new Map<string, Datom>();
 
   constructor(private readonly kv: KvBackendService) {}
+
+  /** Prefix-only candidate scan; retain a bounded earliest-position set, never hydrate unrelated journals. */
+  transactionIdsForEntityPrefix(
+    prefix: string,
+    after: number,
+    limit: number,
+    snapshotPosition: number,
+  ): Effect.Effect<{ txId: string; position: number }[], ReadError> {
+    const bounds = transactionPrefixBounds(prefix);
+    if (bounds === null) return Effect.succeed([]);
+    const keyPrefix = (value: string) =>
+      concat(AVET_PREFIX, encodeTuple(tString(TxAttributes.CHANGED_ENTITY), tRef(value))).slice(
+        0,
+        -2,
+      );
+    const start = keyPrefix(bounds.lower);
+    const end = bounds.upper === undefined ? increment(keyPrefix("")) : keyPrefix(bounds.upper);
+    return Effect.gen({ self: this }, function* () {
+      const candidates: { txId: string; position: number }[] = [];
+      const selected = new Set<string>();
+      yield* Stream.runForEach(this.kv.getRange({ start, end }), ([, value]) =>
+        Effect.gen({ self: this }, function* () {
+          const bytes = yield* this.kv.get(metaKey(textDecoder.decode(value)));
+          if (bytes === null)
+            return yield* new ReadError({ message: "Missing changed-entity index target" });
+          const datom = yield* Effect.try({
+            try: () => deserializeDatom(bytes),
+            catch: (cause) =>
+              new ReadError({ message: "Invalid changed-entity index target", cause }),
+          });
+          if (
+            datom.entityType !== "_Transaction" ||
+            datom.retractedAt !== null ||
+            datom.value.type !== "ref" ||
+            !datom.value.value.startsWith(prefix) ||
+            datom.recordedPosition <= after ||
+            datom.recordedPosition > snapshotPosition ||
+            selected.has(datom.entity)
+          )
+            return;
+          let low = 0,
+            high = candidates.length;
+          while (low < high) {
+            const middle = (low + high) >>> 1;
+            if (candidates[middle]!.position < datom.recordedPosition) low = middle + 1;
+            else high = middle;
+          }
+          if (low >= limit) return;
+          candidates.splice(low, 0, { txId: datom.entity, position: datom.recordedPosition });
+          selected.add(datom.entity);
+          if (candidates.length > limit) selected.delete(candidates.pop()!.txId);
+        }),
+      );
+      return candidates;
+    });
+  }
 
   /** Never scan retracted history to decide a cheap precondition. */
   livePreconditionFacts(

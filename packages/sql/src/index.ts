@@ -11,6 +11,7 @@ export {
   OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL,
   OPERATIONAL_ENTRY_INDEX_DDLS,
   LIVE_PRECONDITION_INDEX_POSTGRES_DDL,
+  TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL,
   TRIPLES_TABLE_DDL,
   MIGRATIONS_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
@@ -55,3 +56,5 @@ export { DatabaseManagerLive } from "./DatabaseManagerLayer.js";
 export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";
 
 export { makeSqlLivePreconditionLookup } from "./LivePreconditions.js";
+
+export { makeSqlTransactionPrefixLookup } from "./TransactionFeed.js";

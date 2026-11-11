@@ -27,6 +27,7 @@ import {
 import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
+  makeSqlTransactionPrefixLookup,
   SqliteDialect,
 } from "@triplex-build/triplex-sql";
 import type { TripleRow } from "@triplex-build/triplex/runtime";
@@ -683,6 +684,15 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
 
   return {
     ...entries,
+    transactionIdsForEntityPrefix: makeSqlTransactionPrefixLookup(
+      {
+        run: <Row extends Record<string, unknown>>(statement: string, params: readonly unknown[]) =>
+          Effect.try(() =>
+            cursorToArray(sqlStorage.exec<Row>(statement, ...(params as SqlStorageValue[]))),
+          ),
+      },
+      SqliteDialect,
+    ),
     livePreconditionFacts: makeSqlLivePreconditionLookup(
       {
         run: <Row extends Record<string, unknown>>(statement: string, params: readonly unknown[]) =>

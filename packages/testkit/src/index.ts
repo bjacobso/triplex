@@ -81,6 +81,95 @@ export interface ConformanceCase {
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
   {
+    name: "entity-prefix feeds are the ordered complete subsequence of the global journal",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const after = yield* t.currentPosition();
+      const prefixes = [
+        "conf:feed:",
+        "conf:feed:%_",
+        "conf:feed:'\\",
+        "conf:feed:é",
+        "conf:feed:😀",
+        "conf:feed:\u{10ffff}",
+        "CONF:FEED:",
+        "conf:other:",
+      ];
+      let retractId: import("@triplex-build/triplex").TripleId | undefined;
+      for (let i = 0; i < 28; i++) {
+        const first = eid(`${prefixes[i % prefixes.length]}${i}`);
+        const second = eid(`${prefixes[(i * 3 + 1) % prefixes.length]}second:${i}`);
+        const committed = yield* t.transact(
+          [
+            { op: "assert", entityId: first, attribute: ":conf/feed", value: string(`first:${i}`) },
+            { op: "assert", entityId: first, attribute: ":conf/extra", value: number(i) },
+            {
+              op: "assert",
+              entityId: second,
+              attribute: ":conf/feed",
+              value: string(`second:${i}`),
+            },
+          ],
+          {
+            actor: "feed:test",
+            commandId: `conf:feed:command:${i}`,
+            correlationId: "conf:feed:correlation",
+          },
+        );
+        if (i === 0) retractId = committed.triples[0]!.id;
+      }
+      yield* t.transact([{ op: "retract", id: retractId! }]);
+      yield* t.transact([]); // No touched entity, even for the explicit empty prefix.
+      const global = (yield* t.transactions({ after, limit: 1000 })).transactions;
+      for (const prefix of [
+        ...prefixes,
+        "conf:feed:\ud83d",
+        "conf:feed:\udbff",
+        "",
+        "missing:",
+        "\0",
+        "\udc00",
+      ]) {
+        const expected = global.filter((record) =>
+          record.changes.some((change) => change.entityId.startsWith(prefix)),
+        );
+        const found: (typeof global)[number][] = [];
+        let cursor = after;
+        for (let pageIndex = 0; pageIndex < 40; pageIndex++) {
+          const page = yield* t.transactions({
+            after: cursor,
+            limit: 1 + (pageIndex % 4),
+            entityIdPrefix: prefix,
+          });
+          if (page.transactions.length === 0) {
+            yield* check(
+              page.next === undefined,
+              "empty filtered pages must retain existing cursor semantics",
+            );
+            break;
+          }
+          yield* check(
+            page.next === page.transactions.at(-1)!.position && page.next > cursor,
+            "filtered cursors remain exclusive global positions and must advance",
+          );
+          found.push(...page.transactions);
+          cursor = page.next!;
+        }
+        yield* check(
+          JSON.stringify(found) === JSON.stringify(expected),
+          `prefix ${JSON.stringify(prefix)} must return complete authoritative records exactly once in global order`,
+        );
+      }
+      const invalid = yield* t
+        .transactions({ entityIdPrefix: 3 as unknown as string })
+        .pipe(Effect.result);
+      yield* check(
+        invalid._tag === "Failure" && invalid.failure._tag === "ReadError",
+        "non-string feed prefixes must fail as typed reads",
+      );
+    }),
+  },
+  {
     name: "attribute-value and absence preconditions guard the live pre-state atomically",
     run: Effect.gen(function* () {
       const t = yield* Triples;
