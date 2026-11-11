@@ -1,3 +1,4 @@
+import { validateTransactionIntervals } from "../../Triple.js";
 import { explainAccessPaths } from "../datalog/explain.js";
 import { assertQueryBasis, queryBasisForView, resolveQueryBasis } from "../../datalog/temporal.js";
 import { checkCheapPreconditions } from "../../store/cheapPreconditions.js";
@@ -544,6 +545,7 @@ const makeKvTriplesService = Effect.gen(function* () {
         .transact((tx) => {
           const transactionStore = createKvTripleStore(transactionBackend(tx));
           return Effect.gen(function* () {
+            yield* validateTransactionIntervals(operations);
             if (!isSystemWriteAuthorized(meta)) {
               const reserved = reservedAssertError(operations);
               if (reserved) return yield* Effect.fail(reserved);

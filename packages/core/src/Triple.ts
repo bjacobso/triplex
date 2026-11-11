@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { TripleValue } from "./Value.js";
 import { TripleId, EntityId, Attribute, TransactionId } from "./Branded.js";
 import { RuleSchema as ConstraintRule } from "./Constraint.js";
@@ -6,7 +6,7 @@ import { AppendEntryOp, AcknowledgeEntryOp } from "./operational/Entry.js";
 
 export { TripleId, EntityId, Attribute };
 
-import { ValidationError } from "./errors/index.js";
+import { ValidationError, WriteError } from "./errors/index.js";
 
 /** Stored valid-time bounds use integer epoch milliseconds on every backend. */
 export const ValidTimeBound = Schema.Number.pipe(
@@ -32,6 +32,18 @@ export const validateAssertionBounds = (input: {
   }
   return undefined;
 };
+
+/** Validate every assertion before a transaction can mutate facts or its journal. */
+export const validateTransactionIntervals = (
+  operations: readonly TransactOp[],
+): Effect.Effect<void, WriteError> =>
+  Effect.gen(function* () {
+    for (const operation of operations) {
+      if (operation.op !== "assert") continue;
+      const invalid = validateAssertionBounds(operation);
+      if (invalid) return yield* new WriteError({ message: invalid.message, cause: invalid });
+    }
+  });
 
 export const TripleInput = Schema.Struct({
   entityId: EntityId,
