@@ -410,8 +410,11 @@ Update this section last in every session.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
   `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
-  `ergonomics/next` after P2.1 merged. `pnpm test:e2e` (screenshots) and `pnpm pack:check` are
-  still to run before the session PR. Start OrbStack (`orbctl start`) first: with Docker down the
+  `ergonomics/next` after P2.1 merged. `pnpm pack:check` passed (11 tarballs, clean
+  consumer). `pnpm test:e2e`: 9 passed, 4 screenshot failures (dashboard overview, temporal
+  controls, docs home light and dark), the same four that fail on untouched `main` on macOS
+  (`test/evidence/tx8.md`). Do not regenerate baselines on macOS; let the PR's Linux `docs-e2e`
+  job decide whether P2.1's homepage change needs new baselines. Start OrbStack (`orbctl start`) first: with Docker down the
   Postgres suite skips 41 of 45 tests and still exits 0.
 - **Known blockers:** D2 holds P1.3.
 
@@ -419,6 +422,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: `pnpm pack:check` passed; e2e shows only the four pre-existing macOS screenshot
+  failures.
 - 2026-11-11: P1.2b and the client RFC (P2.5) merged. Note: the CLI rebuilds the command name
   from a hard-coded flag list in `invocation`; derive it from the command tree later.
 - 2026-11-11: live-query RFC (P4.3) merged; added D11. Started P2.3 (typed decode, core only).
