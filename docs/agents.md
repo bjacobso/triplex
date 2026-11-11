@@ -48,7 +48,7 @@ Check these constraints with the people you work for before adopting it:
 | Schemas, policies, forms                | Config nodes committed as an immutable release, pointed to by `live` |
 | User and system actions                 | One `db.command` call per action                                     |
 | Evidence that starts or expires         | `validFrom` and `validTo` on the assertion                           |
-| Corrections                             | Retract and assert in one transaction                                |
+| Corrections                             | `tx.correct`, `tx.end` or `tx.replace` inside one command            |
 | Obligations and to-dos                  | A `Derivation` whose candidates you reconcile                        |
 | Tickets, notifications, SLAs            | Your code, driven by reconciliation diffs                            |
 | Audit questions                         | A temporal basis, command receipts, and the journal                  |
