@@ -93,6 +93,10 @@ These are settled. Do not reopen them without a new owner request.
   callers and list their paths in the brief; agents correctly stop at undeclared paths. Every path
   a brief's tests or acceptance criteria name (for example `test/integration/**`) must also be in
   its allowed paths, and a verb that touches sensitive values needs `packages/core/src/sensitive`.
+  For an item that changes a shared type (a Datalog clause shape, an attribute declaration), grep
+  for every consumer of that type and grant those paths up front, or grant the whole surface
+  minus files another running agent owns. Wave A lost four round trips to undeclared consumers
+  (sensitive analysis, dependency extraction, derivations, pagination, `config/`).
 - **Sandbox limits:** agents cannot use the network or Docker. The orchestrator runs
   `pnpm test:postgres:integration`, `pnpm test:e2e` and screenshot updates itself after merging.
 - **Accepting:** the orchestrator reviews the item branch, merges it into `ergonomics/next` with a
@@ -427,6 +431,10 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: Wave A scope stops: P4.4a needed sensitive, subscriptions, derivation and pagination
+  (granted the query-execution surface); P2.6 needed `Attribute.ref` to keep its target for
+  reference closures (granted `Attribute.ts`, `EntityType.ts`); P2.3b needed an HTTP-compatible
+  decode option (granted `EntityDecode.ts`).
 - 2026-11-11: owner approved D2, D3, D9, D10 and D11 and asked to continue on the same session
   PR (#80). Added P2.3b, P3.0, P4.4a and P4.4b. Wave A: P4.4a, P2.6, P2.3b in parallel; then
   P3.0 (not alongside P4.4a, both touch adapters); then P3.2 and P4.4b.
