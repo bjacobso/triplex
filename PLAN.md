@@ -257,7 +257,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ---- | ------------------------------------------ | ---- | --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1.1 | Reject unknown attributes in bound queries | A    |                 | done    | 2026-11-11: merged `ergo/p1.1` (`6133995`); `SchemaBound.layer`, `UnknownAttributeError`. Note: `match` reports it as `ReadError.cause` until the write-path error union is widened                                                               |
 | P1.2 | Stable error codes with a suggested fix    | A, C |                 | done    | 2026-11-11: core half `ergo/p1.2a` and CLI/HTTP half `ergo/p1.2b` merged; CLI `{ ok: false, command, error: Diagnostic }`, HTTP `{ error: Diagnostic }`, OpenAPI error schema, `cli.*` and `http.*` codes. CLI 9/9, HTTP 8/8, integration 210/210 |
-| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | pending | 2026-11-11: D2 approved; implemented with P4.4a                                                                                                                                                                                                   |
+| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | active  | 2026-11-11: in `ergo/p4.4a`                                                                                                                                                                                                                       |
 | P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending |                                                                                                                                                                                                                                                   |
 | P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending |                                                                                                                                                                                                                                                   |
 
@@ -292,10 +292,10 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P2.1  | Land the entity helpers (PR #45)                                         | B     | P0.3       | done    | 2026-11-11: merged `ergo/p2.1`; #45 folded in, sensitive-modifier fix, `nodesOf`, memoized `pinned`, one declaration form. `trials/vendor-risk` stays on the old API as a historical record. Owner may close #45 once the session PR exists                |
 | P2.2  | Commit validators (PR #52)                                               | alone | P0.3, D7   | done    | 2026-11-11: merged `ergo/p2.2`; #52 folded in, validators see entries in before/after views (D7). Orchestrator renamed the code to `transaction.commit-rejected` with allowlisted findings. Postgres 46/46. Owner may close #52 once the session PR exists |
 | P2.3  | Typed decode of entity facts                                             | B     | P2.1       | done    | 2026-11-11: core half merged (`ergo/p2.3`): `Type.decode`, literal requiredness in `Use<D, C, R>`, sealed markers, `withFacts` metadata. Core 813/813, integration 209/209. Switching HTTP `encodeEntity` to it is a follow-up                             |
-| P2.3b | HTTP reads through `Type.decode`; CLI command name from the command tree | C     | P2.3       | pending |                                                                                                                                                                                                                                                            |
+| P2.3b | HTTP reads through `Type.decode`; CLI command name from the command tree | C     | P2.3       | active  | 2026-11-11: `ergo/p2.3b`                                                                                                                                                                                                                                   |
 | P2.4  | Temporal verbs                                                           | B     | P2.1       | done    | 2026-11-11: merged `ergo/p2.4`; `Change.end/replace/correct/combine`, typed `Type.end/replace/correct`, sealed re-assertion only from a same-transaction retracted fact. Core 805/805, integration 208/208                                                 |
 | P2.5  | Client RFC: the `Database` service                                       | B     | P2.3, P2.4 | done    | 2026-11-11: merged `ergo/p2.5`; `docs/rfcs/database-client.md` (`@triplex-build/triplex/database`, startup compatibility check, admission-time pin, receipt on retry). P2.6 waits on D3                                                                    |
-| P2.6  | Client implementation                                                    | B     | P2.5       | pending | 2026-11-11: D3 approved                                                                                                                                                                                                                                    |
+| P2.6  | Client implementation                                                    | B     | P2.5       | active  | 2026-11-11: `ergo/p2.6`; `asOf({ recordedAt })` uses the journal-scan fallback until P3.0                                                                                                                                                                  |
 | P2.7  | Re-run the trial against the phase 2 gate                                | C     | P2.6       | pending |                                                                                                                                                                                                                                                            |
 
 - **P2.1** Rebase `conductor/entity-write-helpers` on `main` and bring it to a reviewable state.
@@ -371,7 +371,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P4.2  | Runner package RFC                                       | C    | P2.6      | pending |                                                                                                                                                                                      |
 | P4.3  | Live query RFC                                           | A    |           | done    | 2026-11-11: merged `ergo/p4.3`; `docs/rfcs/live-queries.md` (journal-driven snapshot `Stream`, resume tokens, expiry wakeups, new `dependencyStateAll`). Implementation waits on D11 |
 | P4.4  | Implement approved phase 4 RFCs (split below)            | —    | P4.1–P4.3 | pending | 2026-11-11: D10 and D11 approved                                                                                                                                                     |
-| P4.4a | Time in Datalog (`docs/rfcs/datalog-time.md`), with P1.3 | A    | D2, D10   | pending |                                                                                                                                                                                      |
+| P4.4a | Time in Datalog (`docs/rfcs/datalog-time.md`), with P1.3 | A    | D2, D10   | active  | 2026-11-11: `ergo/p4.4a`                                                                                                                                                             |
 | P4.4b | Live queries (`docs/rfcs/live-queries.md`)               | B    | P3.0, D11 | pending |                                                                                                                                                                                      |
 
 - **P4.1** Issue #73 holds the evidence. Specify how a query binds `validFrom` and `validTo`, so
@@ -412,18 +412,16 @@ work. Record a request for any of these in the decision queue instead of startin
 
 Update this section last in every session.
 
-- **Last updated:** 2026-11-11, session 1 complete; session PR opened from `ergonomics/next`.
-- **Running subagents:** none.
-- **Open worktrees and branches from this plan:** none; all item branches are merged and deleted.
-- **Next action:** after the owner merges the session PR, start session 2 from `main`. Eligible
-  without owner input: switch HTTP `encodeEntity` to `Type.decode` (P2.3 follow-up), derive the
-  CLI command name from the command tree instead of a flag list, P1.4 (pinned-without-enforce
-  docs) and P1.5 (rerun the trial harness against the phase 1 gate). Implementation of P2.6, P3.2,
-  P1.3 and P4.4 waits on D3, D9, D2 with D10, and D11.
-  Final checks on `32320a1`: `pnpm check` passed (27 typecheck, 26 test, 14 build tasks, docs build),
-  `pnpm test:postgres:integration` 46/46, `pnpm pack:check` 11 tarballs and a clean consumer.
-  `pnpm test:e2e`: 9 passed, the 4 known macOS screenshot failures (`test/evidence/tx8.md`).
-- **Known blockers:** owner decisions D2, D3, D9, D10 and D11.
+- **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
+- **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
+  - P4.4a with P1.3: block `block:01a1cc7d-43a9-7864-b38b-d6a4e36f7dc1`
+  - P2.6: block `block:01a1cc7d-43d1-734b-a43c-75b24e4eff3f`
+  - P2.3b: block `block:01a1cc7d-43f8-73ad-9c8c-f9187455fd2e`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p4.4a,p2.6,p2.3b}` on
+  `ergo/p4.4a`, `ergo/p2.6` and `ergo/p2.3b`. The session PR is #80 from `ergonomics/next`.
+- **Next action:** review Wave A as it reports. Then P3.0 (after P4.4a, both touch adapters),
+  then P3.2 and P4.4b, and switch the client to `resolveRecordedBasis`. Push merged work to PR #80.
+- **Known blockers:** none.
 
 ## Progress log
 
