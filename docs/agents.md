@@ -124,6 +124,8 @@ underlying transaction contract.
 
 ## 4. Model obligations as derivations
 
+Use [Live queries](/live-queries) for journal-driven snapshots and valid-time wakeups.
+
 - Write the obligation as a Datalog query. Positive patterns describe the situation, and a `not`
   clause describes the missing evidence. Every variable in `not` must be bound outside it.
   `Type.where(entity, { alias: "?var" })` and `Type.not(...)` build those clauses from aliases.
