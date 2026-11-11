@@ -212,7 +212,7 @@ stderr with a nonzero exit on failure. Writes require `meta.actor` and `meta.com
 
 ```sh
 npm install --global @triplex-build/triplex-cli
-triplex --sqlite ./app.db describe                  # capability manifest
+triplex --sqlite ./app.db describe                  # capabilities and live release schema
 triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db entity facts worker:maria
 triplex --sqlite ./app.db entity history worker:maria --limit 25
@@ -220,6 +220,13 @@ triplex --sqlite ./app.db query explain --input query.json
 triplex --sqlite ./app.db journal receipt placement:create:maria-harbor
 triplex --sqlite ./app.db config release --ref live
 ```
+
+Start with `describe`: `data.schema` includes the release identity, all entity types and attributes,
+usage constraints and sensitivity, graph constraints, configuration/derivation objects, write rules,
+and one `{ entityType, input }` example per type. Each input pins and enforces the same release.
+Replace its synthetic placeholders with application values, create referenced targets first, and
+submit the input to `transaction apply`. Use `describe --ref preview` to inspect another ref.
+If the ref has no release, `data.schema` is `null` and `data.hint` explains how to publish one.
 
 The unscoped `triplex` package on npm is an unrelated project. See [CLI and dashboard](/tools) for
 the full command set.
