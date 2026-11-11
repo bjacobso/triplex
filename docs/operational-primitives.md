@@ -589,3 +589,17 @@ backfill these indexes once when opened. Wildcard dependency reads traverse the
 covering temporal index, without loading fact values. Cloudflare is frozen and returns
 `ReadError` for wildcard dependencies and historical timestamp resolution; FoundationDB
 inherits the working KV implementation.
+
+### Assertion identity reads
+
+`Triples.get(id)` returns only unretracted assertions, independent of valid-time
+visibility. `Triples.assertion(id)` returns the retained assertion whether or not
+it is retracted, including `retractedAt` and `retractTxId`. Both return `null` for
+an unknown ID. Use `entity` or `match` with a temporal basis for state selection;
+use `assertion` for historical identity reads and [Why](/why) for an exact-cut
+explanation. Sensitive values remain sealed on both identity reads.
+
+Custom `TriplesService` implementations must provide `assertion`. Storage adapters'
+`getById(id, includeRetracted?)` must honor `true` by returning historical rows.
+The default remains a live lookup. KV `get` now matches SQL by excluding retracted
+assertions; callers needing its former historical behavior must use `assertion`.

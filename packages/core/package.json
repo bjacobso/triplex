@@ -91,6 +91,11 @@
       "types": "./dist/database/index.d.ts",
       "import": "./dist/database/index.js",
       "default": "./dist/database/index.js"
+    },
+    "./why": {
+      "types": "./dist/why/index.d.ts",
+      "import": "./dist/why/index.js",
+      "default": "./dist/why/index.js"
     }
   },
   "publishConfig": {

@@ -897,6 +897,8 @@ export const TriplesLive = Layer.effect(
       retractByPattern,
       transact,
       get,
+      assertion: (id) =>
+        adapter.getById(id, true).pipe(Effect.map((row) => (row ? rowToTriple(row) : null))),
       entity,
       entities,
       entityPage,

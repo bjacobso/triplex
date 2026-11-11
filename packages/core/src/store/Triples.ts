@@ -260,8 +260,10 @@ export interface TriplesService {
     | CommitRejectedError
   >;
   // --- Triple-level reads --------------------------------------------------
-  /** Fetch a single triple by id. */
+  /** Fetch an unretracted assertion by ID, regardless of valid time. */
   readonly get: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
+  /** Fetch the retained assertion by ID, including retraction metadata. */
+  readonly assertion: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
   /** Fetch all live triples for an entity. */
   readonly entity: (
     entityId: EntityId,

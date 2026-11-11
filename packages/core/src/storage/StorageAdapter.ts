@@ -101,7 +101,11 @@ export interface StorageAdapterService {
     txId: string,
     position: number,
   ) => Effect.Effect<boolean, WriteError>;
-  readonly getById: (id: string) => Effect.Effect<TripleRow | null, ReadError>;
+  /** Identity lookup; includeRetracted selects retained history instead of live state. */
+  readonly getById: (
+    id: string,
+    includeRetracted?: boolean,
+  ) => Effect.Effect<TripleRow | null, ReadError>;
   readonly getByEntity: (
     entityId: string,
     basis?: ResolvedTemporalBasis,

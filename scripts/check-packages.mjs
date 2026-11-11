@@ -193,6 +193,7 @@ import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/run
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { LiveQuery } from "@triplex-build/triplex/live-query";
 void LiveQuery;
+import { Why } from "@triplex-build/triplex/why";
 import * as Database from "@triplex-build/triplex/database";
 import { Inbox, Outbox, OperationalEntryConflictError } from "@triplex-build/triplex/operational";
 import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
@@ -217,6 +218,8 @@ const tripleId = TripleId.make("00000000000000000000000000");
 const transactionEntity: EntityId = transactionId;
 declare const triplesService: TriplesService;
 const filteredFeed = triplesService.transactions({entityIdPrefix: "home:", after: 0, limit: 10});
+const explainedLayer = Why.layer;
+const retainedAssertion = triplesService.assertion(tripleId);
 const timeline = triplesService.transactionsForEntity(triple.entityId, { limit: 20 });
 const historicalEntity = triplesService.entity(triple.entityId, { recordedPosition: 0 });
 const hostTransaction = PgTriples.withTransaction(triplesService.transact([]));
@@ -334,6 +337,7 @@ import { Runtime, DatabaseScope } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { LiveQuery } from "@triplex-build/triplex/live-query";
 void LiveQuery;
+import { Why } from "@triplex-build/triplex/why";
 import * as Database from "@triplex-build/triplex/database";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 

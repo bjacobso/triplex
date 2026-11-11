@@ -3503,3 +3503,6 @@ export * from "./sensitive.js";
 export { recordedReadsConformance } from "./recordedReadsCases.js";
 
 export { liveQueryCases } from "./liveQueryCases.js";
+export { whyConformance, whyTestLayer } from "./whyCases.js";
+export { assertionConformance } from "./assertionCases.js";
+export { whyReadBoundaryConformance } from "./whyReadBoundaryCases.js";
