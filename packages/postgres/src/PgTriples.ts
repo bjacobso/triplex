@@ -71,7 +71,8 @@ export const PgTriples = {
 
   /**
    * Build `Triples` from a host-provided ambient `SqlClient`. No pool is
-   * created and no migration is run.
+   * created and no migration is run. Acquisition checks the installed schema
+   * version and fails with `SchemaVersionError` if it differs from this release.
    */
   layerFromSqlClient: ({ scope }: PgTriplesFromSqlClientOptions) => fromSqlClient(scope, false),
 

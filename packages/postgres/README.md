@@ -44,6 +44,15 @@ journal, command claim, and commit position use the same fiber-local transaction
 Failures roll the whole unit back and nested transactions retain Effect SQL savepoint semantics.
 `layerFromSqlClientMigrated` is an explicitly named setup convenience.
 
+Acquiring an unmigrated adapter or Triples layer checks the current schema's migration
+version before exposing the service. `SchemaVersionError` (exported from this package)
+reports `expectedVersion` and `actualVersion`; zero means missing migration history.
+Older and newer schemas are rejected. Run `runMigrations` with the host client before
+building the Triples layer, or use a Triplex release compatible with a newer schema.
+Connection, permission, and malformed-history query failures remain SQL errors.
+This is an additional typed layer-acquisition failure; application read/write errors
+and standalone auto-migration behavior are unchanged.
+
 For a server-owned database mapping, use a validated `DatabaseId`:
 
 ```ts

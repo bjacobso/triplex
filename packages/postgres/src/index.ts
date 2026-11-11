@@ -5,6 +5,7 @@
  */
 
 export { PostgresqlDialect } from "./dialect.js";
+export { SchemaVersionError } from "./SchemaVersion.js";
 export {
   makePostgresqlAdapter,
   PostgresqlAdapterLive,

@@ -1,0 +1,36 @@
+import { Data, Effect } from "effect";
+import { SqlClient } from "effect/sql";
+import { migrations } from "@triplex-build/triplex-sql";
+
+/** The host must migrate its schema before acquiring an unmigrated layer. */
+export class SchemaVersionError extends Data.TaggedError("SchemaVersionError")<{
+  readonly expectedVersion: number;
+  /** Zero means no migration history exists in the current schema. */
+  readonly actualVersion: number;
+}> {
+  override get message(): string {
+    return `Triplex requires schema version ${this.expectedVersion}, found ${this.actualVersion}. Run runMigrations from @triplex-build/triplex-sql before constructing the layer; use a compatible Triplex release if the schema is newer.`;
+  }
+}
+
+/** Read-only preflight. Connection, permission, and malformed-history errors remain SQL errors. */
+export const checkSchemaVersion = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const expectedVersion = Math.max(...migrations.map((migration) => migration.version));
+  // Check the current schema explicitly: a table in a fallback search-path schema
+  // must never make an unmigrated database appear ready. Avoid deliberately
+  // querying a missing table, which would abort a caller's ambient transaction.
+  const [history] = yield* sql<{ readonly relation: string | null }>`
+    SELECT to_regclass(quote_ident(current_schema()) || '.triplex_schema_migrations')::text AS relation
+  `;
+  let actualVersion = 0;
+  if (history?.relation != null) {
+    const [row] = yield* sql<{ readonly version: number | null }>`
+      SELECT MAX(version) AS version FROM triplex_schema_migrations
+    `;
+    actualVersion = Number(row?.version ?? 0);
+  }
+  if (actualVersion !== expectedVersion) {
+    return yield* new SchemaVersionError({ expectedVersion, actualVersion });
+  }
+});

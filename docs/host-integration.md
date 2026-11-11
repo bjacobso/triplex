@@ -135,7 +135,13 @@ transaction connection. A failure on either side rolls back the relational rows,
 journal envelope, command receipt, commit position, and outbox row together. Nested transactions
 retain Effect SQL savepoint semantics.
 
-`layerFromSqlClient` creates no pool and runs no DDL. The explicitly named
+`layerFromSqlClient` creates no pool and runs no DDL. Acquisition checks the current
+schema version and fails with the Postgres package's exported `SchemaVersionError`
+when it differs from the release's expected version. The error includes
+`expectedVersion` and `actualVersion` (zero for absent migration history) and names
+`runMigrations`. Run migrations before building this layer, rather than inside the
+application effect that receives it. Newer schemas require a compatible release;
+connection and permission failures remain SQL errors. The explicitly named
 `layerFromSqlClientMigrated` variant is a provisioning convenience, not the default production
 boundary.
 

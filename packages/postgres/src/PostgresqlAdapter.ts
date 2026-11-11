@@ -23,6 +23,7 @@ import {
 } from "@triplex-build/triplex/internal";
 import { packValue, runMigrations } from "@triplex-build/triplex-sql";
 import { PostgresqlDialect } from "./dialect.js";
+import { checkSchemaVersion } from "./SchemaVersion.js";
 
 /**
  * Create a PostgreSQL StorageAdapter layer.
@@ -40,6 +41,7 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const { autoMigrate = true } = config;
+      if (!autoMigrate) yield* checkSchemaVersion;
 
       // Helper to provide SqlClient to inner effects
       const provide = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
