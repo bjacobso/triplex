@@ -1,4 +1,5 @@
 import {
+  CommitValidation,
   EntityId,
   KvTriples,
   TransactionConflictError,
@@ -292,6 +293,40 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
       );
       expect(forbidden.status).toBe(403);
       expect((await responseJson<ErrorResponse>(forbidden)).error.code).toBe("http.forbidden");
+    } finally {
+      await web.dispose();
+    }
+  });
+
+  it("maps commit validator rejections to 409 while configuration writes bypass them", async () => {
+    const noForbiddenNames = CommitValidation.make("employer.names", (commit) =>
+      Effect.succeed(
+        commit.changes.flatMap((change) =>
+          change.op === "assert" &&
+          change.attribute === ":employer/name" &&
+          change.value?.type === "string" &&
+          change.value.value === "Forbidden Corp"
+            ? [{ code: "forbidden_name", message: "This employer name is not allowed" }]
+            : [],
+        ),
+      ),
+    );
+    const web = await makeWebHandler(
+      CommitValidation.layer({ validators: [noForbiddenNames] }).pipe(Layer.provide(triplesLayer)),
+    );
+    try {
+      const create = (name: string) =>
+        web.handler(
+          new Request("http://triplex.test/api/rest/latest/employers", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ attributes: { ":employer/name": name } }),
+          }),
+        );
+      const rejected = await create("Forbidden Corp");
+      expect(rejected.status).toBe(409);
+      expect((await responseJson<ErrorResponse>(rejected)).error.code).toBe("commit_rejected");
+      expect((await create("Allowed Corp")).status).toBe(201);
     } finally {
       await web.dispose();
     }

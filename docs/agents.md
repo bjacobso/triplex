@@ -191,19 +191,20 @@ Triplex facts, the journal, and an outbox row commit together. See
 
 ## Anti-patterns
 
-| Don't                                                               | Do instead                                                         |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`  |
-| Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                       |
-| Retract a fact in one command and assert its replacement in another | Use `Change.correct` and submit its ops and preconditions together |
-| Retract an open state to change it from a date on                   | Use `Change.replace`; use `Change.end` to end without replacement  |
-| Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                      |
-| Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                 |
-| Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`           |
-| Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                  |
-| Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation     |
-| Call `queryAll` on request paths                                    | Use `query` and follow `nextCursor` (100 rows per page by default) |
-| Encode authorization as Datalog over the same store                 | Authorize in the host before providing `Triples`                   |
+| Don't                                                               | Do instead                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`         |
+| Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                              |
+| Retract a fact in one command and assert its replacement in another | Use `Change.correct` and submit its ops and preconditions together        |
+| Retract an open state to change it from a date on                   | Use `Change.replace`; use `Change.end` to end without replacement         |
+| Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                             |
+| Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                        |
+| Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`                  |
+| Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                         |
+| Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation            |
+| Call `queryAll` on request paths                                    | Use `query` and follow `nextCursor` (100 rows per page by default)        |
+| Encode authorization as Datalog over the same store                 | Authorize in the host before providing `Triples`                          |
+| Check a write rule before `transact`, then write                    | Enforce it in a commit validator, which reads the state that would commit |
 
 ## Inspect with the CLI
 

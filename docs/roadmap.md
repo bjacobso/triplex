@@ -102,8 +102,11 @@ shims, deprecations or opt-in flags for old shapes.
 - Delivered: indexed constraint candidate loading by source entity type and referenced target type,
   with batched subject expansion instead of a full live-fact scan.
 - Graph constraints remain separate from value-local `TypeExpr` definitions.
+- Delivered: [commit validators](/commit-validators), the host's in-transaction seam for domain
+  rules over db-before and db-after views, including Datalog. They return typed rejections and can
+  write durable rejection records.
 - Next: explicitly modelled general Datalog invariants. Observation mode remains available for
-  migrations and audit.
+  migrations and audit. Commit validators are the escape hatch until then.
 
 ## 1a. Sensitive values
 
@@ -139,6 +142,9 @@ shims, deprecations or opt-in flags for old shapes.
 - Delivered foundation: explicit database scope, branded `DatabaseId`, scope-bound cursors, and
   PostgreSQL schema-per-database isolation. SQLite hosts use one file/layer per database and KV
   callers use an explicitly named scope.
+- Delivered foundation: runtime-wide commit validators let a host enforce write authorization
+  (for example, per-attribute asserter rules) inside the transaction. Triplex deliberately ships no
+  declarative policy grammar.
 - Keep authenticated account-to-database selection and authorization above raw `Triples` until
   there is a complete threat model and a backend-portable query/write policy contract.
 - Do not add an ambient `tenantId` column that silently changes query semantics.

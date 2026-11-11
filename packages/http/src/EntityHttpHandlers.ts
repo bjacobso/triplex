@@ -1,5 +1,6 @@
 import {
   CommandAlreadyCommittedError,
+  CommitRejectedError,
   type Diagnostic,
   ConstraintViolationError,
   SensitiveValueError,
@@ -139,6 +140,7 @@ const mapError = (error: unknown) => {
     error instanceof DataShapeConflictError ||
     error instanceof ScheduledFactsConflictError ||
     error instanceof CursorConflictError ||
+    error instanceof CommitRejectedError ||
     error instanceof ConstraintViolationError ||
     error instanceof TransactionConflictError ||
     error instanceof CommandAlreadyCommittedError

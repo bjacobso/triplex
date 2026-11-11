@@ -27,6 +27,7 @@ import {
   EntityId,
 } from "@triplex-build/triplex";
 import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-build/triplex/operational";
+import { commitValidatorConformanceCases } from "./commitValidatorCases.js";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -80,6 +81,7 @@ export interface ConformanceCase {
  * The behavioral cases every `Triples` backend must pass.
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
+  ...commitValidatorConformanceCases,
   {
     name: "entity-prefix feeds are the ordered complete subsequence of the global journal",
     run: Effect.gen(function* () {

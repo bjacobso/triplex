@@ -9,6 +9,12 @@
 import { Data } from "effect";
 import type { ViolationAt } from "../Constraint.js";
 import type { EntityId, TransactionId, TripleId } from "../Branded.js";
+import type {
+  Attempt as CommitAttempt,
+  CommitRejection,
+  RecordedReference,
+} from "../store/CommitValidation.js";
+import type { TransactionChange } from "../store/Triples.js";
 
 // Write operation errors
 export class WriteError extends Data.TaggedError("WriteError")<{
@@ -83,6 +89,24 @@ export class CommandAlreadyCommittedError extends Data.TaggedError("CommandAlrea
 export class ConstraintViolationError extends Data.TaggedError("ConstraintViolationError")<{
   readonly violations: readonly ViolationAt[];
   readonly message: string;
+}> {}
+
+/**
+ * One or more commit validators rejected the transaction. Its facts, operational
+ * entries and acknowledgements, journal envelope, command receipt, and commit position were rolled back; the
+ * attempted transaction ID never commits.
+ */
+export class CommitRejectedError extends Data.TaggedError("CommitRejectedError")<{
+  readonly message: string;
+  /** Names of the validators that ran, in order. */
+  readonly validators: readonly string[];
+  /** Every finding, stamped with the validator that produced it. */
+  readonly rejections: readonly CommitRejection[];
+  readonly attempt: CommitAttempt;
+  /** The changes the transaction attempted, as the journal would have recorded them. */
+  readonly changes: readonly TransactionChange[];
+  /** Present when a durable rejection record was written after the rollback. */
+  readonly recorded?: RecordedReference;
 }> {}
 
 // Read operation errors
@@ -260,7 +284,8 @@ export type WriteErrorUnion =
   | TransactionError
   | TransactionConflictError
   | CommandAlreadyCommittedError
-  | ConstraintViolationError;
+  | ConstraintViolationError
+  | CommitRejectedError;
 
 export type ReadErrorUnion = ReadError | EntityNotFoundError | TripleNotFoundError;
 
