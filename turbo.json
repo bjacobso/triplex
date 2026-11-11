@@ -17,6 +17,11 @@
     },
     "clean": {
       "cache": false
+    },
+    "@triplex-build/triplex-cli#test": {
+      "dependsOn": ["build", "^build"],
+      "inputs": ["src/**", "test/**", "package.json", "vitest.config.ts"],
+      "outputs": []
     }
   }
 }

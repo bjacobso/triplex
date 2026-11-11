@@ -4,11 +4,13 @@ import { Effect, Layer } from "effect";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { assertBuiltCliIsFresh, cliArgs } from "./builtCli.js";
 
 const exec = promisify(execFile);
+beforeAll(assertBuiltCliIsFresh);
 const directories: string[] = [];
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true })));
@@ -20,18 +22,7 @@ const setup = async () => {
   const filename = join(directory, "app.db");
   const layer = ConfigStore.layer.pipe(Layer.provideMerge(SqliteTriples.layer({ filename })));
   const cli = async (...args: string[]) => {
-    const { stdout } = await exec(process.execPath, [
-      "--disable-warning=ExperimentalWarning",
-      "--import",
-      "tsx",
-      "--input-type=module",
-      "--eval",
-      `process.argv.splice(1, 0, "triplex-test"); globalThis.__TRIPLEX_CLI_VERSION__ = "test"; await import(${JSON.stringify(resolve("src/cli.ts"))})`,
-      "--",
-      "--sqlite",
-      filename,
-      ...args,
-    ]);
+    const { stdout } = await exec(process.execPath, cliArgs(["--sqlite", filename, ...args]));
     return JSON.parse(stdout);
   };
   return { directory, layer, cli };
@@ -64,7 +55,7 @@ const publish = Effect.gen(function* () {
   });
 });
 
-// Each case starts the CLI in child processes, which can exceed the 5 s default on a busy machine.
+// Each case spawns the built CLI several times; leave headroom for a loaded parallel run.
 describe("describe release schema", { timeout: 30_000 }, () => {
   it("describes the persisted release graph and retains the command manifest", async () => {
     const { layer, cli } = await setup();

@@ -3,7 +3,10 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GraphConstraint } from "@triplex-build/triplex/config";
-import { expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
+import { assertBuiltCliIsFresh, cliArgs } from "./builtCli.js";
+
+beforeAll(assertBuiltCliIsFresh);
 
 it("reports actionable diagnostics and exits nonzero over a SQLite file", () => {
   const dir = mkdtempSync(join(tmpdir(), "triplex-diagnostics-"));
@@ -12,19 +15,12 @@ it("reports actionable diagnostics and exits nonzero over a SQLite file", () => 
     if (input !== undefined) writeFileSync(file, JSON.stringify(input));
     return spawnSync(
       process.execPath,
-      [
-        "--disable-warning=ExperimentalWarning",
-        "--import",
-        "tsx",
-        "--input-type=module",
-        "-e",
-        'process.argv.splice(1, 0, "triplex"); globalThis.__TRIPLEX_CLI_VERSION__ = "test"; await import("./src/cli.ts")',
-        "--",
+      cliArgs([
         "--sqlite",
         join(dir, "db.sqlite"),
         ...args,
         ...(input === undefined ? [] : ["--input", file]),
-      ],
+      ]),
       { cwd: new URL("..", import.meta.url), encoding: "utf8" },
     );
   };
