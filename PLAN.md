@@ -404,11 +404,11 @@ Update this section last in every session.
 
 - **Last updated:** 2026-11-11, D1, D7 and D8 answered; #48 merged; #46 closed.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
-  - P2.4: block `block:01a1cc2e-c170-76f9-8244-e6aa5f9bf09d`
+  - P2.5: block `block:01a1cc3e-5cfe-7c83-a3b7-251ca611357d`
   - P1.2b: block `block:01a1cc3c-9c50-7ebd-8ff0-027fbc0c6a49`
   - P4.3: block `block:01a1cc3c-9c76-78d1-94c8-b828ba0132d8`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.4,p1.2b,p4.3}` on
-  `ergo/p2.4`, `ergo/p1.2b` and `ergo/p4.3`.
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.5,p1.2b,p4.3}` on
+  `ergo/p2.5`, `ergo/p1.2b` and `ergo/p4.3`.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
   `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
@@ -421,6 +421,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P2.4 merged (sealed re-assertion reviewed: allowed only for a same-transaction
+  retracted fact with identical key, ciphertext and blind token). Started the client RFC (P2.5).
 - 2026-11-11: started P1.2b (CLI and HTTP diagnostics) and P4.3 (live-query RFC). P2.3 waits
   for P2.4 and P1.2b, which share `EntityType.ts` and `packages/http` with it.
 - 2026-11-11: P3.4 and the time-in-Datalog RFC merged; added D10. CLI describe test was flaky
