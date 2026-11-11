@@ -200,9 +200,7 @@ The host can compile its own ergonomic DSL into independently addressed Triplex 
 const RecordName = Attribute.text(":record/name");
 
 const Record = EntityType.make("Record", {
-  attributes: {
-    name: Attribute.use(RecordName, { required: true }),
-  },
+  name: Attribute.use(RecordName, { required: true }),
 });
 ```
 
@@ -237,7 +235,8 @@ Translate a validated command into `TransactOp` values and call one `Triples.tra
 - the idempotency key as `commandId`;
 - `correlationId` and `causationId` from the host operation context;
 - the pinned `configSnapshot`;
-- graph constraints from that exact snapshot in `enforce`; and
+- graph constraints from that exact snapshot in `enforce` (`GraphConstraint.pinned(snapshot)`
+  returns both); and
 - a `TripleLive` precondition for each optimistic fact being replaced.
 
 Use `transaction(txId)` to construct an audit response. Retraction changes include the old typed
