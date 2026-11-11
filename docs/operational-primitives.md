@@ -564,3 +564,28 @@ their freshness/source positions are part of their correctness contract. See
 Triplex should not define Threads, routine step DSLs, timers, integration catalogs, tenancy, or HR
 permissions. It should provide the atomicity, concurrency, history, constraints, temporal queries,
 content identity, and durable derivation mechanics those systems require.
+
+### Resolving recorded bases and wildcard dependencies
+
+`Triples.resolveRecordedBasis({ recordedAt })` returns an exact `{ recordedPosition }`
+from one captured committed head. Omit the basis to capture the head, or supply a
+`recordedPosition` to validate it against that head. Supplying both fields, a non-finite
+timestamp, or a negative, fractional, or ahead position fails with `ReadError`.
+A timestamp before the first commit resolves to zero; equal timestamps include every
+commit visible at capture; a future timestamp resolves to the captured head.
+Timestamp resolution selects the greatest qualifying position, including after clock rollback.
+
+`Triples.dependencyStateAll(basis)` returns the same freshness position and earliest
+future valid-time boundary as the union of `dependencyState` over every attribute,
+including journal and system attributes. Historical retractions advance the position
+at their recorded cut and remove their former future boundaries. `dependencyState([])`
+still means no dependencies and returns `{ sourcePosition: 0 }`.
+
+SQL migration **v9** adds a committed-journal timestamp/position index and a covering
+all-attribute temporal index. KV maintains a covering temporal projection and a
+position-ordered timestamp trie: timestamp resolution takes at most 65 bounded index
+seeks, even with clock rollback, without reading journal envelopes. Existing KV stores
+backfill these indexes once when opened. Wildcard dependency reads traverse the
+covering temporal index, without loading fact values. Cloudflare is frozen and returns
+`ReadError` for wildcard dependencies and historical timestamp resolution; FoundationDB
+inherits the working KV implementation.

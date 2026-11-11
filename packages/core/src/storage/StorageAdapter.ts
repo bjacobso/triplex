@@ -61,6 +61,11 @@ export interface StorageAdapterService {
   readonly nextCommitPosition: () => Effect.Effect<number, WriteError>;
   /** Read the latest committed position for an exact read snapshot boundary. */
   readonly currentCommitPosition: () => Effect.Effect<number, ReadError>;
+  /** Greatest journal position at or before instant, bounded by a captured head. */
+  readonly recordedPositionAt: (instant: number, head: number) => Effect.Effect<number, ReadError>;
+  readonly dependencyStateAll: (
+    basis: ResolvedTemporalBasis,
+  ) => Effect.Effect<DependencyState, ReadError>;
   /** Indexed projection freshness and valid-time scheduling for fixed attributes. */
   readonly dependencyState: (
     attributes: readonly string[],

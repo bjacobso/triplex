@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { MigrationError } from "@triplex-build/triplex/internal";
 import {
+  PUBLIC_READ_INDEX_DDLS,
   INTERVAL_HISTORY_INDEX_DDLS,
   LIVE_PRECONDITION_INDEX_POSTGRES_DDL,
   TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL,
@@ -98,6 +99,7 @@ export const migrations: readonly Migration[] = [
     name: "triplex_interval_history_indexes",
     up: INTERVAL_HISTORY_INDEX_DDLS,
   },
+  { version: 9, name: "triplex_public_read_indexes", up: PUBLIC_READ_INDEX_DDLS },
 ];
 
 export const runMigrations = Effect.gen(function* () {

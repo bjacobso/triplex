@@ -151,9 +151,13 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
           ),
         );
 
-      const dependencyState: StorageAdapterService["dependencyState"] = (attributes, basis) => {
+      const dependencyState = (
+        attributes: readonly string[] | undefined,
+        basis: Parameters<StorageAdapterService["dependencyStateAll"]>[0],
+      ) => {
         const unique = [...new Set(attributes)];
-        if (unique.length === 0) return Effect.succeed({ sourcePosition: 0 });
+        if (attributes !== undefined && unique.length === 0)
+          return Effect.succeed({ sourcePosition: 0 });
         const placeholders = unique.map(() => "?").join(", ");
         const sourceParams: unknown[] = [];
         const sourceExpression =
@@ -179,7 +183,7 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
           Effect.all([
             sql.unsafe<{ readonly source_position: number | null }>(
               `SELECT MAX(${sourceExpression}) AS source_position
-               FROM triples WHERE attribute IN (${placeholders})`,
+               FROM triples ${attributes === undefined ? "INDEXED BY idx_dependency_all" : ""} WHERE ${attributes === undefined ? "1 = 1" : `attribute IN (${placeholders})`}`,
               sourceParams,
             ),
             sql.unsafe<{ readonly next_temporal_boundary: number | null }>(
@@ -187,8 +191,8 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
                  WHEN valid_from > ? THEN valid_from
                  WHEN valid_to > ? THEN valid_to
                END) AS next_temporal_boundary
-               FROM triples
-               WHERE attribute IN (${placeholders}) AND ${recordedVisibility}`,
+               FROM triples ${attributes === undefined ? "INDEXED BY idx_dependency_all" : ""}
+               WHERE ${attributes === undefined ? "1 = 1" : `attribute IN (${placeholders})`} AND ${recordedVisibility}`,
               [basis.validAt, basis.validAt, ...boundaryParams],
             ),
           ]).pipe(
@@ -756,6 +760,20 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
         nextCommitPosition,
         currentCommitPosition,
         dependencyState,
+        dependencyStateAll: (basis) => dependencyState(undefined, basis),
+        recordedPositionAt: (instant, head) =>
+          provide(
+            sql<{ readonly position: number | string | null }>`
+            SELECT MAX(recorded_position) AS position FROM triples INDEXED BY idx_journal_instant_position
+            WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'
+              AND recorded_at <= ${instant} AND recorded_position <= ${head}
+          `.pipe(
+              Effect.map((rows) => Number(rows[0]?.position ?? 0)),
+              Effect.mapError(
+                (cause) => new ReadError({ message: "Failed to resolve recorded basis", cause }),
+              ),
+            ),
+          ),
         claimCommand,
         insert,
         batchInsert,

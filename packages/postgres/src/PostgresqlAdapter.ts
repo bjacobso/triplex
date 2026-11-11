@@ -115,9 +115,13 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
           ),
         );
 
-      const dependencyState: StorageAdapterService["dependencyState"] = (attributes, basis) => {
+      const dependencyState = (
+        attributes: readonly string[] | undefined,
+        basis: Parameters<StorageAdapterService["dependencyStateAll"]>[0],
+      ) => {
         const unique = [...new Set(attributes)];
-        if (unique.length === 0) return Effect.succeed({ sourcePosition: 0 });
+        if (attributes !== undefined && unique.length === 0)
+          return Effect.succeed({ sourcePosition: 0 });
 
         const source = createParamCollector(PostgresqlDialect);
         const sourceExpression =
@@ -143,7 +147,7 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
           Effect.all([
             sql.unsafe<{ readonly source_position: number | string | null }>(
               `SELECT MAX(${sourceExpression}) AS source_position
-               FROM triples WHERE attribute IN (${sourceAttributes})`,
+               FROM triples WHERE ${attributes === undefined ? "1 = 1" : `attribute IN (${sourceAttributes})`}`,
               [...source.params],
             ),
             sql.unsafe<{ readonly next_temporal_boundary: number | string | null }>(
@@ -152,7 +156,7 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
                  WHEN valid_to > ${validTo} THEN valid_to
                END) AS next_temporal_boundary
                FROM triples
-               WHERE attribute IN (${boundaryAttributes}) AND ${recordedVisibility}`,
+               WHERE ${attributes === undefined ? "1 = 1" : `attribute IN (${boundaryAttributes})`} AND ${recordedVisibility}`,
               [...boundary.params],
             ),
           ]).pipe(
@@ -668,6 +672,20 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
         nextCommitPosition,
         currentCommitPosition,
         dependencyState,
+        dependencyStateAll: (basis) => dependencyState(undefined, basis),
+        recordedPositionAt: (instant, head) =>
+          provide(
+            sql<{ readonly position: number | string | null }>`
+            SELECT MAX(recorded_position) AS position FROM triples
+            WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'
+              AND recorded_at <= CAST(${instant} AS DOUBLE PRECISION) AND recorded_position <= ${head}
+          `.pipe(
+              Effect.map((rows) => Number(rows[0]?.position ?? 0)),
+              Effect.mapError(
+                (cause) => new ReadError({ message: "Failed to resolve recorded basis", cause }),
+              ),
+            ),
+          ),
         claimCommand,
         insert,
         batchInsert,

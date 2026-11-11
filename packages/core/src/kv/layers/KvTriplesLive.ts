@@ -1,4 +1,10 @@
 import { validateTransactionIntervals } from "../../Triple.js";
+import {
+  dependencyProjections,
+  recordedPositionAt,
+  type DependencyProjection,
+} from "../hexastore/readIndexes.js";
+import { resolveRecordedBasis } from "../../store/recordedBasis.js";
 import { explainAccessPaths } from "../datalog/explain.js";
 import { assertQueryBasis, queryBasisForView, resolveQueryBasis } from "../../datalog/temporal.js";
 import { checkCheapPreconditions } from "../../store/cheapPreconditions.js";
@@ -139,7 +145,7 @@ const currentKvCommitPosition = (backend: KvBackendService): Effect.Effect<numbe
   );
 
 const dependencyStateFromDatoms = (
-  datoms: readonly Datom[],
+  datoms: readonly DependencyProjection[],
   basis: ResolvedTemporalBasis,
 ): { readonly sourcePosition: number; readonly nextTemporalBoundary?: number } => {
   let sourcePosition = 0;
@@ -366,6 +372,7 @@ const makeKvTriplesService = Effect.gen(function* () {
   // Single hexastore handle shared by the write path and the Datalog path so
   // their datom caches can never diverge.
   const hexaStore = createKvTripleStore(kvBackend);
+  yield* hexaStore.initializeReadIndexes();
 
   // === Triple-level reads (needed by retractByPattern below) ===============
 
@@ -1023,6 +1030,18 @@ const makeKvTriplesService = Effect.gen(function* () {
 
     currentPosition: () => currentKvCommitPosition(kvBackend),
 
+    resolveRecordedBasis: (basis) =>
+      resolveRecordedBasis(
+        () => currentKvCommitPosition(kvBackend),
+        (instant, head) => recordedPositionAt(kvBackend, instant, head),
+        runtime.now,
+        basis,
+      ),
+    dependencyStateAll: (basis) =>
+      Effect.gen(function* () {
+        const resolved = resolveTemporalBasis(basis, yield* runtime.now);
+        return dependencyStateFromDatoms(yield* dependencyProjections(kvBackend), resolved);
+      }),
     dependencyState: (attributes, basis) =>
       Effect.gen(function* () {
         const unique = [...new Set(attributes)];
