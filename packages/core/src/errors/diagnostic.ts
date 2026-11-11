@@ -29,7 +29,7 @@ const defaults = {
   ],
   CommandAlreadyCommittedError: [
     "transaction.command-already-committed",
-    "read the original receipt with `transactionByCommand`",
+    "Read the original receipt with `transactionByCommand`.",
   ],
   ConstraintViolationError: [
     "constraint.violation",
