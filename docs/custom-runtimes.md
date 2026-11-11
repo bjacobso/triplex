@@ -276,7 +276,14 @@ It does not backfill existing entities; use `SnapshotWriter.backfill()` if those
 string scope is wrapped in the new versioned identity format. Previously issued Cloudflare cursors
 must be restarted after upgrading.
 
-SQLite and PostgreSQL convenience layers retain their existing behavior. The SQL database manager
+SQLite and standalone PostgreSQL convenience layers expose only `Triples`, matching KV.
+PostgreSQL's ambient-client constructors require `SqlClient` and expose only `Triples`;
+its database-bound constructors expose exactly `Triples | SqlClient` for host transactions.
+Code that needs implementation services must compose their layers explicitly rather than
+retrieve them from a convenience layer. See [Host integration](/host-integration) for sharing
+a host-owned SQL client.
+
+The SQL database manager
 still supplies its existing snapshots and emitter. The builder makes capability selection explicit
 for new compositions; it does not enable capabilities on every legacy entry point.
 

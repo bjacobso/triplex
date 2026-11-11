@@ -53,6 +53,13 @@ select a server-owned database mapping before exposing `Triples` to application 
 | Host-owned Effect SQL pool                      | `PgTriples.layerFromSqlClient({ scope })`        |
 | Server-mapped PostgreSQL database               | `PgTriples.layerForDatabase(config, databaseId)` |
 
+The KV, SQLite, and standalone PostgreSQL convenience layers expose only `Triples`.
+`PgTriples.layerFromSqlClient` and `layerFromSqlClientMigrated` also expose only `Triples`
+and require the host's `SqlClient`. To use that client alongside Triplex, retain it explicitly
+with `Layer.provideMerge(HostSql)`, as below. `layerForDatabase` and
+`layerForDatabaseMigrated` expose exactly `Triples | SqlClient` for host transactions.
+Adapters, query executors, dialects, clocks, and ID generators stay inside these layers.
+
 Application code should depend on `Triples`. New backend authors can use the public
 `@triplex-build/triplex/runtime` builders and adapter contracts described in
 [Custom runtimes](/custom-runtimes). The `/internal` entry point remains legacy implementation
