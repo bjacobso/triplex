@@ -22,7 +22,29 @@ triplex --sqlite ./app.db describe
 triplex --sqlite ./app.db status
 ```
 
-`describe` returns the machine-readable command manifest. Successful CLI commands emit one
+`describe` returns the machine-readable command manifest in `data.commands` and the schema from
+`live` in `data.schema`. Use `describe --ref preview` to inspect another release ref. The schema
+includes release identity (`id`, `label`, `rootContentId`, `ref`), entity types with their attribute
+value types (including enum members), requiredness, cardinality, uniqueness, reference targets and
+sensitivity, every declared attribute including unused ones, constraint keys and kinds, and
+configuration/derivation kinds and keys.
+
+`schema.examples` contains one `{ entityType, input }` per type. Save its `input` as JSON for
+`transaction apply --input <file>`. Each example asserts required attributes and sets `entityType`
+on every fact, `meta.actor`, `meta.commandId`, and the release's `meta.configSnapshot` and
+`meta.enforce`. Replace synthetic placeholders such as `"<text>"`, `"<entity-id of Site>"`,
+`"<actor>"`, and `"<command-id for Worker>"` before submitting. Reference targets must already exist
+and be valid at commit time; use fresh values for unique attributes. Numbers, booleans, dates,
+instants and enums start with `0`, `false`, `"2000-01-01"`, epoch `0`, and the first enum member.
+Optional-only types get one attribute assertion so they exist as facts.
+
+`schema.rules` repeats the essential write rules: one command per transaction, deterministic command
+IDs, pinning and enforcing the same release, one interval per entity, and retracting/re-asserting
+to end a value. When no release exists at the requested ref, `data.schema` is `null` and `data.hint`
+explains how to publish one with application-owned `config.commit` or move an existing release
+with `config set-ref`.
+
+Successful CLI commands emit one
 `{ "ok": true, "command": "…", "data": … }` JSON value to stdout. Decode/runtime failures emit an
 error envelope to stderr and exit nonzero. Add `--pretty` before the subcommand when reading output
 by hand.
