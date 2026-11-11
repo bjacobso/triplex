@@ -167,10 +167,10 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
   `recordedAt`. Find the receipt with `transactionByCommand`.
 - **Who changed this entity, and why?** Page `transactionsForEntity(entityId)`, newest first.
   Each record carries its actor, command, correlation, causation, release, and typed changes.
-- **Who asserted the state that held at a past date?** Don't join `["?tx", ":_tx/actor", "?a"]`
-  into a query with a past `validAt`: transaction facts are valid only from their commit instant,
-  so the join silently returns `[]`. Bind `?tx` in the past-`validAt` query, then read provenance
-  in a second query at the current basis or with `transaction(txId)`. See
+- **Who asserted the state that held at a past date?** Bind the assertion transaction in a
+  fourth tuple term and join `["?tx", ":_tx/actor", "?actor"]` in the same query.
+  Reserved `:_tx/*` metadata uses the recorded cut and ignores valid time, so the join works
+  for backdated assertions. A recorded cut before the commit still hides its metadata. See
   [Datalog](/datalog#query-shape).
 - **What was retracted?** `history(entityId)` includes retracted assertions. `entity` and `match`
   show only facts visible at the basis you ask for.
@@ -202,6 +202,7 @@ Triplex facts, the journal, and an outbox row commit together. See
 | Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`                  |
 | Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                         |
 | Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation            |
+| Read provenance in a second query with a different recorded cut     | Join the asserting transaction and `:_tx/actor` at one recorded cut       |
 | Call `queryAll` on request paths                                    | Use `query` and follow `nextCursor` (100 rows per page by default)        |
 | Encode authorization as Datalog over the same store                 | Authorize in the host before providing `Triples`                          |
 | Check a write rule before `transact`, then write                    | Enforce it in a commit validator, which reads the state that would commit |

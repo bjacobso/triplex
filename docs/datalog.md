@@ -69,36 +69,17 @@ const program = Effect.gen(function* () {
 });
 ```
 
-Transaction facts (`:_tx/*`) are ordinary facts on the `_Transaction` entity, and their valid
-time starts at the commit instant. A query whose basis sets `validAt` before the commit therefore
-finds no `:_tx/*` facts for that transaction, and a provenance join like the one above returns `[]`
-even though the joined fact was valid at that time. To ask "what was true then, and who asserted
-it", run two queries:
+Transaction metadata (`:_tx/*`) obeys the query's recorded cut and ignores valid-time
+filtering. The join above therefore works for a backdated assertion at a past `validAt`, even
+when its transaction committed later. This applies to negation, disjunction, rules, and
+variable-attribute scans too. Other attributes on a transaction entity retain ordinary domain
+validity. Interval bindings on metadata return its stored commit-based bounds.
 
-```ts
-const program = Effect.gen(function* () {
-  const triples = yield* Triples;
-  // 1. The domain state at the past valid time, with the asserting transaction.
-  const { results: state } = yield* triples.query(
-    {
-      find: ["?person", "?name", "?tx"],
-      where: [["?person", ":person/name", "?name", "?tx"]],
-    },
-    { basis: { validAt: pastInstant } },
-  );
-  // 2. Provenance at the current basis, where every committed transaction is visible.
-  const { results: actors } = yield* triples.query({
-    find: ["?tx", "?actor"],
-    where: [["?tx", ":_tx/actor", "?actor"]],
-  });
-
-  return { state, actors };
-});
-```
-
-`Triples.transaction(txId)` and `Triples.transactionsForEntity(entityId)` read the same envelope
-without a valid-time basis. Recorded time still applies: a `recordedAt` before the commit hides both
-the fact and its transaction.
+The fourth term identifies the **asserting** transaction. After a correction, it names the
+replacement assertion's transaction; use history or the journal for the retracting actor.
+`Triples.transaction(txId)` and `Triples.transactionsForEntity(entityId)` also read the envelope.
+A recorded cut before the commit hides both the assertion and its metadata, so the join never
+reveals knowledge from later commits.
 
 The `?` prefix is reserved for variables. Entity, attribute, transaction, and rule identity
 positions accept string literals or variables. Malformed runtime input and unsupported programs
@@ -154,7 +135,8 @@ const historicalQuery = Effect.gen(function* () {
 ```
 
 Omitted recorded time means the latest recorded state. Omitted valid time means the runtime's
-current business time. Every pattern, join, negation, and rule in the query sees the same cut.
+current business time. Every pattern, join, negation, and rule sees the same recorded cut. Domain assertions also use
+the same valid point; reserved `:_tx/*` metadata follows recorded time only.
 
 Use `basis: { recordedPosition: receipt.position, validAt: businessInstant }` to
 read an exact commit cut, including across joins, rules, and negation. This works
@@ -167,6 +149,140 @@ pagination so later pages cannot gain new commits. Omit the basis on continuatio
 to reuse the captured cut. Explicit position pages do not add a wall-clock filter;
 their entity-page snapshot therefore omits `recordedAt`. Existing timestamp-based
 and default pages keep their timestamp and position snapshots.
+
+## Intervals and all-time queries
+
+Use `{ pattern: [e, a, v] | [e, a, v, tx], valid: { from?, to? } }` wherever a fact
+pattern is allowed: positive conjunction, conjunctive `not`, or a single `or` alternative.
+At least one bound is required. A bound accepts a variable or a finite, non-negative
+epoch-millisecond number; `to` also accepts literal `null` for an open end. Unknown fields,
+invalid variables, and concrete empty/reversed intervals fail preflight. Recursive rule bodies
+currently accept only ordinary tuples.
+
+Bounds project as JavaScript numbers, with open ends as JSON `null`. They are the complete
+stored bounds, never clipped to the query point. Binding them retains ordinary point membership:
+start included, end excluded. Set `validTime: "all"` to skip the valid point for every domain
+pattern, including ordinary tuples, negation and rule scans. For wrappers, set it on `inner`.
+Do not supply `basis.validAt` or `optionalProjection` in all-time mode.
+
+All-time queries return assertions that coexist at one recorded cut. They exclude assertions
+retracted by that cut and do not imply that joined valid intervals overlap. Use an older recorded
+cut for an earlier belief, or history/the journal for recorded changes. Project both bounds and,
+when needed, the assertion transaction to distinguish periods; ordinary distinct-row semantics
+still apply. Separate, adjacent or overlapping assertions are not merged.
+
+These three worked queries share this runnable fixture. All dates are midnight UTC in 2026;
+the commit receipts supply actual positions and transaction IDs.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
+
+const J = Date.UTC(2026, 0, 1),
+  F = Date.UTC(2026, 1, 1),
+  M = Date.UTC(2026, 2, 1);
+const E = Date.UTC(2026, 2, 20),
+  C = Date.UTC(2026, 2, 31);
+const A = Date.UTC(2026, 3, 1),
+  Y = Date.UTC(2026, 4, 1);
+
+const workedQueries = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const fact = (entity: string, attribute: string, value: string, from: number, to?: number) => ({
+    op: "assert" as const,
+    entityId: EntityId.make(entity),
+    attribute,
+    value: string(value),
+    validFrom: from,
+    ...(to === undefined ? {} : { validTo: to }),
+  });
+  yield* triples.transact(
+    [
+      fact("vendor:acme", ":vendor/status", "active", J, F),
+      fact("vendor:acme", ":vendor/status", "active", M),
+      fact("exception:one", ":exception/status", "approved", J, E),
+      fact("exception:open", ":exception/status", "approved", J),
+    ],
+    { actor: "user:pat" },
+  );
+  const review = yield* triples.transact([fact("review:one", ":review/status", "approved", F, A)], {
+    actor: "user:lee",
+  });
+  const correction = yield* triples.transact(
+    [
+      { op: "retract", id: review.triples[0]!.id },
+      fact("review:one", ":review/status", "approved", F, Y),
+    ],
+    { actor: "user:kim" },
+  );
+
+  // 1. Active exceptions expiring in the window (M, M + 30 days].
+  const expiry = yield* triples.query(
+    {
+      find: ["?exception", "?end"],
+      where: [
+        { pattern: ["?exception", ":exception/status", "approved"], valid: { to: "?end" } },
+        [">", "?end", M],
+        ["<=", "?end", C],
+      ],
+      orderBy: [{ variable: "?end" }],
+    },
+    { basis: { recordedPosition: correction.position, validAt: M } },
+  );
+
+  // 2. Who asserted the review believed to cover March 1 at the earlier cut?
+  const provenance = yield* triples.query(
+    {
+      find: ["?review", "?actor", "?tx"],
+      where: [
+        ["?review", ":review/status", "approved", "?tx"],
+        ["?tx", ":_tx/actor", "?actor"],
+      ],
+    },
+    { basis: { recordedPosition: review.position, validAt: M } },
+  );
+
+  // 3. Every active interval in the vendor's recorded view, including January.
+  const intervals = yield* triples.query(
+    {
+      validTime: "all",
+      find: ["?start", "?end"],
+      where: [
+        {
+          pattern: ["vendor:acme", ":vendor/status", "active"],
+          valid: { from: "?start", to: "?end" },
+        },
+      ],
+      orderBy: [{ variable: "?start" }],
+    },
+    { basis: { recordedPosition: correction.position } },
+  );
+  return { expiry: expiry.results, provenance: provenance.results, intervals: intervals.results };
+});
+const answer = Effect.runPromise(workedQueries.pipe(Effect.provide(KvTriples.layer)));
+```
+
+Expiry returns `exception:one` with end `E`; the open exception is excluded. Provenance returns
+`review:one`, `user:lee`, and the generated `review.txId`. At the correction's position it instead
+returns `user:kim` and the replacement transaction. The vendor intervals are `[J, F)` and
+`[M, null)`. In point mode at M only the second interval remains.
+
+Null equals null and differs from a finite number. Ordered bound predicates require a finite
+number at runtime, so open ends fail `[">", "?end", cutoff]` and `["<=", "?end", cutoff]`.
+Use `["=", "?end", null]` or wrapper `is-null` to select open ends. Repeated variables unify
+across tuple and interval positions; identity variables cannot also be interval bounds.
+`count` counts distinct bound values including null; numeric aggregates skip null and return
+null when no numeric input remains. Bounds support grouping, having, total ordering and stable
+pagination, with open ends in the existing null family. Cursor v2 binds the mode, bounds, filters,
+recorded cut and (in point mode) the resolved point; restart older cursors.
+
+KV reads intervals directly from batched assertion metadata. Constant-attribute end/start ranges
+use history-preserving interval indexes after their resumable backfill completes. SQL migration
+v8 adds the corresponding non-partial indexes; PostgreSQL interval columns become double precision
+to preserve fractional milliseconds. Expiry queries use one native scan/join rather than per-entity
+history calls. Exact derivation provenance and hypothetical overlays currently reject interval
+patterns and all-time mode. Sensitive-value presence/blind equality can project bounds while
+sealed value projection, ordering, aggregation and bound aliases remain planning errors.
 
 ## Predicates and clause order
 
