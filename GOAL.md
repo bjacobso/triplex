@@ -836,3 +836,17 @@ benchmark, RFC, issues and diagnostic evidence remain linked in the ledger.
 The original zero-allocation-conflict target remains unmet and the original full
 goal is not claimed achieved. Current execution stops here under the owner's
 explicit deferral; no further contract-choice prompt is required or authorized.
+
+### Resumed audit — owner deferral remains in force
+
+The goal was reactivated, so its blocked audit starts fresh. Revalidated the clean
+canonical worktree at 7c6a176 and its current PR #78 checks: every check in run
+42962735274 passes, including both Node versions, native FoundationDB/PostgreSQL,
+package consumer, docs/browser and stress. No further validation failure or
+independent implementation task was found.
+
+Reactivation did not explicitly reopen the owner-deferred TX1.3/TX1.4 redesign.
+That deferral remains the sole obstacle to the original full objective; the
+zero-allocation-conflict target remains unmet. This is the first audit after
+reactivation, so the goal remains active under the fresh blocked-audit rule.
+No contract-choice question is reopened and no deferred production work starts.
