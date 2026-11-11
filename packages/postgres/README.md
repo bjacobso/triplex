@@ -29,7 +29,7 @@ const DatabaseLive = PgTriples.layerFromSqlClient({ scope: "host/main" }).pipe(
 const command = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const triples = yield* Triples;
-  yield* sql.withTransaction(
+  yield* PgTriples.withTransaction(
     Effect.gen(function* () {
       yield* sql`INSERT INTO host_records (id) VALUES ('record:1')`;
       yield* triples.transact(operations, metadata);
@@ -43,6 +43,14 @@ const command = Effect.gen(function* () {
 journal, command claim, and commit position use the same fiber-local transaction connection.
 Failures roll the whole unit back and nested transactions retain Effect SQL savepoint semantics.
 `layerFromSqlClientMigrated` is an explicitly named setup convenience.
+
+`Triples.transact` and the convenience write methods surface native Postgres
+serialization/deadlock failures as `TransactionConflictError`, with
+`isRetryable: true`, optional `reason` (`serialization` or `deadlock`), and the
+original `cause`. `PgTriples.withTransaction` covers the entire host unit,
+including host SQL and errors raised only by the outer commit. It preserves
+unrelated SQL/domain failures and performs no automatic retries. Reload and retry
+the complete outer transaction, rather than retrying inside an aborted one.
 
 Acquiring an unmigrated adapter or Triples layer checks the current schema's migration
 version before exposing the service. `SchemaVersionError` (exported from this package)

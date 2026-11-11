@@ -31,19 +31,24 @@ const concurrencyLevels = [1, 4, 16] as const;
 type Isolation = (typeof isolationLevels)[number];
 
 /** Read SQLSTATE through Triplex/Effect wrappers, without relying on message text. */
-const sqlState = (error: unknown): string | undefined => {
+const sqlFailure = (error: unknown): { code: string | undefined; allocation: boolean } => {
   const pending = [error];
   const visited = new Set<unknown>();
+  let code: string | undefined;
+  let allocation = false;
   while (pending.length > 0) {
     const value = pending.pop();
     if (typeof value !== "object" || value === null || visited.has(value)) continue;
     visited.add(value);
     if ("code" in value && typeof value.code === "string" && /^[0-9A-Z]{5}$/.test(value.code))
-      return value.code;
+      code = value.code;
+    // Location only: retryability is still classified by SQLSTATE, never text.
+    if ("message" in value && String(value.message).includes("allocate commit position"))
+      allocation = true;
     if ("cause" in value) pending.push(value.cause);
     if ("reason" in value) pending.push(value.reason);
   }
-  return undefined;
+  return { code, allocation };
 };
 
 const percentile = (values: readonly number[], percentile: number) => {
@@ -225,14 +230,9 @@ const program = Effect.gen(function* () {
                     commits++;
                     break;
                   }
-                  const code = sqlState(outcome.failure) ?? "unknown";
-                  const location =
-                    typeof outcome.failure === "object" &&
-                    outcome.failure !== null &&
-                    "message" in outcome.failure &&
-                    String(outcome.failure.message).includes("allocate commit position")
-                      ? "position-allocation"
-                      : stage;
+                  const failure = sqlFailure(outcome.failure);
+                  const code = failure.code ?? "unknown";
+                  const location = failure.allocation ? "position-allocation" : stage;
                   const key = `${code}:${location}`;
                   failures[key] = (failures[key] ?? 0) + 1;
                   if (code === "40001") serializationFailures++;

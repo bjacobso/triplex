@@ -15,6 +15,7 @@ import {
   SensitiveQueryError,
   SensitiveValueError,
   WriteError,
+  TransactionConflictError,
 } from "../errors/index.js";
 import type { Pattern } from "../types/Pattern.js";
 import { Triples, type TransactionRecord, type TriplesService } from "../store/Triples.js";
@@ -376,10 +377,12 @@ const decorate = (inner: TriplesService, sensitivity: SensitivityService): Tripl
       return yield* inner.transact(prepared, meta);
     });
 
-  const writeOnly = <A>(effect: Effect.Effect<A, unknown>): Effect.Effect<A, WriteError> =>
+  const writeOnly = <A>(
+    effect: Effect.Effect<A, unknown>,
+  ): Effect.Effect<A, WriteError | TransactionConflictError> =>
     effect.pipe(
       Effect.mapError((cause) =>
-        cause instanceof WriteError
+        cause instanceof WriteError || cause instanceof TransactionConflictError
           ? cause
           : cause instanceof SensitiveValueError || cause instanceof SensitiveQueryError
             ? asWriteError(cause)

@@ -30,6 +30,7 @@ import {
   makePostgresqlDatabaseSqlLayer,
   makePostgresqlDatabaseSqlLayerMigrated,
 } from "./PostgresqlBackend.js";
+import { withPostgresqlTransaction } from "./TransactionConflict.js";
 
 const dialectLayer = Layer.succeed(CurrentDialect, PostgresqlDialect);
 
@@ -62,6 +63,8 @@ const scopeFromUrl = (url: string): string => {
 };
 
 export const PgTriples = {
+  /** Host-owned SQL transaction with typed serialization/deadlock conflicts; no automatic retry. */
+  withTransaction: withPostgresqlTransaction,
   /** `Triples` over a pooled PostgreSQL connection (migrations applied). */
   layer: (config: PostgresqlConfig) =>
     make(makePostgresqlLayer(config), scopeFromConfig(config), false),
