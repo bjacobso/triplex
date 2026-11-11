@@ -308,6 +308,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P2.4  | Temporal verbs                                                           | B     | P2.1       | done    | 2026-11-11: merged `ergo/p2.4`; `Change.end/replace/correct/combine`, typed `Type.end/replace/correct`, sealed re-assertion only from a same-transaction retracted fact. Core 805/805, integration 208/208                                                                                                                                        |
 | P2.5  | Client RFC: the `Database` service                                       | B     | P2.3, P2.4 | done    | 2026-11-11: merged `ergo/p2.5`; `docs/rfcs/database-client.md` (`@triplex-build/triplex/database`, startup compatibility check, admission-time pin, receipt on retry). P2.6 waits on D3                                                                                                                                                           |
 | P2.6  | Client implementation                                                    | B     | P2.5       | done    | 2026-11-11: merged `ergo/p2.6`; `@triplex-build/triplex/database` with a spy-based compilation-contract test; `Attribute.ref` keeps its target and `nodesOf` includes reference closures (golden CIDs unchanged); `asOf({ recordedAt })` uses the journal-scan fallback until P3.0. Core 64 files, integration 15, docs build and pack check pass |
+| P2.6b | Client `asOf({ recordedAt })` through `resolveRecordedBasis`             | B     | P3.0       | active  | 2026-11-11: `ergo/p2.6b` from `dc402c7`                                                                                                                                                                                                                                                                                                           |
 | P2.7  | Re-run the trial against the phase 2 gate                                | C     | P2.6       | pending |                                                                                                                                                                                                                                                                                                                                                   |
 
 - **P2.1** Rebase `conductor/entity-write-helpers` on `main` and bring it to a reviewable state.
@@ -342,8 +343,8 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ID   | Item                                                          | Lane  | Depends    | Status  | Evidence                                                                                                                                                                                                                                                                                                                 |
 | ---- | ------------------------------------------------------------- | ----- | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | P3.1 | `why` RFC                                                     | B     |            | done    | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run                                                                                                                                                                                                                 |
-| P3.0 | `Triples.resolveRecordedBasis` and `dependencyStateAll` reads | alone | D9, D11    | active  | 2026-11-11: `ergo/p3.0`, started from `8e1446b`                                                                                                                                                                                                                                                                          |
-| P3.2 | `why` implementation                                          | B     | P3.1       | pending | 2026-11-11: D9 approved; needs P3.0                                                                                                                                                                                                                                                                                      |
+| P3.0 | `Triples.resolveRecordedBasis` and `dependencyStateAll` reads | alone | D9, D11    | done    | 2026-11-11: merged (`dc402c7`): KV timestamp trie and covering projections, SQL migration 9, Cloudflare returns typed unsupported errors. Orchestrator resolved an import conflict with P4.4a-fix                                                                                                                        |
+| P3.2 | `why` implementation                                          | B     | P3.1       | active  | 2026-11-11: `ergo/p3.2` from `dc402c7`                                                                                                                                                                                                                                                                                   |
 | P3.3 | Preview a command on an overlay                               | B     | P2.6       | pending |                                                                                                                                                                                                                                                                                                                          |
 | P3.4 | Describe from the live release                                | C     |            | done    | 2026-11-11: merged `ergo/p3.4`; `describe` returns the release schema, constraints, rules and examples verified by `transaction apply`. Suite timeout raised (flaky at 5 s); rule 5 now cites `Change.replace`                                                                                                           |
 | P3.5 | CLI commands for `why` and preview                            | C     | P3.2, P3.3 | pending |                                                                                                                                                                                                                                                                                                                          |
@@ -385,7 +386,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P4.4      | Implement approved phase 4 RFCs (split below)                                                  | —     | P4.1–P4.3 | pending | 2026-11-11: D10 and D11 approved                                                                                                                                                                                                                                     |
 | P4.4a     | Time in Datalog (`docs/rfcs/datalog-time.md`), with P1.3                                       | A     | D2, D10   | done    | 2026-11-11: merged `ergo/p4.4a` (`8e1446b`): interval patterns, `validTime: "all"`, recorded-only `:_tx/*`, cursor v2, KV interval indexes with resumable backfill, SQL migration 8. Orchestrator resolved two conflicts with P1.6 in the commit-view query. See D13 |
 | P4.4a-fix | Keep PostgreSQL time columns `BIGINT`, reject fractional bounds, fix two PostgreSQL plan tests | alone | P4.4a     | done    | 2026-11-11: merged (`4eab1b3`): migration 8 keeps `BIGINT`, fractional bounds rejected at schemas, builders, `Change` verbs and both `transact` entries. Full check passes (29/27/15 tasks); Postgres 47/47; pack check passes                                       |
-| P4.4b     | Live queries (`docs/rfcs/live-queries.md`)                                                     | B     | P3.0, D11 | pending |                                                                                                                                                                                                                                                                      |
+| P4.4b     | Live queries (`docs/rfcs/live-queries.md`)                                                     | B     | P3.0, D11 | active  | 2026-11-11: `ergo/p4.4b` from `dc402c7`                                                                                                                                                                                                                              |
 
 - **P4.1** Issue #73 holds the evidence. Specify how a query binds `validFrom` and `validTo`, so
   "expiring within 30 days" is one query, with identical semantics on KV and SQL.
@@ -429,17 +430,21 @@ Update this section last in every session.
 
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
-  - P3.0: block `block:01a1ccab-c587-7a6b-ac89-406bb1881415`
-- **Open worktrees and branches from this plan:** `../triplex-wt/p3.0` on `ergo/p3.0`. #80 merged (squash
-  `3b6c09e`); the open session PR is #81 from `ergonomics/next`.
-- **Next action:** review P3.0; then P3.2 (`why`), P4.4b (live queries) and the client switch to
-  `resolveRecordedBasis` in parallel; then P1.7 alone. Push to PR #81 after each green full check.
+  - P3.2: block `block:01a1ccc9-2256-7562-bf7e-9503184e00dd`
+  - P4.4b: block `block:01a1ccc9-2287-7616-b230-8c90a72e5a3d`
+  - P2.6b: block `block:01a1ccc9-22ad-7776-a59d-b77f84b26533`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p3.2,p4.4b,p2.6b}`. #80 merged
+  (squash `3b6c09e`); the open session PR is #81 from `ergonomics/next`.
+- **Next action:** review Wave C (P3.2, P4.4b, P2.6b); then P1.7 alone; then add `why` and
+  preview tools to the MCP server (P3.5/P3.6 follow-up). Push to #81 after each green full check.
 - **Known blockers:** D12 (README) and D13 (PostgreSQL column type) await the owner.
 
 ## Progress log
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P3.0 merged. Started Wave C: P3.2 (`why`), P4.4b (live queries), P2.6b (client on
+  `resolveRecordedBasis`).
 - 2026-11-11: owner merged #80 (squash `3b6c09e`, tree identical to `fd76b4e`). Recorded it with an
   ours-merge and opened #81 for the work since.
 - 2026-11-11: P4.4a-fix merged; all checks green including Postgres 47/47.
