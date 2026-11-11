@@ -47,13 +47,15 @@ export interface Definition<K extends string, V> {
   /** This attribute's use by an entity type, with every entity required to have it. */
   readonly required: <const O extends Omit<UseOptions, "required"> = {}>(
     options?: O,
-  ) => Use<Definition<K, V>, CardinalityOf<O>>;
+  ) => Use<Definition<K, V>, CardinalityOf<O>, true>;
   /** This attribute's use by an entity type, with any number of values per entity. */
-  readonly many: (options?: Omit<UseOptions, "cardinality">) => Use<Definition<K, V>, "many">;
+  readonly many: <const O extends Omit<UseOptions, "cardinality"> = {}>(
+    options?: O,
+  ) => Use<Definition<K, V>, "many", RequiredOf<O>>;
   /** This attribute's use by an entity type, with each value on at most one entity. */
   readonly unique: <const O extends Omit<UseOptions, "unique"> = {}>(
     options?: O,
-  ) => Use<Definition<K, V>, CardinalityOf<O>>;
+  ) => Use<Definition<K, V>, CardinalityOf<O>, RequiredOf<O>>;
 }
 
 export type Cardinality = "one" | "many";
@@ -68,12 +70,16 @@ export interface UseOptions {
 /**
  * One entity type's use of a global attribute. `C` keeps a literal
  * cardinality in the type, so entity-level helpers can accept an array for
- * exactly the cardinality-many uses.
+ * exactly the cardinality-many uses. `R` retains literal requiredness for typed reads.
  */
-export interface Use<D extends AnyDefinition, C extends Cardinality = Cardinality> {
+export interface Use<
+  D extends AnyDefinition,
+  C extends Cardinality = Cardinality,
+  R extends boolean = boolean,
+> {
   readonly _tag: "AttributeUse";
   readonly attribute: D;
-  readonly required: boolean;
+  readonly required: R;
   readonly cardinality: C;
   readonly unique: boolean;
 }
@@ -86,6 +92,15 @@ export type CardinalityOf<O extends UseOptions> = O extends { readonly cardinali
       ? "one"
       : Cardinality
     : "one";
+
+/** Preserve requiredness when known, including through concise modifiers. */
+export type RequiredOf<O extends UseOptions> = O extends { readonly required: true }
+  ? true
+  : "required" extends keyof O
+    ? O extends { readonly required?: false }
+      ? false
+      : boolean
+    : false;
 
 export type AnyDefinition = Definition<string, any>;
 export type ValueOf<D> = D extends Definition<string, infer V> ? V : never;
@@ -148,13 +163,13 @@ const make = <const K extends string, V>(
     node: nodeOf(key, type, false, refs),
     // The spread loses `O`'s literal cardinality, which `CardinalityOf<O>` restores.
     required(options) {
-      return use(this, { ...options, required: true }) as Use<Definition<K, V>, never>;
+      return use(this, { ...options, required: true }) as Use<Definition<K, V>, never, true>;
     },
     many(options) {
-      return use(this, { ...options, cardinality: "many" });
+      return use(this, { ...options, cardinality: "many" }) as Use<Definition<K, V>, "many", never>;
     },
     unique(options) {
-      return use(this, { ...options, unique: true }) as Use<Definition<K, V>, never>;
+      return use(this, { ...options, unique: true }) as Use<Definition<K, V>, never, never>;
     },
   };
   return definition;
@@ -230,10 +245,10 @@ export const ref = <const K extends string, const Target extends { readonly enti
 export const use = <D extends AnyDefinition, const O extends UseOptions = {}>(
   attribute: D,
   options?: O,
-): Use<D, CardinalityOf<O>> => ({
+): Use<D, CardinalityOf<O>, RequiredOf<O>> => ({
   _tag: "AttributeUse",
   attribute,
-  required: options?.required ?? false,
+  required: (options?.required ?? false) as RequiredOf<O>,
   cardinality: (options?.cardinality ?? "one") as CardinalityOf<O>,
   unique: options?.unique ?? false,
 });
