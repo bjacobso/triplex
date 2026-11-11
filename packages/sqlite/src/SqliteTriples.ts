@@ -19,7 +19,6 @@ import {
   TriplesLive,
   CurrentDialect,
   makeTripleStoreRuntimeLayer,
-  RuntimeServicesLive,
 } from "@triplex-build/triplex/internal";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 import { SqliteAdapterLive } from "./SqliteAdapter.js";
@@ -31,12 +30,11 @@ const dialectLayer = Layer.succeed(CurrentDialect, SqliteDialect);
 /** Build a `Triples` layer from a `SqlClient` layer (migrations already tapped in). */
 const make = <E, R>(clientLayer: Layer.Layer<SqlClient.SqlClient, E, R>, scope: string) =>
   TriplesLive.pipe(
-    Layer.provideMerge(SqlQueryExecutorLive),
-    Layer.provideMerge(SqliteAdapterLive),
-    Layer.provideMerge(dialectLayer),
-    Layer.provideMerge(clientLayer),
+    Layer.provide(SqlQueryExecutorLive),
+    Layer.provide(SqliteAdapterLive),
+    Layer.provide(dialectLayer),
+    Layer.provide(clientLayer),
     Layer.provide(makeTripleStoreRuntimeLayer(scope)),
-    Layer.provideMerge(RuntimeServicesLive),
   );
 
 export const SqliteTriples = {

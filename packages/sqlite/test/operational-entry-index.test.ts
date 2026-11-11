@@ -1,6 +1,6 @@
 import { it } from "vitest";
 import { Effect } from "effect";
-import { SqliteTriples } from "../src/index.js";
+import { sqliteInternalLayer } from "./SqliteInternalLayer.js";
 import { operationalEntryIndexPlan } from "../../../test/fixtures/operational-entry-index.js";
 
 it(
@@ -8,7 +8,7 @@ it(
   { timeout: 30000 },
   async () => {
     await Effect.runPromise(
-      operationalEntryIndexPlan("sqlite").pipe(Effect.provide(SqliteTriples.layerMemory)),
+      operationalEntryIndexPlan("sqlite").pipe(Effect.provide(sqliteInternalLayer())),
     );
   },
 );

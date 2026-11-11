@@ -1,17 +1,31 @@
 /** Opt-in query benchmark. PG_BENCH_URL must point to a disposable database. */
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { Triples, type DatalogQuery, type PagedQueryResponse } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
-import { PgTriples } from "@triplex-build/triplex-postgres";
+import {
+  TriplesLive,
+  CurrentDialect,
+  makeTripleStoreRuntimeLayer,
+} from "@triplex-build/triplex/internal";
+import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex-sqlite";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
+import { PgTriples, makePostgresqlLayerFromUrl } from "@triplex-build/triplex-postgres";
 
 const size = Number(process.env["DATALOG_BENCH_ENTITIES"] ?? 10_000);
 if (!Number.isSafeInteger(size) || size < 100 || size > 1_000_000)
   throw new Error("DATALOG_BENCH_ENTITIES must be 100..1000000");
 const backend = process.env["PG_BENCH_URL"] ? "postgresql" : "sqlite";
 const layer = process.env["PG_BENCH_URL"]
-  ? PgTriples.layerFromUrl(process.env["PG_BENCH_URL"]!)
-  : SqliteTriples.layerMemory;
+  ? PgTriples.layerFromSqlClient({ scope: "benchmark" }).pipe(
+      Layer.provideMerge(makePostgresqlLayerFromUrl(process.env["PG_BENCH_URL"]!)),
+    )
+  : TriplesLive.pipe(
+      Layer.provide(SqlQueryExecutorLive),
+      Layer.provide(SqliteAdapterLive),
+      Layer.provide(Layer.succeed(CurrentDialect, SqliteDialect)),
+      Layer.provideMerge(SqliteTestLayer),
+      Layer.provide(makeTripleStoreRuntimeLayer("benchmark")),
+    );
 const cases: ReadonlyArray<{ name: string; query: DatalogQuery }> = [
   { name: "all-facts", query: { find: ["?e", "?a", "?v"], where: [["?e", "?a", "?v"]] } },
   { name: "attribute", query: { find: ["?e", "?name"], where: [["?e", ":bench/name", "?name"]] } },
