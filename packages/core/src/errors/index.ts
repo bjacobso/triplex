@@ -153,17 +153,26 @@ export class DatalogError extends Data.TaggedError("DatalogError")<{
 }> {}
 
 export class UnboundVariableError extends Data.TaggedError("UnboundVariableError")<{
+  readonly code?: string;
+  readonly path?: string;
+  readonly fix?: string;
   readonly variable: string;
   readonly clause: unknown;
   readonly message: string;
 }> {}
 
 export class InvalidPredicateError extends Data.TaggedError("InvalidPredicateError")<{
+  readonly code?: string;
+  readonly path?: string;
+  readonly fix?: string;
   readonly predicate: unknown;
   readonly message: string;
 }> {}
 
 export class DatalogValidationError extends Data.TaggedError("DatalogValidationError")<{
+  readonly code?: string;
+  readonly path?: string;
+  readonly fix?: string;
   readonly message: string;
   readonly query: unknown;
   readonly cause?: unknown;

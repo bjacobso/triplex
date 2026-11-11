@@ -21,6 +21,7 @@ export {
 export * from "./Value.js";
 export * as Constraint from "./Constraint.js";
 export * from "./errors/index.js";
+export { diagnose, type Diagnostic } from "./errors/diagnostic.js";
 export * from "./types/Pattern.js";
 export { isVariable as isPatternVariable } from "./types/Pattern.js";
 export {

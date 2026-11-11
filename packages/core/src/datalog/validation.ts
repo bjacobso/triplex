@@ -22,17 +22,54 @@ import {
 
 export type DatalogQueryValidationError = DatalogValidationError | UnboundVariableError;
 
-const invalid = (query: unknown, message: string, cause?: unknown): never => {
-  throw new DatalogValidationError({ message, query, ...(cause === undefined ? {} : { cause }) });
+type Hint = { readonly code: string; readonly path: string; readonly fix: string };
+
+const invalid = (query: unknown, message: string, cause?: unknown, hint?: Hint): never => {
+  throw new DatalogValidationError({
+    message,
+    query,
+    code: "datalog.invalid-query",
+    path: "$",
+    fix: "Use a positive relation and supported rule and wrapper forms.",
+    ...hint,
+    ...(cause === undefined ? {} : { cause }),
+  });
 };
 
-const unbound = (variable: string, clause: unknown): never => {
+// Locate an existing clause by identity; never serialize its values into a diagnostic.
+const pathOf = (query: unknown, target: unknown, path = ""): string | undefined => {
+  if (query === target) return path || "$";
+  if (typeof query !== "object" || query === null) return undefined;
+  for (const [key, value] of Object.entries(query)) {
+    const found = pathOf(
+      value,
+      target,
+      Array.isArray(query) ? `${path}[${key}]` : path ? `${path}.${key}` : key,
+    );
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
+const unbound = (variable: string, clause: unknown, path?: string): never => {
   throw new UnboundVariableError({
     variable,
     clause,
+    ...(path === undefined ? {} : { path }),
     message: `Datalog variable ${variable} is not bound by a positive relation`,
   });
 };
+
+const semanticHint = (code: "predicate" | "aggregate" | "projection", path: string): Hint => ({
+  code: `datalog.invalid-${code}`,
+  path,
+  fix:
+    code === "predicate"
+      ? "Use bound operands and numeric values for ordered or aggregate comparisons."
+      : code === "aggregate"
+        ? "Give each aggregate a unique target in find, distinct from positive bindings and aggregate sources."
+        : "Project each bound variable once and give optional projections unique targets in find.",
+});
 
 const isAndClause = (value: unknown): boolean => Array.isArray(value) && value[0] === "and";
 
@@ -40,7 +77,7 @@ const isAndClause = (value: unknown): boolean => Array.isArray(value) && value[0
  * Explain common grouping mistakes in `not` and `or` before the generic schema
  * failure, which otherwise lists every union member that did not match.
  */
-const groupingHint = (input: unknown): string | undefined => {
+const groupingHint = (input: unknown): (Hint & { readonly message: string }) | undefined => {
   if (typeof input !== "object" || input === null) return undefined;
   const where = (input as { readonly where?: unknown }).where;
   if (!Array.isArray(where)) return undefined;
@@ -48,10 +85,20 @@ const groupingHint = (input: unknown): string | undefined => {
     if (!Array.isArray(clause)) continue;
     const at = `where[${index}]`;
     if (isAndClause(clause)) {
-      return `${at}: Datalog has no "and" clause. Top-level where clauses are already a conjunction; inside negation write ["not", clause1, clause2, ...]`;
+      return {
+        code: "datalog.and-clause",
+        fix: 'Put conjunctive clauses directly in "where" or inside ["not", clause1, clause2, ...].',
+        path: at,
+        message: `${at}: Datalog has no "and" clause. Top-level where clauses are already a conjunction; inside negation write ["not", clause1, clause2, ...]`,
+      };
     }
     if (clause[0] === "not" && clause.slice(1).some(isAndClause)) {
-      return `${at}: write conjunctive negation as ["not", clause1, clause2, ...], not ["not", ["and", ...]]`;
+      return {
+        code: "datalog.not-with-and",
+        fix: 'Write conjunctive negation as ["not", clause1, clause2, ...].',
+        path: at,
+        message: `${at}: write conjunctive negation as ["not", clause1, clause2, ...], not ["not", ["and", ...]]`,
+      };
     }
     if (clause[0] === "or") {
       const alternatives: readonly unknown[] =
@@ -61,7 +108,12 @@ const groupingHint = (input: unknown): string | undefined => {
           isAndClause(alternative) ||
           (Array.isArray(alternative) && Array.isArray(alternative[0]))
         ) {
-          return `${at} alternative ${branch}: each "or" alternative must be a single pattern, predicate, or "not" clause; conjunctive alternatives are not supported. Use a conjunctive ["not", ...] alternative or one query per alternative`;
+          return {
+            code: "datalog.or-branch-not-single-clause",
+            fix: 'Use a conjunctive ["not", ...] alternative or run one query per conjunctive alternative.',
+            path: `${at} alternative ${branch}`,
+            message: `${at} alternative ${branch}: each "or" alternative must be a single pattern, predicate, or "not" clause; conjunctive alternatives are not supported. Use a conjunctive ["not", ...] alternative or one query per alternative`,
+          };
         }
       }
     }
@@ -75,8 +127,15 @@ const decodeQuery = (input: unknown): DatalogQuery => {
     const hint = groupingHint(input);
     return invalid(
       input,
-      `Invalid Datalog query shape: ${hint ?? decoded.failure.message}`,
+      `Invalid Datalog query shape: ${hint?.message ?? decoded.failure.message}`,
       decoded.failure,
+      hint
+        ? { code: hint.code, path: hint.path, fix: hint.fix }
+        : {
+            code: "datalog.invalid-shape",
+            path: "$",
+            fix: "Supply a query matching the Datalog query schema.",
+          },
     );
   }
   return decoded.success;
@@ -85,9 +144,13 @@ const decodeQuery = (input: unknown): DatalogQuery => {
 const variablesInPattern = (pattern: PatternClause): readonly string[] =>
   pattern.filter(isVariable);
 
-const requireBoundTerms = (clause: PredicateClause, bindings: ReadonlySet<string>): void => {
+const requireBoundTerms = (
+  clause: PredicateClause,
+  bindings: ReadonlySet<string>,
+  query: unknown,
+): void => {
   for (const term of clause.slice(1)) {
-    if (isVariable(term) && !bindings.has(term)) unbound(term, clause);
+    if (isVariable(term) && !bindings.has(term)) unbound(term, clause, pathOf(query, clause));
   }
 };
 
@@ -99,19 +162,29 @@ const validatePredicate = (
   numericBindings: ReadonlySet<string>,
   query: unknown,
 ): void => {
-  requireBoundTerms(clause, bindings);
+  requireBoundTerms(clause, bindings, query);
   if (!orderedPredicateOps.has(clause[0])) return;
 
   for (const term of clause.slice(1)) {
     if (isVariable(term)) {
       if (!numericBindings.has(term)) {
-        invalid(query, `Ordered Datalog predicate variable ${term} must be bound from a value`);
+        invalid(
+          query,
+          `Ordered Datalog predicate variable ${term} must be bound from a value`,
+          undefined,
+          semanticHint("predicate", pathOf(query, clause) ?? "$"),
+        );
       }
       continue;
     }
     const value = isTypedConstant(term) ? term.value : term;
     if (typeof value !== "number") {
-      invalid(query, "Ordered Datalog predicate constants must be numeric");
+      invalid(
+        query,
+        "Ordered Datalog predicate constants must be numeric",
+        undefined,
+        semanticHint("predicate", pathOf(query, clause) ?? "$"),
+      );
     }
   }
 };
@@ -132,13 +205,23 @@ const validateAggregateEquality = (
   const requireNumeric = (term: PredicateClause[1]): void => {
     if (isVariable(term)) {
       if (!numericBindings.has(term)) {
-        invalid(query, `Datalog aggregate equality operand ${term} must be numeric`);
+        invalid(
+          query,
+          `Datalog aggregate equality operand ${term} must be numeric`,
+          undefined,
+          semanticHint("predicate", pathOf(query, clause) ?? "$"),
+        );
       }
       return;
     }
     const value = isTypedConstant(term) ? term.value : term;
     if (typeof value !== "number") {
-      invalid(query, "Datalog aggregate equality constants must be numeric");
+      invalid(
+        query,
+        "Datalog aggregate equality constants must be numeric",
+        undefined,
+        semanticHint("predicate", pathOf(query, clause) ?? "$"),
+      );
     }
   };
 
@@ -294,15 +377,30 @@ const validateSemantics = (query: DatalogQuery): void => {
   const aggregateTargets = new Set<string>();
   for (const aggregate of query.aggregate ?? []) {
     const [, source, target] = aggregate;
-    if (!positiveBindings.has(source)) unbound(source, aggregate);
+    if (!positiveBindings.has(source)) unbound(source, aggregate, pathOf(query, aggregate));
     if (aggregateTargets.has(target)) {
-      invalid(query, `Datalog aggregate target ${target} is declared more than once`);
+      invalid(
+        query,
+        `Datalog aggregate target ${target} is declared more than once`,
+        undefined,
+        semanticHint("aggregate", `aggregate[${query.aggregate!.indexOf(aggregate)}]`),
+      );
     }
     if (positiveBindings.has(target)) {
-      invalid(query, `Datalog aggregate target ${target} shadows a positive binding`);
+      invalid(
+        query,
+        `Datalog aggregate target ${target} shadows a positive binding`,
+        undefined,
+        semanticHint("aggregate", `aggregate[${query.aggregate!.indexOf(aggregate)}]`),
+      );
     }
     if (!query.find.includes(target)) {
-      invalid(query, `Datalog aggregate target ${target} must appear in find`);
+      invalid(
+        query,
+        `Datalog aggregate target ${target} must appear in find`,
+        undefined,
+        semanticHint("aggregate", `aggregate[${query.aggregate!.indexOf(aggregate)}]`),
+      );
     }
     aggregateSources.add(source);
     aggregateTargets.add(target);
@@ -311,16 +409,32 @@ const validateSemantics = (query: DatalogQuery): void => {
   const optionalTargets = new Set<string>();
   if (query.optionalProjection) {
     const { rowBinding, fields } = query.optionalProjection;
-    if (!positiveBindings.has(rowBinding)) unbound(rowBinding, query.optionalProjection);
+    if (!positiveBindings.has(rowBinding))
+      unbound(rowBinding, query.optionalProjection, "optionalProjection.rowBinding");
     for (const field of fields) {
       if (optionalTargets.has(field.variable)) {
-        invalid(query, `Optional projection target ${field.variable} is declared more than once`);
+        invalid(
+          query,
+          `Optional projection target ${field.variable} is declared more than once`,
+          undefined,
+          semanticHint("projection", "optionalProjection"),
+        );
       }
       if (positiveBindings.has(field.variable) || aggregateTargets.has(field.variable)) {
-        invalid(query, `Optional projection target ${field.variable} shadows another binding`);
+        invalid(
+          query,
+          `Optional projection target ${field.variable} shadows another binding`,
+          undefined,
+          semanticHint("projection", "optionalProjection"),
+        );
       }
       if (!query.find.includes(field.variable)) {
-        invalid(query, `Optional projection target ${field.variable} must appear in find`);
+        invalid(
+          query,
+          `Optional projection target ${field.variable} must appear in find`,
+          undefined,
+          semanticHint("projection", "optionalProjection"),
+        );
       }
       optionalTargets.add(field.variable);
       numericBindings.add(field.variable);
@@ -331,19 +445,34 @@ const validateSemantics = (query: DatalogQuery): void => {
   for (const term of query.find) {
     if (!isVariable(term)) continue;
     if (resultBindings.has(term)) {
-      invalid(query, `Datalog find variable ${term} is projected more than once`);
+      invalid(
+        query,
+        `Datalog find variable ${term} is projected more than once`,
+        undefined,
+        semanticHint("projection", "find"),
+      );
     }
     if (aggregateSources.has(term)) {
-      invalid(query, `Datalog aggregate source ${term} cannot also appear in find`);
+      invalid(
+        query,
+        `Datalog aggregate source ${term} cannot also appear in find`,
+        undefined,
+        semanticHint("projection", "find"),
+      );
     }
     if (!positiveBindings.has(term) && !aggregateTargets.has(term) && !optionalTargets.has(term)) {
-      unbound(term, { find: query.find });
+      unbound(term, { find: query.find }, "find");
     }
     resultBindings.add(term);
   }
 
   if ((query.having?.length ?? 0) > 0 && aggregateTargets.size === 0) {
-    invalid(query, "Datalog having requires at least one aggregate");
+    invalid(
+      query,
+      "Datalog having requires at least one aggregate",
+      undefined,
+      semanticHint("aggregate", "having"),
+    );
   }
   const numericResults = new Set(
     [...resultBindings].filter(
@@ -353,7 +482,12 @@ const validateSemantics = (query: DatalogQuery): void => {
   for (const clause of query.having ?? []) {
     for (const term of clause.slice(1)) {
       if (isVariable(term) && optionalTargets.has(term)) {
-        invalid(query, `Datalog having cannot reference optional projection target ${term}`);
+        invalid(
+          query,
+          `Datalog having cannot reference optional projection target ${term}`,
+          undefined,
+          semanticHint("aggregate", "having"),
+        );
       }
     }
     validatePredicate(clause, resultBindings, numericResults, query);
@@ -361,7 +495,7 @@ const validateSemantics = (query: DatalogQuery): void => {
   }
 
   for (const order of query.orderBy ?? []) {
-    if (!resultBindings.has(order.variable)) unbound(order.variable, order);
+    if (!resultBindings.has(order.variable)) unbound(order.variable, order, pathOf(query, order));
   }
 };
 
@@ -396,6 +530,11 @@ export const assertWrappedQuery = (input: unknown): WrappedQuery => {
       input,
       `Invalid wrapped Datalog query shape: ${decoded.failure.message}`,
       decoded.failure,
+      {
+        code: "datalog.invalid-shape",
+        path: "$",
+        fix: "Supply a query matching the wrapped Datalog query schema.",
+      },
     );
   }
   const wrapped = decoded.success;
@@ -403,7 +542,7 @@ export const assertWrappedQuery = (input: unknown): WrappedQuery => {
   const projected = new Set(inner.find.filter(isVariable));
   const numericResults = new Set(inner.aggregate?.map(([, , target]) => target) ?? []);
   for (const filter of wrapped.filters ?? []) {
-    if (!projected.has(filter.column)) unbound(filter.column, filter);
+    if (!projected.has(filter.column)) unbound(filter.column, filter, pathOf(wrapped, filter));
     const isNullCheck = filter.op === "is-null" || filter.op === "is-not-null";
     const value = isTypedConstant(filter.value) ? filter.value.value : filter.value;
     if (isNullCheck && filter.value !== undefined) {
@@ -433,7 +572,7 @@ export const assertWrappedQuery = (input: unknown): WrappedQuery => {
     }
   }
   for (const order of wrapped.orderBy ?? []) {
-    if (!projected.has(order.variable)) unbound(order.variable, order);
+    if (!projected.has(order.variable)) unbound(order.variable, order, pathOf(wrapped, order));
   }
   return { ...wrapped, inner };
 };

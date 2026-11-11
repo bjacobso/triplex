@@ -49,6 +49,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Data explorer", link: "/explorer" },
       { text: "Host integration", link: "/host-integration" },
       { text: "Troubleshooting and FAQ", link: "/troubleshooting" },
+      { text: "Error diagnostics", link: "/errors" },
       { text: "Releasing", link: "/releasing" },
     ],
   },
