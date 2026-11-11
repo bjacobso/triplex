@@ -40,14 +40,13 @@ facts visible at their requested bitemporal basis.
 
 ### End a fact at a time
 
-A retraction removes an assertion from the current recorded view for its **whole** valid interval,
-including its past. To end a value from time `T` on while keeping what was true before `T`, retract
-the open assertion and re-assert the same value with `validTo: T`, in one transaction. Assert the
-replacement value from `T` in the same transaction when there is one:
+Use `Change.replace(fact, value, at)` to change a value from a date on while preserving its past.
+The pure builder returns `ops` and `preconditions` for one transaction. A retraction alone removes
+an assertion from the current recorded view for its **whole** valid interval, including its past.
 
 ```ts check
 import { Effect, Option } from "effect";
-import { EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
+import { Change, EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
 
 const vendor = EntityId.make("vendor:acme");
 const KNOWN = Date.UTC(2026, 0, 1);
@@ -71,6 +70,37 @@ const program = Effect.gen(function* () {
   const prospect = created.triples[0]!;
 
   // Prospect until March 15, active from then on: one command, one transaction.
+  const change = Change.replace(prospect, string("active"), ACTIVATED);
+  yield* triples.transact(change.ops, {
+    actor: "user:pat",
+    commandId: "vendor:acme:activate",
+    preconditions: change.preconditions,
+  });
+
+  const before = yield* triples.match(
+    { entityId: vendor, attribute: ":vendor/status" },
+    { validAt: Date.UTC(2026, 1, 1) },
+  );
+  // Triple.validFrom is a number; Triple.validTo is an Option (None when open-ended).
+  return before.map((fact) => ({
+    value: fact.value,
+    validFrom: new Date(fact.validFrom).toISOString(),
+    validTo: Option.match(fact.validTo, {
+      onNone: () => "open",
+      onSome: (end) => new Date(end).toISOString(),
+    }),
+  }));
+});
+
+console.log(await Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer))));
+// [{ value: { type: "string", value: "prospect" }, validFrom: "2026-01-01T00:00:00.000Z",
+//    validTo: "2026-03-15T00:00:00.000Z" }]
+```
+
+For this open-ended fact, the verb produces the following hand-written transaction:
+
+```ts
+const activate = Effect.gen(function* () {
   yield* triples.transact(
     [
       { op: "retract", id: prospect.id },
@@ -98,26 +128,28 @@ const program = Effect.gen(function* () {
       preconditions: [{ _tag: "TripleLive", id: prospect.id }],
     },
   );
-
-  const before = yield* triples.match(
-    { entityId: vendor, attribute: ":vendor/status" },
-    { validAt: Date.UTC(2026, 1, 1) },
-  );
-  // Triple.validFrom is a number; Triple.validTo is an Option (None when open-ended).
-  return before.map((fact) => ({
-    value: fact.value,
-    validFrom: new Date(fact.validFrom).toISOString(),
-    validTo: Option.match(fact.validTo, {
-      onNone: () => "open",
-      onSome: (end) => new Date(end).toISOString(),
-    }),
-  }));
 });
-
-console.log(await Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer))));
-// [{ value: { type: "string", value: "prospect" }, validFrom: "2026-01-01T00:00:00.000Z",
-//    validTo: "2026-03-15T00:00:00.000Z" }]
 ```
+
+`Change.end(fact, at)` produces the retract and shortened old assertion, with no replacement.
+`Change.correct(fact, value)` corrects the value over exactly its original interval.
+`Change.combine(...changes)` concatenates operations and guards for a command affecting several
+facts; pass its `ops` and `preconditions` to one `transact`. Combine independent facts rather than
+multiple edits of the same fact. Every verb carries the fact's `entityType`; `replace` also keeps
+its original `validTo` when present. `end` and `replace` throw `Change.ChangeRangeError`, a
+`RangeError`, unless `at` is finite and strictly between `validFrom` and `validTo` (unbounded when
+absent). Ending at `validFrom` would leave an empty interval; use `correct` for a whole-interval
+correction.
+
+Entity types also expose `Vendor.end(fact, at)`, `Vendor.replace(fact, { status: "active" }, at)`,
+and `Vendor.correct(fact, { status: "active" })`. These check the fact's entity type and attribute
+and encode exactly one alias through its attribute definition. For cardinality-many attributes,
+the alias takes one value because the change targets one fact.
+
+The builders never open sensitive values. `correct` takes plaintext, which `Sensitive.layer`
+seals on write. `end` preserves the original sealed value in its generated assertion, but the
+current sensitive decorator rejects sealed input, so submitting `end` or `replace` for a sealed
+fact through `Sensitive.layer` requires further decorator support.
 
 Operations are `{ op: "assert", entityId, attribute, value, entityType?, validFrom?, validTo? }`,
 `{ op: "retract", id }` for one assertion by its `TripleId`, and
@@ -130,7 +162,7 @@ or value pattern. Retract by `id` when you mean one assertion; the ID comes from
 
 The same rule applies with constraint enforcement: retracting the open assertion alone leaves the
 entity's past without the attribute, which a `required` rule rejects. Under enforcement, add a
-`TripleLive` precondition (as above) or an
+`TripleLive` precondition (generated by the verbs) or an
 [`EntityState` precondition](/operational-primitives#entity-state-preconditions) so a concurrent
 change fails instead of being overwritten.
 
