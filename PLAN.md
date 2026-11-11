@@ -358,12 +358,12 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 4: close the loop
 
-| ID   | Item                              | Lane | Depends   | Status      | Evidence                                                                                                                                |
-| ---- | --------------------------------- | ---- | --------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| P4.1 | Valid-time binding in Datalog RFC | A    |           | done        | 2026-11-11: merged `ergo/p4.1`; `docs/rfcs/datalog-time.md` (object interval patterns, `validTime: "all"`). Implementation waits on D10 |
-| P4.2 | Runner package RFC                | C    | P2.6      | pending     |                                                                                                                                         |
-| P4.3 | Live query RFC                    | A    |           | active      | 2026-11-11: `ergo/p4.3`                                                                                                                 |
-| P4.4 | Implement approved phase 4 RFCs   | —    | P4.1–P4.3 | needs-owner |                                                                                                                                         |
+| ID   | Item                              | Lane | Depends   | Status      | Evidence                                                                                                                                                                             |
+| ---- | --------------------------------- | ---- | --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P4.1 | Valid-time binding in Datalog RFC | A    |           | done        | 2026-11-11: merged `ergo/p4.1`; `docs/rfcs/datalog-time.md` (object interval patterns, `validTime: "all"`). Implementation waits on D10                                              |
+| P4.2 | Runner package RFC                | C    | P2.6      | pending     |                                                                                                                                                                                      |
+| P4.3 | Live query RFC                    | A    |           | done        | 2026-11-11: merged `ergo/p4.3`; `docs/rfcs/live-queries.md` (journal-driven snapshot `Stream`, resume tokens, expiry wakeups, new `dependencyStateAll`). Implementation waits on D11 |
+| P4.4 | Implement approved phase 4 RFCs   | —    | P4.1–P4.3 | needs-owner |                                                                                                                                                                                      |
 
 - **P4.1** Issue #73 holds the evidence. Specify how a query binds `validFrom` and `validTo`, so
   "expiring within 30 days" is one query, with identical semantics on KV and SQL.
@@ -391,6 +391,7 @@ item `needs-owner`, and continue with independent work.
 | D8  | PR #46 is contained in #48. Close #46 as superseded once #48 is rebased? Only the owner closes PRs.                                                                                                                                                                                                                                                                            | none   | 2026-11-11: yes; #46 closed after #48 merged |
 | D9  | Approve `docs/rfcs/why.md`: one `Why` service on a `why` subpath; a new `Triples.resolveRecordedBasis` read for exact cuts (a write-path change); causation depth capped at 32; whole-entity results unpaginated; candidates explained from a supplied definition plus exact ID, revision and basis; no structured negative witnesses yet. Recommendation: approve as written. | P3.2   |                                              |
 | D10 | Approve `docs/rfcs/datalog-time.md` (P4.1): the `{ pattern, valid: { from, to } }` interval pattern, query-wide `validTime: "all"`, `null` for open ends with finite-only ordered predicates, and new interval indexes with migrations in the later implementation. Recommendation: approve, and answer D2 at the same time.                                                   | P4.4   |                                              |
+| D11 | Approve `docs/rfcs/live-queries.md` (P4.3): a core `LiveQuery.watch` returning complete snapshots per relevant commit with optional coalescing; durable handlers stay in the runner package; a new `dependencyStateAll` read; default limits to be measured on WorldVM; no MCP subscriptions yet. Recommendation: approve as written.                                          | P4.4   |                                              |
 
 ## Not in this plan
 
@@ -421,6 +422,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: live-query RFC (P4.3) merged; added D11.
 - 2026-11-11: P2.4 merged (sealed re-assertion reviewed: allowed only for a same-transaction
   retracted fact with identical key, ciphertext and blind token). Started the client RFC (P2.5).
 - 2026-11-11: started P1.2b (CLI and HTTP diagnostics) and P4.3 (live-query RFC). P2.3 waits
