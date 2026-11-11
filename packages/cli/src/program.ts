@@ -44,6 +44,8 @@ import {
   type ExecuteOptions,
 } from "./operations.js";
 
+import { invocation, invocationOptions, makeCommand } from "./invocation.js";
+
 declare const __TRIPLEX_CLI_VERSION__: string;
 
 const pretty = Flag.Boolean("pretty").pipe(
@@ -77,8 +79,11 @@ const debug = Flag.Boolean("debug").pipe(
   Flag.withDefault(false),
 );
 
+const sharedFlags = { pretty, debug, sqlite, dataDir, postgresUrl, databaseId };
+
 export const rootCommand = Command.make("triplex").pipe(
-  Command.withSharedFlags({ pretty, debug, sqlite, dataDir, postgresUrl, databaseId }),
+  Command.withSharedFlags(sharedFlags),
+  Command.annotate(invocationOptions, sharedFlags),
   Command.withDescription(
     "Pre-1.0 CLI: explore and operate a Triplex database with stable JSON output",
   ),
@@ -275,15 +280,15 @@ const emitDatabase = (command: string, operation: ExecuteDatabaseOptions) =>
     yield* Console.log(JSON.stringify({ ok: true, command, data }, null, root.pretty ? 2 : 0));
   });
 
-const status = Command.make("status", {}, () => emit("status", { _tag: "status" })).pipe(
+const status = makeCommand("status", {}, () => emit("status", { _tag: "status" })).pipe(
   Command.withDescription("Show the commit position and configuration store counts"),
 );
 
-const entityTypes = Command.make("types", { includeSystem }, ({ includeSystem }) =>
+const entityTypes = makeCommand("types", { includeSystem }, ({ includeSystem }) =>
   emit("entity.types", { _tag: "entity-types", includeSystem }),
 ).pipe(Command.withDescription("Discover entity types and their attributes"));
 
-const entityList = Command.make(
+const entityList = makeCommand(
   "list",
   {
     type: Flag.String("type").pipe(Flag.withDescription("Filter by entity type"), Flag.optional),
@@ -310,7 +315,7 @@ const entityList = Command.make(
     }),
 ).pipe(Command.withDescription("List reflected entities in deterministic ID order"));
 
-const entityGet = Command.make(
+const entityGet = makeCommand(
   "get",
   {
     entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)),
@@ -327,7 +332,7 @@ const entityGet = Command.make(
     }),
 ).pipe(Command.withDescription("Read one entity at a bitemporal basis"));
 
-const entityFacts = Command.make(
+const entityFacts = makeCommand(
   "facts",
   { entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)) },
   ({ entityId }) => emit("entity.facts", { _tag: "entity-facts", entityId }),
@@ -335,7 +340,7 @@ const entityFacts = Command.make(
   Command.withDescription("Read the complete assertion/retraction fact history for an entity"),
 );
 
-const entityHistory = Command.make(
+const entityHistory = makeCommand(
   "history",
   {
     entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)),
@@ -368,7 +373,7 @@ const entity = Command.make("entity").pipe(
   Command.withSubcommands([entityTypes, entityList, entityGet, entityFacts, entityHistory]),
 );
 
-const factMatch = Command.make(
+const factMatch = makeCommand(
   "match",
   { input, validAt, recordedAt },
   ({ input, validAt, recordedAt }) =>
@@ -389,7 +394,7 @@ const fact = Command.make("fact").pipe(
   Command.withSubcommands([factMatch]),
 );
 
-const queryRun = Command.make(
+const queryRun = makeCommand(
   "run",
   { input, validAt, recordedAt, limit, cursor: Flag.String("cursor").pipe(Flag.optional) },
   ({ input, validAt, recordedAt, limit, cursor }) =>
@@ -408,7 +413,7 @@ const queryRun = Command.make(
     }),
 ).pipe(Command.withDescription("Execute one bounded Datalog page from JSON"));
 
-const queryPage = Command.make(
+const queryPage = makeCommand(
   "page",
   { input, validAt, recordedAt },
   ({ input, validAt, recordedAt }) =>
@@ -425,7 +430,7 @@ const queryPage = Command.make(
     }),
 ).pipe(Command.withDescription("Execute a cursor-paginated wrapped Datalog query"));
 
-const queryExplain = Command.make("explain", { input }, ({ input }) =>
+const queryExplain = makeCommand("explain", { input }, ({ input }) =>
   Effect.gen(function* () {
     const query = yield* readWith(DatalogQuery, input);
     return yield* emit("query.explain", { _tag: "query-explain", query });
@@ -437,7 +442,7 @@ const query = Command.make("query").pipe(
   Command.withSubcommands([queryRun, queryPage, queryExplain]),
 );
 
-const transactionApply = Command.make("apply", { input }, ({ input }) =>
+const transactionApply = makeCommand("apply", { input }, ({ input }) =>
   Effect.gen(function* () {
     const request = yield* readWith(TransactRequest, input);
     if (request.meta?.actor === undefined || request.meta.commandId === undefined) {
@@ -455,7 +460,7 @@ const transaction = Command.make("transaction").pipe(
   Command.withSubcommands([transactionApply]),
 );
 
-const journalList = Command.make(
+const journalList = makeCommand(
   "list",
   {
     after: Flag.Int("after").pipe(
@@ -467,13 +472,13 @@ const journalList = Command.make(
   ({ after, limit }) => emit("journal.list", { _tag: "journal-list", after, limit }),
 ).pipe(Command.withDescription("Page the global transaction journal in commit order"));
 
-const journalReceipt = Command.make(
+const journalReceipt = makeCommand(
   "receipt",
   { commandId: Argument.String("command-id") },
   ({ commandId }) => emit("journal.receipt", { _tag: "journal-receipt", commandId }),
 ).pipe(Command.withDescription("Find an idempotent transaction receipt by command ID"));
 
-const journalTransaction = Command.make(
+const journalTransaction = makeCommand(
   "transaction",
   {
     transactionId: Argument.String("transaction-id").pipe(Argument.withSchema(TransactionId)),
@@ -487,15 +492,15 @@ const journal = Command.make("journal").pipe(
   Command.withSubcommands([journalList, journalReceipt, journalTransaction]),
 );
 
-const configRefs = Command.make("refs", {}, () =>
-  emit("config.refs", { _tag: "config-refs" }),
-).pipe(Command.withDescription("List moving configuration refs"));
+const configRefs = makeCommand("refs", {}, () => emit("config.refs", { _tag: "config-refs" })).pipe(
+  Command.withDescription("List moving configuration refs"),
+);
 
-const configReleases = Command.make("releases", {}, () =>
+const configReleases = makeCommand("releases", {}, () =>
   emit("config.releases", { _tag: "config-releases" }),
 ).pipe(Command.withDescription("List immutable configuration releases newest first"));
 
-const configRelease = Command.make(
+const configRelease = makeCommand(
   "release",
   {
     snapshotId: Flag.String("snapshot").pipe(
@@ -516,7 +521,7 @@ const configRelease = Command.make(
   },
 ).pipe(Command.withDescription("Inspect a release and every pinned revision"));
 
-const configObjects = Command.make(
+const configObjects = makeCommand(
   "objects",
   {
     kind: Flag.String("kind").pipe(Flag.optional),
@@ -530,7 +535,7 @@ const configObjects = Command.make(
     }),
 ).pipe(Command.withDescription("List logical config identities and version counts"));
 
-const configObject = Command.make(
+const configObject = makeCommand(
   "object",
   {
     kind: Argument.String("kind"),
@@ -539,7 +544,7 @@ const configObject = Command.make(
   ({ kind, key }) => emit("config.object", { _tag: "config-object", kind, key }),
 ).pipe(Command.withDescription("Inspect the complete immutable history of one config object"));
 
-const configSetRef = Command.make(
+const configSetRef = makeCommand(
   "set-ref",
   {
     name: Argument.String("name"),
@@ -548,7 +553,7 @@ const configSetRef = Command.make(
   ({ name, snapshotId }) => emit("config.set-ref", { _tag: "config-set-ref", name, snapshotId }),
 ).pipe(Command.withDescription("Atomically move a configuration ref to an existing release"));
 
-const configImpact = Command.make(
+const configImpact = makeCommand(
   "impact",
   { kind: Argument.String("kind"), key: Argument.String("key") },
   ({ kind, key }) => emit("config.impact", { _tag: "config-impact", kind, key }),
@@ -569,7 +574,7 @@ const config = Command.make("config").pipe(
 
 const managedDatabaseName = Argument.String("name").pipe(Argument.withSchema(DatabaseId));
 
-const databaseCreate = Command.make(
+const databaseCreate = makeCommand(
   "create",
   {
     name: managedDatabaseName,
@@ -587,15 +592,15 @@ const databaseCreate = Command.make(
     }),
 ).pipe(Command.withDescription("Create and migrate a managed database"));
 
-const databaseList = Command.make("list", {}, () =>
+const databaseList = makeCommand("list", {}, () =>
   emitDatabase("db.list", { _tag: "database-list" }),
 ).pipe(Command.withDescription("List managed databases"));
 
-const databaseGet = Command.make("get", { name: managedDatabaseName }, ({ name }) =>
+const databaseGet = makeCommand("get", { name: managedDatabaseName }, ({ name }) =>
   emitDatabase("db.get", { _tag: "database-get", name }),
 ).pipe(Command.withDescription("Show one managed database"));
 
-const databaseUpdate = Command.make(
+const databaseUpdate = makeCommand(
   "update",
   {
     name: managedDatabaseName,
@@ -621,11 +626,11 @@ const requireConfirmation = <A, E, R>(confirmed: boolean, operation: Effect.Effe
         invalidArguments("This operation is destructive; pass --yes to confirm", "$args.yes"),
       );
 
-const databaseClear = Command.make("clear", { name: managedDatabaseName, yes }, ({ name, yes }) =>
+const databaseClear = makeCommand("clear", { name: managedDatabaseName, yes }, ({ name, yes }) =>
   requireConfirmation(yes, emitDatabase("db.clear", { _tag: "database-clear", name })),
 ).pipe(Command.withDescription("Delete all data while preserving the managed database"));
 
-const databaseDelete = Command.make("delete", { name: managedDatabaseName, yes }, ({ name, yes }) =>
+const databaseDelete = makeCommand("delete", { name: managedDatabaseName, yes }, ({ name, yes }) =>
   requireConfirmation(yes, emitDatabase("db.delete", { _tag: "database-delete", name })),
 ).pipe(Command.withDescription("Delete a managed database and its storage"));
 
@@ -642,7 +647,7 @@ const database = Command.make("db").pipe(
   ]),
 );
 
-const describe = Command.make(
+const describe = makeCommand(
   "describe",
   {
     ref: Flag.String("ref").pipe(
@@ -700,79 +705,11 @@ export const reportFailure = (
   ).pipe(Effect.andThen(Effect.failCause(cause)));
 };
 
-// Recover invocation context even when parsing fails before a handler runs.
-const invocation = (args: readonly string[]) => {
-  const valueFlags = new Set([
-    "--sqlite",
-    "--data-dir",
-    "--postgres-url",
-    "--database-id",
-    "--input",
-    "-i",
-    "--limit",
-    "-n",
-    "--type",
-    "--after",
-    "--valid-at",
-    "--recorded-at",
-    "--cursor",
-    "--snapshot-position",
-    "--before-position",
-    "--snapshot",
-    "--ref",
-    "--kind",
-    "--description",
-    "-d",
-  ]);
-  const roots = new Set([
-    "status",
-    "describe",
-    "db",
-    "database",
-    "entity",
-    "fact",
-    "query",
-    "transaction",
-    "tx",
-    "journal",
-    "config",
-  ]);
-  const words: string[] = [];
-  let debug = false;
-  let positional = false;
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if (!positional && arg === "--") {
-      positional = true;
-      continue;
-    }
-    if (!positional && valueFlags.has(arg)) {
-      i++;
-      continue;
-    }
-    if (!positional && arg === "--debug") {
-      debug = args[i + 1] !== "false";
-      if (args[i + 1] === "false" || args[i + 1] === "true") i++;
-    } else if (!positional && arg.startsWith("--debug=")) {
-      debug = arg === "--debug=true";
-    } else if (positional || !arg.startsWith("-")) words.push(arg);
-  }
-  const index = words.findIndex((word) => roots.has(word));
-  if (index < 0) return { command: "triplex", debug };
-  const root =
-    words[index] === "tx" ? "transaction" : words[index] === "database" ? "db" : words[index]!;
-  return {
-    command:
-      root === "status" || root === "describe" ? root : `${root}.${words[index + 1] ?? "unknown"}`,
-    debug,
-  };
-};
-
 export const run = Effect.gen(function* () {
   const { args } = yield* Stdio.Stdio;
   const argv = yield* args;
   return yield* Command.run(command, {
     version: __TRIPLEX_CLI_VERSION__,
     renderErrors: false,
-  }).pipe(Effect.catchCause((cause) => reportFailure(cause, invocation(argv))));
+  }).pipe(Effect.catchCause((cause) => reportFailure(cause, invocation(command, argv))));
 });
