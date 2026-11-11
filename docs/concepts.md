@@ -138,9 +138,9 @@ const activate = Effect.gen(function* () {
 `Change.combine(...changes)` concatenates operations and guards for a command affecting several
 facts; pass its `ops` and `preconditions` to one `transact`. Combine independent facts rather than
 multiple edits of the same fact. Every verb carries the fact's `entityType`; `replace` also keeps
-its original `validTo` when present. `end` and `replace` throw `Change.ChangeRangeError`, a
-`RangeError`, unless `at` is finite and strictly between `validFrom` and `validTo` (unbounded when
-absent). Ending at `validFrom` would leave an empty interval; use `correct` for a whole-interval
+its original `validTo` when present. Fractional bounds throw `ValidationError` with diagnostic
+code `time.invalid-bound`. `end` and `replace` throw `Change.ChangeRangeError`, a `RangeError`,
+unless `at` is finite and strictly between `validFrom` and `validTo` (unbounded when absent). Ending at `validFrom` would leave an empty interval; use `correct` for a whole-interval
 correction.
 
 Entity types also expose `Vendor.end(fact, at)`, `Vendor.replace(fact, { status: "active" }, at)`,
@@ -157,7 +157,7 @@ Operations are `{ op: "assert", entityId, attribute, value, entityType?, validFr
 `{ op: "retract-pattern", pattern }` for every live assertion matching an entity, attribute, type,
 or value pattern. Retract by `id` when you mean one assertion; the ID comes from
 `TransactionResult.triples`, `match`, `entity`, or `history`. A stored `Triple` carries
-`validFrom` as epoch milliseconds and `validTo`, `retractedAt`, `entityType`, and `txId` as Effect
+`validFrom` as integer epoch milliseconds and `validTo`, `retractedAt`, `entityType`, and `txId` as Effect
 `Option`s. Its `value` is a tagged union: `string`, `number`, `boolean`, `datetime`, `ref`, `json`,
 `blob`, or `sealed` for a [sensitive value](/sensitive-values).
 
@@ -189,7 +189,7 @@ The same `validAt` date can produce a different answer as knowledge changes:
 | recorded Mar 2, valid Jan 15  | Yes                  | The corrected assertion still covers Jan 15. |
 
 Public reads accept one `{ recordedAt?, recordedPosition?, validAt? }` basis for the complete read, including every
-clause of a Datalog query. Times are non-negative epoch milliseconds and interval ends are
+clause of a Datalog query. Times are non-negative epoch milliseconds; stored valid-time bounds are integers and interval ends are
 exclusive. Supply either `recordedAt` or `recordedPosition`; giving both is rejected.
 A position is a non-negative safe integer, with zero selecting the empty cut.
 Position cuts distinguish commits even when their recorded timestamps are identical.
@@ -213,7 +213,7 @@ Datalog can bind the stored bounds in the same query:
   valid: { from: "?start", to: "?end" } }
 ```
 
-Bounds are complete stored intervals: finite epoch-millisecond numbers, with `null` for an open
+Bounds are complete stored intervals: integer epoch-millisecond numbers, with `null` for an open
 end. Binding bounds preserves point filtering. Use query-wide `validTime: "all"` to enumerate
 intervals at one recorded cut, without `validAt`. All-time joins do not imply interval overlap,
 and retracted assertions remain absent unless you select an earlier recorded cut.

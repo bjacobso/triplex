@@ -160,7 +160,7 @@ and default pages keep their timestamp and position snapshots.
 
 Use `{ pattern: [e, a, v] | [e, a, v, tx], valid: { from?, to? } }` wherever a fact
 pattern is allowed: positive conjunction, conjunctive `not`, or a single `or` alternative.
-At least one bound is required. A bound accepts a variable or a finite, non-negative
+At least one bound is required. A bound accepts a variable or a non-negative integer
 epoch-millisecond number; `to` also accepts literal `null` for an open end. Unknown fields,
 invalid variables, and concrete empty/reversed intervals fail preflight. Recursive rule bodies
 currently accept only ordinary tuples.

@@ -131,3 +131,12 @@ Defects and interruption remain outside the typed failure channel.
 Use `diagnose` instead of duplicating code strings in transports. Normalized client
 validation messages identify the field without copying values, payloads, ciphertext,
 query constants or arbitrary causes into diagnostics.
+
+### `time.invalid-bound`
+
+Assertion `validFrom`/`validTo`, Change split points, and numeric interval-pattern
+bounds must use integer epoch milliseconds. Fractional and non-finite bounds fail
+before mutation or query execution on KV, SQLite, and PostgreSQL. Use integer
+millisecond timestamps. Assertion builders throw `ValidationError`; write failures
+retain that error as their `WriteError.cause`. Interval-pattern failures use
+`DatalogValidationError`. `diagnose` returns this code for each form.

@@ -132,8 +132,8 @@ export const PatternClause = Schema.Union([PatternClause4, PatternClause3]).anno
 /** Stored assertion bounds, independent of query membership. */
 const BoundInstant = Schema.Number.pipe(
   Schema.check(
-    Schema.makeFilter((value: number) => Number.isFinite(value) && value >= 0, {
-      expected: "a finite non-negative epoch-millisecond instant",
+    Schema.makeFilter((value: number) => Number.isInteger(value) && value >= 0, {
+      expected: "a non-negative integer epoch-millisecond instant",
     }),
   ),
 );

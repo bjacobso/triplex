@@ -32,7 +32,7 @@ import type {
   TripleRow,
   TransactOp,
 } from "../Triple.js";
-import { queryToPattern } from "../Triple.js";
+import { queryToPattern, validateTransactionIntervals } from "../Triple.js";
 import { decodeSealedEnvelope } from "../Value.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
@@ -314,6 +314,7 @@ export const TriplesLive = Layer.effect(
       adapter
         .withTransaction(
           Effect.gen(function* () {
+            yield* validateTransactionIntervals(operations);
             if (!isSystemWriteAuthorized(meta)) {
               const reserved = reservedAssertError(operations);
               if (reserved) return yield* Effect.fail(reserved);

@@ -22,8 +22,9 @@ their point semantics. There is no legacy mode.
 Breaking: query pagination cursors use version 2; restart existing cursors. The executor SPI
 accepts a query basis with no valid point for all-time reads.
 
-SQL migration 8 adds non-partial attribute/end and attribute/start history indexes. On PostgreSQL
-it also promotes assertion interval columns to double precision to preserve fractional
-milliseconds. KV writers maintain history-preserving interval indexes; queries complete their
+SQL migration 8 adds non-partial attribute/end and attribute/start history indexes. PostgreSQL
+keeps its BIGINT interval columns, avoiding a table rewrite and a precondition-plan regression.
+Breaking: assertion bounds and numeric interval-pattern bounds now require integer epoch
+milliseconds on every backend; fractional bounds fail with `time.invalid-bound`. KV writers maintain history-preserving interval indexes; queries complete their
 resumable backfill before using them. Upgrade all writers before enabling the new query engine.
 Cloudflare and FoundationDB remain frozen experimental backends with no new certification.

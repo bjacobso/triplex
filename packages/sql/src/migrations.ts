@@ -96,11 +96,6 @@ export const migrations: readonly Migration[] = [
   {
     version: 8,
     name: "triplex_interval_history_indexes",
-    dialects: {
-      pg: [
-        "ALTER TABLE triples ALTER COLUMN valid_from TYPE DOUBLE PRECISION, ALTER COLUMN valid_to TYPE DOUBLE PRECISION",
-      ],
-    },
     up: INTERVAL_HISTORY_INDEX_DDLS,
   },
 ];

@@ -1,3 +1,4 @@
+import { validateAssertionBounds } from "../Triple.js";
 /** Ergonomic entity-type declarations compiled to content-addressed config nodes. */
 
 import { Effect, Option } from "effect";
@@ -279,6 +280,8 @@ export function make(
     values: Values<Uses>,
     options: Attribute.AssertionOptions = {},
   ): ReadonlyArray<TransactAssertOp> => {
+    const invalid = validateAssertionBounds(options);
+    if (invalid) throw invalid;
     const input = values as Readonly<Record<string, unknown>>;
     for (const property of Object.keys(input)) {
       if (!Object.prototype.hasOwnProperty.call(handles, property)) {
