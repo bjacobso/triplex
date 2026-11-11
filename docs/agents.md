@@ -148,6 +148,10 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
 
 ## 5. Answer audit questions
 
+Use [Why](/why) to explain a fact, attribute, entity or derivation candidate at an
+exact recorded cut. It returns the asserting transaction and its pinned release;
+optional bounded command causation follows the parent chain.
+
 - **What did we believe then about what was true then?** Set both `recordedAt` and `validAt`.
   Setting only one leaves the other at "now".
 - **What did we know when we made a decision?** Use `db.asOf({ recordedPosition: receipt.position, validAt })` for an exact read cut.
