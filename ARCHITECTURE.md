@@ -160,8 +160,12 @@ hosts typed configuration as a modular layer over the same core.
 - Backend maturity is explicit rather than inferred from package existence. In-memory KV and
   SQLite are the supported baseline. PostgreSQL passes the shared conformance and isolation
   integration suite in CI but remains a pre-1.0 production candidate. Cloudflare and FoundationDB
-  are private experimental workspace packages. Cloudflare's workerd conformance is part of the
-  default check; FoundationDB's native semantics remain opt-in.
+  are private, experimental and frozen workspace packages: they must keep compiling and their
+  existing tests must keep passing, but new surface targets only in-memory KV, SQLite and
+  PostgreSQL and does not have to cover them. Cloudflare's workerd conformance is part of the
+  default check; FoundationDB's native suite also runs in CI and remains opt-in locally.
+  Triplex is greenfield before 1.0: breaking public API changes are allowed when they make the
+  API right; update callers and record breaks in Changesets instead of keeping compatibility shims.
 - `@triplex-build/triplex-testkit` is the public home for reusable backend conformance helpers.
 - `examples/tenant-host-cloudflare` is the first concrete isolated host: a singleton registry
   Durable Object plus one SQLite Durable Object and scoped Effect runtime per database. Its
