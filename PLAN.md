@@ -430,17 +430,19 @@ Update this section last in every session.
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P3.0: block `block:01a1ccab-c587-7a6b-ac89-406bb1881415`
-- **Open worktrees and branches from this plan:** `../triplex-wt/p3.0` on `ergo/p3.0`. The
-  session PR is #80 from `ergonomics/next`.
+- **Open worktrees and branches from this plan:** `../triplex-wt/p3.0` on `ergo/p3.0`. #80 merged (squash
+  `3b6c09e`); the open session PR is #81 from `ergonomics/next`.
 - **Next action:** review P3.0; then P3.2 (`why`), P4.4b (live queries) and the client switch to
-  `resolveRecordedBasis` in parallel; then P1.7 alone. Push to PR #80 after each green full check.
+  `resolveRecordedBasis` in parallel; then P1.7 alone. Push to PR #81 after each green full check.
 - **Known blockers:** D12 (README) and D13 (PostgreSQL column type) await the owner.
 
 ## Progress log
 
 Newest first. One line per event: date, item, what happened, link.
 
-- 2026-11-11: P4.4a-fix merged; all checks green including Postgres 47/47; pushed to PR #80.
+- 2026-11-11: owner merged #80 (squash `3b6c09e`, tree identical to `fd76b4e`). Recorded it with an
+  ours-merge and opened #81 for the work since.
+- 2026-11-11: P4.4a-fix merged; all checks green including Postgres 47/47.
 - 2026-11-11: full check failed on a P1.6/P4.4a testkit interaction (fixed); Postgres failed two plan
   tests, one caused by migration 8's `ALTER TYPE`. Applied D13's recommendation in P4.4a-fix.
 - 2026-11-11: P4.4a merged after resolving conflicts with P1.6; added D13 (PostgreSQL column type).
