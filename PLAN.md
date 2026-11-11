@@ -422,6 +422,9 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: full `pnpm check` passed on `ergonomics/next` at `c669cf1` (25 test tasks, 14 builds,
+  docs build). It first failed on two dead links in `docs/rfcs/datalog-time.md`; agents now also run
+  `pnpm docs:build`.
 - 2026-11-11: P2.3 merged. Started P2.2 (#52) alone.
 - 2026-11-11: `pnpm pack:check` passed; e2e shows only the four pre-existing macOS screenshot
   failures.
