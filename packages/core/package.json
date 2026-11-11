@@ -42,6 +42,11 @@
       "import": "./dist/datalog/index.js",
       "default": "./dist/datalog/index.js"
     },
+    "./live-query": {
+      "types": "./dist/live/index.d.ts",
+      "import": "./dist/live/index.js",
+      "default": "./dist/live/index.js"
+    },
     "./subscriptions": {
       "types": "./dist/subscriptions/index.d.ts",
       "import": "./dist/subscriptions/index.js",

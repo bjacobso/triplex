@@ -191,6 +191,8 @@ import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/
 import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
 import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
+import { LiveQuery } from "@triplex-build/triplex/live-query";
+void LiveQuery;
 import * as Database from "@triplex-build/triplex/database";
 import { Inbox, Outbox, OperationalEntryConflictError } from "@triplex-build/triplex/operational";
 import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
@@ -330,6 +332,8 @@ if (CanonicalJson.encodeOrThrow({ z: -0, a: [undefined, 1] }) !== JSON.stringify
 import { EntityId, Triples, string } from "@triplex-build/triplex";
 import { Runtime, DatabaseScope } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
+import { LiveQuery } from "@triplex-build/triplex/live-query";
+void LiveQuery;
 import * as Database from "@triplex-build/triplex/database";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 

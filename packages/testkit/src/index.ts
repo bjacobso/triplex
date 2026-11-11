@@ -3501,3 +3501,5 @@ export function runtimeConformance(
 export * from "./sensitive.js";
 
 export { recordedReadsConformance } from "./recordedReadsCases.js";
+
+export { liveQueryCases } from "./liveQueryCases.js";

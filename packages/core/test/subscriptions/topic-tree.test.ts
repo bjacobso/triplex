@@ -60,6 +60,7 @@ describe("TopicTree", () => {
       deps({
         attributes: new Set([":employee/name"]),
         entityTypes: new Set(["employee"]),
+        subjectsByAttribute: new Map([[":employee/name", new Set(["emp:alice"])]]),
         boundEntityIds: new Set(["emp:alice"]),
         boundEntityTypes: new Set(["employee"]),
       }),
@@ -73,7 +74,7 @@ describe("TopicTree", () => {
     expect(affected.get("ws-1")).toEqual([change("emp:alice", ":employee/name")]);
   });
 
-  it("matches wildcard attribute subscriptions within an entity type", () => {
+  it("matches wildcard attribute subscriptions across every namespace", () => {
     const tree = new TopicTree();
 
     tree.register(
@@ -90,7 +91,10 @@ describe("TopicTree", () => {
       change("dept:eng", ":department/name"),
     ]);
 
-    expect(affected.get("ws-1")).toEqual([change("emp:alice", ":employee/name")]);
+    expect(affected.get("ws-1")).toEqual([
+      change("emp:alice", ":employee/name"),
+      change("dept:eng", ":department/name"),
+    ]);
   });
 
   it("removes subscriptions on unregister and disconnect cleanup", () => {

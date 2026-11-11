@@ -21,6 +21,8 @@ export interface QueryDependencies {
    * e.g., {":employee/name", ":employee/department"}
    */
   readonly attributes: ReadonlySet<string>;
+  /** Proven constant subjects per attribute; null means at least one unbound input. */
+  readonly subjectsByAttribute?: ReadonlyMap<string, ReadonlySet<string> | null>;
 
   /**
    * Whether the query reads attributes through a variable slot such as
