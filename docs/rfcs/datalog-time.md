@@ -4,6 +4,14 @@ Status: proposed, awaiting owner approval of P4.1 and D2 (P1.3). This document s
 future behavior; none of its new query syntax is implemented. It changes query planning and
 execution, not the fact model or the transaction write boundary.
 
+> **Decision update — 2026-11-11 (D13):** Valid-time assertion bounds and numeric
+> interval-pattern bounds must be integer epoch milliseconds on all backends. This
+> replaces the original “no new integer-only time constraint” proposal below.
+> PostgreSQL keeps `valid_from` and `valid_to` as `BIGINT`: promoting them to double
+> precision regressed the cheap-precondition plan to an attribute scan with an
+> entity filter and would rewrite and lock existing tables during upgrade.
+> Migration 8 retains its interval history indexes without changing column types.
+
 ## Problem and recommendation
 
 WorldVM needs assertion interval bounds without a `history` or `match` read per entity.

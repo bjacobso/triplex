@@ -445,7 +445,17 @@ describe("PostgreSQL Integration", () => {
             `EXPLAIN (FORMAT JSON) ${provenance.sql}`,
             provenance.params,
           );
-          expect(JSON.stringify(plan)).toMatch(/idx_(entity_recorded_position|temporal)/);
+          const provenancePlan = JSON.stringify(plan);
+          // With rare actor metadata, PostgreSQL may prefer the history index:
+          // attribute and recorded_position are index conditions; entity is residual.
+          expect(provenancePlan).toMatch(
+            /idx_(entity_recorded_position|temporal|attribute_valid_from_history)/,
+          );
+          if (provenancePlan.includes("idx_attribute_valid_from_history")) {
+            expect(provenancePlan).toContain(
+              `"Index Cond":"((attribute = ':_tx/actor'::text) AND (recorded_position <= 1))"`,
+            );
+          }
           yield* sql.unsafe("DELETE FROM triples WHERE attribute = ':time-plan/expiry'");
         }),
       );
