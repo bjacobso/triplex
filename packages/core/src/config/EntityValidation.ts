@@ -13,6 +13,7 @@ import type { DatalogQuery } from "../datalog/types.js";
 import type {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
+  OperationalEntryConflictError,
   DatalogQueryError,
   ReadError,
   TransactionConflictError,
@@ -182,6 +183,7 @@ export class InvalidEntitySchemaError extends Data.TaggedError("InvalidEntitySch
 }> {}
 
 export type RevalidateError =
+  | OperationalEntryConflictError
   | ReadError
   | WriteError
   | TransactionConflictError

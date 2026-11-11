@@ -17,6 +17,7 @@ import type { Constant, DatalogQuery } from "../datalog/types.js";
 import type {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
+  OperationalEntryConflictError,
   DatalogQueryError,
   ReadError,
   TransactionConflictError,
@@ -149,6 +150,7 @@ export class CorruptMaterializationError extends Data.TaggedError(
 }> {}
 
 export type MaterializationError =
+  | OperationalEntryConflictError
   | ReadError
   | WriteError
   | TransactionConflictError

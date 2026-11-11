@@ -26,7 +26,7 @@ import {
   UnboundVariableError,
   EntityId,
 } from "@triplex-build/triplex";
-import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-build/triplex/operational";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -80,6 +80,238 @@ export interface ConformanceCase {
  * The behavioral cases every `Triples` backend must pass.
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
+  {
+    name: "inbox/outbox identities round-trip control characters and UTF-16 strings",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      for (const suffix of ["\0", "\ud800", "\ud801", "😀"]) {
+        const scope = eid(`conf:entries:unicode:${suffix}`);
+        const key = `key:${suffix}`;
+        yield* t.transact([Inbox.append({ scope, idempotencyKey: key, payload: { suffix } })]);
+        const page = yield* Inbox.pending(t, { scope });
+        yield* check(
+          page.entries.length === 1 &&
+            page.entries[0]!.scope === scope &&
+            page.entries[0]!.idempotencyKey === key &&
+            JSON.stringify(page.entries[0]!.payload) === JSON.stringify({ suffix }),
+          "scope, idempotency key and payload must round-trip without encoding aliases",
+        );
+        yield* t.transact([Inbox.acknowledge(Inbox.id(scope, key))]);
+      }
+    }),
+  },
+  {
+    name: "inbox/outbox concurrent keys, acknowledgement rollback, and cursor validation",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const scope = eid("conf:entries:races");
+      const append = Outbox.append({ scope, idempotencyKey: "same", payload: { intent: 1 } });
+      yield* Effect.all([t.transact([append]), t.transact([append])], { concurrency: 2 });
+      yield* check(
+        (yield* Outbox.pending(t, { scope })).entries.length === 1,
+        "concurrent identical submissions must create one entry",
+      );
+      const races = yield* Effect.all(
+        [1, 2].map((payload) =>
+          t
+            .transact([Outbox.append({ scope, idempotencyKey: "different", payload })])
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        races.filter((r) => r._tag === "Success").length === 1 &&
+          races.filter(
+            (r) => r._tag === "Failure" && r.failure._tag === "OperationalEntryConflictError",
+          ).length === 1,
+        "concurrent conflicting payloads must commit exactly one winner",
+      );
+      const id = Outbox.id(scope, "same");
+      const position = yield* t.currentPosition();
+      const failed = yield* t
+        .transact([Outbox.acknowledge(id), Outbox.acknowledge(Outbox.id(scope, "missing"))])
+        .pipe(Effect.flip);
+      yield* check(
+        failed._tag === "WriteError" &&
+          (yield* t.currentPosition()) === position &&
+          (yield* Outbox.get(t, id))!.acknowledgedPosition === undefined,
+        "a later failing operation must roll back acknowledgement and its pending indexes",
+      );
+      const page = yield* Outbox.pending(t, { scope, limit: 1 });
+      yield* t.transact([Outbox.acknowledge(page.entries[0]!.id)]);
+      const next = yield* Outbox.pending(t, { scope, cursor: page.nextCursor! });
+      yield* check(
+        next.entries.length === 1 && next.entries[0]!.id !== page.entries[0]!.id,
+        "acknowledging a cursor target must not skip its successor",
+      );
+      for (const request of [
+        { limit: 0 },
+        { limit: 1001 },
+        { limit: NaN },
+        { cursor: "invalid" },
+      ]) {
+        const error = yield* Outbox.pending(t, request).pipe(Effect.flip);
+        yield* check(
+          error._tag === "PaginationCursorError",
+          "invalid limits and cursors must fail as typed pagination errors",
+        );
+      }
+      const wrongDirection = yield* Inbox.pending(t, { scope, cursor: page.nextCursor! }).pipe(
+        Effect.flip,
+      );
+      yield* check(
+        wrongDirection._tag === "PaginationCursorError",
+        "cursor direction must be bound",
+      );
+      yield* t.transact([Outbox.append({ scope, idempotencyKey: "same", payload: { intent: 1 } })]);
+      yield* check(
+        (yield* Outbox.get(t, id))!.acknowledgedPosition !== undefined,
+        "duplicate append must not resurrect acknowledged work",
+      );
+      yield* t.transact([Outbox.acknowledge(next.entries[0]!.id)]);
+    }),
+  },
+  {
+    name: "inbox/outbox entries compose atomically, deduplicate, page, and retain acknowledged history",
+    run: Effect.gen(function* () {
+      const triples = yield* Triples;
+      const a = eid("conf:entries:a");
+      const b = eid("conf:entries:b");
+      const first = yield* triples.transact(
+        [
+          { op: "assert", entityId: a, attribute: ":conf/status", value: string("committed") },
+          Outbox.append({ scope: a, idempotencyKey: "one", payload: { b: [2, null], a: 1 } }),
+          Outbox.append({ scope: b, idempotencyKey: "one", payload: "other scope" }),
+          Inbox.append({ scope: a, idempotencyKey: "one", payload: "received" }),
+        ],
+        { commandId: "conf:entries:first" },
+      );
+      const id = Outbox.id(a, "one");
+      const stored = yield* Outbox.get(triples, id);
+      yield* check(
+        stored !== null && stored.recordedPosition === first.position && stored.txId === first.txId,
+        "entry and business facts must share the original transaction receipt",
+      );
+      // Reordered keys are the same canonical payload. Repetition preserves the
+      // original entry and its append metadata, even in another transaction.
+      yield* triples.transact([
+        Outbox.append({ scope: a, idempotencyKey: "one", payload: { a: 1, b: [2, null] } }),
+      ]);
+      yield* check(
+        JSON.stringify(yield* Outbox.get(triples, id)) === JSON.stringify(stored),
+        "an identical idempotency key/payload must be a no-op on the entry",
+      );
+      yield* triples.transact([
+        Outbox.append({ scope: a, idempotencyKey: "two", payload: { intent: "later" } }),
+      ]);
+      const p1 = yield* Outbox.pending(triples, { limit: 1 });
+      yield* check(
+        p1.entries.length === 1 && p1.nextCursor !== undefined,
+        "pending reads must be bounded with a continuation",
+      );
+      const p2 = yield* Outbox.pending(triples, { limit: 2, cursor: p1.nextCursor! });
+      const allIds = [...p1.entries, ...p2.entries].map((entry) => entry.id);
+      yield* check(
+        allIds.length === 3 && new Set(allIds).size === 3 && p2.nextCursor === undefined,
+        "global pending pages must return all scopes without duplicates, including entries at the same position",
+      );
+      const wrongScope = yield* Outbox.pending(triples, { scope: a, cursor: p1.nextCursor! }).pipe(
+        Effect.flip,
+      );
+      yield* check(
+        wrongScope._tag === "PaginationCursorError",
+        "entry cursors must bind their scope filter",
+      );
+      const pendingA = yield* Outbox.pending(triples, { scope: a });
+      yield* check(
+        pendingA.entries.length === 2 && pendingA.entries.every((entry) => entry.scope === a),
+        "entity-scoped pending reads must exclude other scopes",
+      );
+      // A fresh read after a simulated delivery crash returns exactly the stored
+      // unacknowledged entry; delivery itself never mutates it.
+      const redelivery = yield* Outbox.pending(triples, { scope: a });
+      yield* check(
+        JSON.stringify(redelivery) === JSON.stringify(pendingA),
+        "commit-before-ack crashes must redeliver unchanged entries",
+      );
+      const beforeConflict = yield* triples.currentPosition();
+      const conflict = yield* triples
+        .transact(
+          [
+            {
+              op: "assert",
+              entityId: a,
+              attribute: ":conf/must-rollback",
+              value: string("absent"),
+            },
+            Outbox.append({ scope: a, idempotencyKey: "rollback", payload: "must disappear" }),
+            Outbox.append({ scope: a, idempotencyKey: "one", payload: "different" }),
+          ],
+          { commandId: "conf:entries:conflict" },
+        )
+        .pipe(Effect.flip);
+      yield* check(
+        conflict._tag === "OperationalEntryConflictError",
+        "a reused key with different payload must be a distinct conflict",
+      );
+      yield* check(
+        (yield* triples.match({ entityId: a, attribute: ":conf/must-rollback" })).length === 0 &&
+          (yield* triples.currentPosition()) === beforeConflict &&
+          (yield* triples.transactionByCommand("conf:entries:conflict")) === null,
+        "an entry conflict must roll back facts, receipt and position",
+      );
+      yield* check(
+        (yield* Outbox.get(triples, Outbox.id(a, "rollback"))) === null,
+        "an entry conflict must roll back earlier appended entries and pending indexes",
+      );
+      const ack = yield* triples.transact([Outbox.acknowledge(id)]);
+      const history = yield* Outbox.get(triples, id);
+      yield* check(
+        history !== null &&
+          history.acknowledgedPosition === ack.position &&
+          history.acknowledgedTxId === ack.txId &&
+          history.recordedPosition === stored!.recordedPosition &&
+          JSON.stringify(history.payload) === JSON.stringify(stored!.payload),
+        "acknowledgement retains the original payload and append history",
+      );
+      yield* triples.transact([Outbox.acknowledge(id)]);
+      yield* check(
+        JSON.stringify(yield* Outbox.get(triples, id)) === JSON.stringify(history),
+        "repeated acknowledgements retain the first ack",
+      );
+      const remaining = yield* Outbox.pending(triples, { scope: a });
+      yield* check(
+        remaining.entries.length === 1 && remaining.entries[0]!.id === Outbox.id(a, "two"),
+        "acked entries must leave pending indexes",
+      );
+      yield* check(
+        (yield* Inbox.pending(triples, { scope: a })).entries.length === 1 &&
+          (yield* Outbox.get(triples, Inbox.id(a, "one"))) === null,
+        "inbox and outbox identities must remain independent",
+      );
+      const invalid = yield* triples
+        .transact([Outbox.append({ scope: a, idempotencyKey: "invalid", payload: NaN })])
+        .pipe(Effect.flip);
+      yield* check(
+        invalid._tag === "WriteError" &&
+          (yield* Outbox.get(triples, Outbox.id(a, "invalid"))) === null,
+        "non-canonical payloads must fail atomically",
+      );
+      const immediate = yield* triples.transact([
+        Outbox.append({ scope: a, idempotencyKey: "immediate", payload: "consumed" }),
+        Outbox.acknowledge(Outbox.id(a, "immediate")),
+      ]);
+      const consumed = (yield* Outbox.get(triples, Outbox.id(a, "immediate")))!;
+      yield* check(
+        consumed.recordedPosition === immediate.position &&
+          consumed.acknowledgedPosition === immediate.position &&
+          !(yield* Outbox.pending(triples, { scope: a })).entries.some(
+            (entry) => entry.id === consumed.id,
+          ),
+        "append and acknowledge may commit atomically without leaving pending work",
+      );
+    }),
+  },
   {
     name: "actor due-work ranges preserve numeric aliases, visibility, ordering, and limits",
     run: Effect.gen(function* () {

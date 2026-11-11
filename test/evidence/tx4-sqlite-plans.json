@@ -1,0 +1,121 @@
+{
+  "sourceRevision": "23e0c4489ba24d947dd11bb0764516ead3800de7",
+  "dirty": false,
+  "platform": "darwin",
+  "arch": "arm64",
+  "databaseVersion": [
+    {
+      "version": "3.50.4"
+    }
+  ],
+  "node": "v24.13.0",
+  "measuredAt": "2026-11-10T17:51:43.122Z",
+  "evidence": [
+    {
+      "backend": "sqlite",
+      "acknowledgedHistory": 10,
+      "appendMs": 0.34970799999996416,
+      "readMs": 1.417709000000002,
+      "ackMs": 0.4578329999999937,
+      "plans": [
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE id = ?1",
+          "plan": [
+            {
+              "id": 3,
+              "parent": 0,
+              "notused": 39,
+              "detail": "SEARCH triplex_operational_entries USING INDEX sqlite_autoindex_triplex_operational_entries_1 (id=?)"
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = ?1 AND acknowledged_position IS NULL ORDER BY recorded_position, id LIMIT ?2",
+          "plan": [
+            {
+              "id": 7,
+              "parent": 0,
+              "notused": 87,
+              "detail": "SEARCH triplex_operational_entries USING INDEX idx_operational_pending_global (kind=?)"
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = ?1 AND acknowledged_position IS NULL AND scope_token = ?2 AND (recorded_position, id) > (?3, ?4) ORDER BY recorded_position, id LIMIT ?5",
+          "plan": [
+            {
+              "id": 7,
+              "parent": 0,
+              "notused": 35,
+              "detail": "SEARCH triplex_operational_entries USING INDEX idx_operational_pending_scope (kind=? AND scope_token=? AND (recorded_position,id)>(?,?))"
+            }
+          ]
+        },
+        {
+          "statement": "UPDATE triplex_operational_entries SET acknowledged_position = ?1, acknowledged_at = ?2, acknowledged_tx_id = ?3 WHERE id = ?4 AND acknowledged_position IS NULL",
+          "plan": [
+            {
+              "id": 5,
+              "parent": 0,
+              "notused": 39,
+              "detail": "SEARCH triplex_operational_entries USING INDEX sqlite_autoindex_triplex_operational_entries_1 (id=?)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "acknowledgedHistory": 10000,
+      "appendMs": 0.20087499999999636,
+      "readMs": 0.37079199999999446,
+      "ackMs": 0.4414170000000013,
+      "plans": [
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE id = ?1",
+          "plan": [
+            {
+              "id": 3,
+              "parent": 0,
+              "notused": 39,
+              "detail": "SEARCH triplex_operational_entries USING INDEX sqlite_autoindex_triplex_operational_entries_1 (id=?)"
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = ?1 AND acknowledged_position IS NULL ORDER BY recorded_position, id LIMIT ?2",
+          "plan": [
+            {
+              "id": 7,
+              "parent": 0,
+              "notused": 87,
+              "detail": "SEARCH triplex_operational_entries USING INDEX idx_operational_pending_global (kind=?)"
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = ?1 AND acknowledged_position IS NULL AND scope_token = ?2 AND (recorded_position, id) > (?3, ?4) ORDER BY recorded_position, id LIMIT ?5",
+          "plan": [
+            {
+              "id": 7,
+              "parent": 0,
+              "notused": 35,
+              "detail": "SEARCH triplex_operational_entries USING INDEX idx_operational_pending_scope (kind=? AND scope_token=? AND (recorded_position,id)>(?,?))"
+            }
+          ]
+        },
+        {
+          "statement": "UPDATE triplex_operational_entries SET acknowledged_position = ?1, acknowledged_at = ?2, acknowledged_tx_id = ?3 WHERE id = ?4 AND acknowledged_position IS NULL",
+          "plan": [
+            {
+              "id": 5,
+              "parent": 0,
+              "notused": 39,
+              "detail": "SEARCH triplex_operational_entries USING INDEX sqlite_autoindex_triplex_operational_entries_1 (id=?)"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

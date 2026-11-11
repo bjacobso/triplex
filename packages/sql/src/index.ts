@@ -7,6 +7,9 @@
 
 // SQL schema, queries, and migrations
 export {
+  OPERATIONAL_ENTRIES_TABLE_DDL,
+  OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL,
+  OPERATIONAL_ENTRY_INDEX_DDLS,
   TRIPLES_TABLE_DDL,
   MIGRATIONS_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
@@ -47,3 +50,5 @@ export { DatabaseRegistryLive } from "./DatabaseRegistryLayer.js";
 
 // Database manager layer (SQL-backed)
 export { DatabaseManagerLive } from "./DatabaseManagerLayer.js";
+
+export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";

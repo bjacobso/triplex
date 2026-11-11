@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { TripleValue } from "./Value.js";
 import { TripleId, EntityId, Attribute, TransactionId } from "./Branded.js";
 import { RuleSchema as ConstraintRule } from "./Constraint.js";
+import { AppendEntryOp, AcknowledgeEntryOp } from "./operational/Entry.js";
 
 export { TripleId, EntityId, Attribute };
 
@@ -129,6 +130,8 @@ export const TransactOp = Schema.Union([
   TransactAssertOp,
   TransactRetractOp,
   TransactRetractPatternOp,
+  AppendEntryOp,
+  AcknowledgeEntryOp,
 ]);
 export type TransactOp = typeof TransactOp.Type;
 

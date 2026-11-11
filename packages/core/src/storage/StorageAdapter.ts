@@ -16,11 +16,32 @@ import {
   TransactionConflictError,
 } from "../errors/index.js";
 import type { DependencyState } from "../store/Triples.js";
+import type { OperationalEntryRecord, PendingEntriesScan } from "../operational/Entry.js";
+import type { ContentId } from "../content/ContentId.js";
+import type { TransactionId } from "../Branded.js";
 
 /**
  * StorageAdapterService - Backend-agnostic storage primitives
  */
 export interface StorageAdapterService {
+  /** Point lookup by content ID; includes acknowledged history. */
+  readonly getOperationalEntry: (
+    id: ContentId,
+  ) => Effect.Effect<OperationalEntryRecord | null, ReadError>;
+  /** Pending-only indexed range, ordered by append position then ASCII ID, bounded by scan.limit. */
+  readonly pendingOperationalEntries: (
+    scan: PendingEntriesScan,
+  ) => Effect.Effect<readonly OperationalEntryRecord[], ReadError>;
+  /** These mutations run inside the caller's existing atomic transaction. */
+  readonly insertOperationalEntry: (
+    entry: OperationalEntryRecord,
+  ) => Effect.Effect<void, WriteError>;
+  readonly acknowledgeOperationalEntry: (
+    id: ContentId,
+    position: number,
+    instant: number,
+    txId: TransactionId,
+  ) => Effect.Effect<void, WriteError>;
   readonly withTransaction: <A, E>(
     effect: Effect.Effect<A, E>,
   ) => Effect.Effect<A, E | WriteError | TransactionConflictError>;

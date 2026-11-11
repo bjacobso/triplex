@@ -338,6 +338,8 @@ const prepareOperations = (
             .sealValue(op.entityId, op.attribute, op.value)
             .pipe(Effect.map((value) => ({ ...op, value })));
         case "retract":
+        case "append-entry":
+        case "acknowledge-entry":
           return Effect.succeed(op);
         case "retract-pattern":
           return sensitivity.preparePattern(op.pattern as Pattern).pipe(

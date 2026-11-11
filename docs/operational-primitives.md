@@ -277,9 +277,86 @@ indexed triples, Datalog, and checkpointed projections rather than replaying the
 
 ### Inboxes and outboxes
 
-Define conventional first-class inbox and outbox records without embedding delivery vendors or
-retry policy in core. Command receipts and consumer checkpoints now provide the atomic identities
-and durable resume positions beneath them.
+`Inbox` and `Outbox` from `@triplex-build/triplex/operational` build operations for the
+existing `Triples.transact` boundary. Facts, command receipts, entries, and acknowledgements
+commit together. Delivery vendors, scheduling, leasing, and retry policy remain host concerns.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { Outbox } from "@triplex-build/triplex/operational";
+
+const home = EntityId.make("home:alice");
+const commitIntent = Effect.gen(function* () {
+  const triples = yield* Triples;
+  yield* triples.transact(
+    [
+      { op: "assert", entityId: home, attribute: ":home/status", value: string("ready") },
+      Outbox.append({
+        scope: home,
+        idempotencyKey: "command:123:send",
+        payload: { destination: "worker", command: "refresh" },
+      }),
+    ],
+    { commandId: "command:123" },
+  );
+  const page = yield* Outbox.pending(triples, { scope: home, limit: 25 });
+  return page;
+});
+
+// Run this only after the host has successfully delivered the stored payload.
+const acknowledge = Effect.gen(function* () {
+  const triples = yield* Triples;
+  yield* triples.transact([Outbox.acknowledge(Outbox.id(home, "command:123:send"))]);
+  return yield* Outbox.get(triples, Outbox.id(home, "command:123:send"));
+});
+```
+
+Identity is `(inbox or outbox, entity scope, idempotency key)`. Keys contain 1–1024 JavaScript
+UTF-16 code units. Payloads use the existing canonical JSON encoding: object key order is
+irrelevant, negative zero becomes zero, and unsupported or non-finite values fail with
+`WriteError`. Appending an existing identity with the same canonical payload leaves its original
+record unchanged, including after acknowledgement. A different payload fails with
+`OperationalEntryConflictError` (`isRetryable: false`); the entire transaction rolls back.
+Ordinary SQL serialization/deadlock conflicts retain their separate retryable error.
+
+Omit `scope` from `pending` to drain a whole database. Inbox and outbox directions are separate.
+Pages order entries by original append position, then ASCII content ID; this also disambiguates
+several entries appended in one transaction. Pass `nextCursor` into the next `pending` call.
+Limits default to 100 and must be integers from 1 to 1000. Cursors bind the database runtime scope,
+entry direction, and entity filter. They remain valid if their last entry is acknowledged.
+They are live pending cursors, with no pinned snapshot or ownership claim: another worker may
+acknowledge an entry between reads. Exhaustion returns no `nextCursor`; start another drain
+without a cursor to discover new work or retry unacknowledged deliveries.
+
+Reading pending work does not claim or mutate it. A crash after commit or delivery and before
+acknowledgement redelivers the exact canonical stored payload. Consumers must handle at-least-once
+delivery; a cursor does not establish successful delivery. `acknowledge` retains the first
+acknowledgement's transaction ID, position, and time, removes only the pending index entries,
+and is idempotent. A missing or wrong-direction target fails with `WriteError`.
+`get` retains both original append metadata and optional acknowledgement metadata as history.
+An append followed by acknowledgement in one transaction is allowed and never becomes pending.
+
+Each entry has its own record. SQL uses a primary-key lookup and separate partial pending indexes
+for an entity scope and the whole database. KV uses primary records and separate global/scoped
+pending ranges. Reads fetch at most `limit + 1` candidates; acknowledged history is absent from
+those indexes. No operation materializes a home entity or scans acknowledged entries. Entries
+link to their original and acknowledgement receipts; their payloads are not copied into
+`:_tx/change`, which continues to describe fact changes. Transaction results still report only
+asserted/retracted facts. Entry storage is a separate operational record store, so fact history,
+Datalog, temporal cuts, and entity snapshots do not include these entries.
+
+Entry payloads do not pass through attribute-based `Sensitive` policies: they have no attribute.
+Hosts must encrypt sensitive payload contents before appending them and control who can read
+operational records. The API adds no automatic decryption or transport authorization.
+
+SQL migration **v5** and Cloudflare migration **v6** create the operational table and pending
+indexes. Host-owned SQL clients must run `runMigrations` before acquiring the updated layer.
+No KV data migration is required. Custom `StorageAdapterService` implementations must add the
+four operational storage methods exported through the runtime contract. The `TriplesService`
+read contract gains `operationalEntry` and `pendingOperationalEntries`; `TransactOp` gains two
+variants and its error union gains `OperationalEntryConflictError`. Update custom service
+implementations, exhaustive switches, and explicit transaction error annotations when adopting.
 
 ### Graph constraints
 
