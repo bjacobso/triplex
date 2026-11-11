@@ -70,3 +70,37 @@ individual diagnostics can supply a more specific hint or suggested attribute sp
 | `datalog.invalid-aggregate`             | Aggregate targets or `having` are invalid.                       | Use unique aggregate targets in `find` and valid aggregate predicates.                              | No        |
 | `datalog.invalid-projection`            | Projection variables or optional targets conflict.               | Project each bound variable once and use unique optional targets in `find`.                         | No        |
 | `internal`                              | The input is not a recognized Triplex error.                     | Inspect the original failure in the calling application.                                            | No        |
+
+## CLI and HTTP envelopes
+
+The CLI writes `{ "ok": false, "command": "query.run", "error": Diagnostic }` to
+stderr and exits nonzero. Input paths use `$` for the JSON root and `$args` for
+arguments. Add `--debug` to include a top-level `cause` string for local debugging;
+it can contain input and storage details.
+
+HTTP failures use `{ "error": Diagnostic }`. Core failures retain their core codes.
+Retryable responses include `Retry-After: 0`: reload facts before retrying the whole
+command. A version/cursor conflict requires restarting pagination and is not retryable.
+The OpenAPI document describes the envelope and all diagnostic fields.
+
+| Code                              | Meaning and fix                                                             | Retryable |
+| --------------------------------- | --------------------------------------------------------------------------- | --------- |
+| `cli.arguments`                   | Invalid or missing arguments; use command help and correct the named field. | No        |
+| `cli.input-read`                  | Input cannot be read; supply a readable file or pipe JSON to stdin.         | No        |
+| `cli.input-json`                  | Invalid JSON; correct its syntax.                                           | No        |
+| `cli.input-schema`                | Input fails schema decoding; correct the field at `path`.                   | No        |
+| `http.unsupported-config`         | Use configuration supported by the HTTP compiler.                           | No        |
+| `http.config-conflict`            | Resolve conflicting deployed definitions.                                   | No        |
+| `http.version-not-found`          | Use latest or an existing snapshot or alias.                                | No        |
+| `http.entity-not-found`           | Check entity ID, collection and temporal basis.                             | No        |
+| `http.invalid-request`            | Correct the named request field using OpenAPI.                              | No        |
+| `http.data-shape-conflict`        | Repair entity facts to match the configuration.                             | No        |
+| `http.read-only-version`          | Write through latest or the active write snapshot.                          | No        |
+| `http.scheduled-facts`            | Resolve scheduled facts before replacing or deleting.                       | No        |
+| `http.cursor-conflict`            | Restart pagination under the current configuration.                         | No        |
+| `http.sensitive-storage-required` | Configure the host with Sensitive.layer.                                    | No        |
+| `http.unauthorized`               | Supply authentication accepted by the host.                                 | No        |
+| `http.forbidden`                  | Request access to the operation from the host.                              | No        |
+| `http.collection-not-found`       | Use a collection listed in OpenAPI.                                         | No        |
+| `http.not-found`                  | Use a route listed in OpenAPI.                                              | No        |
+| `http.method-not-allowed`         | Use a method listed in Allow.                                               | No        |
