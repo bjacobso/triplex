@@ -34,7 +34,8 @@ export class TransactionError extends Data.TaggedError("TransactionError")<{
 }> {}
 
 /**
- * A transaction's compare-and-retract condition no longer matched.
+ * A transaction's precondition no longer matched, or its database transaction
+ * lost a serialization/deadlock race.
  *
  * This is a normal concurrency outcome, not storage corruption. Callers may
  * reload the current facts and retry their command.
@@ -42,8 +43,15 @@ export class TransactionError extends Data.TaggedError("TransactionError")<{
 export class TransactionConflictError extends Data.TaggedError("TransactionConflictError")<{
   readonly tripleId?: TripleId;
   readonly entityId?: EntityId;
+  readonly reason?: "serialization" | "deadlock";
+  readonly cause?: unknown;
   readonly message: string;
-}> {}
+}> {
+  /** Reload state and retry the complete command/outer transaction. */
+  get isRetryable(): true {
+    return true;
+  }
+}
 
 /**
  * A command with this idempotency identity already committed.

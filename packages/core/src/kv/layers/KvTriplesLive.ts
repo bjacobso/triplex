@@ -355,7 +355,7 @@ const makeKvTriplesService = Effect.gen(function* () {
       ]).pipe(
         Effect.map((result) => result.triples[0]!),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple", cause }),
         ),
@@ -377,7 +377,7 @@ const makeKvTriplesService = Effect.gen(function* () {
       ).pipe(
         Effect.map((result) => result.triples),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple batch", cause }),
         ),
@@ -394,7 +394,7 @@ const makeKvTriplesService = Effect.gen(function* () {
               ),
         ),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: `Failed to retract triple: ${id}`, cause }),
         ),
@@ -414,7 +414,9 @@ const makeKvTriplesService = Effect.gen(function* () {
       ]).pipe(
         Effect.map((result) => result.retracted),
         Effect.mapError((cause) =>
-          cause instanceof WriteError || cause instanceof ReadError
+          cause instanceof WriteError ||
+          cause instanceof ReadError ||
+          cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to retract by pattern", cause }),
         ),

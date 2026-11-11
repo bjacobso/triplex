@@ -214,6 +214,7 @@ const transactionEntity: EntityId = transactionId;
 declare const triplesService: TriplesService;
 const timeline = triplesService.transactionsForEntity(triple.entityId, { limit: 20 });
 const historicalEntity = triplesService.entity(triple.entityId, { recordedPosition: 0 });
+const hostTransaction = PgTriples.withTransaction(triplesService.transact([]));
 const historicalQuery = triplesService.queryAll({ find: ["?value"], where: [[triple.entityId, ":person/name", "?value"]] }, { basis: { recordedPosition: 0, validAt: 1 } });
 const ambientPostgres = PgTriples.layerFromSqlClient({ scope: "host/database" });
 const postgresFixture = postgresSchemaLayer({
@@ -249,6 +250,7 @@ void tripleId;
 void transactionEntity;
 void timeline;
 void historicalEntity;
+void hostTransaction;
 void historicalQuery;
 void ambientPostgres;
 void postgresFixture;

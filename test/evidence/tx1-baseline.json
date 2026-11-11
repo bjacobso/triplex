@@ -1,0 +1,1073 @@
+{
+  "revision": "32a3360b6e03c3d13b8159f1fd08e9b695fca575",
+  "trackedSourceDirty": false,
+  "startedAt": "2026-11-10T16:37:43.252Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M2 Max",
+    "cpuCount": 12,
+    "memoryBytes": 34359738368,
+    "postgres": "17.8",
+    "postgresImage": "postgres:17-alpine",
+    "endpoint": "localhost:32904"
+  },
+  "workload": {
+    "commandsPerWriter": 50,
+    "repetitions": 3,
+    "holdMs": 5,
+    "maxRetries": 0,
+    "sampleMs": 5,
+    "notes": "Disjoint home rows/entities; host read, Triplex facts/command receipt, host version/outbox write, then outer transaction hold. Setup/pool warmup excluded; observer runs during timing."
+  },
+  "measurements": [
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 1,
+      "repetition": 1,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 720.2661250000001,
+      "commitsPerSecond": 69.41878600774123,
+      "transactionMs": {
+        "p50": 13.529374999999618,
+        "p95": 20.564957999999933
+      },
+      "allocationAndTriplesMs": {
+        "p50": 5.332833999999821,
+        "p95": 9.976333999999952
+      },
+      "waits": {
+        "samples": 112,
+        "sessionsByEvent": {
+          "Client:ClientRead": 77
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 112,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 4,
+      "repetition": 1,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 200,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 2285.559792,
+      "commitsPerSecond": 87.50591461227455,
+      "transactionMs": {
+        "p50": 34.04874999999993,
+        "p95": 113.87745799999993
+      },
+      "allocationAndTriplesMs": {
+        "p50": 24.305249999999432,
+        "p95": 100.03258300000016
+      },
+      "waits": {
+        "samples": 336,
+        "sessionsByEvent": {
+          "Lock:transactionid": 771,
+          "Client:ClientRead": 304,
+          "Lock:tuple": 15,
+          "LWLock:BufferContent": 1,
+          "LWLock:LockManager": 32,
+          "IO:WalWrite": 4,
+          "IO:WalSync": 1
+        },
+        "allocationLockSamples": 786,
+        "otherLockSamples": 0,
+        "blockedSessions": 740,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 336,
+      "finalPosition": 200
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 16,
+      "repetition": 1,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 800,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 8336.9905,
+      "commitsPerSecond": 95.95788792130686,
+      "transactionMs": {
+        "p50": 106.98795799999971,
+        "p95": 495.50645799999984
+      },
+      "allocationAndTriplesMs": {
+        "p50": 99.10870799999975,
+        "p95": 488.14937499999905
+      },
+      "waits": {
+        "samples": 1227,
+        "sessionsByEvent": {
+          "Lock:transactionid": 14971,
+          "Client:ClientRead": 1105,
+          "Lock:tuple": 1004,
+          "LWLock:LockManager": 837,
+          "LWLock:BufferContent": 12,
+          "IO:WalWrite": 6,
+          "IO:WalInitWrite": 1
+        },
+        "allocationLockSamples": 15975,
+        "otherLockSamples": 0,
+        "blockedSessions": 15344,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 1227,
+      "finalPosition": 800
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 1,
+      "repetition": 1,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 558.2634159999998,
+      "commitsPerSecond": 89.5634543962308,
+      "transactionMs": {
+        "p50": 10.569916000000376,
+        "p95": 14.407999999999447
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.1225830000003043,
+        "p95": 5.667459000000235
+      },
+      "waits": {
+        "samples": 96,
+        "sessionsByEvent": {
+          "Client:ClientRead": 69
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 96,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 4,
+      "repetition": 1,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 50,
+      "failedCommands": 150,
+      "retries": 0,
+      "serializationFailures": 150,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 150
+      },
+      "elapsedMs": 589.1397919999999,
+      "commitsPerSecond": 84.86950071775156,
+      "transactionMs": {
+        "p50": 11.560750000000553,
+        "p95": 14.733582999999271
+      },
+      "allocationAndTriplesMs": {
+        "p50": 2.894750000001295,
+        "p95": 5.2433340000006865
+      },
+      "waits": {
+        "samples": 95,
+        "sessionsByEvent": {
+          "Client:ClientRead": 112,
+          "Lock:transactionid": 179,
+          "Lock:tuple": 2,
+          "LWLock:LockManager": 6
+        },
+        "allocationLockSamples": 181,
+        "otherLockSamples": 0,
+        "blockedSessions": 168,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 95,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 16,
+      "repetition": 1,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 50,
+      "failedCommands": 750,
+      "retries": 0,
+      "serializationFailures": 750,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 750
+      },
+      "elapsedMs": 634.2085829999996,
+      "commitsPerSecond": 78.8384158465418,
+      "transactionMs": {
+        "p50": 12.267916999999215,
+        "p95": 15.834249999999884
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.9825830000008864,
+        "p95": 5.917209000001094
+      },
+      "waits": {
+        "samples": 105,
+        "sessionsByEvent": {
+          "Lock:transactionid": 947,
+          "Client:ClientRead": 396,
+          "LWLock:LockManager": 107,
+          "Lock:tuple": 21,
+          "IO:DataFileExtend": 1,
+          "LWLock:BufferContent": 1,
+          "LWLock:ProcArray": 1
+        },
+        "allocationLockSamples": 965,
+        "otherLockSamples": 3,
+        "blockedSessions": 910,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 105,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 1,
+      "repetition": 1,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 512.1940830000003,
+      "commitsPerSecond": 97.61924563271452,
+      "transactionMs": {
+        "p50": 9.255083999998533,
+        "p95": 14.166832999999315
+      },
+      "allocationAndTriplesMs": {
+        "p50": 2.6474159999997937,
+        "p95": 5.599625000000742
+      },
+      "waits": {
+        "samples": 88,
+        "sessionsByEvent": {
+          "Client:ClientRead": 63
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 88,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 4,
+      "repetition": 1,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 50,
+      "failedCommands": 150,
+      "retries": 0,
+      "serializationFailures": 150,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 150
+      },
+      "elapsedMs": 593.1535000000003,
+      "commitsPerSecond": 84.2952119476661,
+      "transactionMs": {
+        "p50": 11.442125000001397,
+        "p95": 14.940583999999944
+      },
+      "allocationAndTriplesMs": {
+        "p50": 2.9892909999980475,
+        "p95": 4.560624999998254
+      },
+      "waits": {
+        "samples": 98,
+        "sessionsByEvent": {
+          "Client:ClientRead": 139,
+          "Lock:transactionid": 180,
+          "Lock:tuple": 3,
+          "LWLock:LockManager": 1
+        },
+        "allocationLockSamples": 183,
+        "otherLockSamples": 0,
+        "blockedSessions": 172,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 98,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 16,
+      "repetition": 1,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 50,
+      "failedCommands": 750,
+      "retries": 0,
+      "serializationFailures": 750,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 750
+      },
+      "elapsedMs": 615.0338330000013,
+      "commitsPerSecond": 81.29634065188068,
+      "transactionMs": {
+        "p50": 11.983165999998164,
+        "p95": 14.28612499999872
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.988999999997759,
+        "p95": 4.995709000002535
+      },
+      "waits": {
+        "samples": 103,
+        "sessionsByEvent": {
+          "Lock:transactionid": 913,
+          "IO:DataFileExtend": 1,
+          "Client:ClientRead": 436,
+          "LWLock:LockManager": 41,
+          "Lock:tuple": 3,
+          "LWLock:BufferContent": 1
+        },
+        "allocationLockSamples": 915,
+        "otherLockSamples": 1,
+        "blockedSessions": 823,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 103,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 1,
+      "repetition": 2,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 519.6481669999994,
+      "commitsPerSecond": 96.21894807915307,
+      "transactionMs": {
+        "p50": 10.20129199999792,
+        "p95": 14.42883300000176
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.0020410000033735,
+        "p95": 5.906666999999288
+      },
+      "waits": {
+        "samples": 90,
+        "sessionsByEvent": {
+          "Client:ClientRead": 68
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 90,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 4,
+      "repetition": 2,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 50,
+      "failedCommands": 150,
+      "retries": 0,
+      "serializationFailures": 150,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 150
+      },
+      "elapsedMs": 590.3571249999986,
+      "commitsPerSecond": 84.69449741967647,
+      "transactionMs": {
+        "p50": 10.975999999998749,
+        "p95": 16.294709000001603
+      },
+      "allocationAndTriplesMs": {
+        "p50": 2.9852500000015425,
+        "p95": 5.224874999999884
+      },
+      "waits": {
+        "samples": 99,
+        "sessionsByEvent": {
+          "Lock:transactionid": 166,
+          "Client:ClientRead": 162,
+          "Lock:tuple": 2
+        },
+        "allocationLockSamples": 168,
+        "otherLockSamples": 0,
+        "blockedSessions": 162,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 99,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 16,
+      "repetition": 2,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 50,
+      "failedCommands": 750,
+      "retries": 0,
+      "serializationFailures": 750,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 750
+      },
+      "elapsedMs": 622.1282090000022,
+      "commitsPerSecond": 80.36928606784943,
+      "transactionMs": {
+        "p50": 12.097333000001527,
+        "p95": 14.819541000000754
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.8243750000001455,
+        "p95": 4.896333000000595
+      },
+      "waits": {
+        "samples": 105,
+        "sessionsByEvent": {
+          "Lock:transactionid": 972,
+          "Client:ClientRead": 343,
+          "LWLock:LockManager": 118,
+          "Lock:tuple": 15
+        },
+        "allocationLockSamples": 986,
+        "otherLockSamples": 1,
+        "blockedSessions": 887,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 105,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 1,
+      "repetition": 2,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 469.03462500000023,
+      "commitsPerSecond": 106.60193796993127,
+      "transactionMs": {
+        "p50": 9.486791999999696,
+        "p95": 10.85454199999731
+      },
+      "allocationAndTriplesMs": {
+        "p50": 2.65625,
+        "p95": 3.288583000001381
+      },
+      "waits": {
+        "samples": 83,
+        "sessionsByEvent": {
+          "Client:ClientRead": 70
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 83,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 4,
+      "repetition": 2,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 50,
+      "failedCommands": 150,
+      "retries": 0,
+      "serializationFailures": 150,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 150
+      },
+      "elapsedMs": 577.8786250000012,
+      "commitsPerSecond": 86.5233594684349,
+      "transactionMs": {
+        "p50": 11.085666999999376,
+        "p95": 14.050959000000148
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.04620900000009,
+        "p95": 4.891999999999825
+      },
+      "waits": {
+        "samples": 98,
+        "sessionsByEvent": {
+          "Lock:transactionid": 164,
+          "Client:ClientRead": 148,
+          "Lock:tuple": 3,
+          "LWLock:LockManager": 1
+        },
+        "allocationLockSamples": 167,
+        "otherLockSamples": 0,
+        "blockedSessions": 157,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 98,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 16,
+      "repetition": 2,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 50,
+      "failedCommands": 750,
+      "retries": 0,
+      "serializationFailures": 750,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 750
+      },
+      "elapsedMs": 641.7826249999998,
+      "commitsPerSecond": 77.90799883371727,
+      "transactionMs": {
+        "p50": 12.240499999999884,
+        "p95": 18.845792000000074
+      },
+      "allocationAndTriplesMs": {
+        "p50": 4.096166999999696,
+        "p95": 6.8314169999976
+      },
+      "waits": {
+        "samples": 104,
+        "sessionsByEvent": {
+          "Lock:transactionid": 1008,
+          "Client:ClientRead": 325,
+          "LWLock:LockManager": 128,
+          "LWLock:BufferContent": 1,
+          "Lock:tuple": 18,
+          "IO:DataFileExtend": 1
+        },
+        "allocationLockSamples": 1018,
+        "otherLockSamples": 8,
+        "blockedSessions": 912,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 104,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 1,
+      "repetition": 2,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 585.0360830000027,
+      "commitsPerSecond": 85.4648139711406,
+      "transactionMs": {
+        "p50": 11.47808299999815,
+        "p95": 15.679417000003014
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.4833330000001297,
+        "p95": 6.983875000001717
+      },
+      "waits": {
+        "samples": 95,
+        "sessionsByEvent": {
+          "Client:ClientRead": 65,
+          "IO:DataFileExtend": 1
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 95,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 4,
+      "repetition": 2,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 200,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 2108.998917000001,
+      "commitsPerSecond": 94.83172247641316,
+      "transactionMs": {
+        "p50": 26.144584000001487,
+        "p95": 99.83745799999815
+      },
+      "allocationAndTriplesMs": {
+        "p50": 17.887417000001733,
+        "p95": 92.84679200000028
+      },
+      "waits": {
+        "samples": 322,
+        "sessionsByEvent": {
+          "Client:ClientRead": 300,
+          "Lock:transactionid": 682,
+          "IO:WalWrite": 1,
+          "LWLock:LockManager": 20,
+          "Lock:tuple": 12,
+          "IO:WalInitWrite": 1
+        },
+        "allocationLockSamples": 694,
+        "otherLockSamples": 0,
+        "blockedSessions": 648,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 322,
+      "finalPosition": 200
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 16,
+      "repetition": 2,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 800,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 8051.276333999998,
+      "commitsPerSecond": 99.36312788342065,
+      "transactionMs": {
+        "p50": 91.55824999999822,
+        "p95": 447.80204199999935
+      },
+      "allocationAndTriplesMs": {
+        "p50": 83.32183300000179,
+        "p95": 439.6100000000006
+      },
+      "waits": {
+        "samples": 1212,
+        "sessionsByEvent": {
+          "Lock:transactionid": 14179,
+          "Client:ClientRead": 1064,
+          "Lock:tuple": 905,
+          "IO:WalWrite": 5,
+          "LWLock:LockManager": 847,
+          "LWLock:BufferContent": 19
+        },
+        "allocationLockSamples": 15083,
+        "otherLockSamples": 1,
+        "blockedSessions": 14434,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 1212,
+      "finalPosition": 800
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 1,
+      "repetition": 3,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 784.4155829999982,
+      "commitsPerSecond": 63.74172196933538,
+      "transactionMs": {
+        "p50": 14.4251660000009,
+        "p95": 22.61333299999751
+      },
+      "allocationAndTriplesMs": {
+        "p50": 5.670292000002519,
+        "p95": 11.726875000000291
+      },
+      "waits": {
+        "samples": 115,
+        "sessionsByEvent": {
+          "Client:ClientRead": 75
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 115,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 4,
+      "repetition": 3,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 50,
+      "failedCommands": 150,
+      "retries": 0,
+      "serializationFailures": 150,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 150
+      },
+      "elapsedMs": 633.588542000005,
+      "commitsPerSecond": 78.91556852049197,
+      "transactionMs": {
+        "p50": 12.283667000003334,
+        "p95": 15.483957999997074
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.5359169999937876,
+        "p95": 4.757625000005646
+      },
+      "waits": {
+        "samples": 103,
+        "sessionsByEvent": {
+          "Lock:transactionid": 177,
+          "Client:ClientRead": 134,
+          "Lock:tuple": 2,
+          "LWLock:BufferContent": 2,
+          "LWLock:LockManager": 5
+        },
+        "allocationLockSamples": 179,
+        "otherLockSamples": 0,
+        "blockedSessions": 159,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 103,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "SERIALIZABLE",
+      "writers": 16,
+      "repetition": 3,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 50,
+      "failedCommands": 750,
+      "retries": 0,
+      "serializationFailures": 750,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 750
+      },
+      "elapsedMs": 635.0300419999985,
+      "commitsPerSecond": 78.73643244109721,
+      "transactionMs": {
+        "p50": 12.421583000003011,
+        "p95": 15.010624999995343
+      },
+      "allocationAndTriplesMs": {
+        "p50": 4.11983400000463,
+        "p95": 5.51416700000118
+      },
+      "waits": {
+        "samples": 107,
+        "sessionsByEvent": {
+          "Lock:transactionid": 998,
+          "Client:ClientRead": 424,
+          "LWLock:LockManager": 39,
+          "Lock:tuple": 10
+        },
+        "allocationLockSamples": 1005,
+        "otherLockSamples": 3,
+        "blockedSessions": 971,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 107,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 1,
+      "repetition": 3,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 558.7094169999982,
+      "commitsPerSecond": 89.49195857208929,
+      "transactionMs": {
+        "p50": 10.97899999999936,
+        "p95": 14.799666999999317
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.5643750000017462,
+        "p95": 6.209875000000466
+      },
+      "waits": {
+        "samples": 94,
+        "sessionsByEvent": {
+          "Client:ClientRead": 63
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 94,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 4,
+      "repetition": 3,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 200,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 2032.2127499999988,
+      "commitsPerSecond": 98.41489283048742,
+      "transactionMs": {
+        "p50": 29.70058300000528,
+        "p95": 91.64829100000497
+      },
+      "allocationAndTriplesMs": {
+        "p50": 20.78087499999674,
+        "p95": 82.94999999999709
+      },
+      "waits": {
+        "samples": 315,
+        "sessionsByEvent": {
+          "Lock:transactionid": 758,
+          "Client:ClientRead": 302,
+          "Lock:tuple": 10,
+          "LWLock:LockManager": 11,
+          "LWLock:BufferContent": 1,
+          "IO:WalWrite": 1
+        },
+        "allocationLockSamples": 768,
+        "otherLockSamples": 0,
+        "blockedSessions": 736,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 315,
+      "finalPosition": 200
+    },
+    {
+      "isolation": "READ COMMITTED",
+      "writers": 16,
+      "repetition": 3,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 800,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 8247.319750000002,
+      "commitsPerSecond": 97.0012106054212,
+      "transactionMs": {
+        "p50": 105.01041700000496,
+        "p95": 473.3582080000051
+      },
+      "allocationAndTriplesMs": {
+        "p50": 95.32929099999456,
+        "p95": 462.4157919999998
+      },
+      "waits": {
+        "samples": 1223,
+        "sessionsByEvent": {
+          "LWLock:LockManager": 807,
+          "Lock:transactionid": 14902,
+          "Client:ClientRead": 1083,
+          "Lock:tuple": 923,
+          "IO:WalWrite": 5,
+          "LWLock:BufferContent": 16,
+          "IO:WalInitWrite": 1
+        },
+        "allocationLockSamples": 15825,
+        "otherLockSamples": 0,
+        "blockedSessions": 15069,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 1223,
+      "finalPosition": 800
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 1,
+      "repetition": 3,
+      "commands": 50,
+      "attempts": 50,
+      "commits": 50,
+      "failedCommands": 0,
+      "retries": 0,
+      "serializationFailures": 0,
+      "deadlocks": 0,
+      "failures": {},
+      "elapsedMs": 649.755916999995,
+      "commitsPerSecond": 76.95197333616646,
+      "transactionMs": {
+        "p50": 12.10099999999511,
+        "p95": 16.703832999999577
+      },
+      "allocationAndTriplesMs": {
+        "p50": 4.176333999996132,
+        "p95": 8.19462499999645
+      },
+      "waits": {
+        "samples": 102,
+        "sessionsByEvent": {
+          "Client:ClientRead": 76
+        },
+        "allocationLockSamples": 0,
+        "otherLockSamples": 0,
+        "blockedSessions": 0,
+        "maxBlocked": 0
+      },
+      "visibilityChecks": 102,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 4,
+      "repetition": 3,
+      "commands": 200,
+      "attempts": 200,
+      "commits": 50,
+      "failedCommands": 150,
+      "retries": 0,
+      "serializationFailures": 150,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 150
+      },
+      "elapsedMs": 588.231458000002,
+      "commitsPerSecond": 85.00055432261466,
+      "transactionMs": {
+        "p50": 11.568332999995619,
+        "p95": 14.07012499999837
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.0603749999936554,
+        "p95": 5.0005419999943115
+      },
+      "waits": {
+        "samples": 99,
+        "sessionsByEvent": {
+          "Lock:transactionid": 166,
+          "LWLock:LockManager": 2,
+          "Client:ClientRead": 148,
+          "Lock:tuple": 3
+        },
+        "allocationLockSamples": 169,
+        "otherLockSamples": 0,
+        "blockedSessions": 165,
+        "maxBlocked": 3
+      },
+      "visibilityChecks": 99,
+      "finalPosition": 50
+    },
+    {
+      "isolation": "REPEATABLE READ",
+      "writers": 16,
+      "repetition": 3,
+      "commands": 800,
+      "attempts": 800,
+      "commits": 50,
+      "failedCommands": 750,
+      "retries": 0,
+      "serializationFailures": 750,
+      "deadlocks": 0,
+      "failures": {
+        "40001:position-allocation": 750
+      },
+      "elapsedMs": 613.8010409999988,
+      "commitsPerSecond": 81.45962072423416,
+      "transactionMs": {
+        "p50": 11.996666999999434,
+        "p95": 14.951082999999926
+      },
+      "allocationAndTriplesMs": {
+        "p50": 3.9202080000031856,
+        "p95": 5.471041000004334
+      },
+      "waits": {
+        "samples": 106,
+        "sessionsByEvent": {
+          "Lock:transactionid": 1004,
+          "Client:ClientRead": 391,
+          "Lock:tuple": 25,
+          "LWLock:LockManager": 89,
+          "LWLock:BufferContent": 2
+        },
+        "allocationLockSamples": 1027,
+        "otherLockSamples": 2,
+        "blockedSessions": 949,
+        "maxBlocked": 15
+      },
+      "visibilityChecks": 106,
+      "finalPosition": 50
+    }
+  ]
+}

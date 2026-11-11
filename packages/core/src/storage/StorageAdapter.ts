@@ -9,14 +9,21 @@
 import { Context, Effect } from "effect";
 import type { TripleInput, TripleRow, QueryPattern } from "./types.js";
 import type { ResolvedTemporalBasis } from "../Temporal.js";
-import { WriteError, ReadError, MigrationError } from "../errors/index.js";
+import {
+  WriteError,
+  ReadError,
+  MigrationError,
+  TransactionConflictError,
+} from "../errors/index.js";
 import type { DependencyState } from "../store/Triples.js";
 
 /**
  * StorageAdapterService - Backend-agnostic storage primitives
  */
 export interface StorageAdapterService {
-  readonly withTransaction: <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<A, E | WriteError>;
+  readonly withTransaction: <A, E>(
+    effect: Effect.Effect<A, E>,
+  ) => Effect.Effect<A, E | WriteError | TransactionConflictError>;
   /** Allocate the next ordered commit position inside the current transaction. */
   readonly nextCommitPosition: () => Effect.Effect<number, WriteError>;
   /** Read the latest committed position for an exact read snapshot boundary. */

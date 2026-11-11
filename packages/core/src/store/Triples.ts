@@ -208,12 +208,16 @@ export interface ExplainResult {
 
 export interface TriplesService {
   // --- Writes (append-only semantics) --------------------------------------
-  readonly assert: (input: TripleInput) => Effect.Effect<Triple, WriteError>;
+  readonly assert: (
+    input: TripleInput,
+  ) => Effect.Effect<Triple, WriteError | TransactionConflictError>;
   readonly assertBatch: (
     inputs: readonly TripleInput[],
-  ) => Effect.Effect<readonly Triple[], WriteError>;
-  readonly retract: (id: TripleId) => Effect.Effect<void, WriteError>;
-  readonly retractByPattern: (pattern: Pattern) => Effect.Effect<number, WriteError | ReadError>;
+  ) => Effect.Effect<readonly Triple[], WriteError | TransactionConflictError>;
+  readonly retract: (id: TripleId) => Effect.Effect<void, WriteError | TransactionConflictError>;
+  readonly retractByPattern: (
+    pattern: Pattern,
+  ) => Effect.Effect<number, WriteError | ReadError | TransactionConflictError>;
   /** Group operations into a single atomic transaction with metadata. */
   readonly transact: (
     operations: readonly TransactOp[],

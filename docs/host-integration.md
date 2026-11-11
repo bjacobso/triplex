@@ -110,7 +110,7 @@ const command = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const triples = yield* Triples;
 
-  yield* sql.withTransaction(
+  yield* PgTriples.withTransaction(
     Effect.gen(function* () {
       yield* sql`INSERT INTO host_records (id) VALUES ('record:1')`;
       yield* triples.transact(
@@ -134,6 +134,16 @@ The host statements and nested `Triples.transact` resolve Effect SQL's same fibe
 transaction connection. A failure on either side rolls back the relational rows, Triplex facts,
 journal envelope, command receipt, commit position, and outbox row together. Nested transactions
 retain Effect SQL savepoint semantics.
+
+`PgTriples.withTransaction` also normalizes serialization and deadlock failures
+from host statements and the outer commit into `TransactionConflictError`.
+The error has `isRetryable: true`, optional `reason: "serialization" | "deadlock"`,
+and its original `cause`. Ordinary host SQL and domain failures are preserved.
+Triplex writes normalize these SQL failures on their own, but a nested call cannot
+catch an error raised later by the host's commit. Retry the entire host transaction
+after reloading state; retry policy and backoff remain host-owned. No automatic
+retry is performed. Direct `sql.withTransaction` remains available when the host
+wants the original SQL error channel.
 
 `layerFromSqlClient` creates no pool and runs no DDL. Acquisition checks the current
 schema version and fails with the Postgres package's exported `SchemaVersionError`

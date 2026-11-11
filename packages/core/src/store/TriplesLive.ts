@@ -32,7 +32,6 @@ import type {
 } from "../Triple.js";
 import { queryToPattern } from "../Triple.js";
 import { decodeSealedEnvelope } from "../Value.js";
-import type { Pattern } from "../types/Pattern.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
 import {
@@ -155,7 +154,7 @@ export const TriplesLive = Layer.effect(
     // Write Operations
     // =========================================================================
 
-    const assert_ = (input: TripleInput): Effect.Effect<Triple, WriteError> =>
+    const assert_: TriplesService["assert"] = (input) =>
       transact([
         {
           op: "assert",
@@ -170,15 +169,13 @@ export const TriplesLive = Layer.effect(
       ]).pipe(
         Effect.map((result) => result.triples[0]!),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple", cause }),
         ),
       );
 
-    const assertBatch = (
-      inputs: readonly TripleInput[],
-    ): Effect.Effect<readonly Triple[], WriteError> => {
+    const assertBatch: TriplesService["assertBatch"] = (inputs) => {
       if (inputs.length === 0) return Effect.succeed([]);
 
       return transact(
@@ -195,7 +192,7 @@ export const TriplesLive = Layer.effect(
       ).pipe(
         Effect.map((result) => result.triples),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple batch", cause }),
         ),
@@ -475,7 +472,7 @@ export const TriplesLive = Layer.effect(
         }),
       );
 
-    const retract = (id: TripleId): Effect.Effect<void, WriteError> =>
+    const retract: TriplesService["retract"] = (id) =>
       transact([{ op: "retract", id }]).pipe(
         Effect.flatMap((result) =>
           result.retracted === 1
@@ -485,13 +482,13 @@ export const TriplesLive = Layer.effect(
               ),
         ),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: `Failed to retract triple: ${id}`, cause }),
         ),
       );
 
-    const retractByPattern = (pattern: Pattern): Effect.Effect<number, WriteError | ReadError> =>
+    const retractByPattern: TriplesService["retractByPattern"] = (pattern) =>
       transact([
         {
           op: "retract-pattern",
@@ -505,7 +502,9 @@ export const TriplesLive = Layer.effect(
       ]).pipe(
         Effect.map((result) => result.retracted),
         Effect.mapError((cause) =>
-          cause instanceof WriteError || cause instanceof ReadError
+          cause instanceof WriteError ||
+          cause instanceof ReadError ||
+          cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to retract by pattern", cause }),
         ),

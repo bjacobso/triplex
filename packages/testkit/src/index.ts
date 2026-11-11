@@ -1793,7 +1793,7 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
         )
         .pipe(Effect.flip);
       yield* check(
-        conflict instanceof TransactionConflictError,
+        conflict instanceof TransactionConflictError && conflict.isRetryable === true,
         "a stale compare-and-retract should report TransactionConflictError",
       );
       const statuses = yield* t.match({
