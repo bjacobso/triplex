@@ -4,6 +4,10 @@ Triplex includes two operator tools: a published JSON-first CLI for repeatable c
 browser dashboard for interactive exploration. Both are pre-1.0. The dashboard is a private
 workspace package rather than a published application.
 
+The private, experimental [MCP server](/mcp) exposes the CLI's implementation as stdio tools for
+agent clients. It serves one database per process, advertises input schemas, requires an actor
+and command ID on writes, and returns the same data and runtime diagnostics as the CLI.
+
 ## Build from the source checkout
 
 After following [Getting started](/getting-started), build the CLI and its workspace dependencies,

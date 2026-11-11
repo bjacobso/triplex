@@ -48,6 +48,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     text: "Operate",
     items: [
       { text: "CLI and dashboard", link: "/tools" },
+      { text: "MCP server", link: "/mcp" },
       { text: "Data explorer", link: "/explorer" },
       { text: "Host integration", link: "/host-integration" },
       { text: "Troubleshooting and FAQ", link: "/troubleshooting" },

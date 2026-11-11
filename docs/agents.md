@@ -14,6 +14,10 @@ Start with `@triplex-build/triplex/database`: declare your model, publish it, th
 CI type-checks and runs it alongside the lower-level homepage scenario. This page is also available as
 [Markdown](/agents.md), and the full documentation is available as [`/llms-full.txt`](/llms-full.txt).
 
+Agents can also inspect and write a database through the private, experimental [MCP server](/mcp).
+Start with its `describe` tool to discover the live release and example transactions, then use the
+same CLI operations through MCP with an actor and command ID on every write.
+
 ## Decide whether Triplex fits
 
 Use Triplex when the domain has one or more of these properties:
