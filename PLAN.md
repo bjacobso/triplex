@@ -90,7 +90,9 @@ These are settled. Do not reopen them without a new owner request.
   follow-up, `rex send` the text, then `rex send-key ... enter` twice: the first Enter ends the
   paste and the second submits.
 - **Briefs list every caller.** Before giving an agent a repository-wide API change, grep for the
-  callers and list their paths in the brief; agents correctly stop at undeclared paths.
+  callers and list their paths in the brief; agents correctly stop at undeclared paths. Every path
+  a brief's tests or acceptance criteria name (for example `test/integration/**`) must also be in
+  its allowed paths, and a verb that touches sensitive values needs `packages/core/src/sensitive`.
 - **Sandbox limits:** agents cannot use the network or Docker. The orchestrator runs
   `pnpm test:postgres:integration`, `pnpm test:e2e` and screenshot updates itself after merging.
 - **Accepting:** the orchestrator reviews the item branch, merges it into `ergonomics/next` with a
@@ -418,6 +420,9 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P2.4 stopped at two undeclared paths (SQLite test; sealed re-assertion under
+  `Sensitive.layer`). Scope extended: accept a sealed assert only when byte-identical to a fact the
+  same transaction retracts.
 - 2026-11-11: P1.2a merged (core 789/789). Started the time-in-Datalog RFC (P4.1 with P1.3).
 - 2026-11-11: P3.1 (`why` RFC) merged; D9 added. Started P3.4 (`describe` from the release).
   Postgres integration 45/45 after starting OrbStack.
