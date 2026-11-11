@@ -30,7 +30,7 @@ const rules = [
   "Set meta.actor and a deterministic meta.commandId derived from the request; reuse the ID on retry.",
   "Pin meta.configSnapshot and meta.enforce from the same release; pinning alone does not enforce constraints.",
   "Give every fact of an entity one valid interval; referenced entities must be valid from the same or an earlier time.",
-  "To end a value at T, retract the open assertion and re-assert it with validTo T, then assert the new value from T in the same transaction.",
+  "To change a value from time T on, use Change.replace (or Change.end to stop it): it retracts the open assertion, re-asserts it with validTo T, asserts the new value from T, and adds a TripleLive precondition, all in one transaction.",
 ];
 
 const record = (value: unknown): Record<string, unknown> => {
