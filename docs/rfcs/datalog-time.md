@@ -7,7 +7,7 @@ execution, not the fact model or the transaction write boundary.
 ## Problem and recommendation
 
 WorldVM needs assertion interval bounds without a `history` or `match` read per entity.
-[The trial](../../trials/vendor-risk/REPORT.md) finding 5 and issue #73 describe that gap.
+[The trial](https://github.com/bjacobso/triplex/blob/main/trials/vendor-risk/REPORT.md) finding 5 and issue #73 describe that gap.
 Silent trap 1 is related: a backdated review joins its assertion transaction at a past
 `validAt`, but the transaction's metadata starts at its later commit instant, so the join
 silently disappears. Current workarounds are in [Datalog](../datalog.md) and
@@ -15,7 +15,7 @@ silently disappears. Current workarounds are in [Datalog](../datalog.md) and
 
 Recommend an explicit object pattern for interval bindings, a query-wide `validTime: "all"`
 mode, and recorded-only evaluation of `:_tx/*` metadata. Keep one shared preflight and one
-recorded cut across the complete query, as required by [Architecture](../../ARCHITECTURE.md).
+recorded cut across the complete query, as required by [Architecture](https://github.com/bjacobso/triplex/blob/main/ARCHITECTURE.md).
 KV and SQLite remain supported; PostgreSQL remains a pre-1.0 production candidate.
 
 ## 1. Syntax and scope
