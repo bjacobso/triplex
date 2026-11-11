@@ -8,9 +8,10 @@ This guide is for coding agents, and the people directing them, who are deciding
 to model a back-office domain in Triplex. It is prescriptive on purpose: follow the rules unless
 you have a specific reason not to, and each section links to the reference behind it.
 
-Every code block on this page comes from the
-[site-safety scenario](https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety).
-CI type-checks and runs that scenario on every change. This page is also available as
+Start with `@triplex-build/triplex/database`: declare your model, publish it, then open the
+[schema-bound client](/database). The examples below come from the checked, executable
+[client site-safety scenario](https://github.com/bjacobso/triplex/blob/main/docs/snippets/client-site-safety.ts).
+CI type-checks and runs it alongside the lower-level homepage scenario. This page is also available as
 [Markdown](/agents.md), and the full documentation is available as [`/llms-full.txt`](/llms-full.txt).
 
 ## Decide whether Triplex fits
@@ -45,14 +46,14 @@ Check these constraints with the people you work for before adopting it:
 | Things: workers, sites, cases, accounts | Stable `EntityId`s and an `EntityType` per kind                      |
 | Properties and relationships            | Global `Attribute` keys, with `Attribute.ref` for relationships      |
 | Schemas, policies, forms                | Config nodes committed as an immutable release, pointed to by `live` |
-| User and system actions                 | One `transact` call per command                                      |
+| User and system actions                 | One `db.command` call per action                                     |
 | Evidence that starts or expires         | `validFrom` and `validTo` on the assertion                           |
 | Corrections                             | Retract and assert in one transaction                                |
 | Obligations and to-dos                  | A `Derivation` whose candidates you reconcile                        |
 | Tickets, notifications, SLAs            | Your code, driven by reconciliation diffs                            |
 | Audit questions                         | A temporal basis, command receipts, and the journal                  |
 
-## 1. Name entities and attributes
+## 1. Declare entity types and attributes
 
 - Give every entity a stable, typed ID such as `worker:maria` or `case:01J9…`. Construct IDs once
   at the application boundary with `EntityId.make`. Don't cast strings deep inside domain code.
@@ -67,10 +68,10 @@ Check these constraints with the people you work for before adopting it:
   and `ref`. `date` is a calendar string that ordered predicates (`<`, `>`) cannot compare; use
   `instant` (epoch milliseconds or a `Date`) for anything you compare or expire. See the
   [value-type table](/configuration#ontology-dsl).
-- Set `entityType` on every assertion so type-level reads and constraints can find the entity.
-  `Type.assert(id, values, options?)` does this for you and types each value by its attribute.
+- The client's `tx.create` and `tx.put` set `entityType` and encode values through the declared
+  attributes so type-level reads and constraints can find the entity.
 
-<<< @/snippets/home/site-safety/app.ts#model
+<<< @/snippets/client-site-safety.ts#model
 
 Read more in [Typed configuration](/configuration#ontology-dsl).
 
@@ -80,60 +81,42 @@ Read more in [Typed configuration](/configuration#ontology-dsl).
   Each release is immutable and content-addressed.
 - To change the rules, publish a new release. Never edit an old one. Moving `live` back
   to an earlier release doesn't roll back data.
-- At command time, resolve the release you intend to enforce and keep its snapshot for the whole
-  command.
+- Publish before acquiring the client; acquisition checks that your declarations match the release.
+  The client resolves and pins the current release when each new command is admitted.
 
-<<< @/snippets/home/site-safety/app.ts#release
+<<< @/snippets/client-site-safety.ts#release
 
 Read more in [Releases, refs, and rollback](/configuration-versioning).
 
-## 3. Write each command as one transaction
+## 3. Open the client and write commands
 
-Follow these rules for every write:
+The client requires `actor` and `commandId` on every command; derive the ID from the request and
+reuse it on retries. It pins and enforces the same release automatically. A retry returns the
+original receipt without running the callback or applying another write.
 
-1. **One application command is one `transact` call.** Everything the command changes commits or
-   rolls back together.
-2. **Always set `actor` and a deterministic `commandId`.** Derive the command ID from the request
-   so that a retry reuses it. Command IDs are atomically unique per database, and a duplicate fails
-   with `CommandAlreadyCommittedError` instead of applying twice.
-3. **Set `correlationId` and `causationId`.** Use the request or case for correlation and the
-   triggering command or event for causation.
-4. **Pin `configSnapshot` and pass `enforce` from the same release.** Pinning alone only records
-   which rules applied. Constraints are checked only when you also pass them with `enforce`.
-   `GraphConstraint.pinned(release)` returns both from one snapshot.
-5. **Put business time on the assertion.** Use `validFrom` and `validTo` when the dates define when
-   the fact holds. Intervals are half-open: `[validFrom, validTo)`. Omitted `validFrom` means the
-   commit time.
-6. **Give all of an entity's facts one interval.** Enforced constraints are checked at every
-   valid-time edge of the entity, not only now. Assert every attribute of a new entity with the same
-   `validFrom`, and make referenced entities valid from an earlier (or the same) time as the facts
-   that point at them. Otherwise the entity exists at some instant without a required attribute, or
-   references an entity that does not exist yet, and the write fails with
-   `ConstraintViolationError`. Read `error.violations`: each entry carries the `validAt` at which
-   it fails.
-7. **Correct facts; don't delete them.** Use `Change.correct(fact, value)` or
-   `Vendor.correct(fact, { status: "active" })` for a value that was wrong over its whole interval.
-   Submit `change.ops` and `{ preconditions: change.preconditions }` to the same `transact` call.
-   The generated `TripleLive` guard makes a concurrent change fail with `TransactionConflictError`.
-8. **End a value at a time; don't erase its past.** A retraction removes the assertion from all of
-   valid time. Use `Change.replace(fact, string("active"), T)` or
-   `Vendor.replace(fact, { status: "active" }, T)` to preserve the past and replace from `T`.
-   Use `Change.end(fact, T)` when there is no replacement, and `Change.combine` to collect changes
-   to several facts. Always pass the generated preconditions to the same transaction. See
-   [ending a fact at a time](/concepts#end-a-fact-at-a-time).
-9. **Guard check-then-write commands with `EntityState`.** When a command reads an entity, decides,
-   and then writes, pass `{ _tag: "EntityState", entityId, tripleIds }` with the live fact IDs you
-   read. Another writer's change in between fails the command with `TransactionConflictError`. See
-   [entity-state preconditions](/operational-primitives#entity-state-preconditions).
+<<< @/snippets/client-site-safety.ts#command
 
-<<< @/snippets/home/site-safety/app.ts#command
+<<< @/snippets/client-site-safety.ts#retry
 
-A retry with the same command ID returns the original receipt, and the journal gains no entry:
+- Run builder Effects sequentially: one `db.command` callback becomes one atomic transaction.
+- Authenticate and authorize in the host before calling the client. `correlationId` and
+  `causationId` can connect the command to its request, case, or triggering event.
+- Put business time in `validFrom` and `validTo`; intervals are half-open: `[validFrom, validTo)`.
+  Omitted `validFrom` means commit time. Builder writes share an interval across the entity's
+  attributes. Referenced targets must be valid from an earlier or equal time. Constraint failures
+  report the failing `validAt` in `error.violations`.
+- Use `tx.get(Type, id)` for check-then-write decisions; it decodes through `Type.decode` and
+  automatically guards the entity's observed history against concurrent writes.
+- For temporal edits, fetch a fact with `tx.fact(Type, tripleId)`, then use `tx.correct`,
+  `tx.replace`, or `tx.end`. These include the needed concurrency preconditions.
+  `correct` replaces the whole interval; `replace` changes from a date on; `end` preserves only
+  the past. A retraction alone removes the whole valid interval from current recorded knowledge.
+- Keep irreversible external actions outside callbacks. Record outgoing intents with
+  `tx.outbox.append`; the host delivers them after commit.
 
-<<< @/snippets/home/site-safety/story.ts#retry
-
-Read more in [Operational primitives](/operational-primitives) and
-[Troubleshooting](/troubleshooting#what-should-happen-on-a-duplicate-command-id).
+Read [Database client](/database) for typed `get`, bounded queries with Schema projections, builder
+semantics and stable `asOf` views. See [Operational primitives](/operational-primitives) for the
+underlying transaction contract.
 
 ## 4. Model obligations as derivations
 
@@ -152,7 +135,7 @@ Read more in [Operational primitives](/operational-primitives) and
 - A `stale` or `unmaterialized` result doesn't mean there is no work. Rematerialize before
   treating an empty result as current.
 
-<<< @/snippets/home/site-safety/app.ts#derive
+<<< @/snippets/client-site-safety.ts#derive
 
 The
 [compliance host example](https://github.com/bjacobso/triplex/tree/main/examples/compliance-host)
@@ -163,8 +146,8 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
 
 - **What did we believe then about what was true then?** Set both `recordedAt` and `validAt`.
   Setting only one leaves the other at "now".
-- **What did we know when we made a decision?** Use the decision's receipt `instant` as
-  `recordedAt`. Find the receipt with `transactionByCommand`.
+- **What did we know when we made a decision?** Use `db.asOf({ recordedPosition: receipt.position, validAt })` for an exact read cut.
+  The receipt is returned by `db.command`; raw journal lookup uses `transactionByCommand`.
 - **Who changed this entity, and why?** Page `transactionsForEntity(entityId)`, newest first.
   Each record carries its actor, command, correlation, causation, release, and typed changes.
 - **Who asserted the state that held at a past date?** Don't join `["?tx", ":_tx/actor", "?a"]`
@@ -175,39 +158,57 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
 - **What was retracted?** `history(entityId)` includes retracted assertions. `entity` and `match`
   show only facts visible at the basis you ask for.
 
-<<< @/snippets/home/site-safety/app.ts#ask
+<<< @/snippets/client-site-safety.ts#ask
 
 ## 6. Choose a runtime
 
-Use the [schema-bound Database client](/database) for application commands and typed reads.
-It adds release compatibility checks, admission-time pinning and enforcement, receipt recovery,
-and guarded entity reads over the storage layer shown below.
+Publish first, then provide `Database.layer({ schema: Model })` to the application. Keep publishing
+and the client over the same `ConfigStore` and `Triples` instance. The complete example creates the
+referenced site and worker before placing them.
 
 Construct one layer per database lifetime, at the application boundary. Building an in-memory
 layer again creates a new empty database, and building a SQL layer per request defeats connection
 sharing.
 
-<<< @/snippets/home/site-safety/app.ts#run
+<<< @/snippets/client-site-safety.ts#run
 
 On PostgreSQL, Triplex can join your application's own Effect SQL transaction, so your rows,
 Triplex facts, the journal, and an outbox row commit together. See
 [Host integration](/host-integration#choose-a-runtime).
 
+## Underneath the client
+
+Use raw `Triples` explicitly for host infrastructure, migrations, derivations and journal consumers.
+It is the primitive API; it does not add the client's defaults. Derivations above still take a
+`Triples` service and an explicit release.
+
+A raw write supplies `actor` and a stable `commandId`, plus both `configSnapshot` and `enforce` from
+`GraphConstraint.pinned(release)`. The lower-level equivalent of the placement command is:
+
+<<< @/snippets/home/site-safety/app.ts#command
+
+Raw duplicate commands fail with `CommandAlreadyCommittedError`; recover the receipt with
+`transactionByCommand`. Raw read-decide-write commands must pass `EntityState` preconditions, and
+`Change.correct`, `Change.replace` and `Change.end` return operations and preconditions that must
+be submitted together. Install [SchemaBound](/datalog#query-shape) for release-checked raw queries.
+The [homepage scenario](https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety)
+executes this primitive form and its receipt recovery as a separate checked example.
+
 ## Anti-patterns
 
 | Don't                                                               | Do instead                                                                |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Generate a new random `commandId` on every retry                    | Derive it from the request; handle `CommandAlreadyCommittedError`         |
-| Pin `configSnapshot` and assume constraints were checked            | Also pass `enforce` built from that snapshot                              |
-| Retract a fact in one command and assert its replacement in another | Use `Change.correct` and submit its ops and preconditions together        |
-| Retract an open state to change it from a date on                   | Use `Change.replace`; use `Change.end` to end without replacement         |
+| Generate a new random `commandId` on every retry                    | Reuse the request ID; `db.command` returns the original receipt           |
+| Pin `configSnapshot` and assume constraints were checked            | Use `db.command`, which pins and enforces together                        |
+| Retract a fact in one command and assert its replacement in another | Use `tx.correct` inside one command                                       |
+| Retract an open state to change it from a date on                   | Use `tx.replace`; use `tx.end` to end without replacement                 |
 | Store a date attribute when the date says when the fact holds       | Use `validFrom` and `validTo`                                             |
 | Backdate one attribute of an entity and let the others default      | Give all of an entity's facts the same `validFrom`                        |
 | Re-run derivations on a fixed timer                                 | Follow the journal and wake up at `nextTemporalBoundary`                  |
 | Treat an empty `stale` or `unmaterialized` result as "no work"      | Check freshness and rematerialize                                         |
 | Put task status, assignees, or SLAs in the derivation               | Keep the task lifecycle in host code, driven by reconciliation            |
 | Call `queryAll` on request paths                                    | Use `query` and follow `nextCursor` (100 rows per page by default)        |
-| Encode authorization as Datalog over the same store                 | Authorize in the host before providing `Triples`                          |
+| Encode authorization as Datalog over the same store                 | Authorize in the host before providing the client                         |
 | Check a write rule before `transact`, then write                    | Enforce it in a commit validator, which reads the state that would commit |
 
 ## Inspect with the CLI

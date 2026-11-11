@@ -1,7 +1,8 @@
 # Getting started
 
-This guide writes three facts to an in-memory Triplex database, joins them with Datalog, and prints
-the result. It is the shortest complete path to a running program.
+Start with the [Database client](/database) from `@triplex-build/triplex/database`. This guide
+declares entity types, publishes a release, opens the client, and runs one command, a typed read,
+a Schema-projected query and a historical read.
 
 ::: warning Pre-1.0 packages
 The `@triplex-build` packages are available from npm and require `effect@4.1.1`.
@@ -20,7 +21,7 @@ For an application, install the published core package and its Effect peer depen
 npm install @triplex-build/triplex effect@4.1.1
 ```
 
-## Run the example
+## Run the schema-bound client example
 
 Clone the repository and install its locked dependencies:
 
@@ -34,50 +35,56 @@ pnpm install --frozen-lockfile
 Run the checked quickstart directly from the checkout:
 
 ```sh
-pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/getting-started.ts
+pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/client-getting-started.ts
 ```
 
 The complete program is:
 
-<<< @/snippets/getting-started.ts{ts}
+<<< @/snippets/client-getting-started.ts{ts}
 
 It prints:
 
 ```json
 {
-  "relationships": [
-    {
-      "person": "Alice",
-      "company": "Acme"
-    }
-  ]
+  "person": { "name": "Alice", "employer": "company:acme" },
+  "relationships": [{ "?person": "Alice", "?company": "Acme" }],
+  "knownThen": { "name": "Alice", "employer": "company:acme" }
 }
 ```
 
-The repository's smaller demo is another executable starting point:
+### What the Effect code is doing
 
-```sh
-pnpm exec tsx --tsconfig docs/snippets/tsconfig.json examples/demo/demo.ts
-```
+1. `EntityType` declares aliases, attribute types, required fields and reference targets.
+2. `ConfigStore.commit` publishes the model as an immutable release and moves `live` to it.
+3. `Database.layer` checks the published model before providing the `Database.Database` service.
+4. `db.command` requires actor and command ID, pins and enforces the release, and commits the
+   builder's Effects atomically. Retrying the same ID returns the persisted receipt.
+5. `db.get` uses `Type.decode` to return alias-keyed typed values. `db.query` checks attributes
+   against the release and decodes each binding with the supplied Effect Schema.
+6. `db.asOf` captures a stable read-only view. The receipt's exact position selects what was
+   known at that command; `validAt` selects business time.
 
-## What the Effect code is doing
+`Effect.gen` sequences Effects with generator syntax. `Effect.provide` supplies services and
+`Effect.runPromise` runs the fully provided program. Publishing precedes client acquisition and
+both share one `Store`. Real hosts generally publish during deployment.
 
-You only need four Effect ideas for this example:
+Create and share layers at the application boundary. A new `KvTriples.layer` runtime owns a fresh
+in-memory database, whose contents disappear when that runtime/process ends. The query returns one
+bounded page (100 rows by default); follow `nextCursor` for more. Client command callbacks should
+contain database work, with external delivery handled by the host.
 
-1. `Triples` is a service tag. `yield* Triples` asks the current Effect context for the database.
-2. `Effect.gen` lets the program sequence database effects with generator syntax.
-3. `KvTriples.layer` constructs the in-memory implementation of that service.
-4. `Effect.provide` supplies the layer, and `Effect.runPromise` runs the fully provided program.
+## Raw Triples quick start
 
-Create and share a layer at your application boundary. Do not construct a new layer inside each
-request: each `KvTriples.layer` runtime owns a fresh in-memory database, and its contents disappear
-when that runtime/process ends.
+Use the primitive service when building host infrastructure or exploring facts without a model.
+This second program writes raw facts and runs a Datalog join:
 
-The transaction records three typed values atomically. `ref(acme)` is a relationship because its
-value is another `EntityId`; the Datalog query follows that relationship by using the same
-`?company` variable in two clauses. `query` returns one bounded page, which is enough for this
-one-row example. Follow `nextCursor` for larger results or use `queryAll` only for trusted batch
-work that intentionally needs the complete result set.
+<<< @/snippets/getting-started.ts{ts}
+
+Run it with `pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/getting-started.ts`.
+It prints a `relationships` array containing `{ "person": "Alice", "company": "Acme" }`.
+Raw `Triples` does not automatically pin/enforce a release, check attribute spelling, decode an
+entity, or recover retry receipts. Prefer the client for application commands and reads; see
+[Underneath the client](/agents#underneath-the-client) for the explicit primitive contracts.
 
 ## Use durable SQLite
 
@@ -87,19 +94,15 @@ SQLite is the supported local persistent backend. Install it alongside core and 
 npm install @triplex-build/triplex-sqlite
 ```
 
-Replace the in-memory layer with a file-backed layer:
+In the first program, import `SqliteTriples` from `@triplex-build/triplex-sqlite` and replace
+`KvTriples.layer` inside `Store` with `SqliteTriples.layer({ filename: "./triplex.db" })`.
+Keep `ConfigStore.layer` over that same store and provide the client after publishing. On a
+persistent database, issue a new command ID only for a new domain command; rerunning the example
+with its original ID returns the original receipt.
 
-```ts
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
-
-const DatabaseLive = SqliteTriples.layer({ filename: "./triplex.db" });
-const relationships = await Effect.runPromise(program.pipe(Effect.provide(DatabaseLive)));
-```
-
-This is a focused replacement fragment: `program` is the complete program above. The convenience
-layer opens the SQLite file and applies Triplex's current migration. Create it once and share it for
-the application lifetime. Production hosts that separate schema migration from runtime startup
-should use the explicit unmigrated composition described in [Host integration](/host-integration).
+The convenience layer opens the file and applies Triplex's current migration. Construct it once
+for the application lifetime. Hosts that separate schema migration from runtime startup should use
+the explicit composition in [Host integration](/host-integration).
 
 ## Use Triplex from a source checkout
 
@@ -133,6 +136,7 @@ public exports your application will use.
 
 ## Next steps
 
+- Read [Database client](/database) for commands, typed reads, projections and historical views.
 - Experiment without installing anything in the browser [Playground](/playground).
 - Read [Core concepts](/concepts) before modeling a domain with historical facts.
 - Follow [Configuration releases and rollback](/configuration-versioning) to version rules and pin

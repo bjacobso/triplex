@@ -26,7 +26,9 @@ the application boundary:
 await Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer)));
 ```
 
-`ConfigStore.layer` itself requires `Triples`, so compose it over the same database:
+For client startup, publish your release before acquiring `Database.layer`; see the complete
+[getting-started composition](/getting-started). `ConfigStore.layer` itself requires `Triples`,
+so compose it over the same database:
 
 ```ts
 const AppLayer = ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer));
@@ -50,7 +52,9 @@ Check these in order:
    joining.
 5. **Negation safety:** variables in `not` must already be bound outside it; invalid programs fail
    preflight instead of producing a partial answer.
-6. **Attribute spelling:** install `SchemaBound.layer({ ref: "live" })` from
+6. **Attribute spelling:** the [Database client](/database#typed-reads-and-bounded-queries) checks
+   constant attributes against its release automatically. For raw `Triples`, install
+   `SchemaBound.layer({ ref: "live" })` from
    `@triplex-build/triplex/config` to check constant attribute keys against a committed release.
    A misspelled key such as `":vendor/staus"` then fails before execution with
    `UnknownAttributeError`, naming its path and suggesting `":vendor/status"`. For `match`,
@@ -93,7 +97,10 @@ commits can share one millisecond. Read [the dated example](/concepts#recorded-t
 
 ## What should happen on a duplicate command ID?
 
-Command IDs are atomically unique within one Triplex database. Reusing a committed ID raises
+With the [Database client](/database#releases-retries-and-receipts), retry the same command ID to
+receive the original receipt; the callback does not run again.
+
+Command IDs are atomically unique within one Triplex database. With raw `Triples`, reusing a committed ID raises
 `CommandAlreadyCommittedError` with the original transaction ID; Triplex does not apply the write
 again. Treat the original transaction as the durable idempotency receipt and retrieve it with
 `transactionByCommand(commandId)` or CLI `journal receipt`.
@@ -103,12 +110,13 @@ Command IDs must contain 1–1024 characters.
 
 ## Why did invalid data commit?
 
-Configuration metadata and enforcement are separate. `meta.configSnapshot` records which release
+The [Database client](/database) pins and enforces the release on every command. If you use raw
+`Triples`, configuration metadata and enforcement are separate. `meta.configSnapshot` records which release
 governed a write, but constraints are enforced only when the command also passes
 `meta.enforce.constraints`. The built-in atomic rules cover requiredness, cardinality, uniqueness,
 and reference-target kinds.
 
-Always derive or collect rules from the exact immutable snapshot you pin. Existing violations can
+For raw writes, derive or collect rules from the exact immutable snapshot you pin. Existing violations can
 remain during unrelated writes or repairs; enforcement rejects a new or worsened violation. Direct
 adapter writes, commands without `enforce`, authorization, and general Datalog invariants are
 outside this guarantee. Use validation observations when auditing or migrating existing data.

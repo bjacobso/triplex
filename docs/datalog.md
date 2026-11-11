@@ -1,5 +1,10 @@
 # Datalog
 
+For application queries, start with the [Database client](/database#typed-reads-and-bounded-queries):
+`db.query` checks attributes against the release and decodes results with your Schema projection.
+`db.asOf` supplies a stable basis across reads. The primitive APIs below expose the same query
+language.
+
 Triplex exposes bounded Datalog pages through `Triples.query` and a wrapped form through
 `Triples.queryPage`. Both default to 100 bindings and allow at most 1,000 per page. The in-memory KV and SQL engines share one schema, semantic preflight, result
 identity, ordering contract, and bitemporal basis.
@@ -12,7 +17,8 @@ whether either entity has some site fact.
 
 ## Query shape
 
-For release-bound attribute checking, install `SchemaBound.layer` from the config subpath.
+The [Database client](/database) applies `SchemaBound` automatically to its queries. For
+release-bound checking on raw `Triples`, install `SchemaBound.layer` from the config subpath.
 It checks constant attributes in patterns, negation, every disjunction alternative, rules, and
 wrapped queries before `query`, `queryAll`, `queryPage`, `explain`, `explainPage`, and constant
 attribute `match` reads. Unknown keys fail with `UnknownAttributeError` including `key`, `path`,
