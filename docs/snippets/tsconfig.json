@@ -2,10 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": "../..",
-    "lib": ["ES2024", "DOM"],
+    "lib": ["ES2024", "ESNext.Iterator", "DOM"],
     "noEmit": true,
     "paths": {
       "@triplex-build/triplex": ["packages/core/src/index.ts"],
+      "@triplex-build/triplex/database": ["packages/core/src/database/index.ts"],
       "@triplex-build/triplex/config": ["packages/core/src/config/index.ts"],
       "@triplex-build/triplex-sqlite": ["packages/sqlite/src/index.ts"],
       "@triplex-build/triplex-foundationdb": ["packages/foundationdb/src/index.ts"],

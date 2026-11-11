@@ -12,6 +12,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: "Start",
     items: [
+      { text: "Database client", link: "/database" },
       { text: "Getting started", link: "/getting-started" },
       { text: "Modeling a back-office domain", link: "/agents" },
       { text: "Playground", link: "/playground" },
@@ -31,7 +32,6 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: "Reference",
     items: [
-      { text: "Database client", link: "/database" },
       { text: "Configuration", link: "/configuration" },
       { text: "Operational primitives", link: "/operational-primitives" },
       { text: "Sensitive values", link: "/sensitive-values" },
