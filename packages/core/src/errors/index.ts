@@ -157,6 +157,7 @@ export class UndefinedVariableError extends Data.TaggedError("UndefinedVariableE
 
 // Schema/validation errors
 export class ValidationError extends Data.TaggedError("ValidationError")<{
+  readonly code?: string;
   readonly field: string;
   readonly message: string;
   readonly value?: unknown;

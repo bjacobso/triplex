@@ -124,7 +124,35 @@ const groupingHint = (input: unknown): (Hint & { readonly message: string }) | u
   return undefined;
 };
 
+// Inspect only interval-bound fields, including nested not/or and wrapped queries.
+const checkLiteralBounds = (input: unknown, path = "$"): void => {
+  if (typeof input !== "object" || input === null) return;
+  if (
+    "pattern" in input &&
+    "valid" in input &&
+    typeof input.valid === "object" &&
+    input.valid !== null
+  ) {
+    for (const [key, value] of Object.entries(input.valid)) {
+      if (
+        (key === "from" || key === "to") &&
+        typeof value === "number" &&
+        !Number.isInteger(value)
+      ) {
+        invalid(input, `${path}.valid.${key} must be integer epoch milliseconds`, undefined, {
+          code: "time.invalid-bound",
+          path: `${path}.valid.${key}`,
+          fix: "Use integer epoch milliseconds for valid-time bounds.",
+        });
+      }
+    }
+  }
+  for (const [key, value] of Object.entries(input))
+    checkLiteralBounds(value, Array.isArray(input) ? `${path}[${key}]` : `${path}.${key}`);
+};
+
 const decodeQuery = (input: unknown): DatalogQuery => {
+  checkLiteralBounds(input);
   const decoded = Schema.decodeUnknownResult(DatalogQuerySchema)(input);
   if (Result.isFailure(decoded)) {
     const hint = groupingHint(input);
@@ -565,6 +593,7 @@ export const validateDatalogQuery = (
 
 /** Validate wrapper shape and ensure filters/order reference projected inner columns. */
 export const assertWrappedQuery = (input: unknown): WrappedQuery => {
+  checkLiteralBounds(input);
   if (typeof input === "object" && input !== null && "validTime" in input)
     invalid(input, "Wrapped query validTime belongs on inner");
   const decoded = Schema.decodeUnknownResult(WrappedQuerySchema)(input);

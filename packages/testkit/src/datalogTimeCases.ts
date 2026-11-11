@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import {
   Triples,
   DatalogValidationError,
+  diagnose,
   string,
   EntityId,
   type DatalogQuery,
@@ -70,6 +71,44 @@ const fixture = (suffix: string) =>
   });
 
 export const datalogTimeConformanceCases: readonly ConformanceCase[] = [
+  {
+    name: "time: fractional assertion and pattern bounds fail without mutations",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const input = {
+        entityId: EntityId.make("conf:time:invalid-fraction"),
+        attribute: ":time/integer",
+        value: string("yes"),
+      };
+      for (const field of ["validFrom", "validTo"] as const) {
+        for (const write of [
+          t.assert({ ...input, [field]: 1.5 }),
+          t.assertBatch([{ ...input, [field]: 1.5 }]),
+          t.transact([{ op: "assert", ...input, [field]: 1.5 }]),
+        ]) {
+          const result = yield* Effect.result<unknown, unknown, never>(write);
+          yield* check(
+            result._tag === "Failure" && diagnose(result.failure).code === "time.invalid-bound",
+            "fractional writes must fail with time.invalid-bound",
+          );
+        }
+      }
+      for (const valid of [{ from: 1.5 }, { to: 2.5 }]) {
+        const query = {
+          find: ["?e"],
+          where: [{ pattern: ["?e", input.attribute, "yes"], valid }],
+        } as const;
+        for (const read of [t.queryAll(query), t.queryPage({ inner: query }), t.explain(query)]) {
+          const result = yield* Effect.result<unknown, unknown, never>(read);
+          yield* check(
+            result._tag === "Failure" && diagnose(result.failure).code === "time.invalid-bound",
+            "fractional interval literals must fail with time.invalid-bound",
+          );
+        }
+      }
+      yield* rows(yield* t.history(input.entityId), []);
+    }),
+  },
   {
     name: "time: worked expiry, provenance trap, and disjoint vendor intervals",
     run: Effect.gen(function* () {
@@ -361,7 +400,7 @@ export const datalogTimeConformanceCases: readonly ConformanceCase[] = [
     }),
   },
   {
-    name: "time: overlapping periods, fractional bounds, and numeric family joins",
+    name: "time: overlapping integer periods, and numeric family joins",
     run: Effect.gen(function* () {
       const t = yield* Triples;
       const e = EntityId.make("conf:time:fraction");
@@ -371,22 +410,22 @@ export const datalogTimeConformanceCases: readonly ConformanceCase[] = [
           entityId: e,
           attribute: ":time/fraction",
           value: string("yes"),
-          validFrom: 1.25,
-          validTo: 3.75,
+          validFrom: 1,
+          validTo: 3,
         },
         {
           op: "assert",
           entityId: e,
           attribute: ":time/fraction",
           value: string("yes"),
-          validFrom: 2.5,
-          validTo: 4.5,
+          validFrom: 2,
+          validTo: 4,
         },
         {
           op: "assert",
           entityId: e,
           attribute: ":time/number",
-          value: { type: "number", value: 1.25 },
+          value: { type: "number", value: 1 },
         },
       ]);
       const q = {
@@ -396,8 +435,8 @@ export const datalogTimeConformanceCases: readonly ConformanceCase[] = [
         orderBy: [{ variable: "?from" }],
       } as const;
       yield* rows((yield* t.queryAll(q)).results, [
-        { "?from": 1.25, "?to": 3.75 },
-        { "?from": 2.5, "?to": 4.5 },
+        { "?from": 1, "?to": 3 },
+        { "?from": 2, "?to": 4 },
       ]);
       for (const where of [
         [...q.where, [e, ":time/number", "?from"]],
@@ -406,7 +445,7 @@ export const datalogTimeConformanceCases: readonly ConformanceCase[] = [
         yield* rows(
           (yield* t.queryAll({ ...q, where }, { basis: { recordedPosition: receipt.position } }))
             .results,
-          [{ "?from": 1.25, "?to": 3.75 }],
+          [{ "?from": 1, "?to": 3 }],
         );
       }
     }),

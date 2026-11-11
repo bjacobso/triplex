@@ -5,6 +5,7 @@ import { Effect, type Schema } from "effect";
 import type { PlainValue, SealableValueType, TripleValue } from "../Value.js";
 import type { EntityId } from "../Branded.js";
 import * as Values from "../Value.js";
+import { validateAssertionBounds } from "../Triple.js";
 import * as ConfigNode from "./ConfigNode.js";
 import * as TypeExpr from "./TypeExpr.js";
 
@@ -13,9 +14,9 @@ export const KIND = "attribute";
 const ATTRIBUTE_KEY = /^:[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*$/;
 
 export interface AssertionOptions {
-  /** Start of the domain-valid interval, in epoch milliseconds (inclusive). */
+  /** Start of the domain-valid interval, in integer epoch milliseconds (inclusive). */
   readonly validFrom?: number | undefined;
-  /** End of the domain-valid interval, in epoch milliseconds (exclusive). */
+  /** End of the domain-valid interval, in integer epoch milliseconds (exclusive). */
   readonly validTo?: number | undefined;
 }
 
@@ -275,12 +276,8 @@ export const assertion = <D extends AnyDefinition>(
   value: ValueOf<D>,
   options: AssertionOptions = {},
 ): Assertion<D["key"]> => {
-  if (options.validFrom !== undefined && !Number.isFinite(options.validFrom)) {
-    throw new TypeError("validFrom must be a finite epoch-millisecond value");
-  }
-  if (options.validTo !== undefined && !Number.isFinite(options.validTo)) {
-    throw new TypeError("validTo must be a finite epoch-millisecond value");
-  }
+  const invalid = validateAssertionBounds(options);
+  if (invalid) throw invalid;
   if (
     options.validFrom !== undefined &&
     options.validTo !== undefined &&

@@ -1,5 +1,6 @@
 /** Pure, guarded transaction builders for changes to a fact's valid interval. */
 import { Option } from "effect";
+import { validateAssertionBounds } from "./Triple.js";
 import type { Triple, TransactAssertOp, TransactOp, TransactionPrecondition } from "./Triple.js";
 import type { TripleValue } from "./Value.js";
 
@@ -22,18 +23,31 @@ export class ChangeRangeError extends RangeError {
   }
 }
 
-const assertion = (fact: Triple, value: TripleValue): TransactAssertOp => ({
-  op: "assert",
-  entityId: fact.entityId,
-  attribute: fact.attribute,
-  value,
-  validFrom: fact.validFrom,
-  ...(Option.isSome(fact.validTo) ? { validTo: fact.validTo.value } : {}),
-  ...(Option.isSome(fact.entityType) ? { entityType: fact.entityType.value } : {}),
-});
+const checkBounds = (fact: Triple) => {
+  const invalid = validateAssertionBounds({
+    validFrom: fact.validFrom,
+    validTo: Option.getOrUndefined(fact.validTo),
+  });
+  if (invalid) throw invalid;
+};
+const assertion = (fact: Triple, value: TripleValue): TransactAssertOp => {
+  checkBounds(fact);
+  return {
+    op: "assert",
+    entityId: fact.entityId,
+    attribute: fact.attribute,
+    value,
+    validFrom: fact.validFrom,
+    ...(Option.isSome(fact.validTo) ? { validTo: fact.validTo.value } : {}),
+    ...(Option.isSome(fact.entityType) ? { entityType: fact.entityType.value } : {}),
+  };
+};
 
 /** End a fact at `at`, preserving its past. Throws ChangeRangeError for an invalid split. */
 export const end = (fact: Triple, at: number): Change => {
+  checkBounds(fact);
+  const invalid = validateAssertionBounds({ validTo: at });
+  if (invalid && Number.isFinite(at)) throw invalid;
   if (
     !Number.isFinite(at) ||
     at <= fact.validFrom ||

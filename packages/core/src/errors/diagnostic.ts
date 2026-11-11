@@ -107,6 +107,13 @@ export const diagnose = (error: unknown): Diagnostic => {
     return { code: "internal", message: "Unknown internal error", retryable: false };
   }
   const known = error as InstanceType<(typeof Errors)[keyof typeof Errors]>;
+  if (
+    known instanceof Errors.WriteError &&
+    known.cause instanceof Errors.ValidationError &&
+    known.cause.code === "time.invalid-bound"
+  ) {
+    return diagnose(known.cause);
+  }
   const [code, fix] = defaults[known._tag];
   const base: Diagnostic = { code, message: known.message || known._tag, fix, retryable: false };
   if (known instanceof Errors.TransactionConflictError) {
@@ -167,7 +174,15 @@ export const diagnose = (error: unknown): Diagnostic => {
       fix: known.fix ?? fix,
     };
   }
-  if (known instanceof Errors.InvalidTripleError || known instanceof Errors.ValidationError)
-    return { ...base, path: known.field };
+  if (known instanceof Errors.ValidationError)
+    return {
+      ...base,
+      code: known.code ?? code,
+      path: known.field,
+      ...(known.code === "time.invalid-bound"
+        ? { fix: "Use integer epoch milliseconds for valid-time bounds." }
+        : {}),
+    };
+  if (known instanceof Errors.InvalidTripleError) return { ...base, path: known.field };
   return base;
 };

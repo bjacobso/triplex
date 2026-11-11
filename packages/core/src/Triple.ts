@@ -6,14 +6,41 @@ import { AppendEntryOp, AcknowledgeEntryOp } from "./operational/Entry.js";
 
 export { TripleId, EntityId, Attribute };
 
+import { ValidationError } from "./errors/index.js";
+
+/** Stored valid-time bounds use integer epoch milliseconds on every backend. */
+export const ValidTimeBound = Schema.Number.pipe(
+  Schema.check(
+    Schema.makeFilter(Number.isInteger, {
+      expected: "integer epoch milliseconds",
+    }),
+  ),
+);
+
+/** Shared by assertion builders and the transaction boundary. */
+export const validateAssertionBounds = (input: {
+  readonly validFrom?: number | undefined;
+  readonly validTo?: number | undefined;
+}): ValidationError | undefined => {
+  for (const field of ["validFrom", "validTo"] as const) {
+    if (input[field] !== undefined && !Number.isInteger(input[field]))
+      return new ValidationError({
+        code: "time.invalid-bound",
+        field,
+        message: `${field} must be integer epoch milliseconds`,
+      });
+  }
+  return undefined;
+};
+
 export const TripleInput = Schema.Struct({
   entityId: EntityId,
   attribute: Schema.String,
   value: TripleValue,
   entityType: Schema.optional(Schema.String),
   createdBy: Schema.optional(Schema.String),
-  validFrom: Schema.optional(Schema.Number),
-  validTo: Schema.optional(Schema.Number),
+  validFrom: Schema.optional(ValidTimeBound),
+  validTo: Schema.optional(ValidTimeBound),
 });
 export type TripleInput = typeof TripleInput.Type;
 
@@ -109,8 +136,8 @@ export const TransactAssertOp = Schema.Struct({
   value: TripleValue,
   entityType: Schema.optional(Schema.String),
   createdBy: Schema.optional(Schema.String),
-  validFrom: Schema.optional(Schema.Number),
-  validTo: Schema.optional(Schema.Number),
+  validFrom: Schema.optional(ValidTimeBound),
+  validTo: Schema.optional(ValidTimeBound),
 });
 export type TransactAssertOp = typeof TransactAssertOp.Type;
 

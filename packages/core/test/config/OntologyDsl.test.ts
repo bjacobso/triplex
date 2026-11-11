@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Option } from "effect";
 
+import { ValidationError } from "../../src/errors/index.js";
 import { EntityId } from "../../src/Branded.js";
 import { KvTriples } from "../../src/kv/layers/KvTriplesLive.js";
 import { Triples } from "../../src/store/Triples.js";
@@ -95,7 +96,7 @@ describe("ontology DSL", () => {
       value: { type: "string", value: "Acme" },
       validTo: 1_700_000_086_400,
     });
-    expect(() => Employer.name.assertion("Acme", { validTo: Number.NaN })).toThrow(TypeError);
+    expect(() => Employer.name.assertion("Acme", { validTo: Number.NaN })).toThrow(ValidationError);
     expect(() =>
       Employer.name.assertion("Acme", { validFrom: 1_700_000_000_000, validTo: 1_700_000_000_000 }),
     ).toThrow(RangeError);
