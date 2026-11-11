@@ -196,7 +196,6 @@ export const TriplesLive = Layer.effect(
         query: (q, options) =>
           Effect.all([validateDatalogQuery(q), basis(options)]).pipe(
             Effect.flatMap(([validated, resolved]) => executor.execute(validated, false, resolved)),
-            Effect.map((response) => response.results),
           ),
       };
     };

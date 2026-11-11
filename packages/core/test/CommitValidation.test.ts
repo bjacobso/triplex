@@ -7,7 +7,41 @@ import {
   KvTriples,
   TransactionConflictError,
   Triples,
+  type QueryResponse,
 } from "../src/index.js";
+
+it("returns complete queryAll-shaped results from validator views", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const triples = yield* Triples;
+      const query = {
+        find: ["?entity"],
+        where: [["?entity", ":validator/query-shape", "present"]],
+      } as const;
+      const ops = Array.from({ length: 101 }, (_, index) => ({
+        op: "assert" as const,
+        entityId: EntityId.make(`query-shape:${index}`),
+        attribute: ":validator/query-shape",
+        value: { type: "string" as const, value: "present" },
+      }));
+      let inspected: QueryResponse | undefined;
+      yield* triples.transact(ops, {
+        validate: [
+          CommitValidation.make("query-shape", (commit) =>
+            Effect.gen(function* () {
+              expect(yield* commit.before.query(query)).toEqual({ results: [] });
+              const after = yield* commit.after.query(query);
+              expect(after.results).toHaveLength(101);
+              expect(after.nextCursor).toBeUndefined();
+              inspected = after;
+            }),
+          ),
+        ],
+      });
+      expect(inspected).toEqual(yield* triples.queryAll(query));
+    }).pipe(Effect.provide(KvTriples.layer)),
+  );
+});
 
 it("preserves retryable conflicts through every decorated convenience write", async () => {
   await Effect.runPromise(
