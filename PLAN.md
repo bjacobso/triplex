@@ -329,7 +329,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P3.1 | `why` RFC                          | B    |            | done        | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run |
 | P3.2 | `why` implementation               | B    | P3.1       | needs-owner | Waits on D9                                                                                              |
 | P3.3 | Preview a command on an overlay    | B    | P2.6       | pending     |                                                                                                          |
-| P3.4 | Describe from the live release     | C    |            | pending     |                                                                                                          |
+| P3.4 | Describe from the live release     | C    |            | active      | 2026-11-11: `ergo/p3.4`                                                                                  |
 | P3.5 | CLI commands for `why` and preview | C    | P3.2, P3.3 | pending     |                                                                                                          |
 | P3.6 | MCP server package                 | C    | P3.4, P3.5 | pending     |                                                                                                          |
 | P3.7 | Run the phase 3 gate               | C    | P3.6       | pending     |                                                                                                          |
@@ -403,9 +403,9 @@ Update this section last in every session.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P2.4: block `block:01a1cc2e-c170-76f9-8244-e6aa5f9bf09d`
   - P1.2a: block `block:01a1cc2d-8687-73dc-b1f3-1dba46ab7d61`
-  - P3.1: block `block:01a1cc2a-5d4b-7e53-b07f-ffab0f46ff42`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.4,p1.2a,p3.1}` on
-  `ergo/p2.4`, `ergo/p1.2a` and `ergo/p3.1`.
+  - P3.4: block `block:01a1cc32-a747-7203-ac0d-f22a36b22023`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.4,p1.2a,p3.4}` on
+  `ergo/p2.4`, `ergo/p1.2a` and `ergo/p3.4`.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
   `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
@@ -418,6 +418,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P3.1 (`why` RFC) merged; D9 added. Started P3.4 (`describe` from the release).
+  Postgres integration 45/45 after starting OrbStack.
 - 2026-11-11: P1.1 and P2.1 merged. Started P1.2a (core error diagnostics) and P2.4 (temporal
   verbs).
 - 2026-11-11: P0.1 and P0.2 merged into `ergonomics/next`. P2.1 stopped at undeclared caller
