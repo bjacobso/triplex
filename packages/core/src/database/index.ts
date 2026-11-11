@@ -15,7 +15,6 @@ import type { AppendEntryInput, EntryKind } from "../operational/Entry.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import {
   Triples,
-  type TriplesService,
   type TransactionRecord,
   type PagedQueryOptions,
   type PagedQueryResponse,
@@ -244,25 +243,6 @@ const decodeCursor = (input: string) =>
     catch: (cause) => cursorError("malformed", cause),
   });
 
-/** P3.0 can replace this public journal scan with Triples.resolveRecordedBasis. */
-const recordedPositionAt = (triples: TriplesService, head: number, at: number) =>
-  Effect.gen(function* () {
-    let position = 0;
-    let after = 0;
-    while (after < head) {
-      const page = yield* triples.transactions({ after, limit: 1000 });
-      if (page.transactions.length === 0) break;
-      for (const tx of page.transactions) {
-        if (tx.position > head) return position;
-        if (tx.instant <= at) position = Math.max(position, tx.position);
-      }
-      const last = page.transactions[page.transactions.length - 1]!.position;
-      if (last <= after) return yield* readFailure("Journal did not advance");
-      after = last;
-    }
-    return position;
-  });
-
 export const layer = (
   options: LayerOptions,
 ): Layer.Layer<Database, DatabaseError, Triples | ConfigStore.ConfigStore> =>
@@ -479,17 +459,21 @@ export const layer = (
             for (const [key, value] of Object.entries(basis))
               if (value !== undefined) yield* instant(value, `basis.${key}`);
             const release = yield* resolve();
-            const head = yield* triples.currentPosition();
-            if (
-              basis.recordedPosition !== undefined &&
-              (!Number.isSafeInteger(basis.recordedPosition) || basis.recordedPosition > head)
-            )
-              return yield* invalid("basis.recordedPosition");
             const validAt = basis.validAt ?? (yield* Clock.currentTimeMillis);
-            const recordedPosition =
-              basis.recordedAt !== undefined
-                ? yield* recordedPositionAt(triples, head, basis.recordedAt)
-                : (basis.recordedPosition ?? head);
+            let recordedPosition: number;
+            if (basis.recordedAt !== undefined) {
+              recordedPosition = (yield* triples.resolveRecordedBasis({
+                recordedAt: basis.recordedAt,
+              })).recordedPosition;
+            } else {
+              const head = yield* triples.currentPosition();
+              if (
+                basis.recordedPosition !== undefined &&
+                (!Number.isSafeInteger(basis.recordedPosition) || basis.recordedPosition > head)
+              )
+                return yield* invalid("basis.recordedPosition");
+              recordedPosition = basis.recordedPosition ?? head;
+            }
             const captured = Object.freeze({ recordedPosition, validAt });
             return {
               ...reads({ release, basis: captured }),
