@@ -16,6 +16,20 @@ export class WriteError extends Data.TaggedError("WriteError")<{
   readonly cause?: unknown;
 }> {}
 
+export class OperationalEntryConflictError extends Data.TaggedError(
+  "OperationalEntryConflictError",
+)<{
+  readonly entryId: string;
+  readonly kind: "inbox" | "outbox";
+  readonly scope: EntityId;
+  readonly idempotencyKey: string;
+  readonly message: string;
+}> {
+  get isRetryable(): false {
+    return false;
+  }
+}
+
 export class DuplicateTripleError extends Data.TaggedError("DuplicateTripleError")<{
   readonly entityId: EntityId;
   readonly attribute: string;

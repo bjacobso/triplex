@@ -26,6 +26,7 @@ import {
   TransactionConflictError,
   ConstraintViolationError,
   PaginationCursorError,
+  OperationalEntryConflictError,
   DatalogValidationError,
   UnboundVariableError,
 } from "../../errors/index.js";
@@ -65,6 +66,13 @@ import { unsafe } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
 import { tripleAtRecordedPosition } from "../../store/temporalView.js";
+import { makeKvOperationalEntryStorage } from "../kv/OperationalEntries.js";
+import {
+  applyEntryOperation,
+  decodeEntry,
+  preparePendingEntries,
+  finishPendingEntries,
+} from "../../operational/entryStorage.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
 const COMMAND_RECEIPT_PREFIX = 0x22;
@@ -338,6 +346,27 @@ const makeKvTriplesService = Effect.gen(function* () {
   let transactService: TriplesService["transact"];
 
   const service: TriplesService = {
+    operationalEntry: (id) =>
+      Effect.gen(function* () {
+        if (!ContentIds.isContentId(id))
+          return yield* new ReadError({ message: "Invalid operational entry ID" });
+        const record = yield* makeKvOperationalEntryStorage(kvBackend).getOperationalEntry(id);
+        return record === null ? null : yield* decodeEntry(record);
+      }),
+    pendingOperationalEntries: (kind, request = {}) =>
+      Effect.gen(function* () {
+        const prepared = yield* Effect.try({
+          try: () => preparePendingEntries(kind, request, runtime.scope),
+          catch: (cause) =>
+            cause instanceof PaginationCursorError
+              ? cause
+              : new ReadError({ message: "Invalid operational pending request", cause }),
+        });
+        const records = yield* kvBackend.transact((tx) =>
+          makeKvOperationalEntryStorage(tx).pendingOperationalEntries(prepared.scan),
+        );
+        return yield* finishPendingEntries(prepared, records);
+      }),
     // === Writes ============================================================
 
     assert: (input: TripleInput) =>
@@ -530,6 +559,15 @@ const makeKvTriplesService = Effect.gen(function* () {
 
             for (const op of operations) {
               switch (op.op) {
+                case "append-entry":
+                case "acknowledge-entry": {
+                  yield* applyEntryOperation(op, makeKvOperationalEntryStorage(tx), {
+                    txId,
+                    position,
+                    instant: now,
+                  });
+                  break;
+                }
                 case "assert": {
                   const datom = tripleInputToDatom(
                     {
@@ -632,6 +670,7 @@ const makeKvTriplesService = Effect.gen(function* () {
           Effect.ensuring(Effect.sync(() => hexaStore.clearCache())),
           Effect.catch((e) =>
             e instanceof WriteError ||
+            e instanceof OperationalEntryConflictError ||
             e instanceof TransactionConflictError ||
             e instanceof CommandAlreadyCommittedError ||
             e instanceof ConstraintViolationError

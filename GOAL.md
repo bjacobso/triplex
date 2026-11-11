@@ -4,6 +4,25 @@ This file is the durable work plan and progress ledger for the Triplex side of
 WorldVM's operational-primitives requests. Update it as work proceeds so a new
 session can resume without reconstructing earlier conversations.
 
+## Single goal prompt
+
+Run this prompt from the Triplex repository to start or resume the whole plan:
+
+```text
+Start or resume one persistent goal to complete GOAL.md in this repository.
+Read its requirements, ledger, and session handoff, then inspect the working tree
+and existing PRs before changing anything. Preserve and resume unfinished work.
+Treat GOAL.md as the authoritative scope and update it as each item progresses.
+Work through every eligible item in order, with one PR per package or TX1 step.
+Report each PR and continue automatically; do not stop merely because a PR was
+opened. Keep unresolved design decisions in draft PRs, record their blockers,
+and continue independent work. Write failing tests first, run the required checks,
+and retain reproducible evidence. Do not merge, publish, deploy, edit WorldVM,
+or implement RFC-only and issue-only proposals. Mark the goal complete only when
+all required deliverables and validation are satisfied; clearly identify anything
+still blocked. Before any session ends, update the ledger and exact next action.
+```
+
 ## Goal and authorization
 
 Complete the implementation, benchmark, RFC, and issue deliverables below in
@@ -89,7 +108,7 @@ work explicitly. RFC approval and issue-only work do not authorize implementatio
 | 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                 | Based on benchmark PR #61                                           |
 | 5     | TX1.3: late position allocation        | blocked | [Draft PR #63](https://github.com/bjacobso/triplex/pull/63), [decision/proof](docs/rfcs/tx1-late-allocation.md) | Owner decision on staging/ordering protocol; no allocator change    |
 | 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft PR #64](https://github.com/bjacobso/triplex/pull/64), [decision](docs/rfcs/tx1-scoped-concurrency.md)    | Owner decision on mandatory scope authority and ordered publication |
-| 7     | TX4: inbox/outbox                      | pending | —                                                                                                               | —                                                                   |
+| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                           | Based on #64; native FDB unverified                                 |
 | 8     | TX5: cheap preconditions               | pending | —                                                                                                               | —                                                                   |
 | 9     | TX6: filtered transaction feed         | pending | —                                                                                                               | —                                                                   |
 | 10    | TX3: host-sealing/erasure RFC only     | pending | —                                                                                                               | Owner decision before any code                                      |
@@ -262,15 +281,17 @@ not applicable rather than implying an implementation exists.
 
 ## Session handoff
 
-- Canonical ledger: this checkout, currently `design/tx1-scoped-concurrency`. Carry the
+- Canonical ledger: this checkout, currently `feat/tx4-operational-entries`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Active item: TX4 inbox/outbox is next; allocator drafts #63/#64 await owner decisions.
-- Integration tip / PR stack: `design/tx1-scoped-concurrency`, based on
+- Active item: TX5 cheap preconditions is next. TX4 is open as PR #65 with passing
+  local checks and retained evidence; hosted verification is pending.
+- Integration tip / PR stack: `feat/tx4-operational-entries`, based on
+  `design/tx1-scoped-concurrency` (#64), based on
   `design/tx1-late-allocation` (`75d8ef6`, draft #63), then #62 → #61 → #60 → #59.
-- Next action: start TX4 with a failing portable
-  transactional-entry test. Continue independent work while the allocator protocol
-  decisions are pending; do not weaken ordering or invariant checks.
+- Next action: create TX5's branch from #65, verify existing precondition semantics,
+  and write failing portable attribute-value/absence tests before implementation.
+  Continue independent work while allocator decisions are pending.
 - Decisions needed: TX1.3's options and recommendation are in its draft document;
   final-statement allocation alone is insufficient. No production change authorized
   by that draft is assumed.
@@ -429,3 +450,33 @@ TX1.4 opened as [draft PR #64](https://github.com/bjacobso/triplex/pull/64), tes
 documentation `873f193`, based on draft #63. This is not a completed scoped runtime.
 The active goal continues with independent inbox/outbox work under the existing
 serialized transaction guarantees.
+
+### 2026-11-10 — TX4 transactional entry implementation
+
+The initial portable test failed because `Outbox.append` was absent. Inbox/outbox
+operations now compose with facts in `transact`; canonical payload deduplication,
+non-retryable payload conflicts, bounded scoped/global pending pages, acknowledgement
+history, same-transaction consume, concurrent keys, rollback, cursor binding, and
+control-character identity cases pass across the shared suites. SQL migration v5
+and Cloudflare v6 add independent operational storage and pending-only indexes.
+
+`pnpm check` and `pnpm pack:check` pass, including real workerd and 11 tarballs with
+a clean consumer using the new API. PostgreSQL's 31-test suite passed before the
+additional ambient outer-transaction test, which passes separately. The final full
+32-test run and clean-revision query-plan evidence will be recorded in the report.
+KV operation-count tests show the same bounded reads/writes with 10 and 10,000
+acknowledged records; native FoundationDB remains unavailable. No TX4 PR yet.
+
+TX4 implementation checkpoint is `23e0c44`. Both SQL index fixtures ran sequentially
+on that clean revision; raw plans and illustrative timings are retained in
+`test/evidence/tx4-{sqlite,postgres}-plans.json`. At 10,000 acknowledged records,
+PostgreSQL's primary lookup returns one row and pending index ranges return only
+the bounded candidates. KV entry operation counts are identical at both history
+sizes. The final full PostgreSQL suite passes all 32 tests, and package validation
+passes all 11 tarballs plus the consumer. See [the report](test/evidence/tx4.md).
+
+TX4 opened as [PR #65](https://github.com/bjacobso/triplex/pull/65), based on #64,
+implementation `23e0c44` and evidence `2ce96f3`. Final `pnpm check`, `pnpm pack:check`,
+and all 32 PostgreSQL integrations pass. The complete stack is #59 → #60 → #61 →
+#62 → #63 (draft) → #64 (draft) → #65. Hosted verification is pending. Continue
+with TX5; no merge, release, or WorldVM edit was performed.

@@ -11,6 +11,8 @@ import {
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
+  OPERATIONAL_ENTRIES_TABLE_DDL,
+  OPERATIONAL_ENTRY_INDEX_DDLS,
 } from "@triplex-build/triplex-sql";
 
 export interface Migration {
@@ -49,5 +51,10 @@ export const migrations: readonly Migration[] = [
     version: 5,
     name: "triplex_entity_recorded_position_index",
     up: [ENTITY_RECORDED_POSITION_INDEX_DDL],
+  },
+  {
+    version: 6,
+    name: "triplex_operational_entries",
+    up: [OPERATIONAL_ENTRIES_TABLE_DDL, ...OPERATIONAL_ENTRY_INDEX_DDLS],
   },
 ];

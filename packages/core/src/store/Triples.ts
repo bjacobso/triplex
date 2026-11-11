@@ -36,6 +36,14 @@ import type {
 } from "../errors/index.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import type { TemporalBasis } from "../Temporal.js";
+import type { ContentId } from "../content/ContentId.js";
+import type {
+  EntryKind,
+  OperationalEntry,
+  PendingEntriesPage,
+  PendingEntriesRequest,
+} from "../operational/Entry.js";
+import type { OperationalEntryConflictError } from "../errors/index.js";
 import type { TripleValue } from "../Value.js";
 import type { Rule as ConstraintRule } from "../Constraint.js";
 import type { EntityPageCursor, EntityPageRequest, EntityPageSnapshot } from "../EntityPage.js";
@@ -207,6 +215,11 @@ export interface ExplainResult {
 // =============================================================================
 
 export interface TriplesService {
+  readonly operationalEntry: (id: ContentId) => Effect.Effect<OperationalEntry | null, ReadError>;
+  readonly pendingOperationalEntries: (
+    kind: EntryKind,
+    request?: PendingEntriesRequest,
+  ) => Effect.Effect<PendingEntriesPage, ReadError | PaginationCursorError>;
   // --- Writes (append-only semantics) --------------------------------------
   readonly assert: (
     input: TripleInput,
@@ -229,6 +242,7 @@ export interface TriplesService {
     | TransactionConflictError
     | CommandAlreadyCommittedError
     | ConstraintViolationError
+    | OperationalEntryConflictError
   >;
   // --- Triple-level reads --------------------------------------------------
   /** Fetch a single triple by id. */

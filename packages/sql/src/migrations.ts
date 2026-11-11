@@ -12,6 +12,9 @@ import {
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
+  OPERATIONAL_ENTRIES_TABLE_DDL,
+  OPERATIONAL_ENTRY_INDEX_DDLS,
+  OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
   COMMAND_RECEIPTS_TABLE_DDL,
 } from "./schema.js";
@@ -68,6 +71,12 @@ export const migrations: readonly Migration[] = [
     version: 4,
     name: "triplex_entity_recorded_position_index",
     up: [ENTITY_RECORDED_POSITION_INDEX_DDL],
+  },
+  {
+    version: 5,
+    name: "triplex_operational_entries",
+    dialects: { pg: [OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL] },
+    up: [OPERATIONAL_ENTRIES_TABLE_DDL, ...OPERATIONAL_ENTRY_INDEX_DDLS],
   },
 ];
 

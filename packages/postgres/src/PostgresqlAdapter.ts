@@ -14,6 +14,7 @@ import {
   type TripleRow,
   CommandAlreadyCommittedError,
   TransactionConflictError,
+  OperationalEntryConflictError,
   ConstraintViolationError,
   WriteError,
   ReadError,
@@ -21,7 +22,11 @@ import {
   createParamCollector,
   isPatternVariable,
 } from "@triplex-build/triplex/internal";
-import { packValue, runMigrations } from "@triplex-build/triplex-sql";
+import {
+  makeSqlOperationalEntryStorage,
+  packValue,
+  runMigrations,
+} from "@triplex-build/triplex-sql";
 import { PostgresqlDialect } from "./dialect.js";
 import { checkSchemaVersion } from "./SchemaVersion.js";
 import { transactionConflict } from "./TransactionConflict.js";
@@ -58,6 +63,7 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
             (error) =>
               transactionConflict(error) ??
               (error instanceof WriteError ||
+              error instanceof OperationalEntryConflictError ||
               error instanceof TransactionConflictError ||
               error instanceof CommandAlreadyCommittedError ||
               error instanceof ConstraintViolationError
@@ -639,7 +645,13 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
 
       const close: StorageAdapterService["close"] = () => Effect.void;
 
+      const entries = makeSqlOperationalEntryStorage(
+        { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+        PostgresqlDialect,
+      );
+
       return {
+        ...entries,
         withTransaction,
         nextCommitPosition,
         currentCommitPosition,
