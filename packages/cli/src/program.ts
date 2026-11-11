@@ -586,36 +586,16 @@ const database = Command.make("db").pipe(
   ]),
 );
 
-const describe = Command.make("describe", {}, () =>
-  Effect.gen(function* () {
-    const root = yield* rootCommand;
-    yield* Console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          command: "describe",
-          data: {
-            output: "JSON envelope: { ok, command, data }",
-            input: "JSON via --input <file>, or --input - for stdin",
-            backends: ["SQLite file", "PostgreSQL URL", "database-scoped PostgreSQL"],
-            commands: {
-              status: "Database and configuration summary",
-              entity: ["types", "list", "get", "facts", "history"],
-              fact: ["match"],
-              query: ["run", "page", "explain"],
-              transaction: ["apply"],
-              journal: ["list", "receipt", "transaction"],
-              config: ["refs", "releases", "release", "objects", "object", "set-ref", "impact"],
-              db: ["create", "list", "get", "update", "clear", "delete"],
-            },
-          },
-        },
-        null,
-        root.pretty ? 2 : 0,
-      ),
-    );
-  }),
-).pipe(Command.withDescription("Print the machine-readable CLI capability manifest"));
+const describe = Command.make(
+  "describe",
+  {
+    ref: Flag.String("ref").pipe(
+      Flag.withDefault("live"),
+      Flag.withDescription("Configuration release ref"),
+    ),
+  },
+  ({ ref }) => emit("describe", { _tag: "describe", ref }),
+).pipe(Command.withDescription("Describe CLI capabilities and the schema from a release"));
 
 export const command = rootCommand.pipe(
   Command.withSubcommands([
