@@ -291,7 +291,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ---- | ----------------------------------------- | ----- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | done        | 2026-11-11: merged `ergo/p2.1`; #45 folded in, sensitive-modifier fix, `nodesOf`, memoized `pinned`, one declaration form. `trials/vendor-risk` stays on the old API as a historical record. Owner may close #45 once the session PR exists |
 | P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | pending     | D7 answered 2026-11-11; conflicts unchanged after `9f4e703`                                                                                                                                                                                 |
-| P2.3 | Typed decode of entity facts              | B     | P2.1       | pending     |                                                                                                                                                                                                                                             |
+| P2.3 | Typed decode of entity facts              | B     | P2.1       | active      | 2026-11-11: core half as `ergo/p2.3`; switching HTTP to the core decoder follows P1.2b                                                                                                                                                      |
 | P2.4 | Temporal verbs                            | B     | P2.1       | done        | 2026-11-11: merged `ergo/p2.4`; `Change.end/replace/correct/combine`, typed `Type.end/replace/correct`, sealed re-assertion only from a same-transaction retracted fact. Core 805/805, integration 208/208                                  |
 | P2.5 | Client RFC: the `Database` service        | B     | P2.3, P2.4 | active      | 2026-11-11: `ergo/p2.5` (RFC only)                                                                                                                                                                                                          |
 | P2.6 | Client implementation                     | B     | P2.5       | needs-owner |                                                                                                                                                                                                                                             |
@@ -407,9 +407,9 @@ Update this section last in every session.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P2.5: block `block:01a1cc3e-5cfe-7c83-a3b7-251ca611357d`
   - P1.2b: block `block:01a1cc3c-9c50-7ebd-8ff0-027fbc0c6a49`
-  - P4.3: block `block:01a1cc3c-9c76-78d1-94c8-b828ba0132d8`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.5,p1.2b,p4.3}` on
-  `ergo/p2.5`, `ergo/p1.2b` and `ergo/p4.3`.
+  - P2.3: block `block:01a1cc43-2843-75a1-ae3c-0822eb12f3a0`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.5,p1.2b,p2.3}` on
+  `ergo/p2.5`, `ergo/p1.2b` and `ergo/p2.3`.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
   `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
@@ -422,7 +422,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
-- 2026-11-11: live-query RFC (P4.3) merged; added D11.
+- 2026-11-11: live-query RFC (P4.3) merged; added D11. Started P2.3 (typed decode, core only).
 - 2026-11-11: P2.4 merged (sealed re-assertion reviewed: allowed only for a same-transaction
   retracted fact with identical key, ciphertext and blind token). Started the client RFC (P2.5).
 - 2026-11-11: started P1.2b (CLI and HTTP diagnostics) and P4.3 (live-query RFC). P2.3 waits
