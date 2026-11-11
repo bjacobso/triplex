@@ -73,3 +73,5 @@ export {
 
 // NOTE: QueryPlan translation (toDatalogQuery) and type checker (typeCheckDatalogQuery)
 // live in the compiler layer — they depend on compiler/lisp infrastructure.
+
+export { attributesOf, checkAttributes } from "./attributes.js";

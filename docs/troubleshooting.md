@@ -48,12 +48,13 @@ Check these in order:
    joining.
 5. **Negation safety:** variables in `not` must already be bound outside it; invalid programs fail
    preflight instead of producing a partial answer.
-6. **Attribute spelling:** Datalog does not check attribute keys against your model or the
-   committed release. A misspelled key such as `":vendor/staus"` matches no facts and returns `[]`
-   without an error, and so does a missing `:` prefix. A compliance query that reports "no
-   violations" looks the same as a typo. Build queries from your `Attribute` definitions'
-   `.key` (or the entity type handles' `attributes.x.key`) instead of string literals, and keep a
-   test that expects at least one known row.
+6. **Attribute spelling:** install `SchemaBound.layer({ ref: "live" })` from
+   `@triplex-build/triplex/config` to check constant attribute keys against a committed release.
+   A misspelled key such as `":vendor/staus"` then fails before execution with
+   `UnknownAttributeError`, naming its path and suggesting `":vendor/status"`. For `match`,
+   the error is in `ReadError.cause`. Without the layer, unknown keys still return `[]`.
+   Build queries from your `Attribute` definitions' `.key` (or entity type handles'
+   `attributes.x.key`) to avoid spelling mistakes. See [Datalog](/datalog#query-shape) for wiring.
 7. **Transaction provenance under a past `validAt`:** `:_tx/*` facts are valid only from their
    commit instant, so joining them into a query whose `validAt` is earlier returns `[]`. Read
    provenance in a second query at the current basis; see [Datalog](/datalog#query-shape).
