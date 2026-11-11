@@ -285,3 +285,30 @@ it("bounds concurrent evaluations and resolves now after waiting for a permit", 
       expect((yield* live.metrics).pendingSubscribers).toBe(0);
     }),
   ));
+
+it("fails an unavailable resume basis instead of silently resetting to the current head", () =>
+  run(
+    Effect.gen(function* () {
+      const t = yield* Triples;
+      const original = yield* service(t);
+      const pull = yield* Stream.toPull(original.watch(query));
+      const initial = (yield* pull)[0];
+      yield* write(t);
+      let attempted: number | undefined;
+      const retained = yield* service({
+        ...t,
+        queryAll: (q, options) => {
+          attempted = options?.basis?.recordedPosition;
+          return attempted === 0
+            ? Effect.fail(new ReadError({ message: "Requested history is unavailable" }))
+            : t.queryAll(q, options);
+        },
+      });
+      const result = yield* Effect.result(
+        retained.watch(query, { resume: initial.resume }).pipe(Stream.runHead),
+      );
+      expect(result._tag === "Failure" && result.failure._tag).toBe("ReadError");
+      expect(attempted).toBe(0);
+      expect((yield* retained.metrics).pendingSubscribers).toBe(0);
+    }),
+  ));
