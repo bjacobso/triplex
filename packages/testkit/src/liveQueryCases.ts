@@ -343,7 +343,12 @@ export const liveQueryCases = {
     const tx = yield* t.transact([op("a", "a")]);
     const end = yield* t.transact([{ op: "retract", id: tx.triples[0]!.id }]);
     const waiting = yield* Effect.forkChild(pull);
-    yield* TestClock.adjust(10);
+    // Async backends may still be reading the head when the first adjustment
+    // runs. Keep driving the clock until the pull finishes its coalescing sleep.
+    while (waiting.pollUnsafe() === undefined) {
+      yield* TestClock.adjust(10);
+      yield* Effect.yieldNow;
+    }
     const last = (yield* Fiber.join(waiting))[0];
     yield* equal(
       [last.position, last.coveredAfter, last.reason, last.result.results.length],
