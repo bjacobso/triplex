@@ -19,6 +19,42 @@ const encoded = (value: unknown): string =>
   Base64Url.encode(new TextEncoder().encode(JSON.stringify(value)));
 
 describe("paged query cursor contract", () => {
+  it("pins an explicit public position and rejects a different cut on continuation", () => {
+    const first = preparePagination({
+      query,
+      basis: { recordedPosition: 2, validAt: 10 },
+      now: 100,
+      recordedPosition: 9,
+      scope: "test",
+    });
+    expect(first.basis.recordedPosition).toBe(2);
+    expect(first.basis.recordedAt).toBeUndefined();
+    const page = finishPagination(first, {
+      results: [
+        { "?entity": "a", "?name": "A" },
+        { "?entity": "b", "?name": "B" },
+        { "?entity": "c", "?name": "C" },
+      ],
+    });
+    expect(() =>
+      preparePagination({
+        query: { ...query, cursor: page.nextCursor },
+        basis: { recordedPosition: 3 },
+        now: 200,
+        recordedPosition: 10,
+        scope: "test",
+      }),
+    ).toThrow(PaginationCursorError);
+    expect(
+      preparePagination({
+        query: { ...query, cursor: page.nextCursor },
+        basis: { recordedPosition: 2 },
+        now: 200,
+        recordedPosition: 10,
+        scope: "test",
+      }).basis,
+    ).toEqual(first.basis);
+  });
   it("defaults to a bounded page and reuses omitted temporal fields from the cursor", () => {
     const request = { inner: query.inner };
     const first = preparePagination({

@@ -283,6 +283,15 @@
             "required": false
           },
           {
+            "name": "recordedPosition",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[Ee][+-]?\\d+)?$"
+            },
+            "required": false
+          },
+          {
             "name": "validAt",
             "in": "query",
             "schema": {
@@ -405,6 +414,15 @@
                 },
                 { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
               ]
+            },
+            "required": false
+          },
+          {
+            "name": "recordedPosition",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[Ee][+-]?\\d+)?$"
             },
             "required": false
           },

@@ -13,6 +13,7 @@ import * as ContentIds from "../content/ContentId.js";
 import type {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
+  OperationalEntryConflictError,
   ReadError,
   TransactionConflictError,
   WriteError,
@@ -68,6 +69,7 @@ export class CorruptConsumerCheckpointError extends Data.TaggedError(
 }> {}
 
 export type ConsumerCheckpointError =
+  | OperationalEntryConflictError
   | InvalidConsumerCheckpointError
   | ConsumerCheckpointConflictError
   | CorruptConsumerCheckpointError

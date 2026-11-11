@@ -1,3 +1,5 @@
+import { checkCheapPreconditions } from "../../store/cheapPreconditions.js";
+import { initializeKvLiveFacts, migrateKvLiveFacts } from "../hexastore/KvTripleStore.js";
 /**
  * KV-backed implementation of the merged `Triples` service.
  *
@@ -26,6 +28,7 @@ import {
   TransactionConflictError,
   ConstraintViolationError,
   PaginationCursorError,
+  OperationalEntryConflictError,
   DatalogValidationError,
   UnboundVariableError,
 } from "../../errors/index.js";
@@ -64,6 +67,14 @@ import * as ContentIds from "../../content/ContentId.js";
 import { unsafe } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
+import { tripleAtRecordedPosition } from "../../store/temporalView.js";
+import { makeKvOperationalEntryStorage } from "../kv/OperationalEntries.js";
+import {
+  applyEntryOperation,
+  decodeEntry,
+  preparePendingEntries,
+  finishPendingEntries,
+} from "../../operational/entryStorage.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
 const COMMAND_RECEIPT_PREFIX = 0x22;
@@ -269,6 +280,7 @@ const transactionBackend = (tx: KvTransaction): KvBackendService => ({
 const makeKvTriplesService = Effect.gen(function* () {
   const kvBackend = yield* KvBackend;
   const runtime = yield* TripleStoreRuntime;
+  yield* initializeKvLiveFacts(kvBackend);
 
   // Single hexastore handle shared by the write path and the Datalog path so
   // their datom caches can never diverge.
@@ -337,6 +349,27 @@ const makeKvTriplesService = Effect.gen(function* () {
   let transactService: TriplesService["transact"];
 
   const service: TriplesService = {
+    operationalEntry: (id) =>
+      Effect.gen(function* () {
+        if (!ContentIds.isContentId(id))
+          return yield* new ReadError({ message: "Invalid operational entry ID" });
+        const record = yield* makeKvOperationalEntryStorage(kvBackend).getOperationalEntry(id);
+        return record === null ? null : yield* decodeEntry(record);
+      }),
+    pendingOperationalEntries: (kind, request = {}) =>
+      Effect.gen(function* () {
+        const prepared = yield* Effect.try({
+          try: () => preparePendingEntries(kind, request, runtime.scope),
+          catch: (cause) =>
+            cause instanceof PaginationCursorError
+              ? cause
+              : new ReadError({ message: "Invalid operational pending request", cause }),
+        });
+        const records = yield* kvBackend.transact((tx) =>
+          makeKvOperationalEntryStorage(tx).pendingOperationalEntries(prepared.scan),
+        );
+        return yield* finishPendingEntries(prepared, records);
+      }),
     // === Writes ============================================================
 
     assert: (input: TripleInput) =>
@@ -354,7 +387,7 @@ const makeKvTriplesService = Effect.gen(function* () {
       ]).pipe(
         Effect.map((result) => result.triples[0]!),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple", cause }),
         ),
@@ -376,7 +409,7 @@ const makeKvTriplesService = Effect.gen(function* () {
       ).pipe(
         Effect.map((result) => result.triples),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple batch", cause }),
         ),
@@ -393,7 +426,7 @@ const makeKvTriplesService = Effect.gen(function* () {
               ),
         ),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: `Failed to retract triple: ${id}`, cause }),
         ),
@@ -413,7 +446,9 @@ const makeKvTriplesService = Effect.gen(function* () {
       ]).pipe(
         Effect.map((result) => result.retracted),
         Effect.mapError((cause) =>
-          cause instanceof WriteError || cause instanceof ReadError
+          cause instanceof WriteError ||
+          cause instanceof ReadError ||
+          cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to retract by pattern", cause }),
         ),
@@ -460,6 +495,12 @@ const makeKvTriplesService = Effect.gen(function* () {
             const position = yield* nextKvCommitPosition(tx);
             const actor = meta?.actor;
             const preconditionIds = livePreconditionIds(meta);
+
+            yield* checkCheapPreconditions(meta, (entityId, attribute, limit) =>
+              transactionStore
+                .livePreconditionFacts(entityId, attribute, limit)
+                .pipe(Effect.map((facts) => facts.map((fact) => fact.value))),
+            );
 
             for (const condition of entityStatePreconditions(meta)) {
               const actual = (yield* transactionStore.scanCollectAsync({
@@ -527,6 +568,15 @@ const makeKvTriplesService = Effect.gen(function* () {
 
             for (const op of operations) {
               switch (op.op) {
+                case "append-entry":
+                case "acknowledge-entry": {
+                  yield* applyEntryOperation(op, makeKvOperationalEntryStorage(tx), {
+                    txId,
+                    position,
+                    instant: now,
+                  });
+                  break;
+                }
                 case "assert": {
                   const datom = tripleInputToDatom(
                     {
@@ -629,6 +679,7 @@ const makeKvTriplesService = Effect.gen(function* () {
           Effect.ensuring(Effect.sync(() => hexaStore.clearCache())),
           Effect.catch((e) =>
             e instanceof WriteError ||
+            e instanceof OperationalEntryConflictError ||
             e instanceof TransactionConflictError ||
             e instanceof CommandAlreadyCommittedError ||
             e instanceof ConstraintViolationError
@@ -654,10 +705,14 @@ const makeKvTriplesService = Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* runtime.now);
         const syncDatoms = hexaStore.scanCollectTemporal({ entity: entityId }, resolved);
         if (syncDatoms !== null) {
-          return syncDatoms.map(datomToTriple);
+          return syncDatoms.map((datom) =>
+            tripleAtRecordedPosition(datomToTriple(datom), basis?.recordedPosition),
+          );
         }
         const datoms = yield* hexaStore.scanCollectTemporalAsync({ entity: entityId }, resolved);
-        return datoms.map(datomToTriple);
+        return datoms.map((datom) =>
+          tripleAtRecordedPosition(datomToTriple(datom), basis?.recordedPosition),
+        );
       }).pipe(
         Effect.catch((e) =>
           Effect.fail(new ReadError({ message: `Entity failed: ${String(e)}`, cause: e })),
@@ -670,7 +725,13 @@ const makeKvTriplesService = Effect.gen(function* () {
         return yield* Effect.forEach(entityIds, (entityId) =>
           hexaStore
             .scanCollectTemporalAsync({ entity: entityId }, resolved)
-            .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
+            .pipe(
+              Effect.map((datoms) =>
+                datoms.map((datom) =>
+                  tripleAtRecordedPosition(datomToTriple(datom), basis?.recordedPosition),
+                ),
+              ),
+            ),
         );
       }).pipe(
         Effect.catch((e) =>
@@ -712,7 +773,16 @@ const makeKvTriplesService = Effect.gen(function* () {
             .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
         );
         return {
-          entities: rows,
+          entities: rows.map((facts) =>
+            facts.map((fact) =>
+              tripleAtRecordedPosition(
+                fact,
+                prepared.basis.recordedAt === undefined
+                  ? prepared.basis.recordedPosition
+                  : undefined,
+              ),
+            ),
+          ),
           snapshot: prepared.basis,
           ...(ids.length > prepared.limit
             ? { nextCursor: encodeEntityPageCursor(prepared, selected.at(-1)!) }
@@ -729,7 +799,11 @@ const makeKvTriplesService = Effect.gen(function* () {
     match: (pattern, basis) =>
       Effect.gen(function* () {
         return yield* match(pattern, resolveTemporalBasis(basis, yield* runtime.now));
-      }),
+      }).pipe(
+        Effect.map((facts) =>
+          facts.map((fact) => tripleAtRecordedPosition(fact, basis?.recordedPosition)),
+        ),
+      ),
 
     history: (entityId: EntityId) =>
       Effect.gen(function* () {
@@ -775,6 +849,7 @@ const makeKvTriplesService = Effect.gen(function* () {
       ),
 
     transactions: (request = {}) => {
+      const prefix = request.entityIdPrefix;
       const after = request.after ?? 0;
       const limit = request.limit ?? 100;
       if (!Number.isSafeInteger(after) || after < 0) {
@@ -786,6 +861,39 @@ const makeKvTriplesService = Effect.gen(function* () {
         return Effect.fail(
           new ReadError({ message: "Transaction page limit must be between 1 and 1000" }),
         );
+      }
+      if (prefix !== undefined) {
+        if (typeof prefix !== "string")
+          return Effect.fail(
+            new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+          );
+        return Effect.gen(function* () {
+          const head = yield* currentKvCommitPosition(kvBackend);
+          const candidates = yield* hexaStore.transactionIdsForEntityPrefix(
+            prefix,
+            after,
+            limit,
+            head,
+          );
+          const page = [];
+          for (const candidate of candidates) {
+            // Global KV journal reads use TYPE order (journal fact ID), unlike EAVT's value order.
+            const datoms = (yield* hexaStore.scanCollectAsync({ entity: candidate.txId }))
+              .filter((datom) => datom.entityType === "_Transaction")
+              .sort((a, b) => (a.tripleId < b.tripleId ? -1 : a.tripleId > b.tripleId ? 1 : 0));
+            const record = transactionRecordFromTriples(
+              unsafe.transactionId(candidate.txId),
+              datoms.map(datomToTriple),
+            );
+            if (record === null || record.position !== candidate.position)
+              return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
+            page.push(record);
+          }
+          return {
+            transactions: page,
+            ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
+          };
+        });
       }
       return match({ entityType: "_Transaction" }).pipe(
         Effect.map((triples) => {
@@ -951,6 +1059,12 @@ export const KvTriplesLive: Layer.Layer<Triples, never, KvBackend | TripleStoreR
  * Convenience namespace for wiring KV-backed `Triples`.
  */
 export const KvTriples = {
+  /** Call repeatedly until complete after upgrading every writer of an existing KV store. */
+  migrateLiveFacts: (options: { readonly batchSize?: number } = {}) =>
+    Effect.gen(function* () {
+      const kv = yield* KvBackend;
+      return yield* migrateKvLiveFacts(kv, options.batchSize);
+    }),
   /**
    * `Triples` over the KV hexastore, requiring only a `KvBackend` and
    * `TripleStoreRuntime`. Use this to reuse a real KV backend (e.g. FDB).

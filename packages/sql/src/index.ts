@@ -7,6 +7,11 @@
 
 // SQL schema, queries, and migrations
 export {
+  OPERATIONAL_ENTRIES_TABLE_DDL,
+  OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL,
+  OPERATIONAL_ENTRY_INDEX_DDLS,
+  LIVE_PRECONDITION_INDEX_POSTGRES_DDL,
+  TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL,
   TRIPLES_TABLE_DDL,
   MIGRATIONS_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
@@ -14,6 +19,7 @@ export {
   INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
   SEALED_VALUES_POSTGRES_DDLS,
   SEALED_VALUES_SQLITE_DDLS,
   INDEX_NAMES,
@@ -46,3 +52,9 @@ export { DatabaseRegistryLive } from "./DatabaseRegistryLayer.js";
 
 // Database manager layer (SQL-backed)
 export { DatabaseManagerLive } from "./DatabaseManagerLayer.js";
+
+export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";
+
+export { makeSqlLivePreconditionLookup } from "./LivePreconditions.js";
+
+export { makeSqlTransactionPrefixLookup } from "./TransactionFeed.js";

@@ -56,6 +56,10 @@ entities, mixed entity-type membership, and mutations of entities with active sc
 - Explicit snapshot IDs and configured aliases are immutable and read-only by default.
 - `activeWriteSnapshot` can designate one immutable snapshot as the deployment's write contract.
 - `recordedAt` and `validAt` are validated epoch-millisecond query parameters on reads only.
+- `recordedPosition` selects an exact commit cut for entity and collection reads. It must be a
+  non-negative safe integer; zero is the empty cut. Do not combine it with `recordedAt`.
+  Temporal query parameters are rejected on writes. Use the returned collection cursor to
+  continue at the same cut after later commits.
 
 Collection cursors bind the database scope, entity type, temporal basis, exact commit position, and
 the surrounding HTTP snapshot/version cache key. A continuation therefore materializes every body

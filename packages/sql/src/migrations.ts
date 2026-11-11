@@ -2,15 +2,21 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { MigrationError } from "@triplex-build/triplex/internal";
 import {
+  LIVE_PRECONDITION_INDEX_POSTGRES_DDL,
+  TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL,
   TRIPLES_TABLE_DDL,
   BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   SEALED_VALUES_POSTGRES_DDLS,
   SEALED_VALUES_SQLITE_DDLS,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
+  OPERATIONAL_ENTRIES_TABLE_DDL,
+  OPERATIONAL_ENTRY_INDEX_DDLS,
+  OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
   COMMAND_RECEIPTS_TABLE_DDL,
 } from "./schema.js";
@@ -62,6 +68,29 @@ export const migrations: readonly Migration[] = [
     name: "triplex_sealed_values",
     dialects: { sqlite: SEALED_VALUES_SQLITE_DDLS, pg: SEALED_VALUES_POSTGRES_DDLS },
     up: [SEALED_BLIND_INDEX_DDL],
+  },
+  {
+    version: 4,
+    name: "triplex_entity_recorded_position_index",
+    up: [ENTITY_RECORDED_POSITION_INDEX_DDL],
+  },
+  {
+    version: 5,
+    name: "triplex_operational_entries",
+    dialects: { pg: [OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL] },
+    up: [OPERATIONAL_ENTRIES_TABLE_DDL, ...OPERATIONAL_ENTRY_INDEX_DDLS],
+  },
+  {
+    version: 6,
+    name: "triplex_live_precondition_index",
+    dialects: { pg: [LIVE_PRECONDITION_INDEX_POSTGRES_DDL, "ANALYZE triples"] },
+    up: [],
+  },
+  {
+    version: 7,
+    name: "triplex_transaction_entity_prefix_index",
+    dialects: { pg: [TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL, "ANALYZE triples"] },
+    up: [],
   },
 ];
 

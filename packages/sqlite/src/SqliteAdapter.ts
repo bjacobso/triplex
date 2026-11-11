@@ -16,12 +16,22 @@ import {
   CommandAlreadyCommittedError,
   ConstraintViolationError,
   TransactionConflictError,
+  OperationalEntryConflictError,
   WriteError,
   ReadError,
   MigrationError,
   isPatternVariable,
 } from "@triplex-build/triplex/internal";
-import { packValue, runMigrations, INDEX_DDLS, INDEX_NAMES } from "@triplex-build/triplex-sql";
+import {
+  makeSqlOperationalEntryStorage,
+  makeSqlLivePreconditionLookup,
+  makeSqlTransactionPrefixLookup,
+  SqliteDialect,
+  packValue,
+  runMigrations,
+  INDEX_DDLS,
+  INDEX_NAMES,
+} from "@triplex-build/triplex-sql";
 
 // =============================================================================
 // Configuration
@@ -92,6 +102,7 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
         sql.withTransaction(effect).pipe(
           Effect.mapError((error) =>
             error instanceof WriteError ||
+            error instanceof OperationalEntryConflictError ||
             error instanceof TransactionConflictError ||
             error instanceof CommandAlreadyCommittedError ||
             error instanceof ConstraintViolationError
@@ -724,7 +735,21 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
       // Return Service
       // =========================================================================
 
+      const entries = makeSqlOperationalEntryStorage(
+        { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+        SqliteDialect,
+      );
+
       return {
+        ...entries,
+        transactionIdsForEntityPrefix: makeSqlTransactionPrefixLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          SqliteDialect,
+        ),
+        livePreconditionFacts: makeSqlLivePreconditionLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          SqliteDialect,
+        ),
         withTransaction,
         nextCommitPosition,
         currentCommitPosition,

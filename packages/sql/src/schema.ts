@@ -136,10 +136,20 @@ export const NUMERIC_VALUE_INDEX_DDL =
 export const SEALED_BLIND_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_attr_blind ON triples(attribute, value_blind) WHERE value_type = 'sealed'";
 
+/** Entity replay at a position must not scan all of that entity's later facts. */
+export const ENTITY_RECORDED_POSITION_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_entity_recorded_position ON triples(entity_id, recorded_position)";
+
+/** Binary prefix bounds and covering columns for PostgreSQL journal candidates. */
+export const TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_tx_entity_prefix
+  ON triples (value_string COLLATE "C", recorded_position, entity_id)
+  WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL`;
+
 export const INDEX_DDLS = [
   ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
+  ENTITY_RECORDED_POSITION_INDEX_DDL,
 ] as const;
 
 /**
@@ -158,6 +168,7 @@ export const INDEX_NAMES = [
   "idx_ref_target",
   "idx_temporal",
   "idx_recorded_position",
+  "idx_entity_recorded_position",
   "idx_entity_attr",
   "idx_tx_id",
 ] as const;
@@ -279,3 +290,35 @@ export const SEALED_VALUES_POSTGRES_DDLS = [
   "ALTER TABLE triples DROP CONSTRAINT IF EXISTS triples_sealed_envelope_check",
   "ALTER TABLE triples ADD CONSTRAINT triples_sealed_envelope_check CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)",
 ] as const;
+
+/** Entries retain history; partial indexes contain only unacknowledged work. */
+export const OPERATIONAL_ENTRIES_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_operational_entries (
+    id TEXT PRIMARY KEY NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('inbox', 'outbox')),
+    scope TEXT NOT NULL,
+    scope_token TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    recorded_position BIGINT NOT NULL,
+    recorded_at BIGINT NOT NULL,
+    tx_id TEXT NOT NULL,
+    acknowledged_position BIGINT,
+    acknowledged_at BIGINT,
+    acknowledged_tx_id TEXT,
+    CHECK ((acknowledged_position IS NULL AND acknowledged_at IS NULL AND acknowledged_tx_id IS NULL)
+      OR (acknowledged_position IS NOT NULL AND acknowledged_at IS NOT NULL AND acknowledged_tx_id IS NOT NULL))
+  )
+`;
+export const OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL = OPERATIONAL_ENTRIES_TABLE_DDL.replace(
+  "id TEXT PRIMARY KEY",
+  'id TEXT COLLATE "C" PRIMARY KEY',
+);
+export const OPERATIONAL_ENTRY_INDEX_DDLS = [
+  `CREATE INDEX IF NOT EXISTS idx_operational_pending_global ON triplex_operational_entries (kind, recorded_position, id) WHERE acknowledged_position IS NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_operational_pending_scope ON triplex_operational_entries (kind, scope_token, recorded_position, id) WHERE acknowledged_position IS NULL`,
+];
+
+/** Expression statistics cover only live rows, avoiding historical attribute skew. */
+export const LIVE_PRECONDITION_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_live_precondition_key
+  ON triples ((length(entity_id)::text || ':' || entity_id || attribute)) WHERE retracted_at IS NULL`;

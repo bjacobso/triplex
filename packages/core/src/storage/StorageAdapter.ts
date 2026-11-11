@@ -9,14 +9,54 @@
 import { Context, Effect } from "effect";
 import type { TripleInput, TripleRow, QueryPattern } from "./types.js";
 import type { ResolvedTemporalBasis } from "../Temporal.js";
-import { WriteError, ReadError, MigrationError } from "../errors/index.js";
+import {
+  WriteError,
+  ReadError,
+  MigrationError,
+  TransactionConflictError,
+} from "../errors/index.js";
 import type { DependencyState } from "../store/Triples.js";
+import type { OperationalEntryRecord, PendingEntriesScan } from "../operational/Entry.js";
+import type { ContentId } from "../content/ContentId.js";
+import type { TransactionId } from "../Branded.js";
 
 /**
  * StorageAdapterService - Backend-agnostic storage primitives
  */
 export interface StorageAdapterService {
-  readonly withTransaction: <A, E>(effect: Effect.Effect<A, E>) => Effect.Effect<A, E | WriteError>;
+  /** Indexed changed-entity prefix candidates, deduplicated and ordered by global position. */
+  readonly transactionIdsForEntityPrefix: (
+    prefix: string,
+    after: number,
+    limit: number,
+  ) => Effect.Effect<readonly { readonly txId: string; readonly position: number }[], ReadError>;
+  /** Bounded live (unretracted, across all valid time) lookup using a live index. */
+  readonly livePreconditionFacts: (
+    entityId: string,
+    attribute: string | undefined,
+    limit: 1 | 2,
+  ) => Effect.Effect<readonly TripleRow[], ReadError>;
+  /** Point lookup by content ID; includes acknowledged history. */
+  readonly getOperationalEntry: (
+    id: ContentId,
+  ) => Effect.Effect<OperationalEntryRecord | null, ReadError>;
+  /** Pending-only indexed range, ordered by append position then ASCII ID, bounded by scan.limit. */
+  readonly pendingOperationalEntries: (
+    scan: PendingEntriesScan,
+  ) => Effect.Effect<readonly OperationalEntryRecord[], ReadError>;
+  /** These mutations run inside the caller's existing atomic transaction. */
+  readonly insertOperationalEntry: (
+    entry: OperationalEntryRecord,
+  ) => Effect.Effect<void, WriteError>;
+  readonly acknowledgeOperationalEntry: (
+    id: ContentId,
+    position: number,
+    instant: number,
+    txId: TransactionId,
+  ) => Effect.Effect<void, WriteError>;
+  readonly withTransaction: <A, E>(
+    effect: Effect.Effect<A, E>,
+  ) => Effect.Effect<A, E | WriteError | TransactionConflictError>;
   /** Allocate the next ordered commit position inside the current transaction. */
   readonly nextCommitPosition: () => Effect.Effect<number, WriteError>;
   /** Read the latest committed position for an exact read snapshot boundary. */

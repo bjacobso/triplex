@@ -1,0 +1,290 @@
+{
+  "sourceRevision": "de5703f3e6847190819df6583ad437a3cd626904",
+  "dirty": false,
+  "node": "v24.13.0",
+  "databaseVersion": [
+    {
+      "version": "PostgreSQL 17.8 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit"
+    }
+  ],
+  "measuredAt": "2026-11-10T19:46:18.114Z",
+  "evidence": [
+    {
+      "backend": "postgres",
+      "unrelatedCommands": 10,
+      "statement": "SELECT DISTINCT entity_id, recorded_position FROM triples WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL AND value_string COLLATE \"C\" >= $1 AND recorded_position > $2 AND value_string COLLATE \"C\" < $3 ORDER BY recorded_position, entity_id LIMIT $4",
+      "plan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 5.16,
+                "Total Cost": 5.17,
+                "Plan Rows": 1,
+                "Plan Width": 34,
+                "Actual Startup Time": 0.02,
+                "Actual Total Time": 0.021,
+                "Actual Rows": 2,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 3,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Unique",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 5.16,
+                    "Total Cost": 5.17,
+                    "Plan Rows": 1,
+                    "Plan Width": 34,
+                    "Actual Startup Time": 0.019,
+                    "Actual Total Time": 0.021,
+                    "Actual Rows": 2,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 3,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 5.16,
+                        "Total Cost": 5.17,
+                        "Plan Rows": 1,
+                        "Plan Width": 34,
+                        "Actual Startup Time": 0.019,
+                        "Actual Total Time": 0.019,
+                        "Actual Rows": 3,
+                        "Actual Loops": 1,
+                        "Sort Key": ["recorded_position", "entity_id"],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 3,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "triples",
+                            "Alias": "triples",
+                            "Startup Cost": 0,
+                            "Total Cost": 5.15,
+                            "Plan Rows": 1,
+                            "Plan Width": 34,
+                            "Actual Startup Time": 0.004,
+                            "Actual Total Time": 0.014,
+                            "Actual Rows": 6,
+                            "Actual Loops": 1,
+                            "Filter": "((retracted_at IS NULL) AND ((value_string)::text >= 'feed:match:'::text) AND (recorded_position > 0) AND ((value_string)::text < 'feed:match;'::text) AND (attribute = ':_tx/changed-entity'::text) AND (entity_type = '_Transaction'::text) AND (value_type = 'ref'::text))",
+                            "Rows Removed by Filter": 80,
+                            "Shared Hit Blocks": 3,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 156,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.527,
+              "Triggers": [],
+              "Execution Time": 0.03
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend": "postgres",
+      "unrelatedCommands": 10000,
+      "statement": "SELECT DISTINCT entity_id, recorded_position FROM triples WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL AND value_string COLLATE \"C\" >= $1 AND recorded_position > $2 AND value_string COLLATE \"C\" < $3 ORDER BY recorded_position, entity_id LIMIT $4",
+      "plan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 8.32,
+                "Total Cost": 8.33,
+                "Plan Rows": 1,
+                "Plan Width": 34,
+                "Actual Startup Time": 0.011,
+                "Actual Total Time": 0.013,
+                "Actual Rows": 2,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 3,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Unique",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 8.32,
+                    "Total Cost": 8.33,
+                    "Plan Rows": 1,
+                    "Plan Width": 34,
+                    "Actual Startup Time": 0.011,
+                    "Actual Total Time": 0.012,
+                    "Actual Rows": 2,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 3,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 8.32,
+                        "Total Cost": 8.32,
+                        "Plan Rows": 1,
+                        "Plan Width": 34,
+                        "Actual Startup Time": 0.011,
+                        "Actual Total Time": 0.011,
+                        "Actual Rows": 3,
+                        "Actual Loops": 1,
+                        "Sort Key": ["recorded_position", "entity_id"],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 3,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Index Only Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Scan Direction": "Forward",
+                            "Index Name": "idx_tx_entity_prefix",
+                            "Relation Name": "triples",
+                            "Alias": "triples",
+                            "Startup Cost": 0.29,
+                            "Total Cost": 8.31,
+                            "Plan Rows": 1,
+                            "Plan Width": 34,
+                            "Actual Startup Time": 0.005,
+                            "Actual Total Time": 0.006,
+                            "Actual Rows": 6,
+                            "Actual Loops": 1,
+                            "Index Cond": "((value_string >= 'feed:match:'::text) AND (value_string < 'feed:match;'::text) AND (recorded_position > 0))",
+                            "Rows Removed by Index Recheck": 0,
+                            "Heap Fetches": 6,
+                            "Shared Hit Blocks": 3,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 177,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.469,
+              "Triggers": [],
+              "Execution Time": 0.022
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

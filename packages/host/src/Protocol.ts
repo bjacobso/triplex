@@ -59,6 +59,7 @@ export const DataOperation = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal("TransactionByCommand"), commandId: Schema.String }),
   Schema.Struct({
     _tag: Schema.Literal("Transactions"),
+    entityIdPrefix: Schema.optional(Schema.String),
     after: Schema.optional(Schema.Number),
     limit: Schema.optional(Schema.Number),
   }),
@@ -94,12 +95,7 @@ const queryOptions = (
   options:
     | {
         readonly debug?: boolean | undefined;
-        readonly basis?:
-          | {
-              readonly recordedAt?: number | undefined;
-              readonly validAt?: number | undefined;
-            }
-          | undefined;
+        readonly basis?: TemporalBasis | undefined;
       }
     | undefined,
 ): TriplesQueryOptions | undefined =>
@@ -114,6 +110,9 @@ const queryOptions = (
                 ...(options.basis.recordedAt === undefined
                   ? {}
                   : { recordedAt: options.basis.recordedAt }),
+                ...(options.basis.recordedPosition === undefined
+                  ? {}
+                  : { recordedPosition: options.basis.recordedPosition }),
                 ...(options.basis.validAt === undefined ? {} : { validAt: options.basis.validAt }),
               },
             }),
@@ -155,6 +154,9 @@ export const executeDataOperation = (
       return triples.transactionByCommand(operation.commandId);
     case "Transactions":
       return triples.transactions({
+        ...(operation.entityIdPrefix === undefined
+          ? {}
+          : { entityIdPrefix: operation.entityIdPrefix }),
         ...(operation.after === undefined ? {} : { after: operation.after }),
         ...(operation.limit === undefined ? {} : { limit: operation.limit }),
       });

@@ -35,6 +35,14 @@ graph-constraint enforcement path also atomically protects declared required, ca
 uniqueness, and reference-target invariants by evaluating them inside the serialized commit
 boundary.
 
+`TransactionConflictError.isRetryable` is always true: reload the state used to
+decide the command, then retry its complete transaction. PostgreSQL also uses this
+type for native serialization and deadlock failures, with `reason` set to
+`serialization` or `deadlock` and the original failure retained as `cause`.
+`PgTriples.withTransaction` extends that typed boundary over host statements and
+the host's outer commit. Other write failures are not reclassified as conflicts,
+and Triplex does not choose retry/backoff policy for the host.
+
 ### Entity-state preconditions
 
 `{ _tag: "EntityState", entityId, tripleIds }` is the check-then-write guard for one entity. After
@@ -69,6 +77,95 @@ On conflict, reload and decide again. The precondition guards only the named ent
 reads other entities (such as a vendor's reviews) needs an `EntityState` precondition for each of
 them, or graph-constraint enforcement. It is also not a declarative rule: a write that omits it is
 not checked, and the passage of valid time can still make a guarded state invalid later.
+
+### Attribute-value and absence preconditions
+
+Use `AttributeValue` to compare one attribute without loading the entity or its history.
+It requires **exactly one unretracted fact** for the entity/attribute, with the expected typed
+value. JSON object key order is ignored through canonical encoding; scalar value types remain
+separate. Two live facts conflict even when their values are equal. `AttributeAbsent` requires
+no unretracted fact on one attribute; `EntityAbsent` requires none on the entity. A previously
+used but fully retracted entity is absent.
+
+Like `EntityState`, these guards consider every valid time: unretracted future and expired
+facts count. They observe the pre-state before any operation in the transaction, within the
+existing serialized commit boundary. They require no matching retract. A mismatch fails with
+retryable `TransactionConflictError` and rolls back facts, journal, receipt, and position.
+Unrelated attributes do not invalidate an attribute guard. Hosts must still guard every entity
+or invariant their command depends on.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples, number } from "@triplex-build/triplex";
+
+const createHome = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const home = EntityId.make("home:alice");
+  return yield* triples.transact(
+    [{ op: "assert", entityId: home, attribute: ":home/version", value: number(1) }],
+    { preconditions: [{ _tag: "EntityAbsent", entityId: home }] },
+  );
+});
+
+const checkVersion = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const home = EntityId.make("home:alice");
+  return yield* triples.transact([], {
+    preconditions: [
+      { _tag: "AttributeValue", entityId: home, attribute: ":home/version", value: number(1) },
+      { _tag: "AttributeAbsent", entityId: home, attribute: ":home/deleted" },
+    ],
+  });
+});
+```
+
+The sensitive decorator rewrites plaintext value guards through the attribute's blind-token
+policy. A codec without blind equality rejects that plaintext comparison with `WriteError`;
+plaintext never enters the storage lookup or journal. Raw stored sealed envelopes can still be
+compared exactly; envelopes with blind tokens compare their value type and token.
+
+Lookups fetch at most two live facts for a value guard and one for absence. SQL uses partial
+live indexes. PostgreSQL migration **v6** adds a length-framed entity/attribute expression index
+and analyzes `triples`: its index-expression statistics describe live rows, avoiding the
+historical attribute skew that made the planner scan old facts. Keep automatic analysis enabled
+as data changes. SQLite and Cloudflare use their existing `(entity_id, attribute)` live index;
+SQLite records migration v6 without extra DDL, and Cloudflare needs no additional migration.
+
+KV retains its historical indexes and adds one live-only ID key per unretracted fact. Assertions,
+batch assertions, and retractions update that key within the same transaction. Fresh empty stores
+are ready automatically. An existing store keeps all existing APIs working, but the new cheap
+guards return `ReadError` until its live index is backfilled. Upgrade **every writer** first;
+old writers do not maintain the new index. Run bounded batches against the same backend until
+complete:
+
+```ts check
+import { Effect } from "effect";
+import { KvTriples } from "@triplex-build/triplex";
+
+// Provide the existing database's KvBackend layer when running this effect.
+const backfill = Effect.gen(function* () {
+  for (;;) {
+    const progress = yield* KvTriples.migrateLiveFacts({ batchSize: 500 });
+    if (progress.complete) return;
+  }
+});
+```
+
+For FoundationDB, provide `makeFdbKvBackend(config)` with the same cluster and subspace
+settings as the existing store.
+
+Each batch atomically persists its cursor and ID keys. It is safe to resume after a crash;
+upgraded transactional writers maintain the index while backfill proceeds. Retractions conflict
+with overlapping source reads and remove live keys atomically, while new assertions before an
+already processed cursor write their own keys. Historical keys remain unchanged. Batch sizes
+are 1–1000 (default 500); reduce the size to fit the backend's transaction time/size limits.
+Malformed source data aborts the batch. A completed backfill is a no-op on repetition; unknown
+index versions are rejected. Mixing old writers or writing raw KV facts outside Triplex's
+transaction/index protocol invalidates the guarantee.
+
+Custom storage adapters must implement `livePreconditionFacts` as a bounded indexed lookup,
+including all unretracted valid times. Exhaustive precondition switches must handle the three
+new variants. Existing `TripleLive` and `EntityState` behavior is unchanged.
 
 ### Causal transaction envelopes
 
@@ -112,6 +209,53 @@ The feed covers every successful application fact write. Delivery built on repea
 at least once, so consumers retain a checkpoint and deduplicate by command or transaction identity.
 `ChangeEmitter` remains a best-effort wake-up mechanism and never replaces catch-up reads.
 
+### Entity-prefix transaction feeds
+
+`transactions({ after, limit, entityIdPrefix })` selects the ordered subsequence
+of the global journal touching any entity whose ID starts with the literal prefix.
+Matching is case-sensitive; `%`, `_`, and backslashes have no wildcard meaning.
+A transaction touching several matching entities appears once, with its complete
+metadata and all changes, including changes to other entities. Assertions and
+retractions both count. Omit the filter for the existing global feed. An explicit
+empty prefix selects transactions with at least one fact change, so empty commands
+and entry-only inbox/outbox commands do not match it.
+
+```ts check
+import { Effect } from "effect";
+import { Triples } from "@triplex-build/triplex";
+
+const followHomes = Effect.gen(function* () {
+  const triples = yield* Triples;
+  return yield* triples.transactions({
+    entityIdPrefix: "home:",
+    after: 0,
+    limit: 200,
+  });
+});
+```
+
+Resume with the returned `next` as the next `after`; it remains an exclusive global
+commit position, with gaps for non-matching commands. Limits keep their existing
+1–1000 range and default 100. Empty pages return no `next`. Keep the same prefix
+when resuming a consumer checkpoint; changing it intentionally changes the selected
+subsequence after that global position. The tenant protocol's `Transactions`
+operation accepts the same optional `entityIdPrefix` field.
+
+Discovery uses changed-entity references before hydrating only matching command
+records. SQLite/Cloudflare reuse the existing reference index. PostgreSQL SQL
+migration **v7** adds a binary-collation covering prefix/position index and analyzes
+triples; host-owned clients must migrate before layer acquisition. SQLite records
+v7 without extra DDL, and Cloudflare needs no new migration beyond v6. KV uses its
+existing AVET changed-entity prefix, pins the committed head for the scan, and
+retains a bounded candidate set before reading complete envelopes. No KV feed
+backfill is needed. Custom storage adapters implement `transactionIdsForEntityPrefix`.
+
+The filter avoids unrelated transaction metadata. Work can still grow with the
+matching prefix's history: KV scans those references and SQL can visit matching
+index candidates before sorting/deduplicating. The page limit bounds returned
+records, not a promise of history-independent candidate work. No entity-type
+membership or type-change semantics are introduced by this prefix filter.
+
 ### Consumer checkpoints
 
 `@triplex-build/triplex/operational` stores one reserved, queryable checkpoint entity per named
@@ -138,9 +282,40 @@ transactions share the same recorded millisecond. Cursor decoding and reuse fail
 ### Bitemporal query basis
 
 Facts carry separate recorded and valid intervals. Direct matching, entity reads, batched reads,
-and Datalog accept the same `{ recordedAt?, validAt? }` basis, so every clause in a join,
+and Datalog accept the same `{ recordedAt?, recordedPosition?, validAt? }` basis, so every clause in a join,
 negation, or rule sees one coherent cut. Historical corrections append new facts; they do not
 rewrite the recorded history.
+
+Supply at most one of `recordedAt` and `recordedPosition`. The latter selects an
+exact committed fact cut and survives later assertions and retractions without a
+history/transaction lookup loop. Positions must be non-negative safe integers;
+zero selects no facts. Specify `validAt` too when replay must preserve the same
+business-time instant. Facts returned at an explicit position cut omit later
+retraction metadata, reproducing the earlier read. Full `history` and `get` audit
+reads retain the stored retraction information.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, KvTriples, Triples, string } from "@triplex-build/triplex";
+
+export const replay = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const entityId = EntityId.make("home:1");
+  const original = yield* triples.transact([
+    { op: "assert", entityId, attribute: ":home/status", value: string("draft"), validFrom: 0 },
+  ]);
+  yield* triples.transact([
+    { op: "retract", id: original.triples[0]!.id },
+    { op: "assert", entityId, attribute: ":home/status", value: string("ready"), validFrom: 0 },
+  ]);
+  return yield* triples.entity(entityId, { recordedPosition: original.position, validAt: 1 });
+}).pipe(Effect.provide(KvTriples.layer));
+```
+
+The returned fact still has value `draft`. SQL migration v4 adds
+`idx_entity_recorded_position` for selective entity replay; Cloudflare's equivalent
+is migration v5. Host-owned SQL migrations must run before acquiring an unmigrated
+Postgres layer. KV uses its existing temporal hexastore; no KV migration is needed.
 
 ### Portable derivations and pure reconciliation
 
@@ -238,9 +413,86 @@ indexed triples, Datalog, and checkpointed projections rather than replaying the
 
 ### Inboxes and outboxes
 
-Define conventional first-class inbox and outbox records without embedding delivery vendors or
-retry policy in core. Command receipts and consumer checkpoints now provide the atomic identities
-and durable resume positions beneath them.
+`Inbox` and `Outbox` from `@triplex-build/triplex/operational` build operations for the
+existing `Triples.transact` boundary. Facts, command receipts, entries, and acknowledgements
+commit together. Delivery vendors, scheduling, leasing, and retry policy remain host concerns.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { Outbox } from "@triplex-build/triplex/operational";
+
+const home = EntityId.make("home:alice");
+const commitIntent = Effect.gen(function* () {
+  const triples = yield* Triples;
+  yield* triples.transact(
+    [
+      { op: "assert", entityId: home, attribute: ":home/status", value: string("ready") },
+      Outbox.append({
+        scope: home,
+        idempotencyKey: "command:123:send",
+        payload: { destination: "worker", command: "refresh" },
+      }),
+    ],
+    { commandId: "command:123" },
+  );
+  const page = yield* Outbox.pending(triples, { scope: home, limit: 25 });
+  return page;
+});
+
+// Run this only after the host has successfully delivered the stored payload.
+const acknowledge = Effect.gen(function* () {
+  const triples = yield* Triples;
+  yield* triples.transact([Outbox.acknowledge(Outbox.id(home, "command:123:send"))]);
+  return yield* Outbox.get(triples, Outbox.id(home, "command:123:send"));
+});
+```
+
+Identity is `(inbox or outbox, entity scope, idempotency key)`. Keys contain 1–1024 JavaScript
+UTF-16 code units. Payloads use the existing canonical JSON encoding: object key order is
+irrelevant, negative zero becomes zero, and unsupported or non-finite values fail with
+`WriteError`. Appending an existing identity with the same canonical payload leaves its original
+record unchanged, including after acknowledgement. A different payload fails with
+`OperationalEntryConflictError` (`isRetryable: false`); the entire transaction rolls back.
+Ordinary SQL serialization/deadlock conflicts retain their separate retryable error.
+
+Omit `scope` from `pending` to drain a whole database. Inbox and outbox directions are separate.
+Pages order entries by original append position, then ASCII content ID; this also disambiguates
+several entries appended in one transaction. Pass `nextCursor` into the next `pending` call.
+Limits default to 100 and must be integers from 1 to 1000. Cursors bind the database runtime scope,
+entry direction, and entity filter. They remain valid if their last entry is acknowledged.
+They are live pending cursors, with no pinned snapshot or ownership claim: another worker may
+acknowledge an entry between reads. Exhaustion returns no `nextCursor`; start another drain
+without a cursor to discover new work or retry unacknowledged deliveries.
+
+Reading pending work does not claim or mutate it. A crash after commit or delivery and before
+acknowledgement redelivers the exact canonical stored payload. Consumers must handle at-least-once
+delivery; a cursor does not establish successful delivery. `acknowledge` retains the first
+acknowledgement's transaction ID, position, and time, removes only the pending index entries,
+and is idempotent. A missing or wrong-direction target fails with `WriteError`.
+`get` retains both original append metadata and optional acknowledgement metadata as history.
+An append followed by acknowledgement in one transaction is allowed and never becomes pending.
+
+Each entry has its own record. SQL uses a primary-key lookup and separate partial pending indexes
+for an entity scope and the whole database. KV uses primary records and separate global/scoped
+pending ranges. Reads fetch at most `limit + 1` candidates; acknowledged history is absent from
+those indexes. No operation materializes a home entity or scans acknowledged entries. Entries
+link to their original and acknowledgement receipts; their payloads are not copied into
+`:_tx/change`, which continues to describe fact changes. Transaction results still report only
+asserted/retracted facts. Entry storage is a separate operational record store, so fact history,
+Datalog, temporal cuts, and entity snapshots do not include these entries.
+
+Entry payloads do not pass through attribute-based `Sensitive` policies: they have no attribute.
+Hosts must encrypt sensitive payload contents before appending them and control who can read
+operational records. The API adds no automatic decryption or transport authorization.
+
+SQL migration **v5** and Cloudflare migration **v6** create the operational table and pending
+indexes. Host-owned SQL clients must run `runMigrations` before acquiring the updated layer.
+No KV data migration is required. Custom `StorageAdapterService` implementations must add the
+four operational storage methods exported through the runtime contract. The `TriplesService`
+read contract gains `operationalEntry` and `pendingOperationalEntries`; `TransactOp` gains two
+variants and its error union gains `OperationalEntryConflictError`. Update custom service
+implementations, exhaustive switches, and explicit transaction error annotations when adopting.
 
 ### Graph constraints
 

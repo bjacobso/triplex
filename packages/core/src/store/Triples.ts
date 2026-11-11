@@ -36,6 +36,14 @@ import type {
 } from "../errors/index.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import type { TemporalBasis } from "../Temporal.js";
+import type { ContentId } from "../content/ContentId.js";
+import type {
+  EntryKind,
+  OperationalEntry,
+  PendingEntriesPage,
+  PendingEntriesRequest,
+} from "../operational/Entry.js";
+import type { OperationalEntryConflictError } from "../errors/index.js";
 import type { TripleValue } from "../Value.js";
 import type { Rule as ConstraintRule } from "../Constraint.js";
 import type { EntityPageCursor, EntityPageRequest, EntityPageSnapshot } from "../EntityPage.js";
@@ -82,7 +90,9 @@ export interface TransactionMeta {
   /**
    * Serialized transaction preconditions. `TripleLive` references must also
    * have a matching `retract` operation; `EntityState` compares the complete
-   * observed live fact-ID set. A mismatch fails the whole transaction with
+   * observed live fact-ID set. AttributeValue checks exactly one unretracted fact;
+   * AttributeAbsent and EntityAbsent check absence across all valid times.
+   * A mismatch fails the whole transaction with
    * `TransactionConflictError`.
    */
   readonly preconditions?: readonly TransactionPrecondition[];
@@ -118,6 +128,8 @@ export interface TransactionRecord {
 }
 
 export interface TransactionPageRequest {
+  /** Literal, case-sensitive prefix of any changed entity ID. Empty matches transactions with changes. */
+  readonly entityIdPrefix?: string;
   /** Return transactions strictly after this commit position. Defaults to 0. */
   readonly after?: number;
   /** Maximum number of transactions to return. Defaults to 100; maximum 1,000. */
@@ -207,13 +219,22 @@ export interface ExplainResult {
 // =============================================================================
 
 export interface TriplesService {
+  readonly operationalEntry: (id: ContentId) => Effect.Effect<OperationalEntry | null, ReadError>;
+  readonly pendingOperationalEntries: (
+    kind: EntryKind,
+    request?: PendingEntriesRequest,
+  ) => Effect.Effect<PendingEntriesPage, ReadError | PaginationCursorError>;
   // --- Writes (append-only semantics) --------------------------------------
-  readonly assert: (input: TripleInput) => Effect.Effect<Triple, WriteError>;
+  readonly assert: (
+    input: TripleInput,
+  ) => Effect.Effect<Triple, WriteError | TransactionConflictError>;
   readonly assertBatch: (
     inputs: readonly TripleInput[],
-  ) => Effect.Effect<readonly Triple[], WriteError>;
-  readonly retract: (id: TripleId) => Effect.Effect<void, WriteError>;
-  readonly retractByPattern: (pattern: Pattern) => Effect.Effect<number, WriteError | ReadError>;
+  ) => Effect.Effect<readonly Triple[], WriteError | TransactionConflictError>;
+  readonly retract: (id: TripleId) => Effect.Effect<void, WriteError | TransactionConflictError>;
+  readonly retractByPattern: (
+    pattern: Pattern,
+  ) => Effect.Effect<number, WriteError | ReadError | TransactionConflictError>;
   /** Group operations into a single atomic transaction with metadata. */
   readonly transact: (
     operations: readonly TransactOp[],
@@ -225,6 +246,7 @@ export interface TriplesService {
     | TransactionConflictError
     | CommandAlreadyCommittedError
     | ConstraintViolationError
+    | OperationalEntryConflictError
   >;
   // --- Triple-level reads --------------------------------------------------
   /** Fetch a single triple by id. */

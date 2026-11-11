@@ -17,8 +17,19 @@ import { Effect, Stream } from "effect";
 import { decodeSealedEnvelope, encodeSealedEnvelope, type TripleValue } from "../../Value.js";
 import type { KvBackendService } from "../kv/KvBackend.js";
 import type { ResolvedTemporalBasis } from "../../Temporal.js";
+import { ReadError, MigrationError } from "../../errors/index.js";
+import { concat, increment } from "../kv/encoding.js";
+import { transactionPrefixBounds } from "../../store/transactionPrefix.js";
+import { TxAttributes } from "../../utils/id.js";
 import { unsafe } from "../../Branded.js";
 import {
+  AVET_PREFIX,
+  liveFactKey,
+  liveFactKeyStr,
+  liveFactRange,
+  LIVE_FACT_READY_KEY,
+  LIVE_FACT_CURSOR_KEY,
+  META_PREFIX,
   eavtKey,
   aevtKey,
   avetKey,
@@ -33,7 +44,7 @@ import {
   metaKeyStr,
   typeKeyStr,
 } from "./indexes.js";
-import { tString, encodeStringStr } from "./tuple.js";
+import { tString, tRef, encodeTuple, encodeStringStr } from "./tuple.js";
 import { valueToTuplePart, type ScanPattern, patternToScan, valueToPartStr } from "./scan.js";
 
 // ─── Datom: The fundamental unit of data ───────────────────────────────────
@@ -519,6 +530,94 @@ export class KvTripleStore {
 
   constructor(private readonly kv: KvBackendService) {}
 
+  /** Prefix-only candidate scan; retain a bounded earliest-position set, never hydrate unrelated journals. */
+  transactionIdsForEntityPrefix(
+    prefix: string,
+    after: number,
+    limit: number,
+    snapshotPosition: number,
+  ): Effect.Effect<{ txId: string; position: number }[], ReadError> {
+    const bounds = transactionPrefixBounds(prefix);
+    if (bounds === null) return Effect.succeed([]);
+    const keyPrefix = (value: string) =>
+      concat(AVET_PREFIX, encodeTuple(tString(TxAttributes.CHANGED_ENTITY), tRef(value))).slice(
+        0,
+        -2,
+      );
+    const start = keyPrefix(bounds.lower);
+    const end = bounds.upper === undefined ? increment(keyPrefix("")) : keyPrefix(bounds.upper);
+    return Effect.gen({ self: this }, function* () {
+      const candidates: { txId: string; position: number }[] = [];
+      const selected = new Set<string>();
+      yield* Stream.runForEach(this.kv.getRange({ start, end }), ([, value]) =>
+        Effect.gen({ self: this }, function* () {
+          const bytes = yield* this.kv.get(metaKey(textDecoder.decode(value)));
+          if (bytes === null)
+            return yield* new ReadError({ message: "Missing changed-entity index target" });
+          const datom = yield* Effect.try({
+            try: () => deserializeDatom(bytes),
+            catch: (cause) =>
+              new ReadError({ message: "Invalid changed-entity index target", cause }),
+          });
+          if (
+            datom.entityType !== "_Transaction" ||
+            datom.retractedAt !== null ||
+            datom.value.type !== "ref" ||
+            !datom.value.value.startsWith(prefix) ||
+            datom.recordedPosition <= after ||
+            datom.recordedPosition > snapshotPosition ||
+            selected.has(datom.entity)
+          )
+            return;
+          let low = 0,
+            high = candidates.length;
+          while (low < high) {
+            const middle = (low + high) >>> 1;
+            if (candidates[middle]!.position < datom.recordedPosition) low = middle + 1;
+            else high = middle;
+          }
+          if (low >= limit) return;
+          candidates.splice(low, 0, { txId: datom.entity, position: datom.recordedPosition });
+          selected.add(datom.entity);
+          if (candidates.length > limit) selected.delete(candidates.pop()!.txId);
+        }),
+      );
+      return candidates;
+    });
+  }
+
+  /** Never scan retracted history to decide a cheap precondition. */
+  livePreconditionFacts(
+    entity: string,
+    attribute: string | undefined,
+    limit: 1 | 2,
+  ): Effect.Effect<Datom[], ReadError> {
+    return Effect.gen({ self: this }, function* () {
+      const ready = yield* this.kv.get(LIVE_FACT_READY_KEY);
+      if (ready === null || ready[0] !== 1)
+        return yield* new ReadError({
+          message:
+            "KV live-fact index requires backfill; upgrade all writers, then run KvTriples.migrateLiveFacts until complete before using cheap preconditions",
+        });
+      const rows = yield* Stream.runCollect(
+        this.kv.getRange({ ...liveFactRange(entity, attribute), limit }),
+      );
+      const facts: Datom[] = [];
+      for (const [, value] of rows) {
+        const fact = yield* this.getById(textDecoder.decode(value));
+        if (
+          fact === null ||
+          fact.retractedAt !== null ||
+          fact.entity !== entity ||
+          (attribute !== undefined && fact.attribute !== attribute)
+        )
+          return yield* new ReadError({ message: "Inconsistent KV live-fact index" });
+        facts.push(fact);
+      }
+      return facts;
+    });
+  }
+
   /** Drop decoded datoms after an external/backend transaction commits. */
   clearCache(): void {
     this.datomCache.clear();
@@ -546,6 +645,8 @@ export class KvTripleStore {
       entries.push([vaetKey(valuePart, attrPart, entityPart, txPart, idPart), tripleIdValue]);
     }
 
+    if (datom.retractedAt === null)
+      entries.push([liveFactKey(datom.entity, datom.attribute, datom.tripleId), tripleIdValue]);
     entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
 
     // TYPE index for entityType queries
@@ -591,6 +692,8 @@ export class KvTripleStore {
         entries.push([vaetKey(valuePart, attrPart, entityPart, txPart, idPart), tripleIdValue]);
       }
 
+      if (datom.retractedAt === null)
+        entries.push([liveFactKey(datom.entity, datom.attribute, datom.tripleId), tripleIdValue]);
       entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
 
       if (datom.entityType !== null) {
@@ -610,10 +713,9 @@ export class KvTripleStore {
    * Values are still Uint8Array (META serialization).
    */
   private assertBatchStr(datoms: readonly Datom[]): Effect.Effect<void> {
-    // Pre-allocate: each datom produces ~5 entries (EAVT+AEVT+AVET+META+TYPE),
-    // +1 for VAET on ref values. 6 is a good estimate.
+    // Up to seven entries: EAVT, AEVT, AVET, META, LIVE, TYPE, and VAET.
     const entries: Array<readonly [string, Uint8Array]> = Array.from(
-      { length: datoms.length * 6 },
+      { length: datoms.length * 7 },
       (): readonly [string, Uint8Array] => ["", new Uint8Array(0)],
     );
     let idx = 0;
@@ -636,6 +738,8 @@ export class KvTripleStore {
         entries[idx++] = [vaetKeyStr(vStr, aStr, eStr, txStr, tripleIdStr), tripleIdValue];
       }
 
+      if (datom.retractedAt === null)
+        entries[idx++] = [liveFactKeyStr(eStr, aStr, tripleIdStr), tripleIdValue];
       entries[idx++] = [metaKeyStr(tripleIdStr), serializeDatom(datom)];
 
       if (datom.entityType !== null) {
@@ -681,6 +785,7 @@ export class KvTripleStore {
       };
 
       yield* this.kv.set(key, serializeDatom(updated));
+      yield* this.kv.delete(liveFactKey(datom.entity, datom.attribute, datom.tripleId));
       // Update cache
       this.datomCache.set(tripleId, updated);
       return true;
@@ -1016,3 +1121,69 @@ const valuesEqual = (a: TripleValue, b: TripleValue): boolean => {
 export const createKvTripleStore = (kv: KvBackendService): KvTripleStore => {
   return new KvTripleStore(kv);
 };
+
+/** Empty stores are ready immediately. Existing stores must explicitly backfill. */
+export const initializeKvLiveFacts = (kv: KvBackendService) =>
+  kv.transact((tx) =>
+    Effect.gen(function* () {
+      if (
+        (yield* tx.get(LIVE_FACT_READY_KEY)) !== null ||
+        (yield* tx.get(LIVE_FACT_CURSOR_KEY)) !== null
+      )
+        return;
+      const rows = yield* Stream.runCollect(
+        tx.getRange({ start: META_PREFIX, end: new Uint8Array([0x21]), limit: 1 }),
+      );
+      if (rows.length === 0) yield* tx.set(LIVE_FACT_READY_KEY, new Uint8Array([1]));
+    }),
+  );
+
+/** One resumable bounded backfill batch. Every writer must maintain the new index. */
+export const migrateKvLiveFacts = (kv: KvBackendService, batchSize = 500) =>
+  kv.transact((tx) =>
+    Effect.gen(function* () {
+      if (!Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > 1000)
+        return yield* new MigrationError({
+          version: 1,
+          name: "kv_live_facts",
+          message: "Live-fact migration batchSize must be 1..1000",
+        });
+      const ready = yield* tx.get(LIVE_FACT_READY_KEY);
+      if (ready?.[0] === 1) return { complete: true, processed: 0 };
+      if (ready !== null)
+        return yield* new MigrationError({
+          version: 1,
+          name: "kv_live_facts",
+          message: "Unsupported KV live-fact index version; refusing to overwrite it",
+        });
+      const cursor = yield* tx.get(LIVE_FACT_CURSOR_KEY);
+      const start = cursor === null ? META_PREFIX : concat(cursor, new Uint8Array([0]));
+      const rows = yield* Stream.runCollect(
+        tx.getRange({ start, end: new Uint8Array([0x21]), limit: batchSize + 1 }),
+      );
+      const batch = rows.slice(0, batchSize);
+      for (const [, bytes] of batch) {
+        const datom = yield* Effect.try({
+          try: () => deserializeDatom(bytes),
+          catch: (cause) =>
+            new MigrationError({
+              version: 1,
+              name: "kv_live_facts",
+              message: "Invalid source datom during live-fact backfill",
+              cause,
+            }),
+        });
+        if (datom.retractedAt === null)
+          yield* tx.set(
+            liveFactKey(datom.entity, datom.attribute, datom.tripleId),
+            textEncoder.encode(datom.tripleId),
+          );
+      }
+      const complete = rows.length <= batchSize;
+      if (complete) {
+        yield* tx.set(LIVE_FACT_READY_KEY, new Uint8Array([1]));
+        yield* tx.delete(LIVE_FACT_CURSOR_KEY);
+      } else yield* tx.set(LIVE_FACT_CURSOR_KEY, batch.at(-1)![0]);
+      return { complete, processed: batch.length };
+    }),
+  );

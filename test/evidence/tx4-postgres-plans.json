@@ -1,0 +1,572 @@
+{
+  "sourceRevision": "23e0c4489ba24d947dd11bb0764516ead3800de7",
+  "dirty": false,
+  "platform": "darwin",
+  "arch": "arm64",
+  "databaseVersion": [
+    {
+      "version": "PostgreSQL 17.8 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit"
+    }
+  ],
+  "node": "v24.13.0",
+  "measuredAt": "2026-11-10T17:51:51.110Z",
+  "evidence": [
+    {
+      "backend": "postgres",
+      "acknowledgedHistory": 10,
+      "appendMs": 1.5613750000002256,
+      "readMs": 2.285041000000092,
+      "ackMs": 1.7766670000000886,
+      "plans": [
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE id = $1",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "Seq Scan",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "triplex_operational_entries",
+                    "Alias": "triplex_operational_entries",
+                    "Startup Cost": 0,
+                    "Total Cost": 6.74,
+                    "Plan Rows": 1,
+                    "Plan Width": 275,
+                    "Actual Startup Time": 0.009,
+                    "Actual Total Time": 0.009,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Filter": "(id = 'sha256-6894639e530b18a105a4f69f721c365210ff9b1c97ec48a91d30df18656159d5'::text)",
+                    "Rows Removed by Filter": 138,
+                    "Shared Hit Blocks": 5,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 67,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 0.158,
+                  "Triggers": [],
+                  "Execution Time": 0.012
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = $1 AND acknowledged_position IS NULL ORDER BY recorded_position, id LIMIT $2",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.27,
+                    "Total Cost": 0.82,
+                    "Plan Rows": 2,
+                    "Plan Width": 275,
+                    "Actual Startup Time": 0.008,
+                    "Actual Total Time": 0.009,
+                    "Actual Rows": 2,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 4,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "idx_operational_pending_global",
+                        "Relation Name": "triplex_operational_entries",
+                        "Alias": "triplex_operational_entries",
+                        "Startup Cost": 0.27,
+                        "Total Cost": 35.78,
+                        "Plan Rows": 129,
+                        "Plan Width": 275,
+                        "Actual Startup Time": 0.008,
+                        "Actual Total Time": 0.008,
+                        "Actual Rows": 2,
+                        "Actual Loops": 1,
+                        "Index Cond": "(kind = 'outbox'::text)",
+                        "Rows Removed by Index Recheck": 0,
+                        "Shared Hit Blocks": 4,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 0,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 0.023,
+                  "Triggers": [],
+                  "Execution Time": 0.017
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = $1 AND acknowledged_position IS NULL AND scope_token = $2 AND (recorded_position, id) > ($3, $4) ORDER BY recorded_position, id LIMIT $5",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 7.79,
+                    "Total Cost": 7.79,
+                    "Plan Rows": 1,
+                    "Plan Width": 275,
+                    "Actual Startup Time": 0.02,
+                    "Actual Total Time": 0.02,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 5,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 7.79,
+                        "Total Cost": 7.79,
+                        "Plan Rows": 1,
+                        "Plan Width": 275,
+                        "Actual Startup Time": 0.02,
+                        "Actual Total Time": 0.02,
+                        "Actual Rows": 1,
+                        "Actual Loops": 1,
+                        "Sort Key": ["recorded_position", "id COLLATE \"C\""],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 5,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "triplex_operational_entries",
+                            "Alias": "triplex_operational_entries",
+                            "Startup Cost": 0,
+                            "Total Cost": 7.78,
+                            "Plan Rows": 1,
+                            "Plan Width": 275,
+                            "Actual Startup Time": 0.016,
+                            "Actual Total Time": 0.016,
+                            "Actual Rows": 1,
+                            "Actual Loops": 1,
+                            "Filter": "((acknowledged_position IS NULL) AND (kind = 'outbox'::text) AND (scope_token = 'sha256-c12863696f96a8d3bb967261e094b6b3b41ad946334ba00d53478d977706fffd'::text) AND (ROW(recorded_position, id) > ROW(3, 'sha256-4e2f819a26a3963ebb06b8154fa46c0c833da1327bb86749cb6dc83595a7580b'::text)))",
+                            "Rows Removed by Filter": 138,
+                            "Shared Hit Blocks": 5,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 0,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 0.029,
+                  "Triggers": [],
+                  "Execution Time": 0.046
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "statement": "UPDATE triplex_operational_entries SET acknowledged_position = $1, acknowledged_at = $2, acknowledged_tx_id = $3 WHERE id = $4 AND acknowledged_position IS NULL",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "ModifyTable",
+                    "Operation": "Update",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "triplex_operational_entries",
+                    "Alias": "triplex_operational_entries",
+                    "Startup Cost": 0,
+                    "Total Cost": 6.74,
+                    "Plan Rows": 0,
+                    "Plan Width": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "triplex_operational_entries",
+                        "Alias": "triplex_operational_entries",
+                        "Startup Cost": 0,
+                        "Total Cost": 6.74,
+                        "Plan Rows": 1,
+                        "Plan Width": 54,
+                        "Filter": "((acknowledged_position IS NULL) AND (id = 'sha256-6894639e530b18a105a4f69f721c365210ff9b1c97ec48a91d30df18656159d5'::text))"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend": "postgres",
+      "acknowledgedHistory": 10000,
+      "appendMs": 2.0376249999999345,
+      "readMs": 1.0652500000001055,
+      "ackMs": 1.936207999999624,
+      "plans": [
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE id = $1",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "Index Scan",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Scan Direction": "Forward",
+                    "Index Name": "triplex_operational_entries_pkey",
+                    "Relation Name": "triplex_operational_entries",
+                    "Alias": "triplex_operational_entries",
+                    "Startup Cost": 0.41,
+                    "Total Cost": 8.43,
+                    "Plan Rows": 1,
+                    "Plan Width": 291,
+                    "Actual Startup Time": 0.006,
+                    "Actual Total Time": 0.006,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Index Cond": "(id = 'sha256-f9987d1d50c17ff0eaac5a2fa148b0060b0301dd8e9cc8fd32c41bed45f4f38b'::text)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Shared Hit Blocks": 4,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 89,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 0.188,
+                  "Triggers": [],
+                  "Execution Time": 0.015
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = $1 AND acknowledged_position IS NULL ORDER BY recorded_position, id LIMIT $2",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.27,
+                    "Total Cost": 3.86,
+                    "Plan Rows": 2,
+                    "Plan Width": 291,
+                    "Actual Startup Time": 0.011,
+                    "Actual Total Time": 0.011,
+                    "Actual Rows": 2,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 5,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "idx_operational_pending_global",
+                        "Relation Name": "triplex_operational_entries",
+                        "Alias": "triplex_operational_entries",
+                        "Startup Cost": 0.27,
+                        "Total Cost": 231.59,
+                        "Plan Rows": 129,
+                        "Plan Width": 291,
+                        "Actual Startup Time": 0.011,
+                        "Actual Total Time": 0.011,
+                        "Actual Rows": 2,
+                        "Actual Loops": 1,
+                        "Index Cond": "(kind = 'outbox'::text)",
+                        "Rows Removed by Index Recheck": 0,
+                        "Shared Hit Blocks": 5,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 0,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 0.023,
+                  "Triggers": [],
+                  "Execution Time": 0.016
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "statement": "SELECT * FROM triplex_operational_entries WHERE kind = $1 AND acknowledged_position IS NULL AND scope_token = $2 AND (recorded_position, id) > ($3, $4) ORDER BY recorded_position, id LIMIT $5",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.27,
+                    "Total Cost": 8.29,
+                    "Plan Rows": 1,
+                    "Plan Width": 291,
+                    "Actual Startup Time": 0.01,
+                    "Actual Total Time": 0.01,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 3,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "idx_operational_pending_scope",
+                        "Relation Name": "triplex_operational_entries",
+                        "Alias": "triplex_operational_entries",
+                        "Startup Cost": 0.27,
+                        "Total Cost": 8.29,
+                        "Plan Rows": 1,
+                        "Plan Width": 291,
+                        "Actual Startup Time": 0.01,
+                        "Actual Total Time": 0.01,
+                        "Actual Rows": 1,
+                        "Actual Loops": 1,
+                        "Index Cond": "((kind = 'outbox'::text) AND (scope_token = 'sha256-c12863696f96a8d3bb967261e094b6b3b41ad946334ba00d53478d977706fffd'::text) AND (ROW(recorded_position, id) > ROW(6, 'sha256-4e2f819a26a3963ebb06b8154fa46c0c833da1327bb86749cb6dc83595a7580b'::text)))",
+                        "Rows Removed by Index Recheck": 0,
+                        "Shared Hit Blocks": 3,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 0,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 0.032,
+                  "Triggers": [],
+                  "Execution Time": 0.016
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "statement": "UPDATE triplex_operational_entries SET acknowledged_position = $1, acknowledged_at = $2, acknowledged_tx_id = $3 WHERE id = $4 AND acknowledged_position IS NULL",
+          "plan": [
+            {
+              "QUERY PLAN": [
+                {
+                  "Plan": {
+                    "Node Type": "ModifyTable",
+                    "Operation": "Update",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "triplex_operational_entries",
+                    "Alias": "triplex_operational_entries",
+                    "Startup Cost": 0.41,
+                    "Total Cost": 8.43,
+                    "Plan Rows": 0,
+                    "Plan Width": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "triplex_operational_entries_pkey",
+                        "Relation Name": "triplex_operational_entries",
+                        "Alias": "triplex_operational_entries",
+                        "Startup Cost": 0.41,
+                        "Total Cost": 8.43,
+                        "Plan Rows": 1,
+                        "Plan Width": 54,
+                        "Index Cond": "(id = 'sha256-f9987d1d50c17ff0eaac5a2fa148b0060b0301dd8e9cc8fd32c41bed45f4f38b'::text)",
+                        "Filter": "(acknowledged_position IS NULL)"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

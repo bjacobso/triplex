@@ -26,7 +26,7 @@ import {
   UnboundVariableError,
   EntityId,
 } from "@triplex-build/triplex";
-import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-build/triplex/operational";
 import * as Derivation from "@triplex-build/triplex/derivation";
 import { GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -80,6 +80,519 @@ export interface ConformanceCase {
  * The behavioral cases every `Triples` backend must pass.
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
+  {
+    name: "entity-prefix feeds are the ordered complete subsequence of the global journal",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const after = yield* t.currentPosition();
+      const prefixes = [
+        "conf:feed:",
+        "conf:feed:%_",
+        "conf:feed:'\\",
+        "conf:feed:é",
+        "conf:feed:😀",
+        "conf:feed:\u{10ffff}",
+        "CONF:FEED:",
+        "conf:other:",
+      ];
+      let retractId: import("@triplex-build/triplex").TripleId | undefined;
+      for (let i = 0; i < 28; i++) {
+        const first = eid(`${prefixes[i % prefixes.length]}${i}`);
+        const second = eid(`${prefixes[(i * 3 + 1) % prefixes.length]}second:${i}`);
+        const committed = yield* t.transact(
+          [
+            { op: "assert", entityId: first, attribute: ":conf/feed", value: string(`first:${i}`) },
+            { op: "assert", entityId: first, attribute: ":conf/extra", value: number(i) },
+            {
+              op: "assert",
+              entityId: second,
+              attribute: ":conf/feed",
+              value: string(`second:${i}`),
+            },
+          ],
+          {
+            actor: "feed:test",
+            commandId: `conf:feed:command:${i}`,
+            correlationId: "conf:feed:correlation",
+          },
+        );
+        if (i === 0) retractId = committed.triples[0]!.id;
+      }
+      yield* t.transact([{ op: "retract", id: retractId! }]);
+      yield* t.transact([]); // No touched entity, even for the explicit empty prefix.
+      const global = (yield* t.transactions({ after, limit: 1000 })).transactions;
+      for (const prefix of [
+        ...prefixes,
+        "conf:feed:\ud83d",
+        "conf:feed:\udbff",
+        "",
+        "missing:",
+        "\0",
+        "\udc00",
+      ]) {
+        const expected = global.filter((record) =>
+          record.changes.some((change) => change.entityId.startsWith(prefix)),
+        );
+        const found: (typeof global)[number][] = [];
+        let cursor = after;
+        for (let pageIndex = 0; pageIndex < 40; pageIndex++) {
+          const page = yield* t.transactions({
+            after: cursor,
+            limit: 1 + (pageIndex % 4),
+            entityIdPrefix: prefix,
+          });
+          if (page.transactions.length === 0) {
+            yield* check(
+              page.next === undefined,
+              "empty filtered pages must retain existing cursor semantics",
+            );
+            break;
+          }
+          yield* check(
+            page.next === page.transactions.at(-1)!.position && page.next > cursor,
+            "filtered cursors remain exclusive global positions and must advance",
+          );
+          found.push(...page.transactions);
+          cursor = page.next!;
+        }
+        yield* check(
+          JSON.stringify(found) === JSON.stringify(expected),
+          `prefix ${JSON.stringify(prefix)} must return complete authoritative records exactly once in global order`,
+        );
+      }
+      const invalid = yield* t
+        .transactions({ entityIdPrefix: 3 as unknown as string })
+        .pipe(Effect.result);
+      yield* check(
+        invalid._tag === "Failure" && invalid.failure._tag === "ReadError",
+        "non-string feed prefixes must fail as typed reads",
+      );
+    }),
+  },
+  {
+    name: "attribute-value and absence preconditions guard the live pre-state atomically",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const home = eid("conf:cheap:home");
+      yield* t.assert({ entityId: home, attribute: ":conf/version", value: number(1) });
+      const before = yield* t.currentPosition();
+      const wrong = yield* t
+        .transact(
+          [
+            {
+              op: "assert",
+              entityId: home,
+              attribute: ":conf/not-written",
+              value: string("rollback"),
+            },
+          ],
+          {
+            commandId: "conf:cheap:wrong",
+            preconditions: [
+              {
+                _tag: "AttributeValue",
+                entityId: home,
+                attribute: ":conf/version",
+                value: number(0),
+              },
+            ],
+          },
+        )
+        .pipe(Effect.result);
+      yield* check(
+        wrong._tag === "Failure" && wrong.failure._tag === "TransactionConflictError",
+        "an unexpected attribute value must reject the write as a typed conflict",
+      );
+      yield* check(
+        (yield* t.currentPosition()) === before &&
+          (yield* t.transactionByCommand("conf:cheap:wrong")) === null &&
+          (yield* t.match({ entityId: home, attribute: ":conf/not-written" })).length === 0,
+        "failed cheap guards roll back facts, receipt and position",
+      );
+      yield* t.assert({ entityId: home, attribute: ":conf/unrelated", value: string("other") });
+      yield* t.transact(
+        [{ op: "assert", entityId: home, attribute: ":conf/new", value: string("created") }],
+        {
+          preconditions: [
+            {
+              _tag: "AttributeValue",
+              entityId: home,
+              attribute: ":conf/version",
+              value: number(1),
+            },
+            { _tag: "AttributeAbsent", entityId: home, attribute: ":conf/new" },
+          ],
+        },
+      );
+      const present = yield* t
+        .transact([], {
+          preconditions: [{ _tag: "AttributeAbsent", entityId: home, attribute: ":conf/new" }],
+        })
+        .pipe(Effect.result);
+      yield* check(
+        present._tag === "Failure" && present.failure._tag === "TransactionConflictError",
+        "attribute absence must see a competing assertion",
+      );
+      const entityPresent = yield* t
+        .transact([], { preconditions: [{ _tag: "EntityAbsent", entityId: home }] })
+        .pipe(Effect.result);
+      yield* check(
+        entityPresent._tag === "Failure" &&
+          entityPresent.failure._tag === "TransactionConflictError",
+        "entity absence must consider every live attribute",
+      );
+      const absent = eid("conf:cheap:absent");
+      const contenders = yield* Effect.all(
+        [1, 2].map((n) =>
+          t
+            .transact(
+              [{ op: "assert", entityId: absent, attribute: ":conf/winner", value: number(n) }],
+              { preconditions: [{ _tag: "EntityAbsent", entityId: absent }] },
+            )
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        contenders.filter((r) => r._tag === "Success").length === 1 &&
+          contenders.filter(
+            (r) => r._tag === "Failure" && r.failure._tag === "TransactionConflictError",
+          ).length === 1,
+        "concurrent entity-absent creation permits exactly one winner",
+      );
+      const race = eid("conf:cheap:version-race");
+      const original = yield* t.assert({
+        entityId: race,
+        attribute: ":conf/version",
+        value: number(1),
+      });
+      const updates = yield* Effect.all(
+        [2, 3].map((n) =>
+          t
+            .transact(
+              [
+                { op: "retract", id: original.id },
+                { op: "assert", entityId: race, attribute: ":conf/version", value: number(n) },
+              ],
+              {
+                preconditions: [
+                  {
+                    _tag: "AttributeValue",
+                    entityId: race,
+                    attribute: ":conf/version",
+                    value: number(1),
+                  },
+                ],
+              },
+            )
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        updates.filter((r) => r._tag === "Success").length === 1 &&
+          updates.filter(
+            (r) => r._tag === "Failure" && r.failure._tag === "TransactionConflictError",
+          ).length === 1,
+        "concurrent attribute-value replacement must permit exactly one winner",
+      );
+      const insertions = yield* Effect.all(
+        [1, 2].map((n) =>
+          t
+            .transact(
+              [{ op: "assert", entityId: home, attribute: ":conf/once", value: number(n) }],
+              {
+                preconditions: [
+                  { _tag: "AttributeAbsent", entityId: home, attribute: ":conf/once" },
+                ],
+              },
+            )
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        insertions.filter((r) => r._tag === "Success").length === 1,
+        "attribute-absent insertion must permit exactly one winner",
+      );
+      yield* t.assert({ entityId: home, attribute: ":conf/json", value: json({ a: 1, b: 2 }) });
+      yield* t.transact([], {
+        preconditions: [
+          {
+            _tag: "AttributeValue",
+            entityId: home,
+            attribute: ":conf/json",
+            value: json({ b: 2, a: 1 }),
+          },
+        ],
+      });
+      const future = yield* t.assert({
+        entityId: home,
+        attribute: ":conf/future",
+        value: string("scheduled"),
+        validFrom: 9000000000000,
+      });
+      const scheduled = yield* t
+        .transact([], {
+          preconditions: [{ _tag: "AttributeAbsent", entityId: home, attribute: ":conf/future" }],
+        })
+        .pipe(Effect.result);
+      yield* check(scheduled._tag === "Failure", "absence includes unretracted future-valid facts");
+      yield* t.retract(future.id);
+      yield* t.transact([], {
+        preconditions: [{ _tag: "AttributeAbsent", entityId: home, attribute: ":conf/future" }],
+      });
+      yield* t.assert({ entityId: home, attribute: ":conf/version", value: number(2) });
+      const multi = yield* t
+        .transact([], {
+          preconditions: [
+            {
+              _tag: "AttributeValue",
+              entityId: home,
+              attribute: ":conf/version",
+              value: number(1),
+            },
+          ],
+        })
+        .pipe(Effect.result);
+      yield* check(
+        multi._tag === "Failure" && multi.failure._tag === "TransactionConflictError",
+        "attribute-value guards require exactly one unretracted fact",
+      );
+    }),
+  },
+  {
+    name: "inbox/outbox identities round-trip control characters and UTF-16 strings",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      for (const suffix of ["\0", "\ud800", "\ud801", "😀"]) {
+        const scope = eid(`conf:entries:unicode:${suffix}`);
+        const key = `key:${suffix}`;
+        yield* t.transact([Inbox.append({ scope, idempotencyKey: key, payload: { suffix } })]);
+        const page = yield* Inbox.pending(t, { scope });
+        yield* check(
+          page.entries.length === 1 &&
+            page.entries[0]!.scope === scope &&
+            page.entries[0]!.idempotencyKey === key &&
+            JSON.stringify(page.entries[0]!.payload) === JSON.stringify({ suffix }),
+          "scope, idempotency key and payload must round-trip without encoding aliases",
+        );
+        yield* t.transact([Inbox.acknowledge(Inbox.id(scope, key))]);
+      }
+    }),
+  },
+  {
+    name: "inbox/outbox concurrent keys, acknowledgement rollback, and cursor validation",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const scope = eid("conf:entries:races");
+      const append = Outbox.append({ scope, idempotencyKey: "same", payload: { intent: 1 } });
+      yield* Effect.all([t.transact([append]), t.transact([append])], { concurrency: 2 });
+      yield* check(
+        (yield* Outbox.pending(t, { scope })).entries.length === 1,
+        "concurrent identical submissions must create one entry",
+      );
+      const races = yield* Effect.all(
+        [1, 2].map((payload) =>
+          t
+            .transact([Outbox.append({ scope, idempotencyKey: "different", payload })])
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        races.filter((r) => r._tag === "Success").length === 1 &&
+          races.filter(
+            (r) => r._tag === "Failure" && r.failure._tag === "OperationalEntryConflictError",
+          ).length === 1,
+        "concurrent conflicting payloads must commit exactly one winner",
+      );
+      const id = Outbox.id(scope, "same");
+      const position = yield* t.currentPosition();
+      const failed = yield* t
+        .transact([Outbox.acknowledge(id), Outbox.acknowledge(Outbox.id(scope, "missing"))])
+        .pipe(Effect.flip);
+      yield* check(
+        failed._tag === "WriteError" &&
+          (yield* t.currentPosition()) === position &&
+          (yield* Outbox.get(t, id))!.acknowledgedPosition === undefined,
+        "a later failing operation must roll back acknowledgement and its pending indexes",
+      );
+      const page = yield* Outbox.pending(t, { scope, limit: 1 });
+      yield* t.transact([Outbox.acknowledge(page.entries[0]!.id)]);
+      const next = yield* Outbox.pending(t, { scope, cursor: page.nextCursor! });
+      yield* check(
+        next.entries.length === 1 && next.entries[0]!.id !== page.entries[0]!.id,
+        "acknowledging a cursor target must not skip its successor",
+      );
+      for (const request of [
+        { limit: 0 },
+        { limit: 1001 },
+        { limit: NaN },
+        { cursor: "invalid" },
+      ]) {
+        const error = yield* Outbox.pending(t, request).pipe(Effect.flip);
+        yield* check(
+          error._tag === "PaginationCursorError",
+          "invalid limits and cursors must fail as typed pagination errors",
+        );
+      }
+      const wrongDirection = yield* Inbox.pending(t, { scope, cursor: page.nextCursor! }).pipe(
+        Effect.flip,
+      );
+      yield* check(
+        wrongDirection._tag === "PaginationCursorError",
+        "cursor direction must be bound",
+      );
+      yield* t.transact([Outbox.append({ scope, idempotencyKey: "same", payload: { intent: 1 } })]);
+      yield* check(
+        (yield* Outbox.get(t, id))!.acknowledgedPosition !== undefined,
+        "duplicate append must not resurrect acknowledged work",
+      );
+      yield* t.transact([Outbox.acknowledge(next.entries[0]!.id)]);
+    }),
+  },
+  {
+    name: "inbox/outbox entries compose atomically, deduplicate, page, and retain acknowledged history",
+    run: Effect.gen(function* () {
+      const triples = yield* Triples;
+      const a = eid("conf:entries:a");
+      const b = eid("conf:entries:b");
+      const first = yield* triples.transact(
+        [
+          { op: "assert", entityId: a, attribute: ":conf/status", value: string("committed") },
+          Outbox.append({ scope: a, idempotencyKey: "one", payload: { b: [2, null], a: 1 } }),
+          Outbox.append({ scope: b, idempotencyKey: "one", payload: "other scope" }),
+          Inbox.append({ scope: a, idempotencyKey: "one", payload: "received" }),
+        ],
+        { commandId: "conf:entries:first" },
+      );
+      const id = Outbox.id(a, "one");
+      const stored = yield* Outbox.get(triples, id);
+      yield* check(
+        stored !== null && stored.recordedPosition === first.position && stored.txId === first.txId,
+        "entry and business facts must share the original transaction receipt",
+      );
+      // Reordered keys are the same canonical payload. Repetition preserves the
+      // original entry and its append metadata, even in another transaction.
+      yield* triples.transact([
+        Outbox.append({ scope: a, idempotencyKey: "one", payload: { a: 1, b: [2, null] } }),
+      ]);
+      yield* check(
+        JSON.stringify(yield* Outbox.get(triples, id)) === JSON.stringify(stored),
+        "an identical idempotency key/payload must be a no-op on the entry",
+      );
+      yield* triples.transact([
+        Outbox.append({ scope: a, idempotencyKey: "two", payload: { intent: "later" } }),
+      ]);
+      const p1 = yield* Outbox.pending(triples, { limit: 1 });
+      yield* check(
+        p1.entries.length === 1 && p1.nextCursor !== undefined,
+        "pending reads must be bounded with a continuation",
+      );
+      const p2 = yield* Outbox.pending(triples, { limit: 2, cursor: p1.nextCursor! });
+      const allIds = [...p1.entries, ...p2.entries].map((entry) => entry.id);
+      yield* check(
+        allIds.length === 3 && new Set(allIds).size === 3 && p2.nextCursor === undefined,
+        "global pending pages must return all scopes without duplicates, including entries at the same position",
+      );
+      const wrongScope = yield* Outbox.pending(triples, { scope: a, cursor: p1.nextCursor! }).pipe(
+        Effect.flip,
+      );
+      yield* check(
+        wrongScope._tag === "PaginationCursorError",
+        "entry cursors must bind their scope filter",
+      );
+      const pendingA = yield* Outbox.pending(triples, { scope: a });
+      yield* check(
+        pendingA.entries.length === 2 && pendingA.entries.every((entry) => entry.scope === a),
+        "entity-scoped pending reads must exclude other scopes",
+      );
+      // A fresh read after a simulated delivery crash returns exactly the stored
+      // unacknowledged entry; delivery itself never mutates it.
+      const redelivery = yield* Outbox.pending(triples, { scope: a });
+      yield* check(
+        JSON.stringify(redelivery) === JSON.stringify(pendingA),
+        "commit-before-ack crashes must redeliver unchanged entries",
+      );
+      const beforeConflict = yield* triples.currentPosition();
+      const conflict = yield* triples
+        .transact(
+          [
+            {
+              op: "assert",
+              entityId: a,
+              attribute: ":conf/must-rollback",
+              value: string("absent"),
+            },
+            Outbox.append({ scope: a, idempotencyKey: "rollback", payload: "must disappear" }),
+            Outbox.append({ scope: a, idempotencyKey: "one", payload: "different" }),
+          ],
+          { commandId: "conf:entries:conflict" },
+        )
+        .pipe(Effect.flip);
+      yield* check(
+        conflict._tag === "OperationalEntryConflictError",
+        "a reused key with different payload must be a distinct conflict",
+      );
+      yield* check(
+        (yield* triples.match({ entityId: a, attribute: ":conf/must-rollback" })).length === 0 &&
+          (yield* triples.currentPosition()) === beforeConflict &&
+          (yield* triples.transactionByCommand("conf:entries:conflict")) === null,
+        "an entry conflict must roll back facts, receipt and position",
+      );
+      yield* check(
+        (yield* Outbox.get(triples, Outbox.id(a, "rollback"))) === null,
+        "an entry conflict must roll back earlier appended entries and pending indexes",
+      );
+      const ack = yield* triples.transact([Outbox.acknowledge(id)]);
+      const history = yield* Outbox.get(triples, id);
+      yield* check(
+        history !== null &&
+          history.acknowledgedPosition === ack.position &&
+          history.acknowledgedTxId === ack.txId &&
+          history.recordedPosition === stored!.recordedPosition &&
+          JSON.stringify(history.payload) === JSON.stringify(stored!.payload),
+        "acknowledgement retains the original payload and append history",
+      );
+      yield* triples.transact([Outbox.acknowledge(id)]);
+      yield* check(
+        JSON.stringify(yield* Outbox.get(triples, id)) === JSON.stringify(history),
+        "repeated acknowledgements retain the first ack",
+      );
+      const remaining = yield* Outbox.pending(triples, { scope: a });
+      yield* check(
+        remaining.entries.length === 1 && remaining.entries[0]!.id === Outbox.id(a, "two"),
+        "acked entries must leave pending indexes",
+      );
+      yield* check(
+        (yield* Inbox.pending(triples, { scope: a })).entries.length === 1 &&
+          (yield* Outbox.get(triples, Inbox.id(a, "one"))) === null,
+        "inbox and outbox identities must remain independent",
+      );
+      const invalid = yield* triples
+        .transact([Outbox.append({ scope: a, idempotencyKey: "invalid", payload: NaN })])
+        .pipe(Effect.flip);
+      yield* check(
+        invalid._tag === "WriteError" &&
+          (yield* Outbox.get(triples, Outbox.id(a, "invalid"))) === null,
+        "non-canonical payloads must fail atomically",
+      );
+      const immediate = yield* triples.transact([
+        Outbox.append({ scope: a, idempotencyKey: "immediate", payload: "consumed" }),
+        Outbox.acknowledge(Outbox.id(a, "immediate")),
+      ]);
+      const consumed = (yield* Outbox.get(triples, Outbox.id(a, "immediate")))!;
+      yield* check(
+        consumed.recordedPosition === immediate.position &&
+          consumed.acknowledgedPosition === immediate.position &&
+          !(yield* Outbox.pending(triples, { scope: a })).entries.some(
+            (entry) => entry.id === consumed.id,
+          ),
+        "append and acknowledge may commit atomically without leaving pending work",
+      );
+    }),
+  },
   {
     name: "actor due-work ranges preserve numeric aliases, visibility, ordering, and limits",
     run: Effect.gen(function* () {
@@ -1793,7 +2306,7 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
         )
         .pipe(Effect.flip);
       yield* check(
-        conflict instanceof TransactionConflictError,
+        conflict instanceof TransactionConflictError && conflict.isRetryable === true,
         "a stale compare-and-retract should report TransactionConflictError",
       );
       const statuses = yield* t.match({
@@ -2679,6 +3192,102 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
         atActive.results.length === 1 && atActive.results[0]?.["?status"] === "active",
         "Datalog must apply the same valid-time interval",
       );
+    }),
+  },
+  {
+    name: "commit-position cuts replay a generated transaction history on every read surface",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      // Deterministic generated histories: failures reproduce by seed and cut.
+      // Assert, retract, replace, future-effective, and expired facts are mixed.
+      for (const seed of [1, 7, 19, 42, 2026, 65537]) {
+        let state = seed;
+        const random = (max: number) => {
+          state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+          return state % max;
+        };
+        const ids = [eid(`conf:position:${seed}:a`), eid(`conf:position:${seed}:b`)];
+        const live: Array<{ id: Parameters<typeof t.retract>[0]; entityId: (typeof ids)[number] }> =
+          [];
+        const query = {
+          find: ["?value"],
+          where: [[ids[0]!, ":conf/position-value", "?value"]],
+        } as const;
+        const joined = {
+          find: ["?left", "?right"],
+          where: [
+            [ids[0]!, ":conf/position-value", "?left"],
+            [ids[1]!, ":conf/position-value", "?right"],
+            ["not", [ids[0]!, ":conf/position-blocked", "?right"]],
+          ],
+        } as const;
+        const read = (recordedPosition?: number) =>
+          Effect.gen(function* () {
+            const basis = {
+              validAt: 50,
+              ...(recordedPosition === undefined ? {} : { recordedPosition }),
+            };
+            const entity = yield* t.entity(ids[0]!, basis);
+            const entities = yield* t.entities(ids, basis);
+            const matched = yield* t.match({ entityId: ids[0]! }, basis);
+            const all = yield* t.queryAll(query, { basis });
+            const bounded = yield* t.query(query, { basis });
+            const page = yield* t.queryPage({ inner: query, limit: 100 }, { basis });
+            const entityPage = yield* t.entityPage({ entityType: `Position${seed}`, basis });
+            const factIds = (facts: typeof entity) => facts.map((f) => JSON.stringify(f)).sort();
+            const rows = (results: typeof all.results) =>
+              results.map((row) => JSON.stringify(row)).sort();
+            return {
+              entity: factIds(entity),
+              entities: entities.map(factIds),
+              match: factIds(matched),
+              queryAll: rows(all.results),
+              query: rows(bounded.results),
+              page: rows(page.results),
+              joinAndNegation: rows((yield* t.queryAll(joined, { basis })).results),
+              entityPage: entityPage.entities.flatMap(factIds).sort(),
+            };
+          });
+        const cuts: Array<{ position: number; view: Effect.Success<ReturnType<typeof read>> }> = [];
+        // Capture position zero as well as every transaction's current state.
+        const empty = yield* read(0);
+        yield* check(
+          empty.entity.length === 0 && empty.queryAll.length === 0,
+          `seed ${seed}: cut zero must be empty`,
+        );
+        for (let step = 0; step < 12; step++) {
+          const target = ids[random(2)]!;
+          const previous = live.length === 0 ? undefined : live[random(live.length)];
+          const mode = random(3);
+          const operations: Parameters<typeof t.transact>[0][number][] = [];
+          if (previous && mode !== 0) {
+            operations.push({ op: "retract", id: previous.id });
+            live.splice(live.indexOf(previous), 1);
+          }
+          if (!previous || mode !== 1) {
+            const validFrom = random(3) === 0 ? 80 : 0;
+            operations.push({
+              op: "assert",
+              entityId: target,
+              entityType: `Position${seed}`,
+              attribute: ":conf/position-value",
+              value: string(`${seed}:${step}`),
+              validFrom,
+              ...(random(4) === 0 ? { validTo: validFrom + 40 } : {}),
+            });
+          }
+          const result = yield* t.transact(operations);
+          for (const fact of result.triples) live.push({ id: fact.id, entityId: fact.entityId });
+          cuts.push({ position: result.position, view: yield* read() });
+        }
+        for (const cut of cuts) {
+          const replayed = yield* read(cut.position);
+          yield* check(
+            JSON.stringify(replayed) === JSON.stringify(cut.view),
+            `seed ${seed}: position ${cut.position} must replay the captured fact/value cut on every read surface`,
+          );
+        }
+      }
     }),
   },
   {

@@ -41,9 +41,9 @@
   "scripts": {
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "dev": "tsdown --watch",
-    "test": "vitest --run --exclude test/integration/**",
-    "test:integration": "vitest --run test/integration/postgresql.test.ts",
-    "typecheck": "tsc --noEmit",
+    "test": "vitest --run --exclude 'test/integration/**'",
+    "test:integration": "vitest --run test/integration",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.protocol-tests.json",
     "clean": "rm -rf dist"
   },
   "dependencies": {

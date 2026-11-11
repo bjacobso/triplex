@@ -1,0 +1,91 @@
+{
+  "sourceRevision": "6673197330a83a30e75ca8eec0a62446fd2db52c",
+  "dirty": false,
+  "node": "v24.13.0",
+  "databaseVersion": [
+    {
+      "version": "3.50.4"
+    }
+  ],
+  "measuredAt": "2026-11-10T18:17:33.894Z",
+  "evidence": [
+    {
+      "backend": "sqlite",
+      "history": 10,
+      "statement": "SELECT * FROM triples WHERE entity_id = ?1 AND retracted_at IS NULL AND attribute = ?2 LIMIT ?3",
+      "plan": [
+        {
+          "id": 6,
+          "parent": 0,
+          "notused": 39,
+          "detail": "SEARCH triples USING INDEX idx_entity_attr (entity_id=? AND attribute=?)"
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "history": 10,
+      "statement": "SELECT * FROM triples WHERE entity_id = ?1 AND retracted_at IS NULL AND attribute = ?2 LIMIT ?3",
+      "plan": [
+        {
+          "id": 6,
+          "parent": 0,
+          "notused": 39,
+          "detail": "SEARCH triples USING INDEX idx_entity_attr (entity_id=? AND attribute=?)"
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "history": 10,
+      "statement": "SELECT * FROM triples WHERE entity_id = ?1 AND retracted_at IS NULL LIMIT ?2",
+      "plan": [
+        {
+          "id": 6,
+          "parent": 0,
+          "notused": 39,
+          "detail": "SEARCH triples USING INDEX idx_entity_recorded_position (entity_id=?)"
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "history": 10000,
+      "statement": "SELECT * FROM triples WHERE entity_id = ?1 AND retracted_at IS NULL AND attribute = ?2 LIMIT ?3",
+      "plan": [
+        {
+          "id": 6,
+          "parent": 0,
+          "notused": 42,
+          "detail": "SEARCH triples USING INDEX idx_entity_attr (entity_id=? AND attribute=?)"
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "history": 10000,
+      "statement": "SELECT * FROM triples WHERE entity_id = ?1 AND retracted_at IS NULL AND attribute = ?2 LIMIT ?3",
+      "plan": [
+        {
+          "id": 6,
+          "parent": 0,
+          "notused": 42,
+          "detail": "SEARCH triples USING INDEX idx_entity_attr (entity_id=? AND attribute=?)"
+        }
+      ]
+    },
+    {
+      "backend": "sqlite",
+      "history": 10000,
+      "statement": "SELECT * FROM triples WHERE entity_id = ?1 AND retracted_at IS NULL LIMIT ?2",
+      "plan": [
+        {
+          "id": 6,
+          "parent": 0,
+          "notused": 61,
+          "detail": "SEARCH triples USING INDEX idx_entity (entity_id=?)"
+        }
+      ]
+    }
+  ]
+}

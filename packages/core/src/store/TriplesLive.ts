@@ -10,6 +10,7 @@
  * The same service owns storage mutations and query execution.
  */
 
+import { checkCheapPreconditions } from "./cheapPreconditions.js";
 import { Effect, Layer, Option } from "effect";
 import {
   Triples,
@@ -32,7 +33,6 @@ import type {
 } from "../Triple.js";
 import { queryToPattern } from "../Triple.js";
 import { decodeSealedEnvelope } from "../Value.js";
-import type { Pattern } from "../types/Pattern.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
 import {
@@ -45,6 +45,7 @@ import {
   TransactionConflictError,
   ConstraintViolationError,
   PaginationCursorError,
+  OperationalEntryConflictError,
 } from "../errors/index.js";
 import { unsafe } from "../Branded.js";
 import * as Constraint from "../Constraint.js";
@@ -70,6 +71,14 @@ import { TxAttributes } from "../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
+import { tripleAtRecordedPosition } from "./temporalView.js";
+import {
+  applyEntryOperation,
+  decodeEntry,
+  preparePendingEntries,
+  finishPendingEntries,
+} from "../operational/entryStorage.js";
+import { isContentId } from "../content/ContentId.js";
 
 // =============================================================================
 // Row to Triple Conversion
@@ -154,7 +163,7 @@ export const TriplesLive = Layer.effect(
     // Write Operations
     // =========================================================================
 
-    const assert_ = (input: TripleInput): Effect.Effect<Triple, WriteError> =>
+    const assert_: TriplesService["assert"] = (input) =>
       transact([
         {
           op: "assert",
@@ -169,15 +178,13 @@ export const TriplesLive = Layer.effect(
       ]).pipe(
         Effect.map((result) => result.triples[0]!),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple", cause }),
         ),
       );
 
-    const assertBatch = (
-      inputs: readonly TripleInput[],
-    ): Effect.Effect<readonly Triple[], WriteError> => {
+    const assertBatch: TriplesService["assertBatch"] = (inputs) => {
       if (inputs.length === 0) return Effect.succeed([]);
 
       return transact(
@@ -194,7 +201,7 @@ export const TriplesLive = Layer.effect(
       ).pipe(
         Effect.map((result) => result.triples),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to assert triple batch", cause }),
         ),
@@ -259,6 +266,7 @@ export const TriplesLive = Layer.effect(
       | TransactionConflictError
       | CommandAlreadyCommittedError
       | ConstraintViolationError
+      | OperationalEntryConflictError
     > =>
       adapter.withTransaction(
         Effect.gen(function* () {
@@ -302,6 +310,12 @@ export const TriplesLive = Layer.effect(
           const position = yield* adapter.nextCommitPosition();
           const actor = meta?.actor;
           const preconditionIds = livePreconditionIds(meta);
+
+          yield* checkCheapPreconditions(meta, (entityId, attribute, limit) =>
+            adapter
+              .livePreconditionFacts(entityId, attribute, limit)
+              .pipe(Effect.map((rows) => rows.map((row) => rowToTriple(row).value))),
+          );
 
           for (const condition of entityStatePreconditions(meta)) {
             const actual = (yield* adapter.getByEntity(condition.entityId))
@@ -394,6 +408,11 @@ export const TriplesLive = Layer.effect(
             }
 
             switch (op.op) {
+              case "append-entry":
+              case "acknowledge-entry": {
+                yield* applyEntryOperation(op, adapter, { txId, position, instant: timestamp });
+                break;
+              }
               case "retract": {
                 const current = yield* adapter.getById(op.id as string);
                 if (current && !isSystemWriteAuthorized(meta)) {
@@ -474,7 +493,7 @@ export const TriplesLive = Layer.effect(
         }),
       );
 
-    const retract = (id: TripleId): Effect.Effect<void, WriteError> =>
+    const retract: TriplesService["retract"] = (id) =>
       transact([{ op: "retract", id }]).pipe(
         Effect.flatMap((result) =>
           result.retracted === 1
@@ -484,13 +503,13 @@ export const TriplesLive = Layer.effect(
               ),
         ),
         Effect.mapError((cause) =>
-          cause instanceof WriteError
+          cause instanceof WriteError || cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: `Failed to retract triple: ${id}`, cause }),
         ),
       );
 
-    const retractByPattern = (pattern: Pattern): Effect.Effect<number, WriteError | ReadError> =>
+    const retractByPattern: TriplesService["retractByPattern"] = (pattern) =>
       transact([
         {
           op: "retract-pattern",
@@ -504,7 +523,9 @@ export const TriplesLive = Layer.effect(
       ]).pipe(
         Effect.map((result) => result.retracted),
         Effect.mapError((cause) =>
-          cause instanceof WriteError || cause instanceof ReadError
+          cause instanceof WriteError ||
+          cause instanceof ReadError ||
+          cause instanceof TransactionConflictError
             ? cause
             : new WriteError({ message: "Failed to retract by pattern", cause }),
         ),
@@ -524,14 +545,20 @@ export const TriplesLive = Layer.effect(
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
         const rows = yield* adapter.getByEntity(entityId, resolved);
-        return rows.map(rowToTriple);
+        return rows.map((row) =>
+          tripleAtRecordedPosition(rowToTriple(row), basis?.recordedPosition),
+        );
       });
 
     const entities: TriplesService["entities"] = (entityIds, basis) =>
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
         const rows = yield* adapter.getByEntities(entityIds, resolved);
-        return entityIds.map((id) => (rows.get(id) ?? []).map(rowToTriple));
+        return entityIds.map((id) =>
+          (rows.get(id) ?? []).map((row) =>
+            tripleAtRecordedPosition(rowToTriple(row), basis?.recordedPosition),
+          ),
+        );
       });
 
     const entityPage: TriplesService["entityPage"] = (request) =>
@@ -562,7 +589,16 @@ export const TriplesLive = Layer.effect(
         const selected = ids.slice(0, prepared.limit);
         const rows = yield* adapter.getByEntities(selected, prepared.basis);
         return {
-          entities: selected.map((id) => (rows.get(id) ?? []).map(rowToTriple)),
+          entities: selected.map((id) =>
+            (rows.get(id) ?? []).map((row) =>
+              tripleAtRecordedPosition(
+                rowToTriple(row),
+                prepared.basis.recordedAt === undefined
+                  ? prepared.basis.recordedPosition
+                  : undefined,
+              ),
+            ),
+          ),
           snapshot: prepared.basis,
           ...(ids.length > prepared.limit
             ? { nextCursor: encodeEntityPageCursor(prepared, selected.at(-1)!) }
@@ -574,7 +610,9 @@ export const TriplesLive = Layer.effect(
       Effect.gen(function* () {
         const resolved = resolveTemporalBasis(basis, yield* now);
         const rows = yield* adapter.query(pattern, resolved);
-        return rows.map(rowToTriple);
+        return rows.map((row) =>
+          tripleAtRecordedPosition(rowToTriple(row), basis?.recordedPosition),
+        );
       });
 
     const history = (entityId: EntityId): Effect.Effect<readonly Triple[], ReadError> =>
@@ -600,6 +638,7 @@ export const TriplesLive = Layer.effect(
         );
 
     const transactions: TriplesService["transactions"] = (request = {}) => {
+      const prefix = request.entityIdPrefix;
       const after = request.after ?? 0;
       const limit = request.limit ?? 100;
       if (!Number.isSafeInteger(after) || after < 0) {
@@ -611,6 +650,34 @@ export const TriplesLive = Layer.effect(
         return Effect.fail(
           new ReadError({ message: "Transaction page limit must be between 1 and 1000" }),
         );
+      }
+      if (prefix !== undefined) {
+        if (typeof prefix !== "string")
+          return Effect.fail(
+            new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+          );
+        return Effect.gen(function* () {
+          const candidates = yield* adapter.transactionIdsForEntityPrefix(prefix, after, limit);
+          const grouped = yield* adapter.getByEntities(
+            candidates.map((candidate) => candidate.txId),
+          );
+          const page = [];
+          for (const candidate of candidates) {
+            const record = transactionRecordFromTriples(
+              unsafe.transactionId(candidate.txId),
+              (grouped.get(candidate.txId) ?? [])
+                .filter((row) => row.entity_type === "_Transaction")
+                .map(rowToTriple),
+            );
+            if (record === null || record.position !== candidate.position)
+              return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
+            page.push(record);
+          }
+          return {
+            transactions: page,
+            ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
+          };
+        });
       }
       return adapter.query({ entityType: "_Transaction" }).pipe(
         Effect.map((rows) => {
@@ -701,6 +768,27 @@ export const TriplesLive = Layer.effect(
       );
 
     return {
+      operationalEntry: (id) =>
+        Effect.gen(function* () {
+          if (!isContentId(id))
+            return yield* new ReadError({ message: "Invalid operational entry ID" });
+          const record = yield* adapter.getOperationalEntry(id);
+          return record === null ? null : yield* decodeEntry(record);
+        }),
+      pendingOperationalEntries: (kind, request = {}) =>
+        Effect.gen(function* () {
+          const prepared = yield* Effect.try({
+            try: () => preparePendingEntries(kind, request, runtime.scope),
+            catch: (cause) =>
+              cause instanceof PaginationCursorError
+                ? cause
+                : new ReadError({ message: "Invalid operational pending request", cause }),
+          });
+          return yield* finishPendingEntries(
+            prepared,
+            yield* adapter.pendingOperationalEntries(prepared.scan),
+          );
+        }),
       assert: assert_,
       assertBatch,
       retract,

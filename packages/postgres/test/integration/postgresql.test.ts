@@ -12,8 +12,12 @@
  */
 
 import { numericIndexPlan } from "../../../../test/fixtures/numeric-index.js";
+import { operationalEntryIndexPlan } from "../../../../test/fixtures/operational-entry-index.js";
+import { livePreconditionIndexPlan } from "../../../../test/fixtures/live-precondition-index.js";
+import { transactionPrefixIndexPlan } from "../../../../test/fixtures/transaction-prefix-index.js";
+import { positionIndexPlan } from "../../../../test/fixtures/position-index.js";
 import { describe, it, expect } from "vitest";
-import { Context, Effect, Layer, Redacted } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer, Redacted, Result } from "effect";
 import { SqlClient } from "effect/sql";
 import {
   DatabaseId,
@@ -25,6 +29,7 @@ import {
   number,
   ref,
 } from "@triplex-build/triplex";
+import { Outbox } from "@triplex-build/triplex/operational";
 import { compile } from "@triplex-build/triplex/datalog";
 import { ConfigNode, ConfigStore, GraphConstraint } from "@triplex-build/triplex/config";
 import {
@@ -64,6 +69,7 @@ import {
 
 // Skip all container-based tests if Docker is not available
 const DOCKER_AVAILABLE = checkDockerAvailable();
+const EXPECTED_SCHEMA_VERSION = Math.max(...migrations.map(({ version }) => version));
 
 const configFromUrl = (url: string): PostgresqlConfig => {
   const parsed = new URL(url);
@@ -105,6 +111,298 @@ const prepareHostTables = Effect.gen(function* () {
 
 describe("PostgreSQL Integration", () => {
   it.skipIf(!DOCKER_AVAILABLE)(
+    "a final-statement counter still conflicts with an older disjoint-writer snapshot",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          // Separate host tables avoid incidental SSI conflicts from a shared
+          // heap/index page. Only the synthetic counter is a shared mutable row.
+          yield* sql`CREATE TABLE late_home_a (version INTEGER NOT NULL)`;
+          yield* sql`CREATE TABLE late_home_b (version INTEGER NOT NULL)`;
+          yield* sql`CREATE TABLE late_counter (singleton INTEGER PRIMARY KEY, position BIGINT NOT NULL)`;
+          yield* sql`INSERT INTO late_home_a VALUES (0)`;
+          yield* sql`INSERT INTO late_home_b VALUES (0)`;
+          yield* sql`INSERT INTO late_counter VALUES (1, 0)`;
+          for (const isolation of ["REPEATABLE READ", "SERIALIZABLE"] as const) {
+            yield* sql`UPDATE late_home_a SET version = 0`;
+            yield* sql`UPDATE late_home_b SET version = 0`;
+            yield* sql`UPDATE late_counter SET position = 0`;
+            yield* Effect.scoped(
+              Effect.gen(function* () {
+                const ready = yield* Deferred.make<void>();
+                const release = yield* Deferred.make<void>();
+                let stage = "host-write";
+                const second = yield* PgTriples.withTransaction(
+                  Effect.gen(function* () {
+                    yield* sql.unsafe(`SET TRANSACTION ISOLATION LEVEL ${isolation}`);
+                    yield* sql`SELECT version FROM late_home_b`;
+                    yield* sql`UPDATE late_home_b SET version = 1`;
+                    yield* Deferred.succeed(ready, undefined);
+                    yield* Deferred.await(release);
+                    stage = "final-counter";
+                    yield* sql`INSERT INTO late_counter VALUES (1, 1) ON CONFLICT(singleton)
+                DO UPDATE SET position = late_counter.position + 1`;
+                  }),
+                ).pipe(Effect.result, Effect.forkScoped);
+                yield* Deferred.await(ready);
+                yield* PgTriples.withTransaction(
+                  Effect.gen(function* () {
+                    yield* sql.unsafe(`SET TRANSACTION ISOLATION LEVEL ${isolation}`);
+                    yield* sql`SELECT version FROM late_home_a`;
+                    yield* sql`UPDATE late_home_a SET version = 1`;
+                    // The counter is the final SQL statement, with no deliberate hold.
+                    yield* sql`INSERT INTO late_counter VALUES (1, 1) ON CONFLICT(singleton)
+                DO UPDATE SET position = late_counter.position + 1`;
+                  }),
+                );
+                yield* Deferred.succeed(release, undefined);
+                const outcome = yield* Fiber.join(second);
+                expect(Result.isFailure(outcome)).toBe(true);
+                if (Result.isFailure(outcome))
+                  expect(outcome.failure).toMatchObject({
+                    _tag: "TransactionConflictError",
+                    reason: "serialization",
+                    isRetryable: true,
+                  });
+                expect(stage).toBe("final-counter");
+                expect(yield* sql`SELECT version FROM late_home_a`).toEqual([{ version: 1 }]);
+                expect(yield* sql`SELECT version FROM late_home_b`).toEqual([{ version: 0 }]);
+                expect(
+                  Number(
+                    (yield* sql<{ position: string }>`SELECT position FROM late_counter`)[0]!
+                      .position,
+                  ),
+                ).toBe(1);
+              }),
+            ).pipe(Effect.timeout("10 seconds"));
+          }
+          yield* sql`DROP TABLE late_home_a, late_home_b, late_counter`;
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "types outer-commit conflicts after the nested Triplex call returns",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const triples = yield* Triples;
+          yield* prepareHostTables;
+          yield* sql.unsafe(`CREATE FUNCTION reject_outer_commit() RETURNS trigger AS $$
+        BEGIN RAISE EXCEPTION 'planted commit conflict' USING ERRCODE = '40001'; END;
+        $$ LANGUAGE plpgsql`);
+          yield* sql.unsafe(`CREATE CONSTRAINT TRIGGER reject_outer_commit AFTER INSERT ON host_records
+        DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_outer_commit()`);
+          let nestedReturned = false;
+          const error = yield* PgTriples.withTransaction(
+            Effect.gen(function* () {
+              yield* triples.transact(
+                [
+                  {
+                    op: "assert",
+                    entityId: EntityId.make("conflict:outer"),
+                    attribute: ":name",
+                    value: string("rolled back"),
+                  },
+                ],
+                { commandId: "conflict:outer" },
+              );
+              nestedReturned = true;
+              yield* sql`INSERT INTO host_records VALUES ('outer', 'rolled back')`;
+            }),
+          ).pipe(Effect.flip);
+          expect(nestedReturned).toBe(true);
+          expect(error).toMatchObject({
+            _tag: "TransactionConflictError",
+            reason: "serialization",
+            isRetryable: true,
+          });
+          expect(yield* triples.entity(EntityId.make("conflict:outer"))).toEqual([]);
+          expect(yield* triples.currentPosition()).toBe(0);
+          expect(yield* triples.transactionByCommand("conflict:outer")).toBeNull();
+          expect(yield* sql`SELECT * FROM host_records`).toEqual([]);
+          yield* sql`DROP TRIGGER reject_outer_commit ON host_records`;
+          yield* sql`DROP FUNCTION reject_outer_commit()`;
+
+          const syntax = yield* PgTriples.withTransaction(sql.unsafe("SELECT FROM")).pipe(
+            Effect.flip,
+          );
+          expect(syntax).toMatchObject({ _tag: "SqlError", reason: { _tag: "SqlSyntaxError" } });
+          const domain = new Error("host domain failure");
+          expect(yield* PgTriples.withTransaction(Effect.fail(domain)).pipe(Effect.flip)).toBe(
+            domain,
+          );
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "surfaces SQL transaction conflicts without partial writes",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const triples = yield* Triples;
+          for (const [code, reason] of [
+            ["40001", "serialization"],
+            ["40P01", "deadlock"],
+          ] as const) {
+            // Exercise the driver's real structured SQL error, not a mocked SqlClient.
+            yield* sql.unsafe(`CREATE OR REPLACE FUNCTION reject_position() RETURNS trigger AS $$
+          BEGIN RAISE EXCEPTION 'planted transaction conflict' USING ERRCODE = '${code}'; END;
+          $$ LANGUAGE plpgsql`);
+            yield* sql`CREATE TRIGGER reject_position BEFORE INSERT OR UPDATE ON triplex_commit_position FOR EACH ROW EXECUTE FUNCTION reject_position()`;
+            const error = yield* triples
+              .transact(
+                [
+                  {
+                    op: "assert",
+                    entityId: EntityId.make("conflict:failed"),
+                    attribute: ":name",
+                    value: string("must roll back"),
+                  },
+                ],
+                { commandId: `conflict:${code}` },
+              )
+              .pipe(Effect.flip);
+            expect(error).toMatchObject({
+              _tag: "TransactionConflictError",
+              reason,
+              isRetryable: true,
+            });
+            expect(yield* triples.entity(EntityId.make("conflict:failed"))).toEqual([]);
+            expect(yield* triples.transactionByCommand(`conflict:${code}`)).toBeNull();
+            expect(yield* triples.currentPosition()).toBe(0);
+            const input = {
+              entityId: EntityId.make("conflict:convenience"),
+              attribute: ":name",
+              value: string("rolled back"),
+            };
+            for (const write of [
+              triples.assert(input),
+              triples.assertBatch([input]),
+              triples.retract(unsafe.tripleId("00000000000000000000000000")),
+              triples.retractByPattern({ entityId: input.entityId }),
+            ]) {
+              const failure = yield* write.pipe(Effect.flip);
+              expect(failure).toMatchObject({
+                _tag: "TransactionConflictError",
+                reason,
+                isRetryable: true,
+              });
+            }
+            yield* Effect.gen(function* () {
+              const decorated = yield* Triples;
+              const failure = yield* decorated.assert(input).pipe(Effect.flip);
+              expect(failure).toMatchObject({
+                _tag: "TransactionConflictError",
+                reason,
+                isRetryable: true,
+              });
+            }).pipe(Effect.provide(sensitiveConformanceLayer(Layer.succeed(Triples, triples))));
+            yield* sql`DROP TRIGGER reject_position ON triplex_commit_position`;
+          }
+          yield* sql`DROP FUNCTION reject_position()`;
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "commits and rolls back inbox/outbox with the caller's outer SQL transaction",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const t = yield* Triples;
+          const scope = EntityId.make("entry:ambient");
+          yield* sql`CREATE TABLE entry_host_receipts (id TEXT PRIMARY KEY)`;
+          const before = yield* t.currentPosition();
+          const marker = new Error("host abort after nested Triplex success");
+          const aborted = yield* sql
+            .withTransaction(
+              Effect.gen(function* () {
+                yield* sql`INSERT INTO entry_host_receipts VALUES ('aborted')`;
+                yield* t.transact(
+                  [
+                    {
+                      op: "assert",
+                      entityId: scope,
+                      attribute: ":entry/state",
+                      value: string("aborted"),
+                    },
+                    Outbox.append({
+                      scope,
+                      idempotencyKey: "aborted",
+                      payload: { receipt: "aborted" },
+                    }),
+                  ],
+                  { commandId: "entry:ambient:aborted" },
+                );
+                return yield* Effect.fail(marker);
+              }),
+            )
+            .pipe(Effect.result);
+          expect(Result.isFailure(aborted) && aborted.failure).toBe(marker);
+          expect(yield* Outbox.get(t, Outbox.id(scope, "aborted"))).toBeNull();
+          expect(yield* t.currentPosition()).toBe(before);
+          expect(yield* t.transactionByCommand("entry:ambient:aborted")).toBeNull();
+          expect(yield* t.entity(scope)).toHaveLength(0);
+          expect(yield* sql`SELECT * FROM entry_host_receipts`).toHaveLength(0);
+          const committed = yield* sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`INSERT INTO entry_host_receipts VALUES ('committed')`;
+              return yield* t.transact([
+                Outbox.append({
+                  scope,
+                  idempotencyKey: "committed",
+                  payload: { receipt: "committed" },
+                }),
+              ]);
+            }),
+          );
+          expect((yield* Outbox.get(t, Outbox.id(scope, "committed")))!.recordedPosition).toBe(
+            committed.position,
+          );
+          expect(yield* sql`SELECT * FROM entry_host_receipts`).toHaveLength(1);
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "indexes entity-prefix transaction candidates with 10 and 10000 unrelated commands",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(transactionPrefixIndexPlan("postgres"));
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "bounds cheap guards with 10 and 10000 historical and unrelated facts",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(livePreconditionIndexPlan("postgres"));
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "keeps inbox/outbox operations indexed with 10 and 10000 acknowledged entries",
+    { timeout: 120000 },
+    async () => {
+      await runWithHostSql(operationalEntryIndexPlan("postgres"));
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "uses an entity-position index for a selective historical cut",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(positionIndexPlan("postgres"));
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
     "rejects absent and newer migration histories and preserves unrelated SQL errors",
     { timeout: 120_000 },
     async () => {
@@ -126,7 +424,7 @@ describe("PostgreSQL Integration", () => {
                       yield* sql.unsafe(`SET LOCAL search_path TO ${schema}, public, pg_catalog`);
                       if (mode === "newer") {
                         yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER)`;
-                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (4)`;
+                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (${EXPECTED_SCHEMA_VERSION + 1})`;
                       } else if (mode === "malformed") {
                         yield* sql`CREATE TABLE triplex_schema_migrations (wrong_column INTEGER)`;
                       }
@@ -142,8 +440,8 @@ describe("PostgreSQL Integration", () => {
                       }
                       expect(error).toMatchObject({
                         _tag: "SchemaVersionError",
-                        expectedVersion: 3,
-                        actualVersion: mode === "missing" ? 0 : 4,
+                        expectedVersion: EXPECTED_SCHEMA_VERSION,
+                        actualVersion: mode === "missing" ? 0 : EXPECTED_SCHEMA_VERSION + 1,
                       });
                       yield* sql.unsafe(`DROP SCHEMA ${schema} CASCADE`);
                     }),
@@ -272,7 +570,7 @@ describe("PostgreSQL Integration", () => {
                   expect(applicationRan).toBe(false);
                   expect(error).toMatchObject({
                     _tag: "SchemaVersionError",
-                    expectedVersion: 3,
+                    expectedVersion: EXPECTED_SCHEMA_VERSION,
                     actualVersion: 2,
                   });
                   expect(String(error)).toContain("runMigrations");
@@ -314,7 +612,7 @@ describe("PostgreSQL Integration", () => {
               yield* runMigrations;
               expect(
                 yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`,
-              ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+              ).toEqual(migrations.map(({ version }) => ({ version })));
               expect(yield* sql`SELECT value_number FROM triples`).toEqual([{ value_number: 42 }]);
               // v3 admits sealed values with an envelope and a blind-index token.
               yield* sql`INSERT INTO triples (id, entity_id, attribute, value_type, value_sealed, value_blind, recorded_at, recorded_position, valid_from) VALUES ('sealed', 'old', ':secret', 'sealed', '{}', 'token', 2, 2, 2)`;

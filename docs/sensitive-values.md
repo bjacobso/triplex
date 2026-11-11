@@ -366,6 +366,8 @@ positive control that finds a non-sensitive plaintext value.
   files after close.
 - PostgreSQL: every row of every table in the database schema, plus index definitions.
 - In-memory KV: every key and value.
+- FoundationDB: every application key and value in an isolated native test subspace;
+  this does not scan server storage files or unrelated subspaces.
 - Cloudflare Durable Object SQLite: every row of every table.
 
 ## Erasure (crypto-shredding)
@@ -418,16 +420,23 @@ Design, partially built:
 
 ## Backends
 
-| Backend      | Storage                  | Query rules | Conformance                                                                       |
-| ------------ | ------------------------ | ----------- | --------------------------------------------------------------------------------- |
-| In-memory KV | Yes                      | Yes         | Sealed-storage and decorator corpora, full corpus through the decorator, raw scan |
-| SQLite       | Yes (migration v3)       | Yes         | Same, plus file scan and the v1 to v3 upgrade                                     |
-| PostgreSQL   | Yes (migration v3)       | Yes         | Same in the opt-in integration suite, plus the v1 to v3 upgrade                   |
-| Cloudflare   | Yes (migration v4)       | Yes         | Same in the native-SQL harness; both corpora in workerd                           |
-| FoundationDB | Yes (shared KV encoding) | Yes         | Not run: its native suite is opt-in and has no sensitive cases yet                |
+| Backend      | Storage                  | Query rules | Conformance                                                                                   |
+| ------------ | ------------------------ | ----------- | --------------------------------------------------------------------------------------------- |
+| In-memory KV | Yes                      | Yes         | Sealed-storage and decorator corpora, full corpus through the decorator, raw scan             |
+| SQLite       | Yes (migration v3)       | Yes         | Same, plus file scan and the v1 to v3 upgrade                                                 |
+| PostgreSQL   | Yes (migration v3)       | Yes         | Same in the opt-in integration suite, plus the v1 to v3 upgrade                               |
+| Cloudflare   | Yes (migration v4)       | Yes         | Same in the native-SQL harness; both corpora in workerd                                       |
+| FoundationDB | Yes (shared KV encoding) | Yes         | Native sealed/decorator corpora, full Triples corpus through the decorator, raw subspace scan |
 
 The shared corpora are exported from `@triplex-build/triplex-testkit` as `sealedStorageCases`,
 `sensitiveConformanceCases`, `sensitiveConformanceLayer` and `findPlaintext`.
+
+## Proposed host-sealing integration
+
+The [host-sealed values RFC](rfcs/tx3-host-sealed-values.md) proposes an explicit
+trusted-host import contract and compares a custom KeyProvider alternative. It
+requires an owner decision and changes no current behavior. Raw storage already
+round-trips sealed envelopes; the Sensitive decorator continues to reject them.
 
 ## Out of scope
 

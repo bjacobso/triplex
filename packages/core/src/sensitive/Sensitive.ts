@@ -15,6 +15,7 @@ import {
   SensitiveQueryError,
   SensitiveValueError,
   WriteError,
+  TransactionConflictError,
 } from "../errors/index.js";
 import type { Pattern } from "../types/Pattern.js";
 import { Triples, type TransactionRecord, type TriplesService } from "../store/Triples.js";
@@ -337,6 +338,8 @@ const prepareOperations = (
             .sealValue(op.entityId, op.attribute, op.value)
             .pipe(Effect.map((value) => ({ ...op, value })));
         case "retract":
+        case "append-entry":
+        case "acknowledge-entry":
           return Effect.succeed(op);
         case "retract-pattern":
           return sensitivity.preparePattern(op.pattern as Pattern).pipe(
@@ -373,13 +376,31 @@ const decorate = (inner: TriplesService, sensitivity: SensitivityService): Tripl
       const prepared = yield* prepareOperations(sensitivity, operations).pipe(
         Effect.mapError(asWriteError),
       );
-      return yield* inner.transact(prepared, meta);
+      const preconditions = yield* Effect.forEach(meta?.preconditions ?? [], (condition) =>
+        Effect.gen(function* () {
+          if (condition._tag !== "AttributeValue") return condition;
+          const pattern = yield* sensitivity
+            .preparePattern({
+              entityId: condition.entityId,
+              attribute: condition.attribute,
+              value: condition.value,
+            })
+            .pipe(Effect.mapError(asWriteError));
+          return { ...condition, value: pattern.value as TripleValue };
+        }),
+      );
+      return yield* inner.transact(
+        prepared,
+        meta === undefined ? undefined : { ...meta, preconditions },
+      );
     });
 
-  const writeOnly = <A>(effect: Effect.Effect<A, unknown>): Effect.Effect<A, WriteError> =>
+  const writeOnly = <A>(
+    effect: Effect.Effect<A, unknown>,
+  ): Effect.Effect<A, WriteError | TransactionConflictError> =>
     effect.pipe(
       Effect.mapError((cause) =>
-        cause instanceof WriteError
+        cause instanceof WriteError || cause instanceof TransactionConflictError
           ? cause
           : cause instanceof SensitiveValueError || cause instanceof SensitiveQueryError
             ? asWriteError(cause)

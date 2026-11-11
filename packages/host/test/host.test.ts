@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit, Layer, Schema } from "effect";
-import { EntityId } from "@triplex-build/triplex";
+import { EntityId, Triples, KvTriples, type PagedQueryResponse } from "@triplex-build/triplex";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
   AuthorizationError,
@@ -12,6 +12,8 @@ import {
   canTransition,
   canonicalInstanceIdentity,
   executeTenantDataRequest,
+  decodeTenantDataRequest,
+  type DataOperation,
   providerInstanceKey,
   resolveAuthorizedPlacement,
   transitionRecord,
@@ -85,6 +87,177 @@ describe("host identity and lifecycle", () => {
 });
 
 describe("tenant request boundary", () => {
+  it.each([
+    ["KV", KvTriples.layer],
+    ["SQLite", SqliteTriples.layerMemory],
+  ] as const)(
+    "forwards entity-prefix Transactions requests over %s",
+    async (_backend, backendLayer) => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const t = yield* Triples;
+          const after = yield* t.currentPosition();
+          const first = yield* t.transact(
+            [
+              {
+                op: "assert",
+                entityId: EntityId.make("host:feed:one"),
+                attribute: ":host/value",
+                value: { type: "number", value: 1 },
+              },
+              {
+                op: "assert",
+                entityId: EntityId.make("host:unrelated"),
+                attribute: ":host/value",
+                value: { type: "number", value: 2 },
+              },
+            ],
+            { actor: "host:feed" },
+          );
+          yield* t.assert({
+            entityId: EntityId.make("host:other"),
+            attribute: ":host/value",
+            value: { type: "number", value: 3 },
+          });
+          const target = identity("tenant-a");
+          const decoded = yield* decodeTenantDataRequest({
+            version: 1,
+            identity: target,
+            routingRevision: 1,
+            operation: { _tag: "Transactions", after, limit: 10, entityIdPrefix: "host:feed:" },
+          });
+          const result = yield* executeTenantDataRequest(
+            { identity: target, routingRevision: 1 },
+            { subject: "tenant-a" },
+            decoded,
+          );
+          expect(result).toMatchObject({
+            transactions: [
+              {
+                txId: first.txId,
+                actor: "host:feed",
+                changes: expect.arrayContaining([
+                  expect.objectContaining({ entityId: "host:feed:one" }),
+                  expect.objectContaining({ entityId: "host:unrelated" }),
+                ]),
+              },
+            ],
+            next: first.position,
+          });
+        }).pipe(Effect.provide(backendLayer), Effect.provide(AuthorizerLive)),
+      );
+    },
+  );
+  it.each([
+    ["KV", KvTriples.layer],
+    ["SQLite", SqliteTriples.layerMemory],
+  ] as const)(
+    "preserves position cuts through decoded %s Query and QueryPage requests",
+    async (_backend, backendLayer) => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const t = yield* Triples;
+          const home = EntityId.make("host:historical");
+          const first = yield* t.transact([
+            {
+              op: "assert",
+              entityId: home,
+              attribute: ":host/name",
+              value: { type: "string", value: "Alice" },
+              validFrom: 0,
+            },
+            {
+              op: "assert",
+              entityId: EntityId.make("host:bob"),
+              attribute: ":host/name",
+              value: { type: "string", value: "Bob" },
+              validFrom: 0,
+            },
+          ]);
+          yield* t.transact([
+            { op: "retract", id: first.triples[0]!.id },
+            {
+              op: "assert",
+              entityId: home,
+              attribute: ":host/name",
+              value: { type: "string", value: "Alicia" },
+              validFrom: 0,
+            },
+            {
+              op: "assert",
+              entityId: EntityId.make("host:carol"),
+              attribute: ":host/name",
+              value: { type: "string", value: "Carol" },
+              validFrom: 0,
+            },
+          ]);
+          const target = identity("tenant-a");
+          const query = {
+            find: ["?name"],
+            where: [["?entity", ":host/name", "?name"]] as const,
+            orderBy: [{ variable: "?name", direction: "asc" as const }],
+          };
+          const request = (operation: DataOperation) =>
+            Effect.gen(function* () {
+              const decoded = yield* decodeTenantDataRequest(
+                JSON.parse(
+                  JSON.stringify({ version: 1, identity: target, routingRevision: 1, operation }),
+                ),
+              );
+              return yield* executeTenantDataRequest(
+                { identity: target, routingRevision: 1 },
+                { subject: "tenant-a" },
+                decoded,
+              );
+            });
+          const options = { basis: { recordedPosition: first.position, validAt: 1 } };
+          expect(yield* request({ _tag: "Query", query, options })).toMatchObject({
+            results: [{ "?name": "Alice" }, { "?name": "Bob" }],
+          });
+          const page = (yield* request({
+            _tag: "QueryPage",
+            query: { inner: query, limit: 1 },
+            options,
+          })) as PagedQueryResponse;
+          expect(page.results).toEqual([{ "?name": "Alice" }]);
+          expect(page.nextCursor).toBeDefined();
+          const next = yield* request({
+            _tag: "QueryPage",
+            query: { inner: query, limit: 1, cursor: page.nextCursor! },
+            options,
+          });
+          expect(next).toMatchObject({ results: [{ "?name": "Bob" }] });
+          expect(
+            yield* request({
+              _tag: "Query",
+              query,
+              options: { basis: { recordedPosition: 0, validAt: 1 } },
+            }),
+          ).toMatchObject({ results: [] });
+          for (const tag of ["Query", "QueryPage"] as const) {
+            const ambiguous = yield* request(
+              tag === "Query"
+                ? {
+                    _tag: tag,
+                    query,
+                    options: {
+                      basis: { recordedAt: Date.now(), recordedPosition: first.position },
+                    },
+                  }
+                : {
+                    _tag: tag,
+                    query: { inner: query },
+                    options: {
+                      basis: { recordedAt: Date.now(), recordedPosition: first.position },
+                    },
+                  },
+            ).pipe(Effect.result);
+            expect(ambiguous._tag).toBe("Failure");
+          }
+        }).pipe(Effect.provide(backendLayer), Effect.provide(AuthorizerLive)),
+      );
+    },
+  );
   const tenantA = identity("tenant-a");
   const tenantB = identity("tenant-b");
   const principalA: Principal = { subject: "tenant-a" };

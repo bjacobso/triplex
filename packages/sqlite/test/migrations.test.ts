@@ -38,8 +38,8 @@ describe("host-owned SQLite migrations", () => {
     );
 
     expect(result.before).toHaveLength(0);
-    expect(migrations.map(({ version }) => version)).toEqual([1, 2, 3]);
-    expect(result.applied.map(({ version }) => version)).toEqual([1, 2, 3]);
+    expect(migrations.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(result.applied.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "recorded_at",
@@ -66,6 +66,7 @@ describe("host-owned SQLite migrations", () => {
         "idx_attr_numeric",
         "idx_attr_blind",
         "idx_entity",
+        "idx_entity_recorded_position",
         "idx_tx_id",
       ]),
     );
@@ -94,7 +95,7 @@ describe("host-owned SQLite migrations", () => {
         const indexes = yield* sql`SELECT name FROM sqlite_master WHERE name = 'idx_attr_numeric'`;
         expect(indexes).toHaveLength(1);
         const applied = yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`;
-        expect(applied).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+        expect(applied).toEqual(migrations.map(({ version }) => ({ version })));
         // v3 admits sealed values and requires their envelope.
         yield* sql`
           INSERT INTO triples (

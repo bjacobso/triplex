@@ -32,6 +32,22 @@ export const VAET_PREFIX = new Uint8Array([0x04]);
 /** EntityType → TripleId (entity type lookup) */
 export const TYPE_PREFIX = new Uint8Array([0x05]);
 
+/** Current unretracted facts, ordered by entity, attribute, ID. History stays in EAVT. */
+export const LIVE_FACT_PREFIX = new Uint8Array([0x06]);
+export const LIVE_FACT_READY_KEY = new Uint8Array([0x26, 0x01]);
+export const LIVE_FACT_CURSOR_KEY = new Uint8Array([0x26, 0x02]);
+export const liveFactKey = (entity: string, attribute: string, id: string) =>
+  concat(LIVE_FACT_PREFIX, encodeTuple(tString(entity), tString(attribute), tString(id)));
+export const liveFactKeyStr = (entity: string, attribute: string, id: string) =>
+  `\x06${entity}${attribute}${id}`;
+export const liveFactRange = (entity: string, attribute?: string) => {
+  const start = concat(
+    LIVE_FACT_PREFIX,
+    encodeTuple(tString(entity), ...(attribute === undefined ? [] : [tString(attribute)])),
+  );
+  return { start, end: increment(start) };
+};
+
 /** TripleId → full triple data */
 export const META_PREFIX = new Uint8Array([0x20]);
 

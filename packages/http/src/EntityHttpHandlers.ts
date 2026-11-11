@@ -62,9 +62,32 @@ const temporalBasis = (url: URL) => {
   };
   const recordedAt = value("recordedAt");
   const validAt = value("validAt");
-  if (recordedAt === undefined && validAt === undefined) return undefined;
+  const rawPosition = url.searchParams.get("recordedPosition");
+  const recordedPosition = rawPosition === null ? undefined : Number(rawPosition);
+  if (
+    rawPosition !== null &&
+    (rawPosition.trim().length === 0 ||
+      !Number.isSafeInteger(recordedPosition) ||
+      recordedPosition! < 0)
+  ) {
+    throw new RequestValidationError({
+      code: "invalid_request",
+      path: "$.recordedPosition",
+      message: "recordedPosition must be a non-negative safe integer",
+    });
+  }
+  if (recordedAt !== undefined && recordedPosition !== undefined) {
+    throw new RequestValidationError({
+      code: "invalid_request",
+      path: "$.recordedPosition",
+      message: "recordedAt and recordedPosition cannot both be supplied",
+    });
+  }
+  if (recordedAt === undefined && recordedPosition === undefined && validAt === undefined)
+    return undefined;
   return {
     ...(recordedAt === undefined ? {} : { recordedAt }),
+    ...(recordedPosition === undefined ? {} : { recordedPosition }),
     ...(validAt === undefined ? {} : { validAt }),
   };
 };
@@ -136,11 +159,15 @@ const withSnapshot = <A extends ReturnType<typeof HttpServerResponse.jsonUnsafe>
 ): A => HttpServerResponse.setHeader(response, "x-triplex-config-snapshot", snapshot) as A;
 
 const rejectWriteTemporal = (url: URL) => {
-  if (url.searchParams.has("recordedAt") || url.searchParams.has("validAt")) {
+  if (
+    url.searchParams.has("recordedAt") ||
+    url.searchParams.has("recordedPosition") ||
+    url.searchParams.has("validAt")
+  ) {
     throw new RequestValidationError({
       code: "invalid_request",
       path: "$",
-      message: "recordedAt and validAt are read-only parameters",
+      message: "recordedAt, recordedPosition and validAt are read-only parameters",
     });
   }
 };

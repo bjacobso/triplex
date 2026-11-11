@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@triplex-build/triplex-postgres": ["./src/index.ts"]
+    }
+  },
+  "include": [
+    "test/integration/staged-publication.test.ts",
+    "test/integration/invariant-scopes.test.ts"
+  ]
+}

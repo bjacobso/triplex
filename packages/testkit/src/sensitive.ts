@@ -225,6 +225,45 @@ const valueOf = (facts: readonly Triple[], attribute: string): TripleValue | und
 
 export const sensitiveConformanceCases: readonly SensitiveConformanceCase[] = [
   {
+    name: "guards a sensitive attribute through blind equality without exposing plaintext",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const entityId = eid("sc:guard");
+      const fact = yield* t.assert({
+        entityId,
+        attribute: ":sc-employee/ssn",
+        value: text(PLANTED_PLAINTEXT),
+      });
+      yield* t.transact([], {
+        preconditions: [
+          {
+            _tag: "AttributeValue",
+            entityId,
+            attribute: ":sc-employee/ssn",
+            value: text(PLANTED_PLAINTEXT),
+          },
+        ],
+      });
+      const failed = yield* t
+        .transact([], {
+          preconditions: [
+            {
+              _tag: "AttributeValue",
+              entityId,
+              attribute: ":sc-employee/ssn",
+              value: text("different"),
+            },
+          ],
+        })
+        .pipe(Effect.result);
+      yield* check(
+        failed._tag === "Failure" && failed.failure._tag === "TransactionConflictError",
+        "wrong sensitive values must conflict through blind equality",
+      );
+      yield* t.retract(fact.id);
+    }),
+  },
+  {
     name: "seals every write and opens every declared type exactly",
     run: Effect.gen(function* () {
       const triples = yield* Triples;

@@ -14,6 +14,7 @@ import {
   type TripleRow,
   CommandAlreadyCommittedError,
   TransactionConflictError,
+  OperationalEntryConflictError,
   ConstraintViolationError,
   WriteError,
   ReadError,
@@ -21,9 +22,16 @@ import {
   createParamCollector,
   isPatternVariable,
 } from "@triplex-build/triplex/internal";
-import { packValue, runMigrations } from "@triplex-build/triplex-sql";
+import {
+  makeSqlOperationalEntryStorage,
+  makeSqlLivePreconditionLookup,
+  makeSqlTransactionPrefixLookup,
+  packValue,
+  runMigrations,
+} from "@triplex-build/triplex-sql";
 import { PostgresqlDialect } from "./dialect.js";
 import { checkSchemaVersion } from "./SchemaVersion.js";
+import { transactionConflict } from "./TransactionConflict.js";
 
 /**
  * Create a PostgreSQL StorageAdapter layer.
@@ -53,16 +61,19 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
 
       const withTransaction: StorageAdapterService["withTransaction"] = (effect) =>
         sql.withTransaction(effect).pipe(
-          Effect.mapError((error) =>
-            error instanceof WriteError ||
-            error instanceof TransactionConflictError ||
-            error instanceof CommandAlreadyCommittedError ||
-            error instanceof ConstraintViolationError
-              ? error
-              : new WriteError({
-                  message: `Transaction failed: ${String(error)}`,
-                  cause: error,
-                }),
+          Effect.mapError(
+            (error) =>
+              transactionConflict(error) ??
+              (error instanceof WriteError ||
+              error instanceof OperationalEntryConflictError ||
+              error instanceof TransactionConflictError ||
+              error instanceof CommandAlreadyCommittedError ||
+              error instanceof ConstraintViolationError
+                ? error
+                : new WriteError({
+                    message: `Transaction failed: ${String(error)}`,
+                    cause: error,
+                  })),
           ),
         );
 
@@ -636,7 +647,21 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
 
       const close: StorageAdapterService["close"] = () => Effect.void;
 
+      const entries = makeSqlOperationalEntryStorage(
+        { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+        PostgresqlDialect,
+      );
+
       return {
+        ...entries,
+        transactionIdsForEntityPrefix: makeSqlTransactionPrefixLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          PostgresqlDialect,
+        ),
+        livePreconditionFacts: makeSqlLivePreconditionLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          PostgresqlDialect,
+        ),
         withTransaction,
         nextCommitPosition,
         currentCommitPosition,

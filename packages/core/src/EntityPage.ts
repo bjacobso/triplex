@@ -16,7 +16,8 @@ export interface EntityPageRequest {
 }
 
 export interface EntityPageSnapshot {
-  readonly recordedAt: number;
+  /** Omitted for an explicit position cut, which is independent of wall-clock time. */
+  readonly recordedAt?: number;
   readonly recordedPosition: number;
   readonly validAt: number;
 }
@@ -62,13 +63,14 @@ const decode = (cursor: string): CursorEnvelope => {
       typeof value.entityType !== "string" ||
       !("after" in value) ||
       typeof value.after !== "string" ||
-      !("recordedAt" in value) ||
-      typeof value.recordedAt !== "number" ||
+      ("recordedAt" in value &&
+        (typeof value.recordedAt !== "number" ||
+          !Number.isFinite(value.recordedAt) ||
+          value.recordedAt < 0)) ||
       !("recordedPosition" in value) ||
       typeof value.recordedPosition !== "number" ||
       !("validAt" in value) ||
       typeof value.validAt !== "number" ||
-      !Number.isFinite(value.recordedAt) ||
       !Number.isSafeInteger(value.recordedPosition) ||
       value.recordedPosition < 0 ||
       !Number.isFinite(value.validAt)
@@ -112,9 +114,12 @@ export const prepareEntityPage = (input: {
       });
     }
     if (input.request.basis !== undefined) {
+      resolveTemporalBasis(input.request.basis, input.now);
       if (
         (input.request.basis.recordedAt !== undefined &&
           input.request.basis.recordedAt !== envelope.recordedAt) ||
+        (input.request.basis.recordedPosition !== undefined &&
+          input.request.basis.recordedPosition !== envelope.recordedPosition) ||
         (input.request.basis.validAt !== undefined &&
           input.request.basis.validAt !== envelope.validAt)
       ) {
@@ -129,7 +134,7 @@ export const prepareEntityPage = (input: {
       limit,
       after: envelope.after,
       basis: {
-        recordedAt: envelope.recordedAt,
+        ...(envelope.recordedAt === undefined ? {} : { recordedAt: envelope.recordedAt }),
         recordedPosition: envelope.recordedPosition,
         validAt: envelope.validAt,
       },
@@ -141,8 +146,13 @@ export const prepareEntityPage = (input: {
     entityType: input.request.entityType,
     limit,
     basis: {
-      recordedAt: requested.recordedAt ?? input.now,
-      recordedPosition: input.recordedPosition,
+      ...(requested.recordedPosition === undefined
+        ? { recordedAt: requested.recordedAt ?? input.now }
+        : {}),
+      recordedPosition: Math.min(
+        requested.recordedPosition ?? input.recordedPosition,
+        input.recordedPosition,
+      ),
       validAt: requested.validAt,
     },
     scope: expectedScope,
@@ -160,7 +170,9 @@ export const encodeEntityPageCursor = (
         scope: prepared.scope,
         entityType: prepared.entityType,
         after,
-        recordedAt: prepared.basis.recordedAt,
+        ...(prepared.basis.recordedAt === undefined
+          ? {}
+          : { recordedAt: prepared.basis.recordedAt }),
         recordedPosition: prepared.basis.recordedPosition,
         validAt: prepared.basis.validAt,
       } satisfies CursorEnvelope),
