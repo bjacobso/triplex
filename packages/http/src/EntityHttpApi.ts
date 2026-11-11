@@ -9,11 +9,16 @@ export interface CompiledEntityHttpApi {
   readonly openApi: ReturnType<typeof OpenApi.fromApi>;
 }
 
-const ErrorBody = Schema.Struct({
+const Diagnostic = Schema.Struct({
   code: Schema.String,
   message: Schema.String,
-  path: Schema.optional(Schema.String),
-}).annotate({ identifier: "TriplexHttpError" });
+  path: Schema.optionalKey(Schema.String),
+  fix: Schema.optionalKey(Schema.String),
+  retryable: Schema.Boolean,
+  details: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
+}).annotate({ identifier: "TriplexDiagnostic" });
+
+const ErrorBody = Schema.Struct({ error: Diagnostic }).annotate({ identifier: "TriplexHttpError" });
 
 const snapshotHeaders = { "x-triplex-config-snapshot": Schema.String };
 
@@ -26,7 +31,10 @@ const errors = [
     ...snapshotHeaders,
     allow: Schema.String,
   }),
-  HttpApiSchema.WithHeaders(ErrorBody.pipe(HttpApiSchema.status(409)), snapshotHeaders),
+  HttpApiSchema.WithHeaders(ErrorBody.pipe(HttpApiSchema.status(409)), {
+    ...snapshotHeaders,
+    "retry-after": Schema.optionalKey(Schema.String),
+  }),
   HttpApiSchema.WithHeaders(ErrorBody.pipe(HttpApiSchema.status(500)), snapshotHeaders),
 ] as const;
 

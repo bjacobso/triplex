@@ -67,7 +67,7 @@ export class EntityStore extends Context.Service<EntityStore, EntityStoreService
 
 const notFound = (id: string) =>
   new EntityNotFoundHttpError({
-    code: "entity_not_found",
+    code: "http.entity-not-found",
     entityId: id,
     message: `Entity ${id} was not found in this collection`,
   });
@@ -116,7 +116,7 @@ const rejectScheduledFacts = (
     const history = yield* triples.history(id);
     if (history.some((fact) => fact.validFrom > now && Option.isNone(fact.retractedAt))) {
       return yield* new ScheduledFactsConflictError({
-        code: "scheduled_facts",
+        code: "http.scheduled-facts",
         entityId: id,
         message: `Entity ${id} has scheduled future facts and cannot be mutated by the initial REST contract`,
       });
@@ -137,7 +137,7 @@ const requireSealing = (
     ? Effect.void
     : Effect.fail(
         new SensitiveStorageRequiredError({
-          code: "sensitive_storage_required",
+          code: "http.sensitive-storage-required",
           attribute: unsealed.key,
           message: `Sensitive attribute ${unsealed.key} requires a Sensitive.layer-decorated Triples that seals it`,
         }),
@@ -169,7 +169,7 @@ const make = Effect.gen(function* () {
           Effect.mapError((error) =>
             error instanceof PaginationCursorError
               ? new RequestValidationError({
-                  code: "invalid_request",
+                  code: "http.invalid-request",
                   path: "$.cursor",
                   message: error.message,
                 })
@@ -183,7 +183,7 @@ const make = Effect.gen(function* () {
           Effect.mapError(
             (error) =>
               new RequestValidationError({
-                code: "invalid_request",
+                code: "http.invalid-request",
                 path: "$.id",
                 message: error.message,
               }),
@@ -217,7 +217,7 @@ const make = Effect.gen(function* () {
           Effect.mapError(
             (error) =>
               new RequestValidationError({
-                code: "invalid_request",
+                code: "http.invalid-request",
                 path: "$.id",
                 message: error.message,
               }),
@@ -248,7 +248,7 @@ const make = Effect.gen(function* () {
           Effect.mapError(
             (error) =>
               new RequestValidationError({
-                code: "invalid_request",
+                code: "http.invalid-request",
                 path: "$.id",
                 message: error.message,
               }),

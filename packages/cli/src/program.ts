@@ -6,6 +6,8 @@ import {
 import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
 import { makeSqliteBackend, SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
+  diagnose,
+  type Diagnostic,
   DatalogQuery,
   DatabaseId,
   EntityId,
@@ -22,6 +24,7 @@ import { ContentId } from "@triplex-build/triplex/content";
 import {
   Cause,
   Console,
+  Data,
   Effect,
   FileSystem,
   Layer,
@@ -29,10 +32,11 @@ import {
   Redacted,
   References,
   Schema,
+  SchemaIssue,
   Stdio,
   Stream,
 } from "effect";
-import { Argument, Command, Flag } from "effect/cli";
+import { Argument, CliError, Command, Flag } from "effect/cli";
 import {
   execute,
   executeDatabase,
@@ -68,8 +72,13 @@ const databaseId = Flag.String("database-id").pipe(
   Flag.optional,
 );
 
+const debug = Flag.Boolean("debug").pipe(
+  Flag.withDescription("Include failure causes and backend query diagnostics"),
+  Flag.withDefault(false),
+);
+
 export const rootCommand = Command.make("triplex").pipe(
-  Command.withSharedFlags({ pretty, sqlite, dataDir, postgresUrl, databaseId }),
+  Command.withSharedFlags({ pretty, debug, sqlite, dataDir, postgresUrl, databaseId }),
   Command.withDescription(
     "Pre-1.0 CLI: explore and operate a Triplex database with stable JSON output",
   ),
@@ -79,11 +88,6 @@ const input = Flag.String("input").pipe(
   Flag.withAlias("i"),
   Flag.withDescription("JSON input file, or - for stdin"),
   Flag.withDefault("-"),
-);
-
-const debug = Flag.Boolean("debug").pipe(
-  Flag.withDescription("Include backend query diagnostics"),
-  Flag.withDefault(false),
 );
 
 const limit = Flag.Int("limit").pipe(
@@ -131,28 +135,78 @@ const basisOf = (
       };
 };
 
+class CliFailure extends Data.TaggedError("CliFailure")<Diagnostic> {}
+
+const invalidArguments = (message: string, path = "$args") =>
+  new CliFailure({
+    code: "cli.arguments",
+    message,
+    path,
+    fix: "Correct the arguments using triplex <command> --help.",
+    retryable: false,
+  });
+
 const readJson = (
   path: string,
-): Effect.Effect<unknown, unknown, FileSystem.FileSystem | Stdio.Stdio> =>
+): Effect.Effect<unknown, CliFailure, FileSystem.FileSystem | Stdio.Stdio> =>
   Effect.gen(function* () {
-    const source =
+    const source = yield* (
       path === "-"
-        ? yield* (yield* Stdio.Stdio).stdin.pipe(
+        ? (yield* Stdio.Stdio).stdin.pipe(
             Stream.decodeText,
             Stream.runFold(
               () => "",
               (all: string, chunk: string) => all + chunk,
             ),
           )
-        : yield* (yield* FileSystem.FileSystem).readFileString(path);
+        : (yield* FileSystem.FileSystem).readFileString(path)
+    ).pipe(
+      Effect.mapError(
+        () =>
+          new CliFailure({
+            code: "cli.input-read",
+            message: "Could not read JSON input",
+            path: "$",
+            fix: "Supply a readable --input file or pipe JSON to stdin.",
+            retryable: false,
+          }),
+      ),
+    );
     return yield* Effect.try({
       try: () => JSON.parse(source) as unknown,
-      catch: (cause) => new Error(`Invalid JSON from ${path}: ${String(cause)}`),
+      catch: () =>
+        new CliFailure({
+          code: "cli.input-json",
+          message: "Input must be valid JSON",
+          path: "$",
+          fix: "Correct the JSON syntax in the input.",
+          retryable: false,
+        }),
     });
   });
 
 const readWith = <A>(schema: Schema.Codec<A, unknown>, path: string) =>
-  readJson(path).pipe(Effect.flatMap(Schema.decodeUnknownEffect(schema)));
+  readJson(path).pipe(
+    Effect.flatMap((input) =>
+      Schema.decodeUnknownEffect(schema)(input).pipe(
+        Effect.mapError((error) => {
+          const keys =
+            SchemaIssue.makeFormatterStandardSchemaV1()(error.issue).issues[0]?.path ?? [];
+          const location = keys.reduce<string>(
+            (path, key) => (typeof key === "number" ? `${path}[${key}]` : `${path}.${String(key)}`),
+            "$",
+          );
+          return new CliFailure({
+            code: "cli.input-schema",
+            message: "Input does not match the command schema",
+            path: location,
+            fix: "Correct the input field using the command's documented JSON schema.",
+            retryable: false,
+          });
+        }),
+      ),
+    ),
+  );
 
 const postgresConfig = (source: string): PostgresqlConfig => {
   const url = new URL(source);
@@ -337,8 +391,8 @@ const fact = Command.make("fact").pipe(
 
 const queryRun = Command.make(
   "run",
-  { input, debug, validAt, recordedAt, limit, cursor: Flag.String("cursor").pipe(Flag.optional) },
-  ({ input, debug, validAt, recordedAt, limit, cursor }) =>
+  { input, validAt, recordedAt, limit, cursor: Flag.String("cursor").pipe(Flag.optional) },
+  ({ input, validAt, recordedAt, limit, cursor }) =>
     Effect.gen(function* () {
       const query = yield* readWith(DatalogQuery, input);
       return yield* emit("query.run", {
@@ -346,7 +400,7 @@ const queryRun = Command.make(
         pageSize: limit,
         ...Option.match(cursor, { onNone: () => ({}), onSome: (cursor) => ({ cursor }) }),
         query,
-        debug,
+        debug: (yield* rootCommand).debug,
         ...(basisOf(validAt, recordedAt) === undefined
           ? {}
           : { basis: basisOf(validAt, recordedAt) }),
@@ -356,14 +410,14 @@ const queryRun = Command.make(
 
 const queryPage = Command.make(
   "page",
-  { input, debug, validAt, recordedAt },
-  ({ input, debug, validAt, recordedAt }) =>
+  { input, validAt, recordedAt },
+  ({ input, validAt, recordedAt }) =>
     Effect.gen(function* () {
       const query = yield* readWith(WrappedQuery, input);
       return yield* emit("query.page", {
         _tag: "query-page",
         query,
-        debug,
+        debug: (yield* rootCommand).debug,
         ...(basisOf(validAt, recordedAt) === undefined
           ? {}
           : { basis: basisOf(validAt, recordedAt) }),
@@ -388,7 +442,7 @@ const transactionApply = Command.make("apply", { input }, ({ input }) =>
     const request = yield* readWith(TransactRequest, input);
     if (request.meta?.actor === undefined || request.meta.commandId === undefined) {
       return yield* Effect.fail(
-        new Error("transaction input must include meta.actor and meta.commandId"),
+        invalidArguments("transaction input must include meta.actor and meta.commandId", "$.meta"),
       );
     }
     return yield* emit("transaction.apply", { _tag: "transaction-apply", request });
@@ -452,7 +506,7 @@ const configRelease = Command.make(
   },
   ({ snapshotId, ref }) => {
     if (Option.isNone(snapshotId) === Option.isNone(ref)) {
-      return Effect.fail(new Error("provide exactly one of --snapshot or --ref"));
+      return Effect.fail(invalidArguments("provide exactly one of --snapshot or --ref"));
     }
     return emit("config.release", {
       _tag: "config-release",
@@ -563,7 +617,9 @@ const yes = Flag.Boolean("yes").pipe(
 const requireConfirmation = <A, E, R>(confirmed: boolean, operation: Effect.Effect<A, E, R>) =>
   confirmed
     ? operation
-    : Effect.fail(new Error("This operation is destructive; pass --yes to confirm"));
+    : Effect.fail(
+        invalidArguments("This operation is destructive; pass --yes to confirm", "$args.yes"),
+      );
 
 const databaseClear = Command.make("clear", { name: managedDatabaseName, yes }, ({ name, yes }) =>
   requireConfirmation(yes, emitDatabase("db.clear", { _tag: "database-clear", name })),
@@ -611,14 +667,112 @@ export const command = rootCommand.pipe(
   ]),
 );
 
-export const run = Command.run(command, { version: __TRIPLEX_CLI_VERSION__ });
-
-export const reportFailure = (cause: Cause.Cause<unknown>) =>
-  Console.error(
+export const reportFailure = (
+  cause: Cause.Cause<unknown>,
+  options: { readonly command?: string; readonly debug?: boolean } = {},
+) => {
+  const error = Option.getOrUndefined(Cause.findErrorOption(cause));
+  const diagnostic =
+    error instanceof CliFailure
+      ? {
+          code: error.code,
+          message: error.message,
+          path: error.path,
+          fix: error.fix,
+          retryable: error.retryable,
+        }
+      : CliError.isCliError(error)
+        ? {
+            code: "cli.arguments",
+            message: "Invalid command arguments",
+            path: "$args",
+            fix: "Correct the arguments using triplex <command> --help.",
+            retryable: false,
+          }
+        : diagnose(error);
+  return Console.error(
     JSON.stringify({
       ok: false,
-      error: {
-        message: Cause.pretty(cause),
-      },
+      command: options.command ?? "triplex",
+      error: diagnostic,
+      ...(options.debug ? { cause: Cause.pretty(cause) } : {}),
     }),
   ).pipe(Effect.andThen(Effect.failCause(cause)));
+};
+
+// Recover invocation context even when parsing fails before a handler runs.
+const invocation = (args: readonly string[]) => {
+  const valueFlags = new Set([
+    "--sqlite",
+    "--data-dir",
+    "--postgres-url",
+    "--database-id",
+    "--input",
+    "-i",
+    "--limit",
+    "-n",
+    "--type",
+    "--after",
+    "--valid-at",
+    "--recorded-at",
+    "--cursor",
+    "--snapshot-position",
+    "--before-position",
+    "--snapshot",
+    "--ref",
+    "--kind",
+    "--description",
+    "-d",
+  ]);
+  const roots = new Set([
+    "status",
+    "describe",
+    "db",
+    "database",
+    "entity",
+    "fact",
+    "query",
+    "transaction",
+    "tx",
+    "journal",
+    "config",
+  ]);
+  const words: string[] = [];
+  let debug = false;
+  let positional = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (!positional && arg === "--") {
+      positional = true;
+      continue;
+    }
+    if (!positional && valueFlags.has(arg)) {
+      i++;
+      continue;
+    }
+    if (!positional && arg === "--debug") {
+      debug = args[i + 1] !== "false";
+      if (args[i + 1] === "false" || args[i + 1] === "true") i++;
+    } else if (!positional && arg.startsWith("--debug=")) {
+      debug = arg === "--debug=true";
+    } else if (positional || !arg.startsWith("-")) words.push(arg);
+  }
+  const index = words.findIndex((word) => roots.has(word));
+  if (index < 0) return { command: "triplex", debug };
+  const root =
+    words[index] === "tx" ? "transaction" : words[index] === "database" ? "db" : words[index]!;
+  return {
+    command:
+      root === "status" || root === "describe" ? root : `${root}.${words[index + 1] ?? "unknown"}`,
+    debug,
+  };
+};
+
+export const run = Effect.gen(function* () {
+  const { args } = yield* Stdio.Stdio;
+  const argv = yield* args;
+  return yield* Command.run(command, {
+    version: __TRIPLEX_CLI_VERSION__,
+    renderErrors: false,
+  }).pipe(Effect.catchCause((cause) => reportFailure(cause, invocation(argv))));
+});

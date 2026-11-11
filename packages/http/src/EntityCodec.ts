@@ -12,10 +12,10 @@ export interface EntityDocument {
 }
 
 const requestError = (path: string, message: string) =>
-  new RequestValidationError({ code: "invalid_request", path, message });
+  new RequestValidationError({ code: "http.invalid-request", path, message });
 
 const conflict = (entityId: string, path: string, message: string) =>
-  new DataShapeConflictError({ code: "data_shape_conflict", entityId, path, message });
+  new DataShapeConflictError({ code: "http.data-shape-conflict", entityId, path, message });
 
 /** Response marker for a sealed (sensitive) value: no plaintext, ciphertext, or blind token. */
 export interface SealedMarker {

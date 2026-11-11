@@ -57,9 +57,9 @@ const reservedCollections = new Set(["schema", "openapi.json", "docs"]);
 const allOperations: ReadonlyArray<Operation> = ["read", "create", "replace", "delete"];
 
 const unsupported = (path: string, message: string) =>
-  new UnsupportedConfigError({ code: "unsupported_config", path, message });
+  new UnsupportedConfigError({ code: "http.unsupported-config", path, message });
 const conflict = (path: string, message: string) =>
-  new ConfigConflictError({ code: "config_conflict", path, message });
+  new ConfigConflictError({ code: "http.config-conflict", path, message });
 
 const storageFamily = (expr: TypeExpr.TypeExpr, path: string): StorageFamily => {
   switch (expr._tag) {
