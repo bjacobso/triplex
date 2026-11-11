@@ -16,6 +16,7 @@ export interface AssertionOptions {
   /** Start of the domain-valid interval, in epoch milliseconds (inclusive). */
   readonly validFrom?: number;
   /** End of the domain-valid interval, in epoch milliseconds (exclusive). */
+
   readonly validTo?: number;
 }
 
@@ -44,22 +45,48 @@ export interface Definition<K extends string, V> {
     | Schema.SchemaError
   >;
   readonly encode: (value: V) => TripleValue;
+  /** This attribute's use by an entity type, with every entity required to have it. */
+  readonly required: <const O extends Omit<UseOptions, "required"> = {}>(
+    options?: O,
+  ) => Use<Definition<K, V>, CardinalityOf<O>>;
+  /** This attribute's use by an entity type, with any number of values per entity. */
+  readonly many: (options?: Omit<UseOptions, "cardinality">) => Use<Definition<K, V>, "many">;
+  /** This attribute's use by an entity type, with each value on at most one entity. */
+  readonly unique: <const O extends Omit<UseOptions, "unique"> = {}>(
+    options?: O,
+  ) => Use<Definition<K, V>, CardinalityOf<O>>;
 }
+
+export type Cardinality = "one" | "many";
 
 export interface UseOptions {
   readonly required?: boolean;
-  readonly cardinality?: "one" | "many";
+  readonly cardinality?: Cardinality;
   /** Values of this attribute may occur on at most one entity of this type. */
   readonly unique?: boolean;
 }
 
-export interface Use<D extends Definition<string, unknown>> {
+/**
+ * One entity type's use of a global attribute. `C` keeps a literal
+ * cardinality in the type, so entity-level helpers can accept an array for
+ * exactly the cardinality-many uses.
+ */
+export interface Use<D extends AnyDefinition, C extends Cardinality = Cardinality> {
   readonly _tag: "AttributeUse";
   readonly attribute: D;
   readonly required: boolean;
-  readonly cardinality: "one" | "many";
+  readonly cardinality: C;
   readonly unique: boolean;
 }
+
+/** The cardinality `use` records for an options literal; `one` unless `many` is explicit. */
+export type CardinalityOf<O extends UseOptions> = O extends { readonly cardinality: "many" }
+  ? "many"
+  : "cardinality" extends keyof O
+    ? O extends { readonly cardinality?: "one" }
+      ? "one"
+      : Cardinality
+    : "one";
 
 export type AnyDefinition = Definition<string, any>;
 export type ValueOf<D> = D extends Definition<string, infer V> ? V : never;
@@ -112,7 +139,7 @@ const make = <const K extends string, V>(
   refs: ReadonlyArray<ConfigNode.ConfigRef> = [],
 ): Definition<K, V> => {
   const key = validateKey(keyInput);
-  return {
+  const definition: Definition<K, V> = {
     _tag: "Attribute",
     key,
     type,
@@ -120,7 +147,15 @@ const make = <const K extends string, V>(
     sensitive: false,
     encode,
     node: nodeOf(key, type, false, refs),
+    // The spread loses `O`'s literal cardinality, which `CardinalityOf<O>` restores.
+    required: (options) =>
+      use(definition, { ...options, required: true }) as Use<Definition<K, V>, never>,
+    many: (options) => use(definition, { ...options, cardinality: "many" }),
+    unique: (options) =>
+      use(definition, { ...options, unique: true }) as Use<Definition<K, V>, never>,
+
   };
+  return definition;
 };
 
 /**
@@ -190,14 +225,18 @@ export const ref = <const K extends string, const Target extends { readonly enti
   ]);
 
 /** Requiredness and cardinality belong to an entity's use, not the global attribute. */
-export const use = <D extends AnyDefinition>(attribute: D, options: UseOptions = {}): Use<D> => ({
+export const use = <D extends AnyDefinition, const O extends UseOptions = {}>(
+  attribute: D,
+  options?: O,
+): Use<D, CardinalityOf<O>> => ({
   _tag: "AttributeUse",
   attribute,
-  required: options.required ?? false,
-  cardinality: options.cardinality ?? "one",
-  unique: options.unique ?? false,
+  required: options?.required ?? false,
+  cardinality: (options?.cardinality ?? "one") as CardinalityOf<O>,
+  unique: options?.unique ?? false,
 });
 
+/** A typed fact descriptor; spread it into an `assert` operation with an entity id. */
 export const assertion = <D extends AnyDefinition>(
   definition: D,
   value: ValueOf<D>,
@@ -218,6 +257,7 @@ export const assertion = <D extends AnyDefinition>(
       "validTo must be later than validFrom; intervals are [validFrom, validTo)",
     );
   }
+
   return {
     attribute: definition.key,
     value: definition.encode(value),
