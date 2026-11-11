@@ -443,6 +443,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: full check (29/27/15), Postgres 48/48 and pack check pass at `9c4bd9c`; pushed to #81.
 - 2026-11-11: P4.4b merged (live queries); added P4.4c (Postgres run of its corpus).
 - 2026-11-11: P3.3 merged (`db.preview`). P3.2 stopped: `Triples.get` returns retracted facts on KV but
   not SQL. Decision: `get` is live-only on every backend; new `assertion(id)` returns any assertion
