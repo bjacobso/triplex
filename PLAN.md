@@ -257,13 +257,13 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 1: make wrong things loud
 
-| ID   | Item                                       | Lane | Depends         | Status  | Evidence                                                                                                                                                                                                                                          |
-| ---- | ------------------------------------------ | ---- | --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1.1 | Reject unknown attributes in bound queries | A    |                 | done    | 2026-11-11: merged `ergo/p1.1` (`6133995`); `SchemaBound.layer`, `UnknownAttributeError`. Note: `match` reports it as `ReadError.cause` until the write-path error union is widened                                                               |
-| P1.2 | Stable error codes with a suggested fix    | A, C |                 | done    | 2026-11-11: core half `ergo/p1.2a` and CLI/HTTP half `ergo/p1.2b` merged; CLI `{ ok: false, command, error: Diagnostic }`, HTTP `{ error: Diagnostic }`, OpenAPI error schema, `cli.*` and `http.*` codes. CLI 9/9, HTTP 8/8, integration 210/210 |
-| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | active  | 2026-11-11: in `ergo/p4.4a`                                                                                                                                                                                                                       |
-| P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending |                                                                                                                                                                                                                                                   |
-| P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending |                                                                                                                                                                                                                                                   |
+| ID   | Item                                       | Lane | Depends         | Status  | Evidence                                                                                                                                                                                                                                                       |
+| ---- | ------------------------------------------ | ---- | --------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1.1 | Reject unknown attributes in bound queries | A    |                 | done    | 2026-11-11: merged `ergo/p1.1` (`6133995`); `SchemaBound.layer`, `UnknownAttributeError`. Note: `match` reports it as `ReadError.cause` until the write-path error union is widened                                                                            |
+| P1.2 | Stable error codes with a suggested fix    | A, C |                 | done    | 2026-11-11: core half `ergo/p1.2a` and CLI/HTTP half `ergo/p1.2b` merged; CLI `{ ok: false, command, error: Diagnostic }`, HTTP `{ error: Diagnostic }`, OpenAPI error schema, `cli.*` and `http.*` codes. CLI 9/9, HTTP 8/8, integration 210/210              |
+| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | active  | 2026-11-11: in `ergo/p4.4a`                                                                                                                                                                                                                                    |
+| P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending |                                                                                                                                                                                                                                                                |
+| P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | active  | 2026-11-11: cold Codex author on the vendor-risk brief, packages pinned at `52a6c97` in `../triplex-wt/trial-base`, run directory `../triplex-trials/vendor-risk-2026-11-11` (outside the repo so contributor `AGENTS.md` does not load); handoff 21:38:06 UTC |
 
 - **P1.1** A query checked against a config release must fail before execution when it names an
   attribute the release does not define. Today it returns `[]`. Add an opt-in check that takes
@@ -420,9 +420,9 @@ Update this section last in every session.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P4.4a with P1.3: block `block:01a1cc7d-43a9-7864-b38b-d6a4e36f7dc1`
   - P2.6: block `block:01a1cc7d-43d1-734b-a43c-75b24e4eff3f`
-  - P2.3b: block `block:01a1cc7d-43f8-73ad-9c8c-f9187455fd2e`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p4.4a,p2.6,p2.3b}` on
-  `ergo/p4.4a`, `ergo/p2.6` and `ergo/p2.3b`. The session PR is #80 from `ergonomics/next`.
+  - P1.5 trial (cold author): block `block:01a1cc8c-0920-7799-85ed-c1e94263f206`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p4.4a,p2.6}` on `ergo/p4.4a` and
+  `ergo/p2.6`; `../triplex-wt/trial-base` (detached at `52a6c97`, trial packages). The session PR is #80 from `ergonomics/next`.
 - **Next action:** review Wave A as it reports. Then P3.0 (after P4.4a, both touch adapters),
   then P3.2 and P4.4b, and switch the client to `resolveRecordedBasis`. Push merged work to PR #80.
 - **Known blockers:** none.
@@ -431,6 +431,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P2.3b merged. Started the P1.5 cold-author trial (phase 1 gate) against `52a6c97`.
 - 2026-11-11: Wave A scope stops: P4.4a needed sensitive, subscriptions, derivation and pagination
   (granted the query-execution surface); P2.6 needed `Attribute.ref` to keep its target for
   reference closures (granted `Attribute.ts`, `EntityType.ts`); P2.3b needed an HTTP-compatible
