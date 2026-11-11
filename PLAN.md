@@ -257,7 +257,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ---- | ------------------------------------------ | ---- | --------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1.1 | Reject unknown attributes in bound queries | A    |                 | done        | 2026-11-11: merged `ergo/p1.1` (`6133995`); `SchemaBound.layer`, `UnknownAttributeError`. Note: `match` reports it as `ReadError.cause` until the write-path error union is widened |
 | P1.2 | Stable error codes with a suggested fix    | A, C |                 | active      | 2026-11-11: core half merged (`ergo/p1.2a`): `diagnose`, `Diagnostic`, 38 codes in `docs/errors.md`; core suite 789/789. CLI envelope half pending                                  |
-| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner | 2026-11-11: written up with P4.1 in `ergo/p4.1` (`docs/rfcs/datalog-time.md`); waits on D2                                                                                          |
+| P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner | 2026-11-11: designed in `docs/rfcs/datalog-time.md` section 3 (recorded-only `:_tx/*`); waits on D2                                                                                 |
 | P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending     |                                                                                                                                                                                     |
 | P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending     |                                                                                                                                                                                     |
 
@@ -326,15 +326,15 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 3: why, and the agent door
 
-| ID   | Item                               | Lane | Depends    | Status      | Evidence                                                                                                 |
-| ---- | ---------------------------------- | ---- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------- |
-| P3.1 | `why` RFC                          | B    |            | done        | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run |
-| P3.2 | `why` implementation               | B    | P3.1       | needs-owner | Waits on D9                                                                                              |
-| P3.3 | Preview a command on an overlay    | B    | P2.6       | pending     |                                                                                                          |
-| P3.4 | Describe from the live release     | C    |            | active      | 2026-11-11: `ergo/p3.4`                                                                                  |
-| P3.5 | CLI commands for `why` and preview | C    | P3.2, P3.3 | pending     |                                                                                                          |
-| P3.6 | MCP server package                 | C    | P3.4, P3.5 | pending     |                                                                                                          |
-| P3.7 | Run the phase 3 gate               | C    | P3.6       | pending     |                                                                                                          |
+| ID   | Item                               | Lane | Depends    | Status      | Evidence                                                                                                                                                                                                                                          |
+| ---- | ---------------------------------- | ---- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P3.1 | `why` RFC                          | B    |            | done        | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run                                                                                                                                          |
+| P3.2 | `why` implementation               | B    | P3.1       | needs-owner | Waits on D9                                                                                                                                                                                                                                       |
+| P3.3 | Preview a command on an overlay    | B    | P2.6       | pending     |                                                                                                                                                                                                                                                   |
+| P3.4 | Describe from the live release     | C    |            | done        | 2026-11-11: merged `ergo/p3.4`; `describe` returns the release schema, constraints, rules and examples verified by `transaction apply`. Orchestrator raised the suite timeout (flaky at 5 s). Rule 5 should cite `Change.replace` once P2.4 lands |
+| P3.5 | CLI commands for `why` and preview | C    | P3.2, P3.3 | pending     |                                                                                                                                                                                                                                                   |
+| P3.6 | MCP server package                 | C    | P3.4, P3.5 | pending     |                                                                                                                                                                                                                                                   |
+| P3.7 | Run the phase 3 gate               | C    | P3.6       | pending     |                                                                                                                                                                                                                                                   |
 
 - **P3.1** RFC only, and it can start in parallel with phase 1. Define one result shape that
   explains a fact, an entity's current state, or a derivation candidate: the asserting
@@ -358,12 +358,12 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 4: close the loop
 
-| ID   | Item                              | Lane | Depends   | Status      | Evidence                                    |
-| ---- | --------------------------------- | ---- | --------- | ----------- | ------------------------------------------- |
-| P4.1 | Valid-time binding in Datalog RFC | A    |           | active      | 2026-11-11: `ergo/p4.1`, combined with P1.3 |
-| P4.2 | Runner package RFC                | C    | P2.6      | pending     |                                             |
-| P4.3 | Live query RFC                    | A    |           | pending     |                                             |
-| P4.4 | Implement approved phase 4 RFCs   | —    | P4.1–P4.3 | needs-owner |                                             |
+| ID   | Item                              | Lane | Depends   | Status      | Evidence                                                                                                                                |
+| ---- | --------------------------------- | ---- | --------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| P4.1 | Valid-time binding in Datalog RFC | A    |           | done        | 2026-11-11: merged `ergo/p4.1`; `docs/rfcs/datalog-time.md` (object interval patterns, `validTime: "all"`). Implementation waits on D10 |
+| P4.2 | Runner package RFC                | C    | P2.6      | pending     |                                                                                                                                         |
+| P4.3 | Live query RFC                    | A    |           | pending     |                                                                                                                                         |
+| P4.4 | Implement approved phase 4 RFCs   | —    | P4.1–P4.3 | needs-owner |                                                                                                                                         |
 
 - **P4.1** Issue #73 holds the evidence. Specify how a query binds `validFrom` and `validTo`, so
   "expiring within 30 days" is one query, with identical semantics on KV and SQL.
@@ -382,7 +382,7 @@ item `needs-owner`, and continue with independent work.
 | #   | Question                                                                                                                                                                                                                                                                                                                                                                       | Blocks | Answer                                       |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------- |
 | D1  | PR #45 naming: is `assert` right, should a strict `create` ship beside it, is `GraphConstraint.pinned` the right name and place? Recommendation: keep `assert` (it matches the `op`); defer `create` to the client in P2.5, where enforcement is already the default; keep `pinned` in `GraphConstraint` and memoize it per root content ID.                                   | P2.1   | 2026-11-11: yes, as recommended              |
-| D2  | `_tx` joins at a past `validAt`: planning-time error, or evaluate at the current valid basis?                                                                                                                                                                                                                                                                                  | P1.3   |                                              |
+| D2  | `_tx` joins at a past `validAt`: planning-time error, or evaluate at the current valid basis? Now designed in `docs/rfcs/datalog-time.md` section 3, which recommends recorded-only `:_tx/*` (an intentional change to existing metadata queries).                                                                                                                             | P1.3   |                                              |
 | D3  | Approve the client RFC                                                                                                                                                                                                                                                                                                                                                         | P2.6   |                                              |
 | D4  | What measured retry rate in WorldVM restarts the position-allocator work?                                                                                                                                                                                                                                                                                                      | none   |                                              |
 | D5  | Is the MCP server package published or private at first?                                                                                                                                                                                                                                                                                                                       | P3.6   |                                              |
@@ -390,6 +390,7 @@ item `needs-owner`, and continue with independent work.
 | D7  | Should commit validators see the inbox and outbox entries a transaction appends? Recommendation: yes, read-only in the after-view, since WorldVM commits facts, receipts and outgoing intents together and a validator may need to check an intent.                                                                                                                            | P2.2   | 2026-11-11: yes, read-only in the after-view |
 | D8  | PR #46 is contained in #48. Close #46 as superseded once #48 is rebased? Only the owner closes PRs.                                                                                                                                                                                                                                                                            | none   | 2026-11-11: yes; #46 closed after #48 merged |
 | D9  | Approve `docs/rfcs/why.md`: one `Why` service on a `why` subpath; a new `Triples.resolveRecordedBasis` read for exact cuts (a write-path change); causation depth capped at 32; whole-entity results unpaginated; candidates explained from a supplied definition plus exact ID, revision and basis; no structured negative witnesses yet. Recommendation: approve as written. | P3.2   |                                              |
+| D10 | Approve `docs/rfcs/datalog-time.md` (P4.1): the `{ pattern, valid: { from, to } }` interval pattern, query-wide `validTime: "all"`, `null` for open ends with finite-only ordered predicates, and new interval indexes with migrations in the later implementation. Recommendation: approve, and answer D2 at the same time.                                                   | P4.4   |                                              |
 
 ## Not in this plan
 
@@ -420,6 +421,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P3.4 and the time-in-Datalog RFC merged; added D10. CLI describe test was flaky
+  at the 5 s default; timeout raised to 30 s.
 - 2026-11-11: P2.4 stopped at two undeclared paths (SQLite test; sealed re-assertion under
   `Sensitive.layer`). Scope extended: accept a sealed assert only when byte-identical to a fact the
   same transaction retracts.
