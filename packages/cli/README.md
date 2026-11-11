@@ -20,13 +20,16 @@ above runs the same CLI from a source checkout. The unscoped
 
 - Successful commands write one `{ "ok": true, "command": "...", "data": ... }` JSON value to
   stdout.
-- Runtime and schema failures write `{ "ok": false, "error": ... }` to stderr and exit nonzero.
+- Failures write `{ "ok": false, "command": ..., "error": Diagnostic }` to stderr and exit nonzero.
 - `describe` returns a machine-readable capability manifest and release schema; `--help` returns Effect CLI help.
 - JSON payloads come from `--input <file>` or stdin with `--input -`.
 - External entity, triple, transaction, database, query, value, and transaction-operation values
   are decoded by the same Effect schemas as the public Triplex API.
 - Mutations through `transaction apply` require `meta.actor` and `meta.commandId` so agent writes
   are attributed and safely retryable.
+- `error.code` is stable; `message` explains the failure, `path` locates input, and `fix` suggests recovery. `retryable` is always present. Reload facts before retrying a retryable conflict; use the journal receipt for duplicate command IDs.
+- Input failures have `cli.arguments`, `cli.input-read`, `cli.input-json`, or `cli.input-schema` codes. Core failures retain their diagnostic codes.
+- Add `--debug` to include a top-level `cause` string for debugging; it may contain input or storage details.
 - Output is compact by default. Add `--pretty` before the subcommand for readable JSON.
 
 ## Discover the write schema

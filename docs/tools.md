@@ -46,7 +46,12 @@ with `config set-ref`.
 
 Successful CLI commands emit one
 `{ "ok": true, "command": "…", "data": … }` JSON value to stdout. Decode/runtime failures emit an
-error envelope to stderr and exit nonzero. Add `--pretty` before the subcommand when reading output
+`{ "ok": false, "command": "query.run", "error": { "code": "datalog.unbound-variable",
+"message": "…", "path": "find", "fix": "Bind the variable in a positive pattern or rule application before using it.",
+"retryable": false } }` envelope to stderr and exit nonzero.
+Branch on `error.code`, correct `error.path` using `error.fix`, and reload facts before
+retrying a diagnostic with `retryable: true`. See [Error diagnostics](/errors).
+Add `--debug` to include the original `cause` string (which may contain input details). Add `--pretty` before the subcommand when reading output
 by hand.
 
 Opening the SQLite convenience layer can apply pending Triplex migrations. Hosts that require

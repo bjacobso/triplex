@@ -208,8 +208,11 @@ Triplex facts, the journal, and an outbox row commit together. See
 ## Inspect with the CLI
 
 The CLI is non-interactive and prints one JSON envelope per command:
-`{ "ok": true, "command": ..., "data": ... }` on success, and `{ "ok": false, "error": ... }` on
-stderr with a nonzero exit on failure. Writes require `meta.actor` and `meta.commandId`.
+`{ "ok": true, "command": ..., "data": ... }` on success, and `{ "ok": false, "command": ..., "error": Diagnostic }` on
+stderr with a nonzero exit on failure. The diagnostic has `code`, `message`, `retryable`,
+and optional `path`, `fix`, and `details`. Branch on `code`; use `fix` to correct the input.
+Only retry a retryable conflict after reloading facts. Add `--debug` to include the original
+`cause` string; see [Error diagnostics](/errors). Writes require `meta.actor` and `meta.commandId`.
 
 ```sh
 npm install --global @triplex-build/triplex-cli

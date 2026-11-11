@@ -66,7 +66,24 @@ the surrounding HTTP snapshot/version cache key. A continuation therefore materi
 at the first page's exact cut. If a movable ref changes, clients must restart under the newly
 resolved contract.
 
-Errors are JSON objects with a stable `code`, sanitized `message`, and an optional field `path`.
+Errors are JSON envelopes `{ "error": Diagnostic }`, for example:
+
+```json
+{
+  "error": {
+    "code": "http.invalid-request",
+    "message": "limit must be an integer between 1 and 200",
+    "path": "$.limit",
+    "fix": "Correct the named request field using the OpenAPI schema.",
+    "retryable": false
+  }
+}
+```
+
+The OpenAPI error schema includes `code`, `message`, `retryable`, and optional `path`,
+`fix`, and `details`. Core failures retain their core codes; HTTP-owned errors use `http.*`.
+See [Error diagnostics](/errors) for every code. Retryable transaction conflicts include
+`Retry-After: 0`; reload current facts before retrying the whole command.
 Malformed input is `400`, host authentication/authorization is `401`/`403`, missing resources are
 `404`, read-only writes are `405` with `Allow`, and data/constraint/concurrency conflicts are `409`.
 Unexpected storage and deployed-config failures return a sanitized `500` while their causes remain

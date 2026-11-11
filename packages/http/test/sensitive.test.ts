@@ -136,7 +136,9 @@ describe("sensitive attributes over HTTP", () => {
       );
       const body = await response.text();
       expect(response.status).toBe(500);
-      expect(JSON.parse(body)).toMatchObject({ code: "sensitive_storage_required" });
+      expect(JSON.parse(body)).toMatchObject({
+        error: { code: "http.sensitive-storage-required", retryable: false },
+      });
       expect(body).toMatch(/requires a Sensitive.layer/);
       expect(body).not.toContain(PLANTED);
       const stored = await Effect.runPromise(web.triples().match({ attribute: ":person/ssn" }));

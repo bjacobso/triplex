@@ -2,10 +2,6 @@
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect } from "effect";
-import { reportFailure, run } from "./program.js";
+import { run } from "./program.js";
 
-run.pipe(
-  Effect.catchCause(reportFailure),
-  Effect.provide(NodeServices.layer),
-  NodeRuntime.runMain({ disableErrorReporting: true }),
-);
+run.pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain({ disableErrorReporting: true }));
