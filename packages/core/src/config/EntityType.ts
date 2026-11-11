@@ -1,11 +1,13 @@
 /** Ergonomic entity-type declarations compiled to content-addressed config nodes. */
 
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 
 import type { EntityId } from "../Branded.js";
+import * as Change from "../Change.js";
 import * as CanonicalJson from "../content/CanonicalJson.js";
 import type { NotClause, PatternClause, Term } from "../datalog/schema.js";
-import type { TransactAssertOp } from "../Triple.js";
+import type { Triple, TransactAssertOp } from "../Triple.js";
+import type { TripleValue } from "../Value.js";
 import * as Attribute from "./Attribute.js";
 import * as ConfigNode from "./ConfigNode.js";
 import { ENTITY_SCHEMA_KIND } from "./EntityValidation.js";
@@ -21,6 +23,9 @@ const RESERVED_PROPERTIES = new Set([
   "attributes",
   "constraints",
   "assert",
+  "end",
+  "replace",
+  "correct",
   "where",
   "not",
 ]);
@@ -77,6 +82,13 @@ export type Values<A extends Uses> = {
   readonly [P in keyof A]?: UseValue<A[P]> | undefined;
 };
 
+/** Exactly one aliased value for one fact, including a cardinality-many fact. */
+export type ChangeValue<A extends Uses> = {
+  [P in keyof A]: { readonly [K in P]: Attribute.ValueOf<A[P]["attribute"]> } & {
+    readonly [K in Exclude<keyof A, P>]?: never;
+  };
+}[keyof A];
+
 /**
  * Pattern values keyed by alias: a variable, or a constant typed by the
  * attribute. A cardinality-many attribute matches one value per pattern.
@@ -112,6 +124,12 @@ export type EntityType<N extends string, A extends Uses> = {
     values: Values<A>,
     options?: Attribute.AssertionOptions,
   ) => ReadonlyArray<TransactAssertOp>;
+  /** End a fact belonging to this type. Throws ChangeRangeError for an invalid split. */
+  readonly end: (fact: Triple, at: number) => Change.Change;
+  /** Encode one aliased replacement and preserve the fact's past and original end. */
+  readonly replace: (fact: Triple, value: ChangeValue<A>, at: number) => Change.Change;
+  /** Encode one aliased correction over the fact's whole original interval. */
+  readonly correct: (fact: Triple, value: ChangeValue<A>) => Change.Change;
   /**
    * Datalog pattern clauses for `entity`, one per alias in declaration order,
    * so a query names attributes by alias instead of by key.
@@ -292,6 +310,29 @@ export function make(
     }
     return ["not", ...clauses] as unknown as NotClause;
   };
+  const checkFact = (fact: Triple): void => {
+    if (
+      !Option.isSome(fact.entityType) ||
+      fact.entityType.value !== name ||
+      !definitions.has(fact.attribute)
+    ) {
+      throw new TypeError(`Fact ${fact.id} does not belong to entity type ${name}`);
+    }
+  };
+  const changeValue = (fact: Triple, value: ChangeValue<Uses>): TripleValue => {
+    checkFact(fact);
+    const entries = Object.entries(value);
+    if (entries.length !== 1)
+      throw new TypeError(`${name} changes take exactly one attribute alias`);
+    const [alias, item] = entries[0]!;
+    if (
+      !Object.prototype.hasOwnProperty.call(handles, alias) ||
+      handles[alias]!.key !== fact.attribute
+    ) {
+      throw new TypeError(`${name}.${alias} does not match fact attribute ${fact.attribute}`);
+    }
+    return handles[alias]!.definition.encode(item);
+  };
   const entity = {
     entityType: name,
     schema,
@@ -300,6 +341,14 @@ export function make(
     node,
     nodes,
     assert,
+    end: (fact: Triple, at: number) => {
+      checkFact(fact);
+      return Change.end(fact, at);
+    },
+    replace: (fact: Triple, value: ChangeValue<Uses>, at: number) =>
+      Change.replace(fact, changeValue(fact, value), at),
+    correct: (fact: Triple, value: ChangeValue<Uses>) =>
+      Change.correct(fact, changeValue(fact, value)),
     where,
     not,
     ...handles,

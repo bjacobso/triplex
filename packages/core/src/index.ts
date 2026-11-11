@@ -7,6 +7,7 @@
 
 export * from "./Branded.js";
 export * from "./Triple.js";
+export * as Change from "./Change.js";
 export * from "./Temporal.js";
 export {
   DEFAULT_QUERY_PAGE_SIZE,

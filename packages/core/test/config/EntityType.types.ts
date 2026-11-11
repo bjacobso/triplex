@@ -1,4 +1,5 @@
 import type { TransactAssertOp } from "../../src/Triple.js";
+import type { Triple } from "../../src/Triple.js";
 import { EntityId } from "../../src/Branded.js";
 import * as Attribute from "../../src/config/Attribute.js";
 import * as EntityType from "../../src/config/EntityType.js";
@@ -114,3 +115,22 @@ export const conditionalAssertion = Worker.name.assertion("Maria", {
   validFrom: maybeBound,
   validTo: maybeBound,
 });
+
+// Changes target one fact, so even cardinality-many attributes take a single value.
+declare const fact: Triple;
+export const temporalChanges = [
+  Worker.end(fact, 10),
+  Worker.replace(fact, { name: "Maria" }, 10),
+  Worker.correct(fact, { active: true }),
+  Worker.replace(fact, { trainedFor: harbor }, 10),
+];
+// @ts-expect-error replacement values use the attribute's input type
+Worker.replace(fact, { active: "yes" }, 10);
+// @ts-expect-error a change targets exactly one alias
+Worker.correct(fact, { name: "Maria", active: true });
+// @ts-expect-error a change requires one alias
+Worker.correct(fact, {});
+// @ts-expect-error unknown aliases are rejected
+Worker.correct(fact, { title: "Supervisor" });
+// @ts-expect-error a single cardinality-many fact takes one value
+Worker.correct(fact, { trainedFor: [harbor] });
