@@ -4,6 +4,8 @@ description: Answers to common failures, including npm 404s, missing Effect serv
 
 # Troubleshooting and FAQ
 
+For machine-readable error codes and recovery hints, see [Error diagnostics](/errors).
+
 ## Why does npm return 404 for a Triplex package?
 
 The seven public packages use the `@triplex-build` scope. Check the full package name and clear a
