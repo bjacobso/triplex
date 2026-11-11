@@ -40,10 +40,8 @@ const ssn = Attribute.sensitive(Attribute.text(":employee/ssn"));
 const name = Attribute.text(":employee/name");
 
 const Employee = EntityType.make("Employee", {
-  attributes: {
-    ssn: Attribute.use(ssn, { unique: true }),
-    name: Attribute.use(name, { required: true }),
-  },
+  ssn: Attribute.use(ssn, { unique: true }),
+  name: Attribute.use(name, { required: true }),
 });
 
 // Decorate any backend's Triples. Test keys are for tests only.

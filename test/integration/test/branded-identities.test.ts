@@ -52,7 +52,7 @@ describe("branded public identities", () => {
   });
 
   it("accepts EntityId values through ontology reference attributes", () => {
-    const Employer = EntityType.make("Employer", { attributes: {} });
+    const Employer = EntityType.make("Employer", {});
     const EmployerRef = Attribute.ref(":employment/employer", Employer);
     const assertion = Attribute.assertion(EmployerRef, EntityId.make("employer:acme"));
 

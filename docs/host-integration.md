@@ -200,9 +200,7 @@ The host can compile its own ergonomic DSL into independently addressed Triplex 
 const RecordName = Attribute.text(":record/name");
 
 const Record = EntityType.make("Record", {
-  attributes: {
-    name: Attribute.use(RecordName, { required: true }),
-  },
+  name: Attribute.use(RecordName, { required: true }),
 });
 ```
 

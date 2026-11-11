@@ -44,9 +44,7 @@ const Requirement = {
 
 const RequirementStatus = Attribute.text(Requirement.attribute.status);
 const RequirementSchema = EntityType.make(Requirement.entityType, {
-  attributes: {
-    status: Attribute.use(RequirementStatus, { required: true }),
-  },
+  status: Attribute.use(RequirementStatus, { required: true }),
 });
 
 interface RequirementOccurrence {

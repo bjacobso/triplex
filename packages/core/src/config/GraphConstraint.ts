@@ -208,6 +208,9 @@ export const collect = (
       .sort((left, right) => left.key.localeCompare(right.key));
   });
 
+// Immutable release roots share their validated enforcement payload.
+const pinnedEnforcement = new Map<string, { readonly constraints: ReadonlyArray<Rule> }>();
+
 /**
  * Transaction metadata that governs a write by one release: `configSnapshot`
  * records the release id, and `enforce` carries the graph constraints collected
@@ -223,10 +226,14 @@ export const pinned = (release: {
   },
   InvalidGraphConstraintError | DuplicateGraphConstraintError
 > =>
-  Effect.map(collect(release.root), (definitions) => ({
-    configSnapshot: release.id,
-    enforce: enforcement(definitions),
-  }));
+  Effect.gen(function* () {
+    let enforce = pinnedEnforcement.get(release.root.cid);
+    if (enforce === undefined) {
+      enforce = enforcement(yield* collect(release.root));
+      pinnedEnforcement.set(release.root.cid, enforce);
+    }
+    return { configSnapshot: release.id, enforce };
+  });
 
 const pathOf = (attribute: string): string => `$[${JSON.stringify(attribute)}]`;
 

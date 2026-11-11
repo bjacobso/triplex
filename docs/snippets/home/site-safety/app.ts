@@ -55,8 +55,8 @@ export const PlacementV2 = EntityType.make("Placement", {
 export const publish = (label: string, types: ReadonlyArray<{ nodes: typeof Site.nodes }>) =>
   Effect.gen(function* () {
     const config = yield* ConfigStore.ConfigStore;
-    const objects = yield* Effect.all(types.map((type) => type.nodes));
-    return yield* config.commit({ label, objects: objects.flat(), ref: "live" });
+    const objects = yield* EntityType.nodesOf(...types);
+    return yield* config.commit({ label, objects, ref: "live" });
   });
 // #endregion release
 

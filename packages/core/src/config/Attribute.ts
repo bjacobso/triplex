@@ -14,10 +14,9 @@ const ATTRIBUTE_KEY = /^:[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*$/;
 
 export interface AssertionOptions {
   /** Start of the domain-valid interval, in epoch milliseconds (inclusive). */
-  readonly validFrom?: number;
+  readonly validFrom?: number | undefined;
   /** End of the domain-valid interval, in epoch milliseconds (exclusive). */
-
-  readonly validTo?: number;
+  readonly validTo?: number | undefined;
 }
 
 export interface Assertion<K extends string = string> {
@@ -148,12 +147,15 @@ const make = <const K extends string, V>(
     encode,
     node: nodeOf(key, type, false, refs),
     // The spread loses `O`'s literal cardinality, which `CardinalityOf<O>` restores.
-    required: (options) =>
-      use(definition, { ...options, required: true }) as Use<Definition<K, V>, never>,
-    many: (options) => use(definition, { ...options, cardinality: "many" }),
-    unique: (options) =>
-      use(definition, { ...options, unique: true }) as Use<Definition<K, V>, never>,
-
+    required(options) {
+      return use(this, { ...options, required: true }) as Use<Definition<K, V>, never>;
+    },
+    many(options) {
+      return use(this, { ...options, cardinality: "many" });
+    },
+    unique(options) {
+      return use(this, { ...options, unique: true }) as Use<Definition<K, V>, never>;
+    },
   };
   return definition;
 };

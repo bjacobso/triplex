@@ -93,11 +93,13 @@ attribute. Reference attributes follow the same separation.
 
 `.required()`, `.many()`, and `.unique()` describe a use and accept the remaining options, for
 example `.required({ unique: true })` or `.many({ required: true })`. They are shorthands for
-`Attribute.use(attribute, options)`, which remains available. The `{ attributes: { ... } }` form of
-`EntityType.make` is also accepted; both forms compile to the same content-addressed nodes.
+`Attribute.use(attribute, options)`, which remains available. Declare entity types with
+`EntityType.make(name, fields)`, passing aliased fields directly.
 
 `Employer.nodes` yields the independently identified attribute definitions followed by the entity
-schema. `Employer.constraints` yields independently content-addressed required, cardinality,
+schema. Use `EntityType.nodesOf(Employer, EmployerSummary, Employment)` to publish several types
+together: it deduplicates shared attribute nodes by content ID before `ConfigStore.commit`.
+`Employer.constraints` yields independently content-addressed required, cardinality,
 uniqueness, and reference-target rules.
 
 ## Writing entities

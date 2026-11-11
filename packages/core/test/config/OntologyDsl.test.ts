@@ -14,31 +14,23 @@ const EmployerName = Attribute.text(":employer/name");
 const WorkerName = Attribute.text(":worker/name");
 
 const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: true }),
-  },
+  name: Attribute.use(EmployerName, { required: true }),
 });
 
 const EmployerSummary = EntityType.make("EmployerSummary", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: false }),
-  },
+  name: Attribute.use(EmployerName, { required: false }),
 });
 
 const Worker = EntityType.make("Worker", {
-  attributes: {
-    name: Attribute.use(WorkerName, { required: true }),
-  },
+  name: Attribute.use(WorkerName, { required: true }),
 });
 
 const EmploymentEmployer = Attribute.ref(":employment/employer", Employer);
 const EmploymentWorker = Attribute.ref(":employment/worker", Worker);
 
 const Employment = EntityType.make("Employment", {
-  attributes: {
-    employer: Attribute.use(EmploymentEmployer, { required: true }),
-    worker: Attribute.use(EmploymentWorker, { required: true }),
-  },
+  employer: Attribute.use(EmploymentEmployer, { required: true }),
+  worker: Attribute.use(EmploymentWorker, { required: true }),
 });
 
 describe("ontology DSL", () => {
@@ -133,14 +125,12 @@ describe("ontology DSL", () => {
 
   it("builds typed assert operations for a whole entity", () => {
     const Site = EntityType.make("Site", {
-      attributes: { name: Attribute.use(Attribute.text(":site/name"), { required: true }) },
+      name: Attribute.use(Attribute.text(":site/name"), { required: true }),
     });
     const Crew = EntityType.make("Crew", {
-      attributes: {
-        name: Attribute.use(Attribute.text(":crew/name"), { required: true }),
-        sites: Attribute.use(Attribute.ref(":crew/site", Site), { cardinality: "many" }),
-        size: Attribute.use(Attribute.integer(":crew/size")),
-      },
+      name: Attribute.use(Attribute.text(":crew/name"), { required: true }),
+      sites: Attribute.use(Attribute.ref(":crew/site", Site), { cardinality: "many" }),
+      size: Attribute.use(Attribute.integer(":crew/size")),
     });
     const crew = EntityId.make("crew:night");
     const harbor = EntityId.make("site:harbor");
@@ -150,7 +140,7 @@ describe("ontology DSL", () => {
     expect(
       Crew.assert(
         crew,
-        { size: 4, sites: [harbor, pier], name: "Night", ...{ size: undefined } },
+        { sites: [harbor, pier], name: "Night", size: undefined },
         { validFrom: 10, validTo: 20 },
       ),
     ).toEqual([
@@ -196,13 +186,19 @@ describe("ontology DSL", () => {
     Effect.gen(function* () {
       const triples = yield* Triples;
       const config = yield* ConfigStore.ConfigStore;
-      const objects = yield* Effect.all([Employer.nodes, Worker.nodes, Employment.nodes]);
+      const objects = yield* EntityType.nodesOf(Employer, Worker, Employment);
       const release = yield* config.commit({
         label: "employment v1",
-        objects: objects.flat(),
+        objects,
         ref: "live",
       });
       const pinned = yield* GraphConstraint.pinned(release.snapshot);
+      const sameRoot = yield* GraphConstraint.pinned({
+        id: "another-release",
+        root: release.snapshot.root,
+      });
+      expect(sameRoot.enforce).toBe(pinned.enforce);
+      expect(sameRoot.configSnapshot).toBe("another-release");
       expect(pinned).toEqual({
         configSnapshot: release.snapshot.id,
         enforce: GraphConstraint.enforcement(yield* GraphConstraint.collect(release.snapshot.root)),
@@ -247,13 +243,17 @@ describe("ontology DSL", () => {
         employer: EmploymentEmployer.required(),
         worker: EmploymentWorker.required(),
       });
-      expect((yield* Concise.node).cid).toBe((yield* Employment.node).cid);
+      expect((yield* Concise.node).cid).toMatchInlineSnapshot(
+        `"sha256-d5658bb407941f5e6513c743604f89ba0edb7b56fdea717c4a715e2f1ea8f70f"`,
+      );
       expect(Concise.constraints.map(({ rule }) => rule)).toEqual(
         Employment.constraints.map(({ rule }) => rule),
       );
 
       const Bare = EntityType.make("EmployerSummary", { name: EmployerName });
-      expect((yield* Bare.node).cid).toBe((yield* EmployerSummary.node).cid);
+      expect((yield* Bare.node).cid).toMatchInlineSnapshot(
+        `"sha256-0261fc5be0863081999abc78d1b2c1246cedcd77d2e800b55620b4bb6f343805"`,
+      );
       expect(Bare.name.required).toBe(false);
       expect(Bare.name.cardinality).toBe("one");
 
@@ -262,6 +262,24 @@ describe("ontology DSL", () => {
       ).toThrow(/must be an attribute or its use/);
     }),
   );
+
+  it.effect("publishes shared global attributes once across entity types", () =>
+    Effect.gen(function* () {
+      const config = yield* ConfigStore.ConfigStore;
+      const objects = yield* EntityType.nodesOf(Employer, EmployerSummary, Employer);
+      expect(new Set(objects.map((node) => node.cid)).size).toBe(objects.length);
+      expect(objects.filter((node) => node.key === EmployerName.key)).toHaveLength(1);
+      expect(objects.filter((node) => node.kind === "entity-schema")).toHaveLength(2);
+      const release = yield* config.commit({ label: "shared", objects, ref: "live" });
+      expect(release.snapshot.root).toBeDefined();
+      expect(yield* EntityType.nodesOf()).toEqual([]);
+    }).pipe(Effect.provide(ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer)))),
+  );
+
+  it("rejects the removed wrapped declaration shape", () => {
+    const untyped = EntityType.make as (name: string, fields: object) => unknown;
+    expect(() => untyped("Wrapped", { attributes: {} })).toThrow();
+  });
 
   it("builds Datalog patterns by alias", () => {
     const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
@@ -401,6 +419,6 @@ describe("ontology DSL", () => {
 
   it("rejects identities outside the public naming conventions", () => {
     expect(() => Attribute.text(":Employer/name")).toThrow(/lowercase namespaced keyword/);
-    expect(() => EntityType.make("employer", { attributes: {} })).toThrow(/PascalCase/);
+    expect(() => EntityType.make("employer", {})).toThrow(/PascalCase/);
   });
 });

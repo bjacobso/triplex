@@ -12,16 +12,12 @@ const CourseTitle = Attribute.text(":course/title");
 const CourseStatus = Attribute.enumOf(":course/status", ["draft", "published"]);
 
 const CourseV1 = EntityType.make("Course", {
-  attributes: {
-    title: Attribute.use(CourseTitle, { required: true }),
-  },
+  title: Attribute.use(CourseTitle, { required: true }),
 });
 
 const CourseV2 = EntityType.make("Course", {
-  attributes: {
-    title: Attribute.use(CourseTitle, { required: true }),
-    status: Attribute.use(CourseStatus, { required: true }),
-  },
+  title: Attribute.use(CourseTitle, { required: true }),
+  status: Attribute.use(CourseStatus, { required: true }),
 });
 
 const program = Effect.gen(function* () {

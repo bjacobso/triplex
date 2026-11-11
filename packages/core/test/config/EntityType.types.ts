@@ -4,17 +4,15 @@ import * as Attribute from "../../src/config/Attribute.js";
 import * as EntityType from "../../src/config/EntityType.js";
 
 const Site = EntityType.make("Site", {
-  attributes: { name: Attribute.use(Attribute.text(":site/name"), { required: true }) },
+  name: Attribute.use(Attribute.text(":site/name"), { required: true }),
 });
 
 const options: Attribute.UseOptions = { cardinality: "many" };
 const Worker = EntityType.make("Worker", {
-  attributes: {
-    name: Attribute.use(Attribute.text(":worker/name"), { required: true }),
-    trainedFor: Attribute.use(Attribute.ref(":worker/trained-for", Site), { cardinality: "many" }),
-    nickname: Attribute.use(Attribute.text(":worker/nickname"), options),
-    active: Attribute.use(Attribute.boolean(":worker/active")),
-  },
+  name: Attribute.use(Attribute.text(":worker/name"), { required: true }),
+  trainedFor: Attribute.use(Attribute.ref(":worker/trained-for", Site), { cardinality: "many" }),
+  nickname: Attribute.use(Attribute.text(":worker/nickname"), options),
+  active: Attribute.use(Attribute.boolean(":worker/active")),
 });
 
 const maria = EntityId.make("worker:maria");
@@ -101,3 +99,18 @@ Crew.where("?crew", { night: "yes" });
 Crew.where("?crew", { title: "?title" });
 // @ts-expect-error the entity position is a variable or an entity id
 Crew.where("crew", { night: true });
+
+// Conditional temporal bounds work with exactOptionalPropertyTypes.
+const maybeBound: number | undefined = undefined;
+export const conditionalInterval = Worker.assert(
+  maria,
+  { name: "Maria" },
+  {
+    validFrom: maybeBound,
+    validTo: maybeBound,
+  },
+);
+export const conditionalAssertion = Worker.name.assertion("Maria", {
+  validFrom: maybeBound,
+  validTo: maybeBound,
+});

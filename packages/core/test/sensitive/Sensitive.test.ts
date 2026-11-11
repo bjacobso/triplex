@@ -26,12 +26,10 @@ const ApplicantSsn = Attribute.sensitive(Attribute.text(":applicant/ssn"));
 const DocumentNumber = Attribute.sensitive(Attribute.text(":i9/document-number"));
 
 const Employee = EntityType.make("Employee", {
-  attributes: {
-    ssn: Attribute.use(Ssn, { unique: true }),
-    birthDate: Attribute.use(BirthDate),
-    salary: Attribute.use(Salary),
-    name: Attribute.use(Name, { required: true }),
-  },
+  ssn: Attribute.use(Ssn, { unique: true }),
+  birthDate: Attribute.use(BirthDate),
+  salary: Attribute.use(Salary),
+  name: Attribute.use(Name, { required: true }),
 });
 
 const DATABASE = "test/sensitive";
@@ -478,6 +476,36 @@ describe("Datalog over sensitive attributes", () => {
         }),
       ),
     );
+
+  it("matches handwritten blind equality with entity where and not builders", async () => {
+    const positive: DatalogQuery = {
+      find: ["?name"],
+      where: [
+        ["?e", ":employee/name", "?name"],
+        ["?e", ":employee/ssn", PLANTED],
+      ],
+    };
+    const negative: DatalogQuery = {
+      find: ["?name"],
+      where: [
+        ["?e", ":employee/name", "?name"],
+        ["not", ["?e", ":employee/ssn", PLANTED]],
+      ],
+      orderBy: [{ variable: "?name" }],
+    };
+    const builtPositive = await rows({
+      ...positive,
+      where: Employee.where("?e", { name: "?name", ssn: PLANTED }),
+    });
+    const builtNegative = await rows({
+      ...negative,
+      where: [...Employee.where("?e", { name: "?name" }), Employee.not("?e", { ssn: PLANTED })],
+    });
+    expect(builtPositive).toEqual(await rows(positive));
+    expect(builtPositive).toEqual([{ "?name": "Ada" }]);
+    expect(builtNegative).toEqual(await rows(negative));
+    expect(builtNegative).toEqual([{ "?name": "Grace" }, { "?name": "Linus" }]);
+  });
 
   it("answers presence, blind equality, and sensitive-to-sensitive joins", async () => {
     expect(

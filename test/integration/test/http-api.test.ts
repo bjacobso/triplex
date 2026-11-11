@@ -23,25 +23,18 @@ const EmployerName = Attribute.text(":employer/name");
 const EmployerNote = Attribute.text(":employer/note");
 const EmployerTag = Attribute.text(":employer/tag");
 const Employer = EntityType.make("Employer", {
-  attributes: {
-    name: Attribute.use(EmployerName, { required: true, unique: true }),
-    note: Attribute.use(EmployerNote),
-    tags: Attribute.use(EmployerTag, { cardinality: "many" }),
-  },
+  name: Attribute.use(EmployerName, { required: true, unique: true }),
+  note: Attribute.use(EmployerNote),
+  tags: Attribute.use(EmployerTag, { cardinality: "many" }),
 });
 const EmploymentEmployer = Attribute.ref(":employment/employer", Employer);
 const EmploymentRole = Attribute.enumOf(":employment/role", ["engineer", "manager"]);
 const Employment = EntityType.make("Employment", {
-  attributes: {
-    employer: Attribute.use(EmploymentEmployer, { required: true }),
-    role: Attribute.use(EmploymentRole, { required: true }),
-  },
+  employer: Attribute.use(EmploymentEmployer, { required: true }),
+  role: Attribute.use(EmploymentRole, { required: true }),
 });
 
-const uniqueNodes = async () => {
-  const nodes = await Effect.runPromise(Effect.all([Employer.nodes, Employment.nodes]));
-  return [...new Map(nodes.flat().map((node) => [`${node.kind}\u0000${node.key}`, node])).values()];
-};
+const uniqueNodes = () => Effect.runPromise(EntityType.nodesOf(Employer, Employment));
 
 interface ErrorResponse {
   readonly code: string;

@@ -146,13 +146,8 @@ const isField = (value: unknown): value is Field =>
 /**
  * Declare an entity type from aliased attribute fields:
  * `EntityType.make("Worker", { name: Attribute.text(":worker/name").required() })`.
- * A bare attribute definition is an optional, cardinality-one use. The
- * `{ attributes: { ... } }` form is also accepted.
+ * A bare attribute definition is an optional, cardinality-one use.
  */
-export function make<const N extends string, const F extends Readonly<Record<string, Field>>>(
-  name: N,
-  definition: { readonly attributes: F },
-): EntityType<N, UsesOf<F>>;
 export function make<const N extends string, const F extends Readonly<Record<string, Field>>>(
   name: N,
   fields: F,
@@ -164,11 +159,8 @@ export function make(
   if (!ENTITY_TYPE_NAME.test(name)) {
     throw new TypeError(`Entity type identity must be PascalCase; received ${name}`);
   }
-  const wrapped =
-    Object.keys(input).length === 1 && "attributes" in input && !isField(input["attributes"]);
-  const declared = (wrapped ? input["attributes"] : input) as Readonly<Record<string, unknown>>;
   const attributeUses: Record<string, Attribute.Use<Attribute.AnyDefinition>> = {};
-  for (const [property, field] of Object.entries(declared)) {
+  for (const [property, field] of Object.entries(input)) {
     if (!isField(field)) {
       throw new TypeError(`Entity attribute alias ${property} must be an attribute or its use`);
     }
@@ -314,6 +306,17 @@ export function make(
   };
   return entity as unknown as EntityType<string, Uses>;
 }
+
+/**
+ * Nodes for publishing several entity types together. Shared attribute and
+ * entity-schema nodes occur once by content ID, in first-declaration order.
+ */
+export const nodesOf = (
+  ...types: ReadonlyArray<{ readonly nodes: EntityType<string, Uses>["nodes"] }>
+): EntityType<string, Uses>["nodes"] =>
+  Effect.map(Effect.all(types.map((type) => type.nodes)), (groups) => [
+    ...new Map(groups.flat().map((node) => [node.cid, node])).values(),
+  ]);
 
 /** A pattern-position term: variables pass through, constants encode as their attribute does. */
 const term = (path: string, definition: Attribute.AnyDefinition, value: unknown): Term => {
