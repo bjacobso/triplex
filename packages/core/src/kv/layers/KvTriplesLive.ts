@@ -335,7 +335,7 @@ const kvCommitView = (
     query: (q, options) =>
       basis(options).pipe(
         Effect.flatMap((resolved) => executeQuery(store, q, q.rules ?? [], { basis: resolved })),
-        Effect.map((result) => result.results as unknown as QueryResult),
+        Effect.map((result) => ({ results: result.results as unknown as QueryResult })),
         Effect.mapError((error) =>
           error instanceof ReadError ||
           error instanceof DatalogValidationError ||

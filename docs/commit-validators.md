@@ -58,6 +58,8 @@ function receives a `CommitValidation.CommitContext`:
 
 Each view has `entity`, `entities`, `match`, and complete Datalog `query`. These fact reads accept
 `{ validAt }`, which defaults to the transaction instant. The recorded axis is fixed by the view.
+`view.query` returns the same `QueryResponse` as `Triples.queryAll`: read the bindings from
+`response.results`. It returns every result without a continuation cursor.
 
 Views also expose read-only `operationalEntry(id)` and
 `pendingOperationalEntries(kind, { scope?, limit?, cursor? })`. These reads use the view's exact
@@ -414,11 +416,11 @@ import { CommitValidation, EntityId, Triples, number } from "@triplex-build/trip
 const sectionTwoComplete = (i9: EntityId) =>
   CommitValidation.make("payroll.requires-section2", (commit) =>
     Effect.gen(function* () {
-      const facts = yield* commit.after.match({
-        entityId: i9,
-        attribute: ":i9/section2-signature",
+      const response = yield* commit.after.query({
+        find: ["?signature"],
+        where: [[i9, ":i9/section2-signature", "?signature"]],
       });
-      return facts.length > 0
+      return response.results.length > 0
         ? []
         : [
             {

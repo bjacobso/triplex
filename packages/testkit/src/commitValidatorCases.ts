@@ -16,6 +16,7 @@ import {
   WriteError,
   ref as makeRef,
   string,
+  type QueryResponse,
   type TriplesService,
 } from "@triplex-build/triplex";
 import { GraphConstraint } from "@triplex-build/triplex/config";
@@ -119,6 +120,47 @@ const asserters = CommitValidation.make("conf.asserters", (commit) =>
 );
 
 export const commitValidatorConformanceCases = [
+  {
+    name: "commit validator queries return complete queryAll-shaped responses",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const query = {
+        find: ["?entity"],
+        where: [["?entity", ":conf/cv-complete", "present"]],
+      } as const;
+      let before: QueryResponse | undefined;
+      let after: QueryResponse | undefined;
+      yield* t.transact(
+        Array.from({ length: 101 }, (_, index) => ({
+          op: "assert" as const,
+          entityId: eid(`conf:cv:complete:${index}`),
+          attribute: ":conf/cv-complete",
+          value: string("present"),
+        })),
+        {
+          validate: [
+            CommitValidation.make("conf.complete", (commit) =>
+              Effect.gen(function* () {
+                before = yield* commit.before.query(query);
+                after = yield* commit.after.query(query);
+              }),
+            ),
+          ],
+        },
+      );
+      const complete = yield* t.queryAll(query);
+      yield* check(
+        before?.results.length === 0 && before.nextCursor === undefined,
+        "empty validator queries must return a response with empty results and no continuation",
+      );
+      yield* check(
+        after?.results.length === 101 &&
+          after.nextCursor === undefined &&
+          sameRows(after.results, complete.results),
+        "validator queries must return all bindings, matching queryAll rather than a default page",
+      );
+    }),
+  },
   {
     name: "commit validators see operational append and acknowledgement views and roll them back",
     run: Effect.gen(function* () {
@@ -387,19 +429,17 @@ export const commitValidatorConformanceCases = [
         "entity-type matches should honor the commit cut",
       );
       yield* check(
-        sameRows(observed["datalogBefore"] as Record<string, unknown>[], [
+        sameRows((observed["datalogBefore"] as QueryResponse).results, [
           { "?doc": doc, "?status": "draft" },
         ]) &&
-          sameRows(observed["datalogAfter"] as Record<string, unknown>[], [
+          sameRows((observed["datalogAfter"] as QueryResponse).results, [
             { "?doc": doc, "?status": "signed" },
             { "?doc": added, "?status": "draft" },
           ]),
         "Datalog should run over db-before and db-after",
       );
       yield* check(
-        sameRows(observed["envelope"] as Record<string, unknown>[], [
-          { "?actor": "conf:cv:alice" },
-        ]),
+        sameRows((observed["envelope"] as QueryResponse).results, [{ "?actor": "conf:cv:alice" }]),
         "db-after should include the attempted transaction envelope",
       );
       yield* check(
