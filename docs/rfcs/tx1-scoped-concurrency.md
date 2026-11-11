@@ -1,5 +1,12 @@
 # TX1.4: scope claims need an ordered-publication protocol
 
+Update after owner direction: The owner selected database-owned invariant scopes and staged ordered
+publication. Follow-up [publication](./tx1-ordered-publication-investigation) and
+[scope-authority diagnostics](./tx1-invariant-scope-investigation) now test those
+directions. The initial authority choice is resolved; the new receipt/read-profile
+decision and full scope-planner proof remain pending. The original options below
+are design history, not a repeated request for the same direction decision.
+
 Status: **conditional design proposal; owner decisions required; no implementation**.
 Read [the late-allocation diagnostic](./tx1-late-allocation) and the existing
 [scoped-concurrency sketch](../operational-primitives#deferred-scoped-optimistic-concurrency).

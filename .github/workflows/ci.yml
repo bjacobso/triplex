@@ -77,3 +77,30 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:postgres:integration
+
+  foundationdb-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FDB_VERSION: 7.3.75
+      FDB_TEST_IMAGE: foundationdb/foundationdb:7.3.75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Load the pinned FoundationDB client without a system installation
+        run: |
+          mkdir -p "$RUNNER_TEMP/fdb-client"
+          cd "$RUNNER_TEMP/fdb-client"
+          curl --fail --location --retry 3 "https://github.com/apple/foundationdb/releases/download/$FDB_VERSION/libfdb_c.x86_64.so" --output libfdb_c.x86_64.so
+          curl --fail --location --retry 3 "https://github.com/apple/foundationdb/releases/download/$FDB_VERSION/libfdb_c.x86_64.so.sha256" --output libfdb_c.x86_64.so.sha256
+          sha256sum --check libfdb_c.x86_64.so.sha256
+          ln -s libfdb_c.x86_64.so libfdb_c.so
+          printf 'LD_LIBRARY_PATH=%s\n' "$PWD" >> "$GITHUB_ENV"
+      - name: Require native bindings so the gate cannot silently skip
+        run: pnpm --filter @triplex-build/triplex-foundationdb exec node -e 'require("foundationdb")'
+      - run: pnpm test:foundationdb:integration

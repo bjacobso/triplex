@@ -1,5 +1,12 @@
 # TX1.3: late allocation needs a transaction protocol decision
 
+Update after owner direction: The owner selected staged ordered publication with database-owned invariant
+scopes. The [follow-up investigation](./tx1-ordered-publication-investigation)
+now tests that direction and exposes an older-writer own-snapshot hole. The
+remaining owner decision concerns pending receipts and a committed-only reader
+boundary, rather than whether to investigate the direction. The original options
+below are retained as design history; production allocation remains unchanged.
+
 Status: **proposal requiring an owner decision; no allocator change implemented**.
 This is the TX1.3 checkpoint in the WorldVM operational-primitives goal. It follows
 the contention baseline and typed conflict work in PRs
