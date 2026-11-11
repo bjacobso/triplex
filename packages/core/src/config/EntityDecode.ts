@@ -13,6 +13,15 @@ export interface SealedMarker {
 }
 
 export interface DecodeOptions {
+  /** Count scalar facts (default), or deduplicate decoded values before checking ambiguity. */
+  readonly scalarCardinality?: "facts" | "distinct";
+  /**
+   * Strict by default. Membership validates the aggregate type memberships, allowing
+   * untyped facts and multiple subjects for callers that already selected their facts.
+   */
+  readonly factValidation?: "strict" | "membership";
+  /** Include storage families and schema diagnostics in value errors; summary by default. */
+  readonly valueDiagnostics?: "summary" | "detailed";
   /** Allow missing required aliases. Many aliases still return an empty array. */
   readonly allowPartial?: boolean;
   /** Include source facts by alias and undeclared facts separately. */
@@ -85,13 +94,27 @@ export const decode = (
     const entityId = facts[0]?.entityId;
     const fail = (reason: EntityDecodeError["reason"], message: string, alias?: string) =>
       new EntityDecodeError({ entityType: name, entityId, alias, reason, message });
+    const detailed = options.valueDiagnostics === "detailed";
+    const valueFailure = (summary: string, detail: string, alias: string) =>
+      fail("value", detailed ? detail : summary, alias);
+    if (options.factValidation === "membership") {
+      const memberships = new Set(
+        facts.flatMap((fact) => (Option.isSome(fact.entityType) ? [fact.entityType.value] : [])),
+      );
+      if (!memberships.has(name)) return yield* fail("entityType", `Entity is not a ${name}`);
+      if ([...memberships].some((membership) => membership !== name))
+        return yield* fail("entityType", "Mixed entity-type membership is not supported");
+    }
     const groups = new Map<string, Triple[]>();
     const keys = new Set(Object.values(handles).map((h) => h.key));
     const unknownFacts: Triple[] = [];
     for (const fact of facts) {
-      if (fact.entityId !== entityId)
+      if (options.factValidation !== "membership" && fact.entityId !== entityId)
         return yield* fail("entity", "Facts must belong to one entity");
-      if (Option.isNone(fact.entityType) || fact.entityType.value !== name) {
+      if (
+        options.factValidation !== "membership" &&
+        (Option.isNone(fact.entityType) || fact.entityType.value !== name)
+      ) {
         return yield* fail("entityType", `Every fact must belong to entity type ${name}`);
       }
       if (!keys.has(fact.attribute)) {
@@ -108,7 +131,11 @@ export const decode = (
     const metadata: [string, ReadonlyArray<Triple>][] = [];
     for (const [alias, handle] of Object.entries(handles)) {
       const group = groups.get(handle.key) ?? [];
-      if (handle.cardinality === "one" && group.length > 1) {
+      if (
+        options.scalarCardinality !== "distinct" &&
+        handle.cardinality === "one" &&
+        group.length > 1
+      ) {
         return yield* fail("cardinality", "A scalar attribute has multiple visible facts", alias);
       }
       if (handle.required && group.length === 0 && !options.allowPartial) {
@@ -119,7 +146,11 @@ export const decode = (
         const value = fact.value;
         if (value.type === "sealed") {
           if (value.valueType !== handle.definition.valueType) {
-            return yield* fail("value", "Sealed storage type does not match the attribute", alias);
+            return yield* valueFailure(
+              "Sealed storage type does not match the attribute",
+              `Stored sealed ${value.valueType} value is incompatible with configured ${handle.definition.valueType} storage`,
+              alias,
+            );
           }
           stored.push({
             identity: `sealed:${value.blind ?? `opaque:${value.ciphertext}`}`,
@@ -128,24 +159,54 @@ export const decode = (
             } satisfies SealedMarker,
           });
         } else {
-          if (handle.sensitive || value.type !== handle.definition.valueType) {
-            return yield* fail("value", "Unsealed or incompatible stored value", alias);
+          if (handle.sensitive) {
+            return yield* valueFailure(
+              "Unsealed or incompatible stored value",
+              "A sensitive attribute has an unsealed stored value; it is not returned",
+              alias,
+            );
+          }
+          if (value.type !== handle.definition.valueType) {
+            return yield* valueFailure(
+              "Unsealed or incompatible stored value",
+              `Stored ${value.type} value is incompatible with configured ${handle.definition.valueType} storage`,
+              alias,
+            );
           }
           if (value.type === "ref" && !Schema.is(EntityId)(value.value)) {
             return yield* fail("value", "Stored reference is not a valid entity ID", alias);
           }
           const parsed = Schema.decodeUnknownResult(TypeSchema.compile(handle.type))(value.value);
           if (Result.isFailure(parsed))
-            return yield* fail("value", "Stored value does not satisfy the configured type", alias);
+            return yield* valueFailure(
+              "Stored value does not satisfy the configured type",
+              `Stored value does not satisfy the configured type: ${parsed.failure.message}`,
+              alias,
+            );
           const canonical = yield* CanonicalJson.encode(
             parsed.success as CanonicalJson.CanonicalValue,
-          ).pipe(Effect.mapError(() => fail("value", "Stored value is not canonical", alias)));
+          ).pipe(
+            Effect.mapError((error) =>
+              fail(
+                "value",
+                detailed ? String(error) : "Stored value is not canonical",
+                detailed ? undefined : alias,
+              ),
+            ),
+          );
           stored.push({ identity: `plain:${canonical}`, value: parsed.success });
         }
       }
       const distinct = [...new Map(stored.map((v) => [v.identity, v.value])).entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([, value]) => value);
+      if (handle.cardinality === "one" && distinct.length > 1) {
+        return yield* fail(
+          "cardinality",
+          "A scalar attribute has multiple distinct live values",
+          alias,
+        );
+      }
       values.push([alias, handle.cardinality === "many" ? distinct : distinct[0]]);
       metadata.push([alias, group]);
     }

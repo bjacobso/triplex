@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`preserves serialized documents and conflict diagnostics across the shared decoder migration 1`] = `
+{
+  "distinct scalars": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/name\\"]","message":"A scalar attribute has multiple distinct live values","_tag":"DataShapeConflictError"}}",
+  "duplicate scalar": "{"_id":"Result","_tag":"Success","value":{"id":"person:a","type":"Person","attributes":{":person/name":"Ada"}}}",
+  "foreign subject declared fact": "{"_id":"Result","_tag":"Success","value":{"id":"person:a","type":"Person","attributes":{":person/name":"Ada",":person/tag":["a"]}}}",
+  "invalid duplicate ordering": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/name\\"]","message":"Stored number value is incompatible with configured string storage","_tag":"DataShapeConflictError"}}",
+  "invalid ref": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/ref\\"]","message":"Stored reference is not a valid entity ID","_tag":"DataShapeConflictError"}}",
+  "json": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/name\\"]","message":"Stored value does not satisfy the configured type: Expected \\"n\\"\\n  at [\\"extra\\"]","_tag":"DataShapeConflictError"}}",
+  "missing membership": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"","path":"$.type","message":"Entity is not a Person","_tag":"DataShapeConflictError"}}",
+  "missing required": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/name\\"]","message":"A required attribute is missing","_tag":"DataShapeConflictError"}}",
+  "mixed types": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.type","message":"Mixed entity-type membership is not supported","_tag":"DataShapeConflictError"}}",
+  "noncanonical json": "{"_id":"Result","_tag":"Success","value":{"id":"person:a","type":"Person","attributes":{":person/name":[null]}}}",
+  "schema mismatch": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/instant\\"]","message":"Stored value does not satisfy the configured type: Expected an integer","_tag":"DataShapeConflictError"}}",
+  "sealed storage mismatch": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/name\\"]","message":"Stored sealed number value is incompatible with configured string storage","_tag":"DataShapeConflictError"}}",
+  "storage mismatch": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/name\\"]","message":"Stored number value is incompatible with configured string storage","_tag":"DataShapeConflictError"}}",
+  "unsealed sensitive": "{"_id":"Result","_tag":"Failure","failure":{"code":"http.data-shape-conflict","entityId":"person:a","path":"$.attributes[\\":person/secret\\"]","message":"A sensitive attribute has an unsealed stored value; it is not returned","_tag":"DataShapeConflictError"}}",
+  "untyped declared fact": "{"_id":"Result","_tag":"Success","value":{"id":"person:a","type":"Person","attributes":{":person/name":"Ada",":person/tag":["a"]}}}",
+}
+`;

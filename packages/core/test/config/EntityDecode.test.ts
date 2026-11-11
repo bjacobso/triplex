@@ -190,3 +190,104 @@ describe("EntityType.decode", () => {
     }).pipe(Effect.provide(layer));
   });
 });
+
+it.effect("can count distinct scalar values while retaining strict defaults and source facts", () =>
+  Effect.gen(function* () {
+    const facts = yield* seed;
+    const name = facts.find((fact) => fact.attribute === Worker.name.key)!;
+    const duplicate = [...facts, { ...name, id: facts[1]!.id }];
+    expect(yield* Effect.flip(Worker.decode(duplicate))).toMatchObject({ reason: "cardinality" });
+    const decoded = yield* Worker.decode(duplicate, {
+      scalarCardinality: "distinct",
+      withFacts: true,
+    });
+    expect(decoded.values.name).toBe("Maria");
+    expect(decoded.facts.name).toHaveLength(2);
+    expect(
+      yield* Effect.flip(
+        Worker.decode([...facts, { ...name, value: { type: "string", value: "Other" } }], {
+          scalarCardinality: "distinct",
+        }),
+      ),
+    ).toMatchObject({ reason: "cardinality" });
+    for (const blind of [undefined, "blind"]) {
+      const value = {
+        type: "sealed" as const,
+        valueType: "string" as const,
+        keyId: "key",
+        ciphertext: "cipher",
+        ...(blind === undefined ? {} : { blind }),
+      };
+      const sealed = facts.map((fact) => (fact === name ? { ...fact, value } : fact));
+      const same = {
+        ...name,
+        value: { ...value, ...(blind === undefined ? {} : { ciphertext: "rotated" }) },
+      };
+      expect(
+        (yield* Worker.decode([...sealed, same], { scalarCardinality: "distinct" })).name,
+      ).toEqual({ $sealed: { valueType: "string", keyId: "key" } });
+      const other = {
+        ...name,
+        value: {
+          ...value,
+          ciphertext: "other",
+          ...(blind === undefined ? {} : { blind: "other" }),
+        },
+      };
+      expect(
+        yield* Effect.flip(Worker.decode([...sealed, other], { scalarCardinality: "distinct" })),
+      ).toMatchObject({ reason: "cardinality" });
+    }
+  }).pipe(Effect.provide(KvTriples.layer)),
+);
+
+it.effect("can validate aggregate membership without requiring one subject or typed facts", () =>
+  Effect.gen(function* () {
+    const facts = yield* seed;
+    const extra = {
+      ...facts[0]!,
+      attribute: Attribute.text(":worker/extra").key,
+      entityId: EntityId.make("worker:other"),
+      entityType: Option.none<string>(),
+    };
+    expect(yield* Effect.flip(Worker.decode([...facts, extra]))).toMatchObject({
+      reason: "entity",
+    });
+    expect(yield* Worker.decode([...facts, extra], { factValidation: "membership" })).toEqual(
+      yield* Worker.decode(facts),
+    );
+    expect(yield* Effect.flip(Worker.decode([], { factValidation: "membership" }))).toMatchObject({
+      reason: "entityType",
+      message: "Entity is not a Worker",
+    });
+    expect(
+      yield* Effect.flip(
+        Worker.decode([...facts, { ...extra, entityType: Option.some("Other") }], {
+          factValidation: "membership",
+        }),
+      ),
+    ).toMatchObject({
+      reason: "entityType",
+      message: "Mixed entity-type membership is not supported",
+    });
+  }).pipe(Effect.provide(KvTriples.layer)),
+);
+
+it.effect("keeps summary errors by default and can expose detailed value diagnostics", () =>
+  Effect.gen(function* () {
+    const facts = yield* seed;
+    const bad = facts.map((fact) =>
+      fact.attribute === Worker.count.key
+        ? { ...fact, value: { type: "number" as const, value: 1.5 } }
+        : fact,
+    );
+    expect(yield* Effect.flip(Worker.decode(bad))).toMatchObject({
+      message: "Stored value does not satisfy the configured type",
+      alias: "count",
+    });
+    expect(yield* Effect.flip(Worker.decode(bad, { valueDiagnostics: "detailed" }))).toMatchObject({
+      message: "Stored value does not satisfy the configured type: Expected an integer",
+      alias: "count",
+    });
+  }).pipe(Effect.provide(KvTriples.layer)),
+);

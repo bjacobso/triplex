@@ -1,5 +1,10 @@
 import { EntityId, KvTriples, Triples, type Triple } from "@triplex-build/triplex";
-import { Attribute, EntityType, InMemoryConfigStore } from "@triplex-build/triplex/config";
+import {
+  Attribute,
+  EntityType,
+  InMemoryConfigStore,
+  TypeExpr,
+} from "@triplex-build/triplex/config";
 import { Effect, Option } from "effect";
 import { expect, it } from "vitest";
 import { compile } from "../src/ConfigApi.js";
@@ -186,4 +191,109 @@ it("value encoding and many-value ordering agree after mapping aliases to keywor
     });
     expect(await failure(Person.decode(invalid))).toMatchObject({ reason: "value" });
   }
+});
+
+it("preserves serialized documents and conflict diagnostics across the shared decoder migration", async () => {
+  const { descriptor, facts } = await Effect.runPromise(setup);
+  const name = facts[0]!;
+  const outcomes: Record<string, string> = {};
+  const cases = [
+    { label: "missing membership", facts: [] },
+    {
+      label: "missing required",
+      facts: [stored(name, ":person/tag", { type: "string", value: "a" })],
+    },
+    {
+      label: "unsealed sensitive",
+      facts: [...facts, stored(name, ":person/secret", { type: "string", value: "private" })],
+    },
+    {
+      label: "sealed storage mismatch",
+      facts: [
+        stored(name, ":person/name", {
+          type: "sealed",
+          valueType: "number",
+          keyId: "key",
+          ciphertext: "opaque",
+        }),
+      ],
+    },
+    {
+      label: "storage mismatch",
+      facts: [stored(name, ":person/name", { type: "number", value: 2 })],
+    },
+    {
+      label: "schema mismatch",
+      facts: [...facts, stored(name, ":person/instant", { type: "datetime", value: 1.5 })],
+    },
+    {
+      label: "invalid ref",
+      facts: [...facts, stored(name, ":person/ref", { type: "ref", value: "" as EntityId })],
+    },
+    { label: "duplicate scalar", facts: [...facts, name] },
+    {
+      label: "distinct scalars",
+      facts: [...facts, stored(name, ":person/name", { type: "string", value: "Other" })],
+    },
+    { label: "mixed types", facts: [...facts, { ...name, entityType: Option.some("Other") }] },
+    {
+      label: "untyped declared fact",
+      facts: [
+        ...facts,
+        {
+          ...stored(name, ":person/tag", { type: "string", value: "a" }),
+          entityType: Option.none(),
+        },
+      ],
+    },
+    {
+      label: "foreign subject declared fact",
+      facts: [
+        ...facts,
+        {
+          ...stored(name, ":person/tag", { type: "string", value: "a" }),
+          entityId: EntityId.make("person:b"),
+        },
+      ],
+    },
+    {
+      label: "invalid duplicate ordering",
+      facts: [...facts, stored(name, ":person/name", { type: "number", value: 2 })],
+    },
+    {
+      label: "json",
+      descriptor: {
+        ...descriptor,
+        attributes: [
+          {
+            ...descriptor.attributes.find((attribute) => attribute.key === ":person/name")!,
+            storage: "json" as const,
+            type: TypeExpr.struct({ n: TypeExpr.required(TypeExpr.integer) }),
+          },
+        ],
+      },
+      facts: [stored(name, ":person/name", { type: "json", value: { n: 2, extra: "kept" } })],
+    },
+    {
+      label: "noncanonical json",
+      descriptor: {
+        ...descriptor,
+        attributes: [
+          {
+            ...descriptor.attributes.find((attribute) => attribute.key === ":person/name")!,
+            storage: "json" as const,
+            type: TypeExpr.list(TypeExpr.any),
+          },
+        ],
+      },
+      facts: [stored(name, ":person/name", { type: "json", value: [undefined] })],
+    },
+  ];
+  for (const item of cases) {
+    const result = await Effect.runPromise(
+      Effect.result(encodeEntity(item.descriptor ?? descriptor, item.facts)),
+    );
+    outcomes[item.label] = JSON.stringify(result);
+  }
+  expect(outcomes).toMatchSnapshot();
 });
