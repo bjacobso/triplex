@@ -295,4 +295,5 @@ it("resolves recorded time without paging a journal larger than the former page 
       }).pipe(Effect.provide(client));
     }).pipe(Effect.provide(base)),
   );
-});
+  // Writes 1,000+ commits; leave room for slow CI runners.
+}, 60_000);
