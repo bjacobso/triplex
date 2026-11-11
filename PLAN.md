@@ -407,8 +407,10 @@ Update this section last in every session.
   `ergo/p2.4`, `ergo/p1.2a` and `ergo/p3.1`.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
-  `pnpm check` passed on `ergonomics/next` after P2.1 merged; `pnpm test:postgres:integration`,
-  `pnpm test:e2e` (screenshots) and `pnpm pack:check` are still to run before the session PR.
+  `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
+  `ergonomics/next` after P2.1 merged. `pnpm test:e2e` (screenshots) and `pnpm pack:check` are
+  still to run before the session PR. Start OrbStack (`orbctl start`) first: with Docker down the
+  Postgres suite skips 41 of 45 tests and still exits 0.
 - **Known blockers:** D2 holds P1.3.
 
 ## Progress log
