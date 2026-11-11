@@ -443,7 +443,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
-- 2026-11-11: P3.0 merged. Started Wave C: P3.2 (`why`), P4.4b (live queries), P2.6b (client on
+- 2026-11-11: P3.0 merged; full check (29/27/15) and Postgres 48/48 pass on `dc402c7`. Pushed to #81.
+  Started Wave C: P3.2 (`why`), P4.4b (live queries), P2.6b (client on
   `resolveRecordedBasis`).
 - 2026-11-11: owner merged #80 (squash `3b6c09e`, tree identical to `fd76b4e`). Recorded it with an
   ours-merge and opened #81 for the work since.
