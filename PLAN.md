@@ -174,12 +174,12 @@ Depends column allows.
 
 ### Phase 0: groundwork
 
-| ID   | Item                                     | Lane | Depends | Status | Evidence                                                                                        |
-| ---- | ---------------------------------------- | ---- | ------- | ------ | ----------------------------------------------------------------------------------------------- |
-| P0.1 | Record the three-backend policy          | C    |         | active | 2026-11-11: `ergo/p0.1-p0.2`; `GOAL.md` rule 4 updated by the orchestrator on `ergonomics/next` |
-| P0.2 | Cold-author trial harness                | C    |         | active | 2026-11-11: `ergo/p0.1-p0.2`                                                                    |
-| P0.3 | Triage open PRs #45, #48 and #52         | —    |         | done   | 2026-11-11; see PR triage below                                                                 |
-| P0.4 | Land ConfigStore targeted reads (PR #48) | B    | P0.3    | done   | 2026-11-11: merged by the owner as `9f4e703`; #46 closed as superseded                          |
+| ID   | Item                                     | Lane | Depends | Status | Evidence                                                                                                                                                        |
+| ---- | ---------------------------------------- | ---- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0.1 | Record the three-backend policy          | C    |         | done   | 2026-11-11: merged `ergo/p0.1-p0.2` (`507a124`); orchestrator updated `GOAL.md` rule 4 and `docs/sensitive-values.md`; the TX3 RFC keeps its historical wording |
+| P0.2 | Cold-author trial harness                | C    |         | done   | 2026-11-11: merged `ergo/p0.1-p0.2` (`507a124`): `trials/README.md`, `setup.sh`, `TEMPLATE.md`, `baseline.md`, three briefs                                     |
+| P0.3 | Triage open PRs #45, #48 and #52         | —    |         | done   | 2026-11-11; see PR triage below                                                                                                                                 |
+| P0.4 | Land ConfigStore targeted reads (PR #48) | B    | P0.3    | done   | 2026-11-11: merged by the owner as `9f4e703`; #46 closed as superseded                                                                                          |
 
 - **P0.1** Update `GOAL.md` execution rule 4, `docs/roadmap.md`, `CONTRIBUTING.md` and
   `docs/current-state.md` to state the backend decision above. Documentation only. Accept when
@@ -402,7 +402,7 @@ Update this section last in every session.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P2.1: block `block:01a1cc24-1af0-7710-b7d0-d839d9b18554`
   - P1.1: block `block:01a1cc24-5bd4-7dea-a249-d125805adeee`
-  - P0.1 and P0.2: block `block:01a1cc24-5c00-7d8c-81d3-9e701c93cbcc`
+  - P0.1 and P0.2: finished; pane `block:01a1cc24-5c00-7d8c-81d3-9e701c93cbcc` free
 - **Open worktrees and branches from this plan:** `../triplex-wt/{p2.1,p1.1,p0.1-p0.2}` on
   `ergo/p2.1`, `ergo/p1.1` and `ergo/p0.1-p0.2`, all from `ergonomics/next` at `d4f636a`.
 - **Next action:** start P2.1 (#45 rebase, lane B), P0.1 (lane C) and P1.1 (lane A) in parallel.
@@ -413,6 +413,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P0.1 and P0.2 merged into `ergonomics/next`. P2.1 stopped at undeclared caller
+  paths; scope widened and it resumed.
 - 2026-11-11: owner set greenfield and one PR per session. Created `ergonomics/next`, started
   Codex agents for P2.1, P1.1, and P0.1 with P0.2. Updated `GOAL.md` rule 4.
 - 2026-11-11: owner answered D1, D7 and D8 (all as recommended) and merged #48 as `9f4e703`. #46
