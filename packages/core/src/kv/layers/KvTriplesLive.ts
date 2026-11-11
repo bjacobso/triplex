@@ -809,10 +809,20 @@ const makeKvTriplesService = Effect.gen(function* () {
     get: (id: TripleId) =>
       Effect.gen(function* () {
         const datom = yield* hexaStore.getById(id);
-        return datom !== null ? datomToTriple(datom) : null;
+        return datom !== null && datom.retractedAt === null ? datomToTriple(datom) : null;
       }).pipe(
         Effect.catch((e) =>
           Effect.fail(new ReadError({ message: `Get failed: ${String(e)}`, cause: e })),
+        ),
+      ),
+
+    assertion: (id: TripleId) =>
+      Effect.gen(function* () {
+        const datom = yield* hexaStore.getById(id);
+        return datom !== null ? datomToTriple(datom) : null;
+      }).pipe(
+        Effect.catch((e) =>
+          Effect.fail(new ReadError({ message: `Assertion read failed: ${String(e)}`, cause: e })),
         ),
       ),
 

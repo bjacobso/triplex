@@ -426,12 +426,12 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
       // Read Operations
       // =========================================================================
 
-      const getById: StorageAdapterService["getById"] = (id) =>
+      const getById: StorageAdapterService["getById"] = (id, includeRetracted = false) =>
         provide(
           Effect.gen(function* () {
             const rows = yield* sql<TripleRow>`
               SELECT * FROM triples
-              WHERE id = ${id} AND retracted_at IS NULL
+              WHERE id = ${id} AND (retracted_at IS NULL OR ${includeRetracted ? 1 : 0} = 1)
             `.pipe(
               Effect.mapError(
                 (error) =>
