@@ -31,6 +31,10 @@ const defaults = {
     "transaction.command-already-committed",
     "Read the original receipt with `transactionByCommand`.",
   ],
+  CommitRejectedError: [
+    "commit_rejected",
+    "Correct the validator findings before resubmitting the command.",
+  ],
   ConstraintViolationError: [
     "constraint.violation",
     "Correct the violated constraints and ensure all of an entity's facts share one valid-time interval.",

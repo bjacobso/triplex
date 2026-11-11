@@ -86,5 +86,7 @@ See [Error diagnostics](/errors) for every code. Retryable transaction conflicts
 `Retry-After: 0`; reload current facts before retrying the whole command.
 Malformed input is `400`, host authentication/authorization is `401`/`403`, missing resources are
 `404`, read-only writes are `405` with `Allow`, and data/constraint/concurrency conflicts are `409`.
+A write refused by a runtime-wide [commit validator](/commit-validators) is `409` with code
+`commit_rejected`.
 Unexpected storage and deployed-config failures return a sanitized `500` while their causes remain
 in Effect logs.

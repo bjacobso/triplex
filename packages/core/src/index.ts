@@ -21,6 +21,7 @@ export {
 } from "./EntityPage.js";
 export * from "./Value.js";
 export * as Constraint from "./Constraint.js";
+export * as CommitValidation from "./store/CommitValidation.js";
 export * from "./errors/index.js";
 export { diagnose, type Diagnostic } from "./errors/diagnostic.js";
 export * from "./types/Pattern.js";

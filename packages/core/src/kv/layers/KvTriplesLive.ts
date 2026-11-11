@@ -27,6 +27,7 @@ import {
   CommandAlreadyCommittedError,
   TransactionConflictError,
   ConstraintViolationError,
+  CommitRejectedError,
   PaginationCursorError,
   OperationalEntryConflictError,
   DatalogValidationError,
@@ -36,7 +37,7 @@ import { validateDatalogQuery, validateWrappedQuery } from "../../datalog/valida
 import * as Constraint from "../../Constraint.js";
 import { KvBackend, type KvBackendService, type KvTransaction } from "../kv/KvBackend.js";
 import { makeTestKvBackend } from "../kv/InMemoryKvBackend.js";
-import { createKvTripleStore, type Datom } from "../hexastore/KvTripleStore.js";
+import { createKvTripleStore, type Datom, type KvTripleStore } from "../hexastore/KvTripleStore.js";
 import type { ScanPattern } from "../hexastore/scan.js";
 import { executeQuery, executeWrappedQuery } from "../datalog/executor.js";
 import {
@@ -75,6 +76,9 @@ import {
   preparePendingEntries,
   finishPendingEntries,
 } from "../../operational/entryStorage.js";
+import { commitOperationalView } from "../../store/commitOperationalView.js";
+import type * as CommitValidation from "../../store/CommitValidation.js";
+import { attemptFrom, runValidators, viewBasis } from "../../store/commitValidationRun.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
 const COMMAND_RECEIPT_PREFIX = 0x22;
@@ -274,6 +278,74 @@ const transactionBackend = (tx: KvTransaction): KvBackendService => ({
     Effect.forEach(keys, (key) => tx.get(key).pipe(Effect.map((value) => [key, value] as const))),
   clear: () => Effect.die("KvTripleStore.clear is not supported inside a transaction"),
 });
+
+// ─── Commit validator views ────────────────────────────────────────────────
+
+const kvReadError = (label: string) => (cause: unknown) =>
+  new ReadError({ message: `${label} failed: ${String(cause)}`, cause });
+
+/** Read-only view over a transaction-scoped hexastore at an exact commit cut. */
+const kvCommitView = (
+  store: KvTripleStore,
+  position: number,
+  instant: number,
+  tx: KvTransaction,
+  operations: readonly TransactOp[],
+): CommitValidation.View => {
+  const basis = (options?: CommitValidation.ViewOptions) => viewBasis(position, instant, options);
+  const entityAt = (entityId: string, resolved: ResolvedTemporalBasis) =>
+    store
+      .scanCollectTemporalAsync({ entity: entityId }, resolved)
+      .pipe(Effect.map((datoms) => datoms.map(datomToTriple)));
+  return {
+    position,
+    ...commitOperationalView(makeKvOperationalEntryStorage(tx), position, operations),
+    entity: (entityId, options) =>
+      basis(options).pipe(Effect.flatMap((resolved) => entityAt(entityId, resolved))),
+    entities: (entityIds, options) =>
+      basis(options).pipe(
+        Effect.flatMap((resolved) =>
+          Effect.forEach(entityIds, (entityId) => entityAt(entityId, resolved)),
+        ),
+      ),
+    match: (pattern, options) =>
+      basis(options).pipe(
+        Effect.flatMap((resolved) => {
+          const scan = patternToScan(pattern);
+          if (
+            pattern.entityType !== undefined &&
+            scan.entity === undefined &&
+            scan.attribute === undefined &&
+            scan.value === undefined
+          ) {
+            return store.getByEntityTypeTemporalAsync(pattern.entityType, resolved);
+          }
+          return store
+            .scanCollectTemporalAsync(scan, resolved)
+            .pipe(
+              Effect.map((datoms) =>
+                pattern.entityType === undefined
+                  ? datoms
+                  : datoms.filter((datom) => datom.entityType === pattern.entityType),
+              ),
+            );
+        }),
+        Effect.map((datoms) => datoms.map(datomToTriple)),
+      ),
+    query: (q, options) =>
+      basis(options).pipe(
+        Effect.flatMap((resolved) => executeQuery(store, q, q.rules ?? [], { basis: resolved })),
+        Effect.map((result) => result.results as unknown as QueryResult),
+        Effect.mapError((error) =>
+          error instanceof ReadError ||
+          error instanceof DatalogValidationError ||
+          error instanceof UnboundVariableError
+            ? error
+            : kvReadError("Commit view query")(error),
+        ),
+      ),
+  };
+};
 
 // ─── Service implementation ────────────────────────────────────────────────
 
@@ -501,6 +573,16 @@ const makeKvTriplesService = Effect.gen(function* () {
             const actor = meta?.actor;
             const preconditionIds = livePreconditionIds(meta);
 
+            for (const id of preconditionIds) {
+              const current = yield* transactionStore.getById(id);
+              if (current === null || current.retractedAt !== null) {
+                return yield* new TransactionConflictError({
+                  tripleId: unsafe.tripleId(id),
+                  message: `Expected live triple ${id}, but another transaction changed it`,
+                });
+              }
+            }
+
             yield* checkCheapPreconditions(meta, (entityId, attribute, limit) =>
               transactionStore
                 .livePreconditionFacts(entityId, attribute, limit)
@@ -527,45 +609,45 @@ const makeKvTriplesService = Effect.gen(function* () {
               }
             }
 
+            let enforce: Effect.Effect<void, WriteError | ConstraintViolationError> = Effect.void;
             if (meta?.enforce !== undefined) {
-              const current = yield* Constraint.loadRelevantFacts(
-                meta.enforce.constraints,
-                operations,
-                {
-                  byEntityType: (entityType) =>
+              const constraints = meta.enforce.constraints;
+              const current = yield* Constraint.loadRelevantFacts(constraints, operations, {
+                byEntityType: (entityType) =>
+                  transactionStore
+                    .getByEntityTypeAsync(entityType)
+                    .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
+                byEntities: (entityIds) =>
+                  Effect.forEach(entityIds, (entityId) =>
                     transactionStore
-                      .getByEntityTypeAsync(entityType)
+                      .scanCollectAsync({ entity: entityId })
                       .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
-                  byEntities: (entityIds) =>
-                    Effect.forEach(entityIds, (entityId) =>
-                      transactionStore
-                        .scanCollectAsync({ entity: entityId })
-                        .pipe(Effect.map((datoms) => datoms.map(datomToTriple))),
-                    ).pipe(Effect.map((rows) => rows.flat())),
-                },
-              );
-              const violations = yield* Constraint.newlyViolated(
-                current,
-                operations,
-                meta.enforce.constraints,
-                now,
-              ).pipe(
-                Effect.mapError(
-                  (cause) =>
-                    new WriteError({
-                      message: `Constraint evaluation failed: ${cause.message}`,
-                      cause,
-                    }),
-                ),
-              );
-              if (violations.length > 0) {
-                return yield* Effect.fail(
-                  new ConstraintViolationError({
-                    violations,
-                    message: Constraint.describeViolations(violations),
-                  }),
+                  ).pipe(Effect.map((rows) => rows.flat())),
+              });
+              enforce = Effect.gen(function* () {
+                const violations = yield* Constraint.newlyViolated(
+                  current,
+                  operations,
+                  constraints,
+                  now,
+                ).pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new WriteError({
+                        message: `Constraint evaluation failed: ${cause.message}`,
+                        cause,
+                      }),
+                  ),
                 );
-              }
+                if (violations.length > 0) {
+                  return yield* Effect.fail(
+                    new ConstraintViolationError({
+                      violations,
+                      message: Constraint.describeViolations(violations),
+                    }),
+                  );
+                }
+              });
             }
             const asserted: Triple[] = [];
             const changes: import("../../store/Triples.js").TransactionChange[] = [];
@@ -663,12 +745,23 @@ const makeKvTriplesService = Effect.gen(function* () {
               }
             }
 
+            yield* enforce;
+
             if (!isJournalSuppressed(meta)) {
               for (const input of metadataInputs(txId, position, now, meta, changes)) {
                 yield* transactionStore.assert(
                   tripleInputToDatom(input, yield* runtime.nextTripleId, txId, now, position),
                 );
               }
+            }
+
+            if (meta?.validate !== undefined && meta.validate.length > 0) {
+              yield* runValidators(meta.validate, {
+                transaction: attemptFrom(txId, now, position, meta),
+                changes: [...changes],
+                before: kvCommitView(transactionStore, position - 1, now, tx, operations),
+                after: kvCommitView(transactionStore, position, now, tx, operations),
+              });
             }
 
             return {
@@ -687,7 +780,8 @@ const makeKvTriplesService = Effect.gen(function* () {
             e instanceof OperationalEntryConflictError ||
             e instanceof TransactionConflictError ||
             e instanceof CommandAlreadyCommittedError ||
-            e instanceof ConstraintViolationError
+            e instanceof ConstraintViolationError ||
+            e instanceof CommitRejectedError
               ? Effect.fail(e)
               : Effect.fail(new WriteError({ message: `Transact failed: ${String(e)}`, cause: e })),
           ),

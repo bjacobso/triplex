@@ -167,6 +167,16 @@ Custom storage adapters must implement `livePreconditionFacts` as a bounded inde
 including all unretracted valid times. Exhaustive precondition switches must handle the three
 new variants. Existing `TripleLive` and `EntityState` behavior is unchanged.
 
+### Commit validators
+
+`TransactionMeta.validate` runs host validators after the operations and `_Transaction` envelope
+are applied and before commit. Preconditions and `enforce` run first. Each validator receives the
+attempted envelope, the resolved changes, and read-only `before` and `after` views at exact commit
+positions. It can return typed rejections, which roll back the whole transaction with
+`CommitRejectedError`. `CommitValidation.layer` installs validators for every application write
+path and can record each rejection durably, as a reserved entity written after rollback. See
+[Commit validators](/commit-validators) for the contract, ordering, and per-backend semantics.
+
 ### Causal transaction envelopes
 
 Every successful `transact` persists an `_Transaction` entity with:
@@ -505,7 +515,8 @@ the pinned config snapshot. It projects the whole command, evaluates every post-
 boundary, and rejects new or worsened findings atomically. Commit-position serialization provides
 backend-portable absence and uniqueness protection across Triplex writers. Observation mode remains
 available for migration and audit, while direct adapter writes, authorization, and general Datalog
-invariants remain outside this guarantee.
+invariants remain outside this guarantee. Hosts can enforce the last two atomically with
+[commit validators](/commit-validators).
 
 ### Projection ownership
 

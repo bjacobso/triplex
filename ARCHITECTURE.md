@@ -81,7 +81,8 @@ hosts typed configuration as a modular layer over the same core.
   deletion cannot silently overlook facts written between read and commit.
 - Hosts may opt a transaction into graph-constraint enforcement using plain versioned rules loaded
   from its pinned `ConfigSnapshot`. After allocating the serialized commit position, the backend
-  evaluates the projected post-state at every valid-time boundary before mutation. Required,
+  evaluates the projected post-state at every valid-time boundary after applying operations and
+  before writing the journal, retaining the pre-state baseline. Required,
   cardinality, uniqueness, and reference-target violations that are new or worse abort facts,
   journal, command receipt, and position together; unchanged legacy violations do not prevent an
   unrelated write or repair. Enforcement discovers candidate subjects through entity-type indexes,
@@ -89,6 +90,14 @@ hosts typed configuration as a modular layer over the same core.
   live facts. The shared commit-position contention point prevents concurrent Triplex writers from
   both winning an absence or uniqueness check. Direct adapter writes remain outside this guarantee,
   and authorization remains host-owned.
+- Commit validators are the host's in-transaction seam. After operations and the journal envelope
+  are applied and before commit, every `Triples` implementation runs `meta.validate` with the
+  resolved changes and read-only `before`/`after` views at exact commit-position cuts (entity,
+  match, and complete Datalog). Rejections fail the whole transaction with `CommitRejectedError`.
+  `CommitValidation.layer` decorates any `Layer<Triples>` so every application write path runs
+  runtime-wide validators, and it can durably record rejections as reserved facts after rollback.
+  Triplex system writes bypass runtime-wide validators. Triplex supplies the seam; hosts define the
+  policies.
 - The `operational` subpath owns consumer checkpoints as reserved, Datalog-queryable facts.
   Compare-and-retract prevents stale workers from overwriting a newer position. Checkpoint
   maintenance is the one unjournaled internal mutation: emitting it into the feed would cause a
