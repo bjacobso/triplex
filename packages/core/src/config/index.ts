@@ -17,3 +17,4 @@ export * as TypeExpr from "./TypeExpr";
 export * as TypeSchema from "./TypeSchema";
 export * as TypeSubsumption from "./TypeSubsumption";
 export * as World from "./World";
+export * as SchemaBound from "./SchemaBound";

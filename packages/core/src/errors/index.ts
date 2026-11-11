@@ -139,6 +139,14 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
 }> {}
 
 // Datalog query errors
+/** A constant attribute is absent from the release bound to a query. */
+export class UnknownAttributeError extends Data.TaggedError("UnknownAttributeError")<{
+  readonly key: string;
+  readonly path: string;
+  readonly suggestion?: string;
+  readonly message: string;
+}> {}
+
 export class DatalogError extends Data.TaggedError("DatalogError")<{
   readonly message: string;
   readonly cause?: unknown;
@@ -256,7 +264,8 @@ export type DatalogQueryError =
   | UnboundVariableError
   | InvalidPredicateError
   | DatalogValidationError
-  | SensitiveQueryError;
+  | SensitiveQueryError
+  | UnknownAttributeError;
 
 export type DatalogErrorUnion = DatalogQueryError | PaginationCursorError;
 
