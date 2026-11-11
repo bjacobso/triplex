@@ -335,16 +335,16 @@ steps is what matters: preconditions, enforcement, operations including the new
 
 ### Phase 3: why, and the agent door
 
-| ID   | Item                                                          | Lane  | Depends    | Status  | Evidence                                                                                                                                                                                                       |
-| ---- | ------------------------------------------------------------- | ----- | ---------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P3.1 | `why` RFC                                                     | B     |            | done    | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run                                                                                                       |
-| P3.0 | `Triples.resolveRecordedBasis` and `dependencyStateAll` reads | alone | D9, D11    | pending |                                                                                                                                                                                                                |
-| P3.2 | `why` implementation                                          | B     | P3.1       | pending | 2026-11-11: D9 approved; needs P3.0                                                                                                                                                                            |
-| P3.3 | Preview a command on an overlay                               | B     | P2.6       | pending |                                                                                                                                                                                                                |
-| P3.4 | Describe from the live release                                | C     |            | done    | 2026-11-11: merged `ergo/p3.4`; `describe` returns the release schema, constraints, rules and examples verified by `transaction apply`. Suite timeout raised (flaky at 5 s); rule 5 now cites `Change.replace` |
-| P3.5 | CLI commands for `why` and preview                            | C     | P3.2, P3.3 | pending |                                                                                                                                                                                                                |
-| P3.6 | MCP server package                                            | C     | P3.4, P3.5 | active  | 2026-11-11: `ergo/p3.6`; private package (D5 still open), built on `effect/ai/McpServer` (no new dependency) and the CLI's public `execute`; `why` and preview tools follow P3.2 and P3.3                      |
-| P3.7 | Run the phase 3 gate                                          | C     | P3.6       | pending |                                                                                                                                                                                                                |
+| ID   | Item                                                          | Lane  | Depends    | Status  | Evidence                                                                                                                                                                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------- | ----- | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P3.1 | `why` RFC                                                     | B     |            | done    | 2026-11-11: merged `ergo/p3.1`; `docs/rfcs/why.md`, examples verified against a captured site-safety run                                                                                                                                                                                                                 |
+| P3.0 | `Triples.resolveRecordedBasis` and `dependencyStateAll` reads | alone | D9, D11    | pending |                                                                                                                                                                                                                                                                                                                          |
+| P3.2 | `why` implementation                                          | B     | P3.1       | pending | 2026-11-11: D9 approved; needs P3.0                                                                                                                                                                                                                                                                                      |
+| P3.3 | Preview a command on an overlay                               | B     | P2.6       | pending |                                                                                                                                                                                                                                                                                                                          |
+| P3.4 | Describe from the live release                                | C     |            | done    | 2026-11-11: merged `ergo/p3.4`; `describe` returns the release schema, constraints, rules and examples verified by `transaction apply`. Suite timeout raised (flaky at 5 s); rule 5 now cites `Change.replace`                                                                                                           |
+| P3.5 | CLI commands for `why` and preview                            | C     | P3.2, P3.3 | pending |                                                                                                                                                                                                                                                                                                                          |
+| P3.6 | MCP server package                                            | C     | P3.4, P3.5 | done    | 2026-11-11: first cut merged (`ergo/p3.6`): private `@triplex-build/triplex-mcp`, `triplex-mcp` stdio bin, 14 tools over the CLI `execute`, diagnostics on failure, sealed redaction. Orchestrator added the lockfile entry and smoke-tested `initialize` and `tools/list`. `why` and preview tools follow P3.2 and P3.3 |
+| P3.7 | Run the phase 3 gate                                          | C     | P3.6       | pending |                                                                                                                                                                                                                                                                                                                          |
 
 - **P3.1** RFC only, and it can start in parallel with phase 1. Define one result shape that
   explains a fact, an entity's current state, or a derivation candidate: the asserting
@@ -423,9 +423,7 @@ Update this section last in every session.
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P4.4a with P1.3: block `block:01a1cc7d-43a9-7864-b38b-d6a4e36f7dc1`
-  - P3.6: block `block:01a1cc9d-135d-7789-abb6-89b68044e0e4`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p4.4a,p3.6}` on `ergo/p4.4a` and
-  `ergo/p3.6`; `../triplex-wt/trial-base` for P1.9. The session PR is #80 from `ergonomics/next`.
+- **Open worktrees and branches from this plan:** `../triplex-wt/p4.4a` on `ergo/p4.4a`; `../triplex-wt/trial-base` for P1.9. The session PR is #80 from `ergonomics/next`.
 - **Next action:** review Wave A as it reports. Then P3.0 (after P4.4a, both touch adapters),
   then P3.2 and P4.4b, and switch the client to `resolveRecordedBasis`. Push merged work to PR #80.
 - **Known blockers:** none.
@@ -434,6 +432,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P3.6 (MCP first cut) merged; lockfile updated by the orchestrator.
 - 2026-11-11: P1.8 merged; fixed the Effect version in `llms.txt`. Started P1.9 (second cold trial).
 - 2026-11-11: P1.6 merged. Started P1.8 (docs lead with the client) and P3.6 (MCP server on
   `effect/ai/McpServer`, private).
