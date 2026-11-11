@@ -94,7 +94,7 @@ it("normalizes entity and projection decode failures and preserves local causes 
   );
 });
 
-it("normalizes a timestamp with bounded journal pages through the captured head and freezes view time", async () => {
+it("normalizes a timestamp with the recorded-basis resolver and freezes view time", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
       const release = yield* publish;
@@ -111,16 +111,13 @@ it("normalizes a timestamp with bounded journal pages through the captured head 
         const change = Item.correct(one.triples[0]!, { name: "new" });
         yield* triples.transact(change.ops, change);
         expect((yield* view.get(Item, id))?.values.name).toBe("old");
+        const expected = yield* triples.resolveRecordedBasis({ recordedAt: one.instant });
+        const resolver = vi.spyOn(triples, "resolveRecordedBasis");
         const at = yield* db.asOf({ recordedAt: one.instant, validAt: 10 });
-        const journal = yield* triples.transactions({ limit: 1000 });
-        const expected = Math.max(
-          0,
-          ...journal.transactions
-            .filter((tx) => tx.instant <= one.instant)
-            .map((tx) => tx.position),
-        );
-        expect(at.basis).toEqual({ recordedPosition: expected, validAt: 10 });
-        expect(history.mock.calls[0]).toEqual([{ after: 0, limit: 1000 }]);
+        expect(at.basis).toEqual({ ...expected, validAt: 10 });
+        expect(resolver.mock.calls).toEqual([[{ recordedAt: one.instant }]]);
+        expect(history).not.toHaveBeenCalled();
+        expect(head).toHaveBeenCalledTimes(1);
         expect(Object.isFrozen(view.basis)).toBe(true);
       }).pipe(Effect.provide(client));
     }).pipe(Effect.provide(base)),
@@ -237,7 +234,65 @@ it("captures an exact position between same-millisecond commits and resolves tim
         const then = yield* db.asOf({ recordedAt: 1000, validAt: 10 });
         expect(then.basis).toEqual({ recordedPosition: second.position, validAt: 10 });
         expect((yield* then.get(Item, id))?.values.name).toBe("new");
+        const later = Item.correct(second.triples[0]!, { name: "later" });
+        const third = yield* triples.transact(later.ops, later);
+        expect(third.instant).toBe(second.instant);
+        expect((yield* then.get(Item, id))?.values.name).toBe("new");
+        expect(
+          (yield* (yield* db.asOf({ recordedAt: 1000, validAt: 10 })).get(Item, id))?.values.name,
+        ).toBe("later");
+        const future = yield* db.asOf({ recordedAt: 2000, validAt: 10 });
+        expect(future.basis).toEqual({ recordedPosition: third.position, validAt: 10 });
+        const empty = yield* db.asOf({ recordedAt: 999, validAt: 10 });
+        expect(empty.basis).toEqual({ recordedPosition: 0, validAt: 10 });
+        expect(yield* empty.get(Item, id)).toBeNull();
       }).pipe(Effect.provide(client));
     }).pipe(Effect.provide(deterministic)),
+  );
+});
+
+it("rejects simultaneous recorded fields before performing IO", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      yield* publish;
+      const triples = yield* Triples;
+      const config = yield* ConfigStore.ConfigStore;
+      yield* Effect.gen(function* () {
+        const db = yield* Database.Database;
+        const resolve = vi.spyOn(config, "resolveRef");
+        const head = vi.spyOn(triples, "currentPosition");
+        const resolver = vi.spyOn(triples, "resolveRecordedBasis");
+        expect(
+          diagnose(yield* Effect.flip(db.asOf({ recordedAt: 1000, recordedPosition: 0 }))),
+        ).toMatchObject({
+          code: "validation.failed",
+          path: "basis.recordedAt",
+        });
+        expect(resolve).not.toHaveBeenCalled();
+        expect(head).not.toHaveBeenCalled();
+        expect(resolver).not.toHaveBeenCalled();
+      }).pipe(Effect.provide(client));
+    }).pipe(Effect.provide(base)),
+  );
+});
+
+it("resolves recorded time without paging a journal larger than the former page size", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      yield* publish;
+      const triples = yield* Triples;
+      for (let index = 0; index < 1001; index++) yield* triples.transact([]);
+      const last = yield* triples.transact(Item.assert(id, { name: "latest" }, { validFrom: 0 }));
+      yield* Effect.gen(function* () {
+        const db = yield* Database.Database;
+        const journal = vi.spyOn(triples, "transactions");
+        const resolver = vi.spyOn(triples, "resolveRecordedBasis");
+        const view = yield* db.asOf({ recordedAt: Number.MAX_SAFE_INTEGER, validAt: 10 });
+        expect(view.basis).toEqual({ recordedPosition: last.position, validAt: 10 });
+        expect((yield* view.get(Item, id))?.values.name).toBe("latest");
+        expect(resolver).toHaveBeenCalledTimes(1);
+        expect(journal).not.toHaveBeenCalled();
+      }).pipe(Effect.provide(client));
+    }).pipe(Effect.provide(base)),
   );
 });

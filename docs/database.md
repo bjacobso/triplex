@@ -161,11 +161,12 @@ Clock, and omitted recorded time once with `Triples.currentPosition`. Supply at
 most one of `recordedAt` and `recordedPosition`. Positions are safe integers from
 zero through the captured head; instants must be finite and nonnegative.
 
-`recordedAt` currently scans public journal pages through a captured head to find
-the greatest eligible position. This is O(journal); position-based views avoid
-that scan. The internal resolver is isolated for replacement by a future indexed
-primitive. Exact positions keep views stable across same-millisecond commits and
-later corrections.
+`recordedAt` uses `Triples.resolveRecordedBasis` to find the greatest eligible
+position through one captured head, without paging the journal. Equal instants
+include every commit at that instant visible at capture; future timestamps resolve
+to the captured head, and timestamps before the first commit resolve to zero.
+Exact positions keep views stable across same-millisecond commits and later
+corrections.
 
 Views retain the schema selected at acquisition. They do not infer which release
 was live at a historical time. For an incompatible older model, provide a matching
