@@ -26,7 +26,16 @@ export interface Assertion<K extends string = string> {
   readonly validTo?: number;
 }
 
+/** Runtime declaration edges do not participate in content identity. Name-only targets remain useful for recursive schemas. */
+export interface ReferenceTarget {
+  readonly entityType: string;
+  readonly nodes?: Effect.Effect<ReadonlyArray<ConfigNode.ConfigNode>, ConfigNode.DuplicateChildKeyError | import("../content/CanonicalJson.js").CanonicalEncodingError | Schema.SchemaError>;
+  readonly attributes?: Readonly<Record<string, { readonly definition: AnyDefinition }>>;
+}
+
 export interface Definition<K extends string, V> {
+  /** The declaration supplied to ref; retained for transitive nodesOf traversal. */
+  readonly target?: ReferenceTarget;
   readonly _tag: "Attribute";
   readonly key: K;
   readonly type: TypeExpr.TypeExpr;
@@ -229,17 +238,19 @@ export const enumOf = <const K extends string, const V extends string>(
   make(key, TypeExpr.enumOf(values), "string", (value) => Values.string(value));
 
 /** A relation attribute whose values are entity ids of `target`. */
-export const ref = <const K extends string, const Target extends { readonly entityType: string }>(
+export const ref = <const K extends string, const Target extends ReferenceTarget>(
   key: K,
   target: Target,
-): Definition<K, EntityId> =>
-  make(key, TypeExpr.ref(target.entityType), "ref", Values.ref, [
+): Definition<K, EntityId> => ({
+  ...make(key, TypeExpr.ref(target.entityType), "ref", Values.ref, [
     {
       rel: "references-entity-type",
       kind: "entity-schema",
       key: target.entityType,
     },
-  ]);
+  ]),
+  target,
+});
 
 /** Requiredness and cardinality belong to an entity's use, not the global attribute. */
 export const use = <D extends AnyDefinition, const O extends UseOptions = {}>(

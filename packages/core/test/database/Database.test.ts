@@ -35,7 +35,7 @@ describe("Database compilation", () => {
     });
     await run(Effect.gen(function* () {
       const config = yield* ConfigStore.ConfigStore;
-      yield* config.commit({ label: "changed target", ref: "live", objects: yield* EntityType.nodesOf(ChangedSite, Placement) });
+      yield* config.commit({ label: "changed target", ref: "live", objects: [...(yield* EntityType.nodesOf(ChangedSite)), ...(yield* Placement.nodes)] });
       const acquisition = Effect.provide(Database.Database, Database.layer({ schema: { types: [Placement] } }));
       // The reference was declared against Site, not ChangedSite. Exact closure compatibility must reject this.
       const result = yield* Effect.result(acquisition);
