@@ -136,7 +136,6 @@ export class LiveQuery extends Context.Service<LiveQuery, LiveQueryService>()("t
               changed = Deferred.makeUnsafe<void>();
               continue;
             }
-            const now = yield* Clock.currentTimeMillis;
             const affected = new Set<Registration>();
             const invalidateAll = () => {
               for (const r of registrations) affected.add(r);
@@ -178,6 +177,9 @@ export class LiveQuery extends Context.Service<LiveQuery, LiveQueryService>()("t
             );
             failure = read._tag === "Failure" ? read.failure : undefined;
             if (failure) invalidateAll();
+            // Head/journal reads can outlive a temporal boundary (or a clock rollback).
+            // Resolve time after those reads so an elapsed deadline wakes immediately.
+            const now = yield* Clock.currentTimeMillis;
             for (const r of registrations) {
               if (now < previousNow && r.followsClock) {
                 r.rollback = true;
