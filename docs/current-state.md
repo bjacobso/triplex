@@ -84,7 +84,7 @@ work that is not complete.
 | SQLite        | Yes                  | Yes                | Yes        | Supported local persistence    |
 | PostgreSQL    | Yes                  | Yes                | Yes        | Pre-1.0 production candidate   |
 | Cloudflare DO | Yes                  | Harness + workerd  | Yes        | Experimental reference hosting |
-| FoundationDB  | Yes                  | Native opt-in      | No         | Experimental                   |
+| FoundationDB  | Yes                  | Native + shared    | Yes        | Experimental                   |
 
 PostgreSQL includes validated logical database IDs, deterministic safely quoted schema names, and
 per-pool-connection schema binding. Its host-owned-client and database-scoped paths are covered by
@@ -98,7 +98,9 @@ The reference host also passes its local workerd isolation and restart corpus. I
 experimental until credentialed deployment, upgrade, retention, limit, and provider-failure gates
 pass. The host and Alchemy stack have not been promoted or published. FoundationDB requires a
 non-empty subspace by default and scopes clears to it, but still depends on native infrastructure
-outside the normal test matrix.
+for local opt-in runs. CI now provisions a pinned client and runs the shared
+Triples/sensitive corpora, native watches, cursor isolation and backfill tests.
+It remains experimental; these tests do not establish production operations or scale.
 
 ## Honest limitations
 

@@ -2,7 +2,7 @@
  * One-line FoundationDB-backed `Triples` layer.
  *
  * ```ts
- * program.pipe(Effect.provide(FdbTriples.layer({ subspacePrefix: "app" })))
+ * program.pipe(Effect.provide(FdbTriples.layer({ subspace: Buffer.from("app/") })))
  * ```
  *
  * Uses the merged KV `Triples` implementation (a single hexastore handle), so
@@ -12,9 +12,10 @@
 import { Layer } from "effect";
 import {
   KvTriples,
-  TripleStoreRuntimeLayer,
+  makeTripleStoreRuntimeLayer,
   RuntimeServicesLive,
 } from "@triplex-build/triplex/internal";
+import { Sha256 } from "@triplex-build/triplex/content";
 import { makeFdbKvBackend, type FdbKvBackendConfig } from "./FdbKvBackend.js";
 
 export const FdbTriples = {
@@ -22,7 +23,13 @@ export const FdbTriples = {
   layer: (config: FdbKvBackendConfig = {}) =>
     KvTriples.layerBackend.pipe(
       Layer.provide(makeFdbKvBackend(config)),
-      Layer.provide(TripleStoreRuntimeLayer),
+      Layer.provide(
+        makeTripleStoreRuntimeLayer(
+          `foundationdb:${Sha256.hex(
+            JSON.stringify([config.clusterFile ?? null, config.subspace?.toString("hex") ?? null]),
+          )}`,
+        ),
+      ),
       Layer.provide(RuntimeServicesLive),
     ),
 } as const;

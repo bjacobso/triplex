@@ -13,7 +13,7 @@ import { Context, Effect, Layer } from "effect";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { KvBackend } from "@triplex-build/triplex";
+import { KvBackend } from "@triplex-build/triplex/internal";
 import { makeFdbKvBackendService, type FdbKvBackendConfig } from "../../src/FdbKvBackend.js";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ const releaseFdbContainer = ({
   container,
   clusterFilePath,
 }: {
-  container: { stop: () => Promise<void> };
+  container: { stop: () => Promise<unknown> };
   clusterFilePath: string;
 }) =>
   Effect.gen(function* () {
@@ -146,14 +146,17 @@ const FdbKvBackendLayer: Layer.Layer<KvBackend, never, FdbClusterFile> = Layer.e
     const kv = yield* makeFdbKvBackendService(config);
 
     yield* kv.get(new Uint8Array([0])).pipe(
-      Effect.timeoutFail({
+      Effect.timeoutOrElse({
         duration: "5 seconds",
-        onTimeout: () =>
-          new Error(
-            `FDB connectivity probe timed out (clusterFile=${clusterFilePath}). ` +
-              "This often means Docker networking cannot reach the container IP.",
+        orElse: () =>
+          Effect.fail(
+            new Error(
+              `FDB connectivity probe timed out (clusterFile=${clusterFilePath}). ` +
+                "This often means Docker networking cannot reach the container IP.",
+            ),
           ),
       }),
+      Effect.orDie,
     );
 
     return kv;
@@ -168,6 +171,6 @@ const FdbKvBackendLayer: Layer.Layer<KvBackend, never, FdbClusterFile> = Layer.e
  * Tests that use this layer will fail at layer acquisition time (not import time)
  * if the dependencies are missing, which @effect/vitest handles gracefully.
  */
-export const FdbTestLayer: Layer.Layer<KvBackend> = FdbKvBackendLayer.pipe(
-  Layer.provide(FdbContainerLayer),
+export const FdbTestLayer: Layer.Layer<KvBackend | FdbClusterFile> = FdbKvBackendLayer.pipe(
+  Layer.provideMerge(FdbContainerLayer),
 );

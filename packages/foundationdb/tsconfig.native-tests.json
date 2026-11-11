@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.node.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["test/fdb-triples.test.ts", "test/FdbSubscriptions.test.ts"]
+}

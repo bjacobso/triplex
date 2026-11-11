@@ -1,0 +1,22 @@
+{
+  "sourceRevision": "b443a4ba354368d50e4410570b4df155ec2a1cdd",
+  "workflowRun": 42897941855,
+  "job": 130115946151,
+  "url": "https://github.com/bjacobso/triplex/actions/runs/42897941855/job/130115946151",
+  "platform": "ubuntu-latest / x86_64",
+  "nodeMajor": 24,
+  "foundationdbVersion": "7.3.75",
+  "apiVersion": 720,
+  "command": "pnpm test:foundationdb:integration",
+  "testFilesPassed": 2,
+  "testsPassed": 19,
+  "testsSkipped": 0,
+  "suiteDurationSeconds": 59.97,
+  "logExcerpts": [
+    "2026-11-10T20:42:57.3331424Z libfdb_c.x86_64.so: OK",
+    "2026-11-10T20:42:57.3403184Z ##[group]Run pnpm --filter @triplex-build/triplex-foundationdb exec node -e 'require(\"foundationdb\")'",
+    "2026-11-10T20:43:58.7586205Z  Test Files  2 passed (2)",
+    "2026-11-10T20:43:58.7587533Z       Tests  19 passed (19)",
+    "2026-11-10T20:43:58.7593784Z    Duration  59.97s (tests 97%, transform 2%, import 1%)"
+  ]
+}
