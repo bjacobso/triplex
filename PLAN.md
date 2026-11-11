@@ -264,7 +264,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P1.3 | `_tx` joins at a past `validAt`                                                                                     | A     |                 | active  | 2026-11-11: in `ergo/p4.4a`                                                                                                                                                                                                                                                                               |
 | P1.4 | Loud pin-without-enforce                                                                                            | B     | P2.1            | pending |                                                                                                                                                                                                                                                                                                           |
 | P1.5 | Re-run the trial against the phase 1 gate                                                                           | C     | P0.2, P1.1–P1.4 | done    | 2026-11-11: `trials/runs/vendor-risk-2026-11-11/` (METRICS.md): first run 11/15, green on run 2, about 5 min, 0 silent traps observed. Gate NOT demonstrated: the author never used the schema path, so unknown-attribute and enforcement protections went unexercised. Different model from the baseline |
-| P1.6 | Unify `CommitValidation.View.query` with `Triples.query` result shapes                                              | A     | P1.5            | active  | 2026-11-11: `ergo/p1.6` (trial finding 1)                                                                                                                                                                                                                                                                 |
+| P1.6 | Unify `CommitValidation.View.query` with `Triples.query` result shapes                                              | A     | P1.5            | done    | 2026-11-11: merged `ergo/p1.6`; `CommitValidation.View.query` returns `QueryResponse` like `queryAll`. Core 837, SQLite 19, integration 227 tests pass                                                                                                                                                    |
 | P1.7 | Backend layers expose only `Triples` (internals behind a separate layer)                                            | alone | P1.5            | pending | Trial finding 2                                                                                                                                                                                                                                                                                           |
 | P1.8 | Make the schema path the one newcomers find: lead `docs/agents.md` and getting-started with `Database` (after P2.6) | C     | P2.6            | active  | 2026-11-11: `ergo/p1.8`                                                                                                                                                                                                                                                                                   |
 
@@ -422,10 +422,9 @@ Update this section last in every session.
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P4.4a with P1.3: block `block:01a1cc7d-43a9-7864-b38b-d6a4e36f7dc1`
-  - P2.6: block `block:01a1cc7d-43d1-734b-a43c-75b24e4eff3f`
-  - P1.6: block `block:01a1cc92-1033-7825-a28f-4f744fe12bda`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p4.4a,p2.6,p1.6}` on `ergo/p4.4a`,
-  `ergo/p2.6` and `ergo/p1.6`. The session PR is #80 from `ergonomics/next`.
+  - P1.8: block `block:01a1cc9a-cdb4-7cd1-8a01-258633ded192`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p4.4a,p1.8}` on `ergo/p4.4a` and
+  `ergo/p1.8`. The session PR is #80 from `ergonomics/next`.
 - **Next action:** review Wave A as it reports. Then P3.0 (after P4.4a, both touch adapters),
   then P3.2 and P4.4b, and switch the client to `resolveRecordedBasis`. Push merged work to PR #80.
 - **Known blockers:** none.
@@ -434,6 +433,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P1.6 merged.
 - 2026-11-11: P2.6 merged. CLI process tests timed out only at load average 500+; timeouts raised
   to 120 s (startup unchanged at 0.5 s). Started P1.8.
 - 2026-11-11: P1.5 trial done (11/15 first run, green on run 2, 5 min, 0 traps observed) but the
