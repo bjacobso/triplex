@@ -81,6 +81,11 @@
       "types": "./dist/internal.d.ts",
       "import": "./dist/internal.js",
       "default": "./dist/internal.js"
+    },
+    "./database": {
+      "types": "./dist/database/index.d.ts",
+      "import": "./dist/database/index.js",
+      "default": "./dist/database/index.js"
     }
   },
   "publishConfig": {

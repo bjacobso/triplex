@@ -179,6 +179,10 @@ scheduler that reopens work at expiry. Read more in [Derivations](/derivations).
 
 ## 6. Choose a runtime
 
+Use the [schema-bound Database client](/database) for application commands and typed reads.
+It adds release compatibility checks, admission-time pinning and enforcement, receipt recovery,
+and guarded entity reads over the storage layer shown below.
+
 Construct one layer per database lifetime, at the application boundary. Building an in-memory
 layer again creates a new empty database, and building a SQL layer per request defeats connection
 sharing.
