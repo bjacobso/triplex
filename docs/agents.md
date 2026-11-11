@@ -238,6 +238,10 @@ triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db entity facts worker:maria
 triplex --sqlite ./app.db entity history worker:maria --limit 25
 triplex --sqlite ./app.db query explain --input query.json
+triplex --sqlite ./app.db why fact 01ARZ3NDEKTSV4RRFFQ69G5FAV
+triplex --sqlite ./app.db why entity worker:maria --recorded-position 12
+triplex --sqlite ./app.db transaction preview --input command.json
+triplex --sqlite ./app.db transaction apply --input command.json
 triplex --sqlite ./app.db journal receipt placement:create:maria-harbor
 triplex --sqlite ./app.db config release --ref live
 ```
@@ -248,6 +252,14 @@ and one `{ entityType, input }` example per type. Each input pins and enforces t
 Replace its synthetic placeholders with application values, create referenced targets first, and
 submit the input to `transaction apply`. Use `describe --ref preview` to inspect another ref.
 If the ref has no release, `data.schema` is `null` and `data.hint` explains how to publish one.
+
+Use `why attribute <entityId> <attribute>` for every visible value of one attribute. Stored
+subjects accept `--recorded-at` or `--recorded-position`, `--valid-at`, and `--causation-depth`.
+For candidates, `why candidate --input candidate.json` accepts the full definition, candidate ID,
+revision and explicit basis in the [shared input shape](/tools#explain-and-preview).
+Preview takes apply's input and command ID, reports operations, changes and constraint violations
+without writing, and returns an existing receipt when that ID has committed. Preserve both the
+release pin and enforcement from describe. Preview is advisory; apply checks current state again.
 
 The unscoped `triplex` package on npm is an unrelated project. See [CLI and dashboard](/tools) for
 the full command set.

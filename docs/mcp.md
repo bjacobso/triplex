@@ -41,22 +41,24 @@ process's working directory. Opening SQLite can apply pending migrations.
 Each tool advertises an Effect-derived input schema through `tools/list`. Inputs use the same
 field names and wire values as the CLI's public `execute` operations, without the `_tag` field.
 
-| Tool                | Input                                                                                   |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| `describe`          | Optional `ref` (defaults to `live`)                                                     |
-| `status`            | No parameters                                                                           |
-| `entity_types`      | Optional `includeSystem` (defaults to `false`)                                          |
-| `entity_get`        | `entityId`, optional `basis`                                                            |
-| `entity_facts`      | `entityId`                                                                              |
-| `entity_history`    | `entityId`, optional `limit`, `snapshotPosition`, `beforePosition`                      |
-| `fact_match`        | `pattern`, optional `basis`                                                             |
-| `query_run`         | `query`, optional `cursor`, `pageSize`, `basis`, `debug`                                |
-| `query_page`        | Wrapped `query`, optional `basis`, `debug`                                              |
-| `query_explain`     | `query`                                                                                 |
-| `journal_list`      | Optional `after` (defaults to `0`), `limit`                                             |
-| `journal_receipt`   | `commandId`                                                                             |
-| `config_release`    | Optional `snapshotId` or `ref`                                                          |
-| `transaction_apply` | `operations`, required `meta.actor` and `meta.commandId`; optional transaction metadata |
+| Tool                  | Input                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `describe`            | Optional `ref` (defaults to `live`)                                                     |
+| `status`              | No parameters                                                                           |
+| `entity_types`        | Optional `includeSystem` (defaults to `false`)                                          |
+| `entity_get`          | `entityId`, optional `basis`                                                            |
+| `entity_facts`        | `entityId`                                                                              |
+| `entity_history`      | `entityId`, optional `limit`, `snapshotPosition`, `beforePosition`                      |
+| `fact_match`          | `pattern`, optional `basis`                                                             |
+| `query_run`           | `query`, optional `cursor`, `pageSize`, `basis`, `debug`                                |
+| `query_page`          | Wrapped `query`, optional `basis`, `debug`                                              |
+| `query_explain`       | `query`                                                                                 |
+| `journal_list`        | Optional `after` (defaults to `0`), `limit`                                             |
+| `journal_receipt`     | `commandId`                                                                             |
+| `config_release`      | Optional `snapshotId` or `ref`                                                          |
+| `why`                 | `subject` (fact, attribute, entity or candidate), optional `basis`, `causationDepth`    |
+| `transaction_preview` | Same input as `transaction_apply`; no commit                                            |
+| `transaction_apply`   | `operations`, required `meta.actor` and `meta.commandId`; optional transaction metadata |
 
 History and journal limits default to 100 and accept 1–1,000. Query page sizes follow the same
 bounds. A `basis` may specify `validAt` and either `recordedAt` or `recordedPosition`.
@@ -75,5 +77,16 @@ shaping; plaintext, ciphertext and blind tokens from sealed envelopes are never 
 remain responsible for sealing sensitive writes with [Sensitive.layer](/sensitive-values) and for
 database access permissions; the standalone server does not configure codec keys or authorization.
 
-`why` and preview tools are planned after their CLI operations land. HTTP transport is also
-planned; this first cut serves stdio only.
+`why` returns the core [explanation DTO](/why). Candidate subjects include the full immutable
+`Derivation.make` definition, `candidateId` and `revision`, with explicit recorded and valid basis.
+Stored subjects identify a `tripleId`, an `entityId` and attribute, or an `entityId` alone.
+`causationDepth` defaults to zero and accepts integers through 32.
+
+Use `transaction_preview` before `transaction_apply` with the same command input and ID. Preview
+returns projected operations, changes and new constraint violations under the supplied `meta.enforce`,
+or `commandAlreadyCommitted` for an existing ID. It does not write, check preconditions, run commit
+validators or reserve state. Preserve the release pin and enforcement from describe; a pin alone
+does not enforce constraints. See [CLI preview](/tools#explain-and-preview) for result fields and
+clock behavior.
+
+HTTP transport is planned; this first cut serves stdio only.

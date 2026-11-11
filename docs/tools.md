@@ -95,6 +95,42 @@ Do not retry that payload with a new command ID merely because the client lost t
 up the original receipt first. A duplicate committed command ID produces
 `CommandAlreadyCommittedError`; it does not silently execute or return success again.
 
+## Explain and preview
+
+```sh
+triplex --sqlite ./app.db why fact 01ARZ3NDEKTSV4RRFFQ69G5FAV
+triplex --sqlite ./app.db why attribute worker:maria :worker/name
+triplex --sqlite ./app.db why entity worker:maria --recorded-position 12 --valid-at 1788998400000
+triplex --sqlite ./app.db why entity worker:maria --causation-depth 3
+triplex --sqlite ./app.db why candidate --input candidate.json
+triplex --sqlite ./app.db transaction preview --input command.json
+triplex --sqlite ./app.db transaction apply --input command.json
+```
+
+`why` runs the core [explanation service](/why). Stored subjects accept `--valid-at`,
+`--recorded-at` or `--recorded-position`, and `--causation-depth` (0–32). Recorded timestamp and
+position are mutually exclusive. An exact fact explanation includes its retracting transaction;
+an entity or attribute explanation returns visible facts at the selected cut.
+
+Candidate input is `{ "subject": { "kind": "candidate", "definition": …, "candidateId": …,
+"revision": … }, "basis": { "validAt": …, "recordedPosition": … }, "causationDepth": 0 }`.
+Supply the full immutable definition returned by `Derivation.make`, plus the candidate's ID and
+revision, and an explicit valid and recorded basis. Candidate flags can override input options.
+The MCP `why` tool uses this same input schema for all four subject kinds.
+
+`transaction preview` accepts exactly the same input as apply, including required `meta.actor`
+and `meta.commandId`. It returns `release`, `operations` (`ops` and `preconditions`), `changes`,
+`violations`, and an empty `derivations` list. Preserve `meta.configSnapshot` and `meta.enforce`
+from describe: both preview and apply use the supplied enforcement, and a release pin alone
+does not enforce constraints. If the command ID is already committed, preview returns
+`commandAlreadyCommitted` with the receipt and empty operations and changes.
+
+Preview does not write facts, receipts or journal positions. It is advisory: it does not check
+preconditions, run commit validators or reserve state against other writers. Commit checks the
+then-current state. Assertion IDs and commit metadata are assigned only on commit. Omitted
+`validFrom` uses the preview clock and is assigned again on commit; specify it to compare exact
+intervals. Sealed envelopes are redacted in both explanations and previews.
+
 ## Run and page a query
 
 Create `query.json`:

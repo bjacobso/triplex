@@ -1,9 +1,8 @@
 /** Read-only projection of the same compiled command used by Database.command. */
-import { Effect, Option } from "effect";
+import { Clock, Effect, Option } from "effect";
 import type { EntityId } from "../Branded.js";
 import type * as Change from "../Change.js";
 import * as Constraint from "../Constraint.js";
-import type * as ConfigStore from "../config/ConfigStore.js";
 import * as Derivation from "../derivation/Derivation.js";
 import { evaluateOverlay } from "../derivation/Overlay.js";
 import { ReadError } from "../errors/index.js";
@@ -14,7 +13,7 @@ import type {
   TriplesService,
   TransactionMeta,
 } from "../store/Triples.js";
-import type { TransactOp, Triple } from "../Triple.js";
+import type { TransactOp, TransactRequest, Triple } from "../Triple.js";
 
 export interface PreviewOptions {
   readonly derivations?: readonly Derivation.Definition[];
@@ -51,7 +50,7 @@ export const previewCommand = (
   triples: TriplesService,
   compiled: {
     readonly combined: Change.Change;
-    readonly release: ConfigStore.ConfigSnapshot;
+    readonly release: { readonly id: string } | null;
     readonly pinned: Pick<TransactionMeta, "enforce">;
     readonly started: number;
   },
@@ -174,10 +173,40 @@ export const previewCommand = (
       ),
     );
     return {
-      release: release.id,
+      release: release?.id ?? null,
       operations: { ...compiled.combined, ops },
       changes,
       violations,
       derivations,
     } satisfies Preview;
+  });
+
+/** Project raw transaction input using the same enforcement supplied to transact.
+ * Advisory only: does not run commit validators, check preconditions, or reserve state. */
+export const previewTransaction = (triples: TriplesService, request: TransactRequest) =>
+  Effect.gen(function* () {
+    const commandId = request.meta?.commandId;
+    const existing =
+      commandId === undefined ? null : yield* triples.transactionByCommand(commandId);
+    if (existing)
+      return {
+        release: existing.configSnapshot ?? null,
+        operations: { ops: [], preconditions: [] },
+        changes: [],
+        violations: [],
+        derivations: [],
+        commandAlreadyCommitted: existing,
+      } satisfies Preview;
+    return yield* previewCommand(
+      triples,
+      {
+        combined: { ops: request.operations, preconditions: request.meta?.preconditions ?? [] },
+        release:
+          request.meta?.configSnapshot === undefined ? null : { id: request.meta.configSnapshot },
+        pinned: request.meta?.enforce === undefined ? {} : { enforce: request.meta.enforce },
+        started: yield* Clock.currentTimeMillis,
+      },
+      {},
+      yield* Effect.serviceOption(Sensitivity),
+    );
   });

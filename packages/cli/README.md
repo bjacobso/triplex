@@ -205,3 +205,36 @@ content ID, closure ID, schema stamps, dependencies, and release membership. Rel
 returns the pinned revision set and release ancestry. `set-ref` is the only configuration mutation
 currently exposed; authoring typed nodes remains application-owned rather than accepting untyped
 configuration JSON.
+
+## Explain and preview
+
+```sh
+triplex --sqlite ./app.db why fact 01ARZ3NDEKTSV4RRFFQ69G5FAV
+triplex --sqlite ./app.db why attribute worker:maria :worker/name
+triplex --sqlite ./app.db why entity worker:maria --recorded-position 12 --valid-at 1788998400000
+triplex --sqlite ./app.db why entity worker:maria --causation-depth 3
+triplex --sqlite ./app.db why candidate --input candidate.json
+triplex --sqlite ./app.db transaction preview --input command.json
+triplex --sqlite ./app.db transaction apply --input command.json
+```
+
+Stored `why` subjects accept `--valid-at`, either `--recorded-at` or `--recorded-position`, and
+`--causation-depth` (0–32). Fact explanations retain the retracting transaction; historical
+entity and attribute explanations use the selected recorded cut.
+
+Candidate JSON uses `{ subject: { kind: "candidate", definition, candidateId, revision },
+basis: { validAt, recordedPosition }, causationDepth? }`. Supply the full immutable definition
+returned by `Derivation.make` and the candidate's ID and revision; an explicit valid and recorded
+basis is required. Candidate flags override JSON options. MCP exposes the same `WhyInput` schema.
+
+Preview uses apply's input, including `meta.actor` and `meta.commandId`, and returns `release`,
+`operations` (`ops`, `preconditions`), `changes`, `violations` and an empty `derivations` list.
+Preserve `meta.configSnapshot` and `meta.enforce` from describe. Enforcement comes from the
+supplied rules, exactly as for apply; the pin alone does not enforce constraints. An existing
+command ID returns `commandAlreadyCommitted` and empty operations and changes.
+
+Preview writes no facts, journal entries or receipts. It does not check preconditions, run commit
+validators or reserve state. Apply checks current state again. Assertion IDs and commit metadata
+are assigned at commit; omitted `validFrom` is evaluated again at commit, so pin it for exact
+interval comparisons. Both capabilities use the normal JSON envelope and Diagnostic failures,
+and redact sealed values without opening them.

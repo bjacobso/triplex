@@ -14,6 +14,7 @@ import {
   QueryRequest,
   TemporalBasis,
   TransactionId,
+  TripleId,
   TransactRequest,
   WrappedQuery,
   queryToPattern,
@@ -44,6 +45,7 @@ import {
   type ExecuteOptions,
 } from "./operations.js";
 
+import { WhyInput } from "./why.js";
 import { invocation, invocationOptions, makeCommand } from "./invocation.js";
 
 declare const __TRIPLEX_CLI_VERSION__: string;
@@ -442,22 +444,106 @@ const query = Command.make("query").pipe(
   Command.withSubcommands([queryRun, queryPage, queryExplain]),
 );
 
-const transactionApply = makeCommand("apply", { input }, ({ input }) =>
-  Effect.gen(function* () {
-    const request = yield* readWith(TransactRequest, input);
-    if (request.meta?.actor === undefined || request.meta.commandId === undefined) {
-      return yield* Effect.fail(
-        invalidArguments("transaction input must include meta.actor and meta.commandId", "$.meta"),
-      );
-    }
-    return yield* emit("transaction.apply", { _tag: "transaction-apply", request });
-  }),
-).pipe(Command.withDescription("Atomically apply attributed assertion/retraction operations"));
+const transactionCommand = (name: "apply" | "preview") =>
+  makeCommand(name, { input }, ({ input }) =>
+    Effect.gen(function* () {
+      const request = yield* readWith(TransactRequest, input);
+      if (request.meta?.actor === undefined || request.meta.commandId === undefined) {
+        return yield* Effect.fail(
+          invalidArguments(
+            "transaction input must include meta.actor and meta.commandId",
+            "$.meta",
+          ),
+        );
+      }
+      return yield* emit(`transaction.${name}`, {
+        _tag: name === "apply" ? "transaction-apply" : "transaction-preview",
+        request,
+      });
+    }),
+  );
 
 const transaction = Command.make("transaction").pipe(
   Command.withAlias("tx"),
-  Command.withDescription("Apply atomic, idempotent transactions"),
-  Command.withSubcommands([transactionApply]),
+  Command.withDescription("Preview and apply atomic, idempotent transactions"),
+  Command.withSubcommands([transactionCommand("apply"), transactionCommand("preview")]),
+);
+
+const whyFlags = {
+  validAt,
+  recordedAt,
+  recordedPosition: Flag.Int("recorded-position").pipe(Flag.optional),
+  causationDepth: Flag.Int("causation-depth").pipe(Flag.optional),
+};
+const whyOptions = (flags: {
+  validAt: Option.Option<number>;
+  recordedAt: Option.Option<number>;
+  recordedPosition: Option.Option<number>;
+  causationDepth: Option.Option<number>;
+}) => ({
+  basis: {
+    ...Option.match(flags.validAt, { onNone: () => ({}), onSome: (validAt) => ({ validAt }) }),
+    ...Option.match(flags.recordedAt, {
+      onNone: () => ({}),
+      onSome: (recordedAt) => ({ recordedAt }),
+    }),
+    ...Option.match(flags.recordedPosition, {
+      onNone: () => ({}),
+      onSome: (recordedPosition) => ({ recordedPosition }),
+    }),
+  },
+  ...Option.match(flags.causationDepth, {
+    onNone: () => ({}),
+    onSome: (causationDepth) => ({ causationDepth }),
+  }),
+});
+const whyFact = makeCommand(
+  "fact",
+  { ...whyFlags, tripleId: Argument.String("triple-id").pipe(Argument.withSchema(TripleId)) },
+  ({ tripleId, ...flags }) =>
+    emit("why.fact", { _tag: "why", subject: { kind: "fact", tripleId }, ...whyOptions(flags) }),
+);
+const whyEntity = makeCommand(
+  "entity",
+  { ...whyFlags, entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)) },
+  ({ entityId, ...flags }) =>
+    emit("why.entity", {
+      _tag: "why",
+      subject: { kind: "entity", entityId },
+      ...whyOptions(flags),
+    }),
+);
+const whyAttribute = makeCommand(
+  "attribute",
+  {
+    ...whyFlags,
+    entityId: Argument.String("entity-id").pipe(Argument.withSchema(EntityId)),
+    attribute: Argument.String("attribute"),
+  },
+  ({ entityId, attribute, ...flags }) =>
+    emit("why.attribute", {
+      _tag: "why",
+      subject: { kind: "attribute", entityId, attribute },
+      ...whyOptions(flags),
+    }),
+);
+const whyCandidate = makeCommand("candidate", { input, ...whyFlags }, ({ input, ...flags }) =>
+  Effect.gen(function* () {
+    const request = yield* readWith(WhyInput, input);
+    if (request.subject.kind !== "candidate")
+      return yield* Effect.fail(invalidArguments("Expected a candidate subject", "$.subject"));
+    const overrides = whyOptions(flags);
+    return yield* emit("why.candidate", {
+      _tag: "why",
+      ...request,
+      ...overrides,
+      basis: { ...request.basis, ...overrides.basis },
+    });
+  }),
+);
+const why = Command.make("why").pipe(
+  Command.withDescription("Explain facts, entity state and derivation candidates"),
+  Command.withSubcommands([whyFact, whyAttribute, whyEntity, whyCandidate]),
 );
 
 const journalList = makeCommand(
@@ -667,6 +753,7 @@ export const command = rootCommand.pipe(
     fact,
     query,
     transaction,
+    why,
     journal,
     config,
   ]),

@@ -8,7 +8,7 @@ import {
   WrappedQuery,
   diagnose,
 } from "@triplex-build/triplex";
-import { execute, type ExecuteOptions } from "@triplex-build/triplex-cli";
+import { WhyInput, execute, type ExecuteOptions } from "@triplex-build/triplex-cli";
 import { ContentId } from "@triplex-build/triplex/content";
 import { ConfigStore } from "@triplex-build/triplex/config";
 import { Effect, Layer, Schema } from "effect";
@@ -99,6 +99,18 @@ export const tools = Toolkit.make(
     snapshotId: Schema.optional(ContentId.ContentIdSchema),
     ref: Schema.optional(Schema.String),
   }),
+  tool(
+    "why",
+    "Explain a fact, attribute, entity or derivation candidate at an exact cut.",
+    WhyInput.fields,
+  ),
+  Tool.make("transaction_preview", {
+    description:
+      "Preview transaction changes and constraint violations without committing. Advisory; does not reserve state or run commit validators.",
+    parameters: TransactionInput,
+    success: Schema.Unknown,
+    failure: Diagnostic,
+  }),
   Tool.make("transaction_apply", {
     description:
       "Apply one atomic command. Requires actor and unique commandId; pin configSnapshot and enforce constraints from describe.",
@@ -138,6 +150,8 @@ export const registrations = McpServer.toolkit(tools).pipe(
             run({ _tag: "journal-list", after: input.after ?? 0, limit: input.limit ?? 100 }),
           journal_receipt: (input) => run({ _tag: "journal-receipt", ...input }),
           config_release: (input) => run({ _tag: "config-release", ...input }),
+          why: (input) => run({ _tag: "why", ...input }),
+          transaction_preview: (request) => run({ _tag: "transaction-preview", request }),
           transaction_apply: (request) => run({ _tag: "transaction-apply", request }),
         } satisfies Toolkit.HandlersFrom<typeof tools.tools>;
       }),
