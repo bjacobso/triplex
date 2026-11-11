@@ -24,6 +24,7 @@ import {
 } from "@triplex-build/triplex/internal";
 import {
   makeSqlOperationalEntryStorage,
+  makeSqlLivePreconditionLookup,
   SqliteDialect,
   packValue,
   runMigrations,
@@ -740,6 +741,10 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
 
       return {
         ...entries,
+        livePreconditionFacts: makeSqlLivePreconditionLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          SqliteDialect,
+        ),
         withTransaction,
         nextCommitPosition,
         currentCommitPosition,

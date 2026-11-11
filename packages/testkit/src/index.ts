@@ -81,6 +81,198 @@ export interface ConformanceCase {
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
   {
+    name: "attribute-value and absence preconditions guard the live pre-state atomically",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const home = eid("conf:cheap:home");
+      yield* t.assert({ entityId: home, attribute: ":conf/version", value: number(1) });
+      const before = yield* t.currentPosition();
+      const wrong = yield* t
+        .transact(
+          [
+            {
+              op: "assert",
+              entityId: home,
+              attribute: ":conf/not-written",
+              value: string("rollback"),
+            },
+          ],
+          {
+            commandId: "conf:cheap:wrong",
+            preconditions: [
+              {
+                _tag: "AttributeValue",
+                entityId: home,
+                attribute: ":conf/version",
+                value: number(0),
+              },
+            ],
+          },
+        )
+        .pipe(Effect.result);
+      yield* check(
+        wrong._tag === "Failure" && wrong.failure._tag === "TransactionConflictError",
+        "an unexpected attribute value must reject the write as a typed conflict",
+      );
+      yield* check(
+        (yield* t.currentPosition()) === before &&
+          (yield* t.transactionByCommand("conf:cheap:wrong")) === null &&
+          (yield* t.match({ entityId: home, attribute: ":conf/not-written" })).length === 0,
+        "failed cheap guards roll back facts, receipt and position",
+      );
+      yield* t.assert({ entityId: home, attribute: ":conf/unrelated", value: string("other") });
+      yield* t.transact(
+        [{ op: "assert", entityId: home, attribute: ":conf/new", value: string("created") }],
+        {
+          preconditions: [
+            {
+              _tag: "AttributeValue",
+              entityId: home,
+              attribute: ":conf/version",
+              value: number(1),
+            },
+            { _tag: "AttributeAbsent", entityId: home, attribute: ":conf/new" },
+          ],
+        },
+      );
+      const present = yield* t
+        .transact([], {
+          preconditions: [{ _tag: "AttributeAbsent", entityId: home, attribute: ":conf/new" }],
+        })
+        .pipe(Effect.result);
+      yield* check(
+        present._tag === "Failure" && present.failure._tag === "TransactionConflictError",
+        "attribute absence must see a competing assertion",
+      );
+      const entityPresent = yield* t
+        .transact([], { preconditions: [{ _tag: "EntityAbsent", entityId: home }] })
+        .pipe(Effect.result);
+      yield* check(
+        entityPresent._tag === "Failure" &&
+          entityPresent.failure._tag === "TransactionConflictError",
+        "entity absence must consider every live attribute",
+      );
+      const absent = eid("conf:cheap:absent");
+      const contenders = yield* Effect.all(
+        [1, 2].map((n) =>
+          t
+            .transact(
+              [{ op: "assert", entityId: absent, attribute: ":conf/winner", value: number(n) }],
+              { preconditions: [{ _tag: "EntityAbsent", entityId: absent }] },
+            )
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        contenders.filter((r) => r._tag === "Success").length === 1 &&
+          contenders.filter(
+            (r) => r._tag === "Failure" && r.failure._tag === "TransactionConflictError",
+          ).length === 1,
+        "concurrent entity-absent creation permits exactly one winner",
+      );
+      const race = eid("conf:cheap:version-race");
+      const original = yield* t.assert({
+        entityId: race,
+        attribute: ":conf/version",
+        value: number(1),
+      });
+      const updates = yield* Effect.all(
+        [2, 3].map((n) =>
+          t
+            .transact(
+              [
+                { op: "retract", id: original.id },
+                { op: "assert", entityId: race, attribute: ":conf/version", value: number(n) },
+              ],
+              {
+                preconditions: [
+                  {
+                    _tag: "AttributeValue",
+                    entityId: race,
+                    attribute: ":conf/version",
+                    value: number(1),
+                  },
+                ],
+              },
+            )
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        updates.filter((r) => r._tag === "Success").length === 1 &&
+          updates.filter(
+            (r) => r._tag === "Failure" && r.failure._tag === "TransactionConflictError",
+          ).length === 1,
+        "concurrent attribute-value replacement must permit exactly one winner",
+      );
+      const insertions = yield* Effect.all(
+        [1, 2].map((n) =>
+          t
+            .transact(
+              [{ op: "assert", entityId: home, attribute: ":conf/once", value: number(n) }],
+              {
+                preconditions: [
+                  { _tag: "AttributeAbsent", entityId: home, attribute: ":conf/once" },
+                ],
+              },
+            )
+            .pipe(Effect.result),
+        ),
+        { concurrency: 2 },
+      );
+      yield* check(
+        insertions.filter((r) => r._tag === "Success").length === 1,
+        "attribute-absent insertion must permit exactly one winner",
+      );
+      yield* t.assert({ entityId: home, attribute: ":conf/json", value: json({ a: 1, b: 2 }) });
+      yield* t.transact([], {
+        preconditions: [
+          {
+            _tag: "AttributeValue",
+            entityId: home,
+            attribute: ":conf/json",
+            value: json({ b: 2, a: 1 }),
+          },
+        ],
+      });
+      const future = yield* t.assert({
+        entityId: home,
+        attribute: ":conf/future",
+        value: string("scheduled"),
+        validFrom: 9000000000000,
+      });
+      const scheduled = yield* t
+        .transact([], {
+          preconditions: [{ _tag: "AttributeAbsent", entityId: home, attribute: ":conf/future" }],
+        })
+        .pipe(Effect.result);
+      yield* check(scheduled._tag === "Failure", "absence includes unretracted future-valid facts");
+      yield* t.retract(future.id);
+      yield* t.transact([], {
+        preconditions: [{ _tag: "AttributeAbsent", entityId: home, attribute: ":conf/future" }],
+      });
+      yield* t.assert({ entityId: home, attribute: ":conf/version", value: number(2) });
+      const multi = yield* t
+        .transact([], {
+          preconditions: [
+            {
+              _tag: "AttributeValue",
+              entityId: home,
+              attribute: ":conf/version",
+              value: number(1),
+            },
+          ],
+        })
+        .pipe(Effect.result);
+      yield* check(
+        multi._tag === "Failure" && multi.failure._tag === "TransactionConflictError",
+        "attribute-value guards require exactly one unretracted fact",
+      );
+    }),
+  },
+  {
     name: "inbox/outbox identities round-trip control characters and UTF-16 strings",
     run: Effect.gen(function* () {
       const t = yield* Triples;

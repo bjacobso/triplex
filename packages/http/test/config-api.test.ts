@@ -74,6 +74,11 @@ describe("ConfigApi", () => {
       "/api/rest/v1/employers/{id}",
     ]);
     expect(result.contract.openApi.paths["/api/rest/v1/employers"]?.post).toBeDefined();
+    for (const path of ["/api/rest/v1/employers", "/api/rest/v1/employers/{id}"]) {
+      expect(result.contract.openApi.paths[path]?.get?.parameters).toContainEqual(
+        expect.objectContaining({ in: "query", name: "recordedPosition" }),
+      );
+    }
 
     const readOnly = compileHttpApi(result.descriptor, {
       basePath: "/api",

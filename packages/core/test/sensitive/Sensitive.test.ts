@@ -253,6 +253,60 @@ describe("AES-GCM codec", () => {
 });
 
 describe("sealed Triples", () => {
+  it("fails closed for plaintext guards without blind equality and accepts the exact stored envelope", async () => {
+    const codec = Layer.succeed(ValueCodec.ValueCodec, {
+      ...ValueCodec.identityCodec,
+      blindScope: "none" as const,
+      seal: (
+        context: Parameters<ValueCodec.ValueCodecService["seal"]>[0],
+        value: Parameters<ValueCodec.ValueCodecService["seal"]>[1],
+      ) =>
+        ValueCodec.identityCodec
+          .seal(context, value)
+          .pipe(Effect.map(({ keyId, ciphertext }) => ({ keyId, ciphertext }))),
+      blind: () => Effect.succeed(undefined),
+    });
+    await run(
+      Effect.gen(function* () {
+        const t = yield* Triples;
+        const fact = yield* t.assert({
+          entityId: id("guard:no-blind"),
+          attribute: ":employee/ssn",
+          value: { type: "string", value: PLANTED },
+        });
+        const before = yield* t.currentPosition();
+        const failed = yield* t
+          .transact([], {
+            preconditions: [
+              {
+                _tag: "AttributeValue",
+                entityId: id("guard:no-blind"),
+                attribute: ":employee/ssn",
+                value: { type: "string", value: PLANTED },
+              },
+            ],
+          })
+          .pipe(Effect.result);
+        expect(failed._tag === "Failure" && failed.failure).toMatchObject({
+          _tag: "WriteError",
+          cause: { _tag: "SensitiveQueryError", operation: "blind-index-unavailable" },
+        });
+        expect(yield* t.currentPosition()).toBe(before);
+        yield* t.transact([], {
+          preconditions: [
+            {
+              _tag: "AttributeValue",
+              entityId: id("guard:no-blind"),
+              attribute: ":employee/ssn",
+              value: fact.value,
+            },
+          ],
+        });
+      }),
+      makeTestKvBackend(),
+      codec,
+    );
+  });
   it("seals on write, returns sealed values from every read, and opens explicitly", async () => {
     const backend = makeTestKvBackend();
     const result = await run(

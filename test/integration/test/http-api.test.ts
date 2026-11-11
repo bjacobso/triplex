@@ -101,6 +101,10 @@ const makeWebHandler = async (
       if (triplesStore === undefined) throw new Error("HTTP test Triples was not initialized");
       return Effect.runPromise(triplesStore.assert(input));
     },
+    position: async () => {
+      if (triplesStore === undefined) throw new Error("HTTP test Triples was not initialized");
+      return Effect.runPromise(triplesStore.currentPosition());
+    },
     history: async (id: string) => {
       if (triplesStore === undefined) throw new Error("HTTP test Triples was not initialized");
       return Effect.runPromise(triplesStore.history(EntityId.make(id)));
@@ -114,6 +118,110 @@ const cases = [
 ] as const;
 
 describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLayer) => {
+  it("preserves commit-position entity reads and collection cursors", async () => {
+    const web = await makeWebHandler(triplesLayer);
+    try {
+      for (const [suffix, name] of [
+        ["a", "Alice"],
+        ["b", "Bob"],
+      ] as const)
+        await web.assertFact({
+          entityId: EntityId.make(`employer:pos-${suffix}`),
+          entityType: "Employer",
+          attribute: ":employer/name",
+          value: { type: "string", value: name },
+          validFrom: 0,
+        });
+      const position = await web.position();
+      const renamed = await web.handler(
+        new Request("http://triplex.test/api/rest/latest/employers/employer%3Apos-a", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ attributes: { ":employer/name": "Alicia" } }),
+        }),
+      );
+      expect(renamed.status).toBe(200);
+      await web.assertFact({
+        entityId: EntityId.make("employer:pos-c"),
+        entityType: "Employer",
+        attribute: ":employer/name",
+        value: { type: "string", value: "Carol" },
+        validFrom: 0,
+      });
+      const historical = await web.handler(
+        new Request(
+          `http://triplex.test/api/rest/latest/employers/employer%3Apos-a?recordedPosition=${position}`,
+        ),
+      );
+      expect(historical.status).toBe(200);
+      expect((await responseJson<DocumentResponse>(historical)).attributes).toEqual({
+        ":employer/name": "Alice",
+      });
+      const first = await web.handler(
+        new Request(
+          `http://triplex.test/api/rest/latest/employers?recordedPosition=${position}&limit=1`,
+        ),
+      );
+      const page = await responseJson<{ items: DocumentResponse[]; nextCursor: string }>(first);
+      expect(page.items.map((item) => item.id)).toEqual(["employer:pos-a"]);
+      const next = await web.handler(
+        new Request(
+          `http://triplex.test/api/rest/latest/employers?cursor=${encodeURIComponent(page.nextCursor)}&limit=10`,
+        ),
+      );
+      expect(
+        (await responseJson<{ items: DocumentResponse[] }>(next)).items.map((item) => item.id),
+      ).toEqual(["employer:pos-b"]);
+      const emptyEntity = await web.handler(
+        new Request(
+          "http://triplex.test/api/rest/latest/employers/employer%3Apos-a?recordedPosition=0",
+        ),
+      );
+      expect(emptyEntity.status).toBe(404);
+      const empty = await web.handler(
+        new Request("http://triplex.test/api/rest/latest/employers?recordedPosition=0"),
+      );
+      expect((await responseJson<{ items: DocumentResponse[] }>(empty)).items).toEqual([]);
+      for (const value of ["-1", "0.5", "Infinity", "9007199254740992", "invalid", ""]) {
+        expect(
+          (
+            await web.handler(
+              new Request(
+                `http://triplex.test/api/rest/latest/employers?recordedPosition=${value}`,
+              ),
+            )
+          ).status,
+        ).toBe(400);
+      }
+      expect(
+        (
+          await web.handler(
+            new Request(
+              `http://triplex.test/api/rest/latest/employers?recordedPosition=${position}&recordedAt=1`,
+            ),
+          )
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await web.handler(
+            new Request(
+              `http://triplex.test/api/rest/latest/employers?recordedPosition=${position}`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  attributes: { ":employer/name": "Forbidden temporal write" },
+                }),
+              },
+            ),
+          )
+        ).status,
+      ).toBe(400);
+    } finally {
+      await web.dispose();
+    }
+  });
   it("maps host authorization failures to 401 and 403", async () => {
     const authorization = Layer.succeed(
       HttpAuthorization,

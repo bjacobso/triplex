@@ -209,6 +209,7 @@ export const DashboardData = Schema.Struct({
   position: Schema.Number,
   basis: Schema.Struct({
     recordedAt: Schema.NullOr(Schema.Number),
+    recordedPosition: Schema.optional(Schema.Number),
     validAt: Schema.Number,
   }),
   metrics: Schema.Array(MetricView),

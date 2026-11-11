@@ -3,6 +3,7 @@ import {
   EntityId,
   Triples,
   type TemporalBasis,
+  resolveTemporalBasis,
   type DatalogQuery as DatalogQueryType,
   type TransactionRecord,
   type Triple,
@@ -45,7 +46,8 @@ export const initialQueryText = JSON.stringify(queryPresets[0].query, null, 2);
 const EntityTypeCursor = Schema.Struct({
   version: Schema.Literal(1),
   entityType: Schema.String,
-  recordedAt: Schema.Number,
+  recordedAt: Schema.optional(Schema.Number),
+  recordedPosition: Schema.optional(Schema.Number),
   validAt: Schema.Number,
   afterEntityId: Schema.NullOr(Schema.String),
 });
@@ -200,15 +202,25 @@ export const loadEntityTypePage = (
     const triples = yield* Triples;
     const config = yield* ConfigStore.ConfigStore;
     const now = Date.now();
-    const decoded =
+    const decoded: typeof EntityTypeCursor.Type =
       cursor === null
-        ? {
-            version: 1 as const,
-            entityType,
-            recordedAt: requestedBasis?.recordedAt ?? now,
-            validAt: requestedBasis?.validAt ?? now,
-            afterEntityId: null,
-          }
+        ? yield* Effect.gen(function* () {
+            const basis = yield* Effect.try(() => resolveTemporalBasis(requestedBasis, now));
+            return {
+              version: 1 as const,
+              entityType,
+              validAt: basis.validAt,
+              afterEntityId: null,
+              ...(basis.recordedPosition === undefined
+                ? { recordedAt: basis.recordedAt ?? now }
+                : {
+                    recordedPosition: Math.min(
+                      basis.recordedPosition,
+                      yield* triples.currentPosition(),
+                    ),
+                  }),
+            };
+          })
         : yield* decodeCursor(cursor);
     if (decoded.entityType !== entityType) {
       return yield* Effect.fail(new Error("Entity page cursor belongs to a different entity type"));
@@ -216,7 +228,11 @@ export const loadEntityTypePage = (
     if (pageSize < 1 || pageSize > 100 || !Number.isInteger(pageSize)) {
       return yield* Effect.fail(new Error("Entity page size must be an integer between 1 and 100"));
     }
-    const basis = { recordedAt: decoded.recordedAt, validAt: decoded.validAt };
+    if (decoded.recordedAt === undefined && decoded.recordedPosition === undefined)
+      return yield* Effect.fail(
+        new Error("Entity page cursor requires a recorded timestamp or position"),
+      );
+    const basis = yield* Effect.try(() => resolveTemporalBasis(decoded, now));
     const [typeFacts, live] = yield* Effect.all([
       triples.match({ entityType }, basis),
       config.resolveRef("live"),
@@ -724,12 +740,7 @@ export const loadDashboardAt = (
     const triples = yield* Triples;
     const config = yield* ConfigStore.ConfigStore;
     const generatedAt = Date.now();
-    const basis = {
-      ...(requestedBasis?.recordedAt === undefined
-        ? {}
-        : { recordedAt: requestedBasis.recordedAt }),
-      validAt: requestedBasis?.validAt ?? generatedAt,
-    };
+    const basis = yield* Effect.try(() => resolveTemporalBasis(requestedBasis, generatedAt));
     const [facts, journal, position, store, live] = yield* Effect.all([
       triples.match({}, basis),
       triples.transactions({ after: 0, limit: 1_000 }),
@@ -800,7 +811,10 @@ export const loadDashboardAt = (
       generatedAt,
       position,
       basis: {
-        recordedAt: requestedBasis?.recordedAt ?? null,
+        recordedAt: basis.recordedAt ?? null,
+        ...(basis.recordedPosition === undefined
+          ? {}
+          : { recordedPosition: basis.recordedPosition }),
         validAt: basis.validAt,
       },
       metrics: [

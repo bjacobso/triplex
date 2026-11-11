@@ -90,7 +90,9 @@ export interface TransactionMeta {
   /**
    * Serialized transaction preconditions. `TripleLive` references must also
    * have a matching `retract` operation; `EntityState` compares the complete
-   * observed live fact-ID set. A mismatch fails the whole transaction with
+   * observed live fact-ID set. AttributeValue checks exactly one unretracted fact;
+   * AttributeAbsent and EntityAbsent check absence across all valid times.
+   * A mismatch fails the whole transaction with
    * `TransactionConflictError`.
    */
   readonly preconditions?: readonly TransactionPrecondition[];
