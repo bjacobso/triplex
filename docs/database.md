@@ -109,6 +109,69 @@ A `tx.fact` read alone adds no guard; consuming it in a retracting verb adds
 `TripleLive`. There are no builder Datalog or list methods; use
 [commit validators](/commit-validators) for predicate or absence invariants.
 
+## Preview before committing
+
+`preview(meta, build, { derivations? }?)` runs the same sequential builder and pins
+one release, without calling `transact`, claiming the command ID, or running commit
+validators. It returns a JSON-serializable `Preview`:
+
+- `release`: the pinned release ID.
+- `operations`: `{ ops, preconditions }` from the shared command compiler. Sensitive
+  assertion values are sealed before this object is returned.
+- `changes`: assertion and retraction descriptions with entity, attribute, typed
+  value and valid interval. Retractions include the existing `tripleId`. Assertions
+  omit their not-yet-allocated IDs. Commit IDs and timestamps are omitted.
+- `violations`: new or worsened graph violations, including `constraintKey`,
+  `subject` and `validAt`, computed by the transaction enforcement functions.
+  Violations are returned successfully so an approver can inspect them.
+- `derivations`: one reconciliation per supplied definition, identified by
+  `definition`, with `added`, `removed`, `changed` (`before`/`after`) and `unchanged`
+  candidates. Evaluation uses the existing read-only derivation overlay at preview
+  time, including hypothetical source provenance.
+- `commandAlreadyCommitted`: the existing receipt when the ID was already used.
+  In that case the callback is skipped, `release` is the original receipt's release,
+  and operations, changes, violations and derivations are empty. A receipt created
+  through primitive `Triples` without a release returns `release: null`.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId } from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
+import * as Database from "@triplex-build/triplex/database";
+
+const Person = EntityType.make("Person", {
+  name: Attribute.text(":person/name").required(),
+});
+const meta = { actor: "user:dana", commandId: "person:ada:create" };
+const build = (tx: Database.Command) =>
+  tx.create(Person, EntityId.make("person:ada"), { name: "Ada" }, { validFrom: 0 });
+const preview = Effect.gen(function* () {
+  const db = yield* Database.Database;
+  return yield* db.preview(meta, build);
+});
+// After approval, provide the same configured Database layer and command callback.
+const commit = Effect.gen(function* () {
+  const db = yield* Database.Database;
+  return yield* db.command(meta, build);
+});
+void preview;
+void commit;
+```
+
+A preview is advisory: commit rebuilds and checks the command against the then-current
+store and release. Use the same command ID and callback; keep callbacks deterministic
+and supply explicit intervals when comparing changes. Omitted `validFrom` projects
+at preview time and is assigned again at commit. Randomized sensitive ciphertext
+also differs between preview and commit; plaintext is never returned. Journal change
+ordering is backend-dependent, so compare semantic change sets.
+
+Preconditions, operational entry conflicts, and host commit validators are checked
+at commit. Inbox/outbox operations appear in `operations`; they produce no triple
+changes, matching the journal. Unsupported derivation overlays fail with `read.failed`.
+Constraint preview discovers typed subjects through the transaction journal and loads
+unretracted histories, including past and future intervals. This can read substantial
+history on a large database. Preview does not reserve state against concurrent writers.
+
 ## Releases, retries, and receipts
 
 Every new command and ordinary read resolves and checks the current ref. A command

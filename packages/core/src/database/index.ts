@@ -33,6 +33,9 @@ import {
   TransactionConflictError,
   PaginationCursorError,
 } from "../errors/index.js";
+import { previewCommand, type Preview, type PreviewOptions } from "./Preview.js";
+export type { Preview, PreviewChange, PreviewOptions, PreviewDerivation } from "./Preview.js";
+import { Sensitivity } from "../sensitive/Sensitive.js";
 import type { EntityPageSnapshot } from "../EntityPage.js";
 
 /** Structural declaration boundary; individual method inputs retain their concrete declaration types. */
@@ -170,6 +173,11 @@ export interface DatabaseService extends Reads {
     meta: CommandMeta,
     build: (tx: Command) => Effect.Effect<void, E, R>,
   ) => Effect.Effect<TransactionRecord, DatabaseError | E, R>;
+  readonly preview: <E, R>(
+    meta: CommandMeta,
+    build: (tx: Command) => Effect.Effect<void, E, R>,
+    options?: PreviewOptions,
+  ) => Effect.Effect<Preview, DatabaseError | E, R>;
   readonly asOf: (basis: TemporalBasis) => Effect.Effect<View, DatabaseError>;
 }
 export class Database extends Context.Service<Database, DatabaseService>()("triplex/Database") {}
@@ -449,6 +457,164 @@ export const layer = (
             }),
         };
       };
+      const sensitivity = yield* Effect.serviceOption(Sensitivity);
+      const compile = <E, R>(
+        meta: CommandMeta,
+        build: (tx: Command) => Effect.Effect<void, E, R>,
+      ) =>
+        Effect.gen(function* () {
+          if (typeof meta.actor !== "string" || meta.actor.trim() === "")
+            return yield* invalid("meta.actor");
+          if (typeof meta.commandId !== "string" || meta.commandId.trim() === "")
+            return yield* invalid("meta.commandId");
+          for (const key of Object.keys(meta))
+            if (!["actor", "commandId", "correlationId", "causationId"].includes(key))
+              return yield* invalid(`meta.${key}`);
+          if (meta.correlationId !== undefined && typeof meta.correlationId !== "string")
+            return yield* invalid("meta.correlationId");
+          if (meta.causationId !== undefined && typeof meta.causationId !== "string")
+            return yield* invalid("meta.causationId");
+          const existing = yield* triples.transactionByCommand(meta.commandId);
+          if (existing) return { existing } as const;
+          const release = yield* resolve();
+          const pinned = yield* GraphConstraint.pinned(release).pipe(Effect.mapError(readFailure));
+          const started = yield* Clock.currentTimeMillis;
+          const fiberId = yield* Effect.fiberId;
+          let active = true;
+          const changes: Change.Change[] = [];
+          const observed = new Map<EntityId, ReadonlyArray<Triple>>();
+          const edited = new Set<TripleId>();
+          const op = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E | ValidationError> =>
+            Effect.withFiber<A, E | ValidationError>((fiber) =>
+              !active || fiber.id !== fiberId ? Effect.fail(invalid("command.builder")) : effect,
+            );
+          const add = (
+            ops: ReadonlyArray<TransactOp>,
+            preconditions: ReadonlyArray<TransactionPrecondition> = [],
+          ) => {
+            changes.push({ ops, preconditions });
+          };
+          const assert = <T extends ModelType>(
+            type: T,
+            id: EntityId,
+            values: Parameters<T["assert"]>[1],
+            interval: Attribute.AssertionOptions = {},
+            create = false,
+          ) =>
+            op(
+              Effect.gen(function* () {
+                yield* typeCheck(type);
+                if (interval.validFrom !== undefined)
+                  yield* instant(interval.validFrom, "command.put.validFrom");
+                if (interval.validTo !== undefined) {
+                  yield* instant(interval.validTo, "command.put.validTo");
+                  if (interval.validTo <= (interval.validFrom ?? started))
+                    return yield* invalid("command.put.validTo");
+                }
+                const ops = yield* pure("command.put.values", () =>
+                  type.assert(...([id, values, interval] as never[])),
+                );
+                if (ops.length === 0) return yield* invalid("command.put.values");
+                add(ops, create ? [{ _tag: "EntityAbsent", entityId: id }] : []);
+              }),
+            );
+          const source = (type: ModelType, fact: Triple) =>
+            Effect.gen(function* () {
+              yield* typeCheck(type);
+              if (
+                Option.isNone(fact.entityType) ||
+                fact.entityType.value !== type.entityType ||
+                !Object.values(type.attributes).some((h) => h.key === fact.attribute)
+              )
+                return yield* invalid("command.fact");
+              if (Option.isSome(fact.retractedAt))
+                return yield* new TransactionConflictError({
+                  tripleId: fact.id,
+                  message: "Source fact is already retracted",
+                });
+            });
+          const edit = (type: ModelType, fact: Triple, path: string, change: () => Change.Change) =>
+            op(
+              Effect.gen(function* () {
+                yield* source(type, fact);
+                if (edited.has(fact.id)) return yield* invalid(path);
+                const compiled = yield* pure(path, change);
+                edited.add(fact.id);
+                changes.push(compiled);
+              }),
+            );
+          const entries = (kind: EntryKind): Entries => ({
+            append: (input) => op(Effect.sync(() => add([{ op: "append-entry", kind, ...input }]))),
+            acknowledge: (id) =>
+              op(Effect.sync(() => add([{ op: "acknowledge-entry", kind, id }]))),
+          });
+          const tx: Command = {
+            put: assert,
+            create: (type, id, values, interval) => assert(type, id, values, interval, true),
+            get: (type, id, opts = {}) =>
+              op(
+                Effect.gen(function* () {
+                  yield* typeCheck(type);
+                  const validAt = opts.validAt ?? started;
+                  yield* instant(validAt, "command.get.validAt");
+                  let facts = observed.get(id);
+                  if (!facts) {
+                    facts = (yield* triples.history(id)).filter((f) =>
+                      Option.isNone(f.retractedAt),
+                    );
+                    observed.set(id, facts);
+                    add(
+                      [],
+                      [{ _tag: "EntityState", entityId: id, tripleIds: facts.map((f) => f.id) }],
+                    );
+                  }
+                  return yield* decode(
+                    type,
+                    id,
+                    facts.filter(
+                      (f) =>
+                        f.validFrom <= validAt &&
+                        (Option.isNone(f.validTo) || f.validTo.value > validAt),
+                    ),
+                  );
+                }),
+              ),
+            fact: (type, id) =>
+              op(
+                Effect.gen(function* () {
+                  const fact = yield* triples.get(id);
+                  if (!fact) return yield* new TripleNotFoundError({ tripleId: id });
+                  yield* source(type, fact);
+                  return fact;
+                }),
+              ),
+            end: (type, fact, at) => edit(type, fact, "command.end.at", () => type.end(fact, at)),
+            replace: (type, fact, value, at) =>
+              edit(type, fact, "command.replace.at", () =>
+                type.replace(...([fact, value, at] as never[])),
+              ),
+            correct: (type, fact, value) =>
+              edit(type, fact, "command.correct", () =>
+                type.correct(...([fact, value] as never[])),
+              ),
+            retract: (type, fact) =>
+              edit(type, fact, "command.retract", () => ({
+                ops: [{ op: "retract", id: fact.id }],
+                preconditions: [{ _tag: "TripleLive", id: fact.id }],
+              })),
+            inbox: entries("inbox"),
+            outbox: entries("outbox"),
+          };
+          yield* Effect.suspend(() => build(tx)).pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                active = false;
+              }),
+            ),
+          );
+          const combined = Change.combine(...changes);
+          return { combined, release, pinned, started } as const;
+        });
       yield* resolve();
       return {
         ...reads(),
@@ -481,166 +647,25 @@ export const layer = (
               releaseId: release.id,
             };
           }),
+        preview: (meta, build, opts = {}) =>
+          Effect.gen(function* () {
+            const compiled = yield* compile(meta, build);
+            if (compiled.existing)
+              return {
+                release: compiled.existing.configSnapshot ?? null,
+                operations: { ops: [], preconditions: [] },
+                changes: [],
+                violations: [],
+                derivations: [],
+                commandAlreadyCommitted: compiled.existing,
+              };
+            return yield* previewCommand(triples, compiled, opts, sensitivity);
+          }),
         command: (meta, build) =>
           Effect.gen(function* () {
-            if (typeof meta.actor !== "string" || meta.actor.trim() === "")
-              return yield* invalid("meta.actor");
-            if (typeof meta.commandId !== "string" || meta.commandId.trim() === "")
-              return yield* invalid("meta.commandId");
-            for (const key of Object.keys(meta))
-              if (!["actor", "commandId", "correlationId", "causationId"].includes(key))
-                return yield* invalid(`meta.${key}`);
-            if (meta.correlationId !== undefined && typeof meta.correlationId !== "string")
-              return yield* invalid("meta.correlationId");
-            if (meta.causationId !== undefined && typeof meta.causationId !== "string")
-              return yield* invalid("meta.causationId");
-            const existing = yield* triples.transactionByCommand(meta.commandId);
-            if (existing) return existing;
-            const release = yield* resolve();
-            const pinned = yield* GraphConstraint.pinned(release).pipe(
-              Effect.mapError(readFailure),
-            );
-            const started = yield* Clock.currentTimeMillis;
-            const fiberId = yield* Effect.fiberId;
-            let active = true;
-            const changes: Change.Change[] = [];
-            const observed = new Map<EntityId, ReadonlyArray<Triple>>();
-            const edited = new Set<TripleId>();
-            const op = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E | ValidationError> =>
-              Effect.withFiber<A, E | ValidationError>((fiber) =>
-                !active || fiber.id !== fiberId ? Effect.fail(invalid("command.builder")) : effect,
-              );
-            const add = (
-              ops: ReadonlyArray<TransactOp>,
-              preconditions: ReadonlyArray<TransactionPrecondition> = [],
-            ) => {
-              changes.push({ ops, preconditions });
-            };
-            const assert = <T extends ModelType>(
-              type: T,
-              id: EntityId,
-              values: Parameters<T["assert"]>[1],
-              interval: Attribute.AssertionOptions = {},
-              create = false,
-            ) =>
-              op(
-                Effect.gen(function* () {
-                  yield* typeCheck(type);
-                  if (interval.validFrom !== undefined)
-                    yield* instant(interval.validFrom, "command.put.validFrom");
-                  if (interval.validTo !== undefined) {
-                    yield* instant(interval.validTo, "command.put.validTo");
-                    if (interval.validTo <= (interval.validFrom ?? started))
-                      return yield* invalid("command.put.validTo");
-                  }
-                  const ops = yield* pure("command.put.values", () =>
-                    type.assert(...([id, values, interval] as never[])),
-                  );
-                  if (ops.length === 0) return yield* invalid("command.put.values");
-                  add(ops, create ? [{ _tag: "EntityAbsent", entityId: id }] : []);
-                }),
-              );
-            const source = (type: ModelType, fact: Triple) =>
-              Effect.gen(function* () {
-                yield* typeCheck(type);
-                if (
-                  Option.isNone(fact.entityType) ||
-                  fact.entityType.value !== type.entityType ||
-                  !Object.values(type.attributes).some((h) => h.key === fact.attribute)
-                )
-                  return yield* invalid("command.fact");
-                if (Option.isSome(fact.retractedAt))
-                  return yield* new TransactionConflictError({
-                    tripleId: fact.id,
-                    message: "Source fact is already retracted",
-                  });
-              });
-            const edit = (
-              type: ModelType,
-              fact: Triple,
-              path: string,
-              change: () => Change.Change,
-            ) =>
-              op(
-                Effect.gen(function* () {
-                  yield* source(type, fact);
-                  if (edited.has(fact.id)) return yield* invalid(path);
-                  const compiled = yield* pure(path, change);
-                  edited.add(fact.id);
-                  changes.push(compiled);
-                }),
-              );
-            const entries = (kind: EntryKind): Entries => ({
-              append: (input) =>
-                op(Effect.sync(() => add([{ op: "append-entry", kind, ...input }]))),
-              acknowledge: (id) =>
-                op(Effect.sync(() => add([{ op: "acknowledge-entry", kind, id }]))),
-            });
-            const tx: Command = {
-              put: assert,
-              create: (type, id, values, interval) => assert(type, id, values, interval, true),
-              get: (type, id, opts = {}) =>
-                op(
-                  Effect.gen(function* () {
-                    yield* typeCheck(type);
-                    const validAt = opts.validAt ?? started;
-                    yield* instant(validAt, "command.get.validAt");
-                    let facts = observed.get(id);
-                    if (!facts) {
-                      facts = (yield* triples.history(id)).filter((f) =>
-                        Option.isNone(f.retractedAt),
-                      );
-                      observed.set(id, facts);
-                      add(
-                        [],
-                        [{ _tag: "EntityState", entityId: id, tripleIds: facts.map((f) => f.id) }],
-                      );
-                    }
-                    return yield* decode(
-                      type,
-                      id,
-                      facts.filter(
-                        (f) =>
-                          f.validFrom <= validAt &&
-                          (Option.isNone(f.validTo) || f.validTo.value > validAt),
-                      ),
-                    );
-                  }),
-                ),
-              fact: (type, id) =>
-                op(
-                  Effect.gen(function* () {
-                    const fact = yield* triples.get(id);
-                    if (!fact) return yield* new TripleNotFoundError({ tripleId: id });
-                    yield* source(type, fact);
-                    return fact;
-                  }),
-                ),
-              end: (type, fact, at) => edit(type, fact, "command.end.at", () => type.end(fact, at)),
-              replace: (type, fact, value, at) =>
-                edit(type, fact, "command.replace.at", () =>
-                  type.replace(...([fact, value, at] as never[])),
-                ),
-              correct: (type, fact, value) =>
-                edit(type, fact, "command.correct", () =>
-                  type.correct(...([fact, value] as never[])),
-                ),
-              retract: (type, fact) =>
-                edit(type, fact, "command.retract", () => ({
-                  ops: [{ op: "retract", id: fact.id }],
-                  preconditions: [{ _tag: "TripleLive", id: fact.id }],
-                })),
-              inbox: entries("inbox"),
-              outbox: entries("outbox"),
-            };
-            yield* Effect.suspend(() => build(tx)).pipe(
-              Effect.ensuring(
-                Effect.sync(() => {
-                  active = false;
-                }),
-              ),
-            );
-            const combined = Change.combine(...changes);
+            const compiled = yield* compile(meta, build);
+            if (compiled.existing) return compiled.existing;
+            const { combined, pinned } = compiled;
             const result = yield* triples
               .transact(combined.ops, { ...meta, ...pinned, preconditions: combined.preconditions })
               .pipe(
