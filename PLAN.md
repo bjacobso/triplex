@@ -256,7 +256,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ID   | Item                                       | Lane | Depends         | Status      | Evidence                                                                                                                                                                            |
 | ---- | ------------------------------------------ | ---- | --------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1.1 | Reject unknown attributes in bound queries | A    |                 | done        | 2026-11-11: merged `ergo/p1.1` (`6133995`); `SchemaBound.layer`, `UnknownAttributeError`. Note: `match` reports it as `ReadError.cause` until the write-path error union is widened |
-| P1.2 | Stable error codes with a suggested fix    | A, C |                 | active      | 2026-11-11: core half merged (`ergo/p1.2a`): `diagnose`, `Diagnostic`, 38 codes in `docs/errors.md`; core suite 789/789. CLI envelope half pending                                  |
+| P1.2 | Stable error codes with a suggested fix    | A, C |                 | active      | 2026-11-11: core half merged (`ergo/p1.2a`): `diagnose`, 38 codes; CLI and HTTP half running as `ergo/p1.2b`                                                                        |
 | P1.3 | `_tx` joins at a past `validAt`            | A    |                 | needs-owner | 2026-11-11: designed in `docs/rfcs/datalog-time.md` section 3 (recorded-only `:_tx/*`); waits on D2                                                                                 |
 | P1.4 | Loud pin-without-enforce                   | B    | P2.1            | pending     |                                                                                                                                                                                     |
 | P1.5 | Re-run the trial against the phase 1 gate  | C    | P0.2, P1.1–P1.4 | pending     |                                                                                                                                                                                     |
@@ -362,7 +362,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ---- | --------------------------------- | ---- | --------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | P4.1 | Valid-time binding in Datalog RFC | A    |           | done        | 2026-11-11: merged `ergo/p4.1`; `docs/rfcs/datalog-time.md` (object interval patterns, `validTime: "all"`). Implementation waits on D10 |
 | P4.2 | Runner package RFC                | C    | P2.6      | pending     |                                                                                                                                         |
-| P4.3 | Live query RFC                    | A    |           | pending     |                                                                                                                                         |
+| P4.3 | Live query RFC                    | A    |           | active      | 2026-11-11: `ergo/p4.3`                                                                                                                 |
 | P4.4 | Implement approved phase 4 RFCs   | —    | P4.1–P4.3 | needs-owner |                                                                                                                                         |
 
 - **P4.1** Issue #73 holds the evidence. Specify how a query binds `validFrom` and `validTo`, so
@@ -405,10 +405,10 @@ Update this section last in every session.
 - **Last updated:** 2026-11-11, D1, D7 and D8 answered; #48 merged; #46 closed.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P2.4: block `block:01a1cc2e-c170-76f9-8244-e6aa5f9bf09d`
-  - P4.1 with P1.3: block `block:01a1cc36-dd70-7962-af2f-b33e550268d9`
-  - P3.4: block `block:01a1cc32-a747-7203-ac0d-f22a36b22023`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.4,p4.1,p3.4}` on
-  `ergo/p2.4`, `ergo/p4.1` and `ergo/p3.4`.
+  - P1.2b: block `block:01a1cc3c-9c50-7ebd-8ff0-027fbc0c6a49`
+  - P4.3: block `block:01a1cc3c-9c76-78d1-94c8-b828ba0132d8`
+- **Open worktrees and branches from this plan:** `../triplex-wt/{p2.4,p1.2b,p4.3}` on
+  `ergo/p2.4`, `ergo/p1.2b` and `ergo/p4.3`.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
   `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
@@ -421,6 +421,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: started P1.2b (CLI and HTTP diagnostics) and P4.3 (live-query RFC). P2.3 waits
+  for P2.4 and P1.2b, which share `EntityType.ts` and `packages/http` with it.
 - 2026-11-11: P3.4 and the time-in-Datalog RFC merged; added D10. CLI describe test was flaky
   at the 5 s default; timeout raised to 30 s.
 - 2026-11-11: P2.4 stopped at two undeclared paths (SQLite test; sealed re-assertion under
