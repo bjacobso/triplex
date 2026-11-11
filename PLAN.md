@@ -84,6 +84,13 @@ These are settled. Do not reopen them without a new owner request.
   `codex -C <worktree> --sandbox workspace-write --approve-for-me --add-dir <repo>/.git "<prompt>"`.
   The `--add-dir` lets the agent commit, since a worktree's git data lives in the main repository.
   Record each pane's block ID in the session handoff. Read progress with `rex capture`.
+- **Launch notes:** `--approve-for-me` already implies the workspace-write sandbox; adding
+  `--sandbox` makes Codex exit. Git in a worktree still hits lock-file denials under
+  `.git/worktrees/`; the agent requests escalation and `--approve-for-me` grants it. To send a
+  follow-up, `rex send` the text, then `rex send-key ... enter` twice: the first Enter ends the
+  paste and the second submits.
+- **Briefs list every caller.** Before giving an agent a repository-wide API change, grep for the
+  callers and list their paths in the brief; agents correctly stop at undeclared paths.
 - **Sandbox limits:** agents cannot use the network or Docker. The orchestrator runs
   `pnpm test:postgres:integration`, `pnpm test:e2e` and screenshot updates itself after merging.
 - **Accepting:** the orchestrator reviews the item branch, merges it into `ergonomics/next` with a
