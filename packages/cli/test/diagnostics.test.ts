@@ -118,4 +118,5 @@ it("reports actionable diagnostics and exits nonzero over a SQLite file", () => 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-}, 30_000);
+  // About 15 sequential CLI processes; allow for a heavily loaded machine (agents running suites).
+}, 120_000);

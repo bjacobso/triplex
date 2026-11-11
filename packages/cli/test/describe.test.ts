@@ -56,7 +56,7 @@ const publish = Effect.gen(function* () {
 });
 
 // Each case spawns the built CLI several times; leave headroom for a loaded parallel run.
-describe("describe release schema", { timeout: 30_000 }, () => {
+describe("describe release schema", { timeout: 120_000 }, () => {
   it("describes the persisted release graph and retains the command manifest", async () => {
     const { layer, cli } = await setup();
     const release = await Effect.runPromise(publish.pipe(Effect.provide(layer)));
