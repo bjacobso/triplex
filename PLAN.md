@@ -384,7 +384,7 @@ steps is what matters: preconditions, enforcement, operations including the new
 | P4.3      | Live query RFC                                                                                 | A     |           | done    | 2026-11-11: merged `ergo/p4.3`; `docs/rfcs/live-queries.md` (journal-driven snapshot `Stream`, resume tokens, expiry wakeups, new `dependencyStateAll`). Implementation waits on D11                                                                                 |
 | P4.4      | Implement approved phase 4 RFCs (split below)                                                  | —     | P4.1–P4.3 | pending | 2026-11-11: D10 and D11 approved                                                                                                                                                                                                                                     |
 | P4.4a     | Time in Datalog (`docs/rfcs/datalog-time.md`), with P1.3                                       | A     | D2, D10   | done    | 2026-11-11: merged `ergo/p4.4a` (`8e1446b`): interval patterns, `validTime: "all"`, recorded-only `:_tx/*`, cursor v2, KV interval indexes with resumable backfill, SQL migration 8. Orchestrator resolved two conflicts with P1.6 in the commit-view query. See D13 |
-| P4.4a-fix | Keep PostgreSQL time columns `BIGINT`, reject fractional bounds, fix two PostgreSQL plan tests | alone | P4.4a     | active  | 2026-11-11: `ergo/p4.4a-fix`; after P4.4a, Postgres failed 4/47 (2 from a P1.6/P4.4a test interaction, fixed in `98e54ee`; 2 plan regressions)                                                                                                                       |
+| P4.4a-fix | Keep PostgreSQL time columns `BIGINT`, reject fractional bounds, fix two PostgreSQL plan tests | alone | P4.4a     | done    | 2026-11-11: merged (`4eab1b3`): migration 8 keeps `BIGINT`, fractional bounds rejected at schemas, builders, `Change` verbs and both `transact` entries. Full check passes (29/27/15 tasks); Postgres 47/47; pack check passes                                       |
 | P4.4b     | Live queries (`docs/rfcs/live-queries.md`)                                                     | B     | P3.0, D11 | pending |                                                                                                                                                                                                                                                                      |
 
 - **P4.1** Issue #73 holds the evidence. Specify how a query binds `validFrom` and `validTo`, so
@@ -430,9 +430,7 @@ Update this section last in every session.
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P3.0: block `block:01a1ccab-c587-7a6b-ac89-406bb1881415`
-  - P4.4a-fix: block `block:01a1ccae-bdad-70f2-81f7-48d2d5409dd6`
-- **Open worktrees and branches from this plan:** `../triplex-wt/{p3.0,p4.4a-fix}` on `ergo/p3.0` and
-  `ergo/p4.4a-fix`. The
+- **Open worktrees and branches from this plan:** `../triplex-wt/p3.0` on `ergo/p3.0`. The
   session PR is #80 from `ergonomics/next`.
 - **Next action:** review P3.0; then P3.2 (`why`), P4.4b (live queries) and the client switch to
   `resolveRecordedBasis` in parallel; then P1.7 alone. Push to PR #80 after each green full check.
@@ -442,6 +440,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P4.4a-fix merged; all checks green including Postgres 47/47; pushed to PR #80.
 - 2026-11-11: full check failed on a P1.6/P4.4a testkit interaction (fixed); Postgres failed two plan
   tests, one caused by migration 8's `ALTER TYPE`. Applied D13's recommendation in P4.4a-fix.
 - 2026-11-11: P4.4a merged after resolving conflicts with P1.6; added D13 (PostgreSQL column type).
