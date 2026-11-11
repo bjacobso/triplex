@@ -325,7 +325,9 @@ describe.each(cases)("configuration-derived HTTP API over %s", (_name, triplesLa
         );
       const rejected = await create("Forbidden Corp");
       expect(rejected.status).toBe(409);
-      expect((await responseJson<ErrorResponse>(rejected)).error.code).toBe("commit_rejected");
+      expect((await responseJson<ErrorResponse>(rejected)).error.code).toBe(
+        "transaction.commit-rejected",
+      );
       expect((await create("Allowed Corp")).status).toBe(201);
     } finally {
       await web.dispose();

@@ -193,3 +193,51 @@ it("maps every exported error class and rejects unknown inputs", () => {
     expect(diagnose(error)).toMatchObject({ code: "internal", retryable: false });
   }
 });
+
+it("diagnoses commit-validator rejections with findings and no attempted values", async () => {
+  const { CommitValidation, EntityId, string } = await import("../src/index.js");
+  const worker = EntityId.make("worker:maria");
+  const noSsn = CommitValidation.make("hr.no-ssn-edits", () =>
+    Effect.succeed([
+      {
+        code: "not_owner",
+        message: "Only the employee may change this field",
+        entityId: worker,
+        attribute: ":worker/ssn",
+      },
+    ]),
+  );
+  const diagnostic = await Effect.runPromise(
+    Effect.gen(function* () {
+      const triples = yield* Triples;
+      return diagnose(
+        yield* Effect.flip(
+          triples.transact(
+            [
+              {
+                op: "assert",
+                entityId: worker,
+                attribute: ":worker/ssn",
+                value: string("123-45-6789"),
+              },
+            ],
+            { actor: "user:dana", commandId: "ssn:1", validate: [noSsn] },
+          ),
+        ),
+      );
+    }).pipe(Effect.provide(KvTriples.layer)),
+  );
+  check(diagnostic, "transaction.commit-rejected");
+  expect(diagnostic.details).toEqual({
+    findings: [
+      {
+        validator: "hr.no-ssn-edits",
+        code: "not_owner",
+        message: "Only the employee may change this field",
+        entityId: "worker:maria",
+        attribute: ":worker/ssn",
+      },
+    ],
+  });
+  expect(JSON.stringify(diagnostic)).not.toContain("123-45-6789");
+});

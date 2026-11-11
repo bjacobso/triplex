@@ -32,7 +32,7 @@ const defaults = {
     "Read the original receipt with `transactionByCommand`.",
   ],
   CommitRejectedError: [
-    "commit_rejected",
+    "transaction.commit-rejected",
     "Correct the validator findings before resubmitting the command.",
   ],
   ConstraintViolationError: [
@@ -122,6 +122,24 @@ export const diagnose = (error: unknown): Diagnostic => {
       path: known.path,
       fix:
         known.suggestion === undefined ? fix : `Use ${known.suggestion} instead of ${known.key}.`,
+    };
+  }
+  if (known instanceof Errors.CommitRejectedError) {
+    // Findings are host-authored; never copy `changes` or `attempt`, which can carry values.
+    return {
+      ...base,
+      details: {
+        findings: (known.rejections ?? []).map(
+          ({ validator, code, message, entityId, attribute, path }) => ({
+            validator,
+            code,
+            message,
+            ...(entityId === undefined ? {} : { entityId }),
+            ...(attribute === undefined ? {} : { attribute }),
+            ...(path === undefined ? {} : { path }),
+          }),
+        ),
+      },
     };
   }
   if (known instanceof Errors.ConstraintViolationError) {
