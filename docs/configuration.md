@@ -102,6 +102,67 @@ together: it deduplicates shared attribute nodes by content ID before `ConfigSto
 `Employer.constraints` yields independently content-addressed required, cardinality,
 uniqueness, and reference-target rules.
 
+## Reading typed entities
+
+`Type.decode(facts, options?)` returns an Effect that turns visible facts into an object
+keyed by the declaration's aliases. Read the desired temporal basis first; the decoder does
+not filter historical or retracted facts itself.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId, Triples } from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
+
+const Worker = EntityType.make("Worker", {
+  name: Attribute.text(":worker/name").required(),
+  roles: Attribute.text(":worker/role").many(),
+  joined: Attribute.instant(":worker/joined"),
+});
+
+export const readWorker = Effect.gen(function* () {
+  const triples = yield* Triples;
+  const facts = yield* triples.match(
+    { entityId: EntityId.make("worker:maria") },
+    { validAt: Date.UTC(2026, 0, 1) },
+  );
+  const decoded = yield* Worker.decode(facts, { withFacts: true });
+  // name is present; roles is an array; joined may be undefined.
+  // Sealable values also admit a {$sealed: {valueType, keyId}} marker.
+  const name = decoded.values.name;
+  if (typeof name === "string") console.log(name);
+  // Original facts include IDs and intervals for Worker.replace/end/correct.
+  return { values: decoded.values, nameFacts: decoded.facts.name };
+});
+```
+
+Optional scalar aliases decode to `undefined` when absent; cardinality-many aliases always
+return readonly arrays, including `[]` when absent. Required aliases must have at least one
+fact unless `{ allowPartial: true }` is passed, which also makes required scalar types admit
+`undefined`. Two visible facts for a scalar alias fail even if their values are equal.
+Cardinality-many values are deduplicated and sorted by canonical identity, so their order
+need not match assertion order. Instants decode to epoch-millisecond numbers, including when
+written with a `Date`; calendar dates remain strings, enums retain their literal union, and
+references retain `EntityId`.
+
+All facts must have the declared entity type and belong to one entity. Incompatible stored
+values, missing required aliases, and ambiguous scalar aliases produce typed
+`EntityType.EntityDecodeError` failures with a `reason` and optional `alias`.
+An empty input is a missing entity body: it fails if required aliases exist, otherwise it
+decodes to empty arrays and undefined scalars. The decoder cannot distinguish a nonexistent
+entity from an entity with no visible facts.
+
+Undeclared attributes are ignored by default. `{ unknownAttributes: "reject" }` rejects them;
+`{ withFacts: true }` returns `{ values, facts, unknownFacts }` with original facts grouped by
+alias and undeclared facts separately. Metadata preserves every supplied fact, including
+multiple facts that decode to the same many-value.
+
+A sealed stored value always becomes a marker containing only its value type and key ID,
+even if the declaration no longer marks it sensitive. For this reason sealable output types
+include `EntityType.SealedMarker`; narrow them before using plaintext. Sensitive attributes
+with unsealed stored values fail. Opening stays an explicit `Sensitive.open` call on the
+original facts; the decoder never opens values. Metadata contains those original facts,
+including their sealed envelopes when present, so use `values` as the display object.
+
 ## Writing entities
 
 `Type.assert(id, values, options?)` turns attribute values, keyed by the TypeScript aliases, into
