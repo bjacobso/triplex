@@ -1,5 +1,7 @@
 # Derivations
 
+Use [Live queries](/live-queries) to observe complete query snapshots across commits and expiry.
+
 `@triplex-build/triplex/derivation` turns structural Datalog results into content-addressed candidates
 with explicit identity, provenance, temporal basis, and configuration identity. It is a derived-fact
 engine, not a workflow engine: applications decide whether a candidate opens a task, updates a

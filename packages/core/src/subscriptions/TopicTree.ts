@@ -144,13 +144,7 @@ export class TopicTree {
     }
 
     if (dependencies.hasDynamicAttributes) {
-      const entityTypes =
-        dependencies.entityTypes.size > 0 ? dependencies.entityTypes : new Set([WILDCARD_TOPIC]);
-      for (const entityType of entityTypes) {
-        const attributes = topics.get(entityType) ?? new Set<string>();
-        attributes.add(WILDCARD_TOPIC);
-        topics.set(entityType, attributes);
-      }
+      topics.set(WILDCARD_TOPIC, new Set([WILDCARD_TOPIC]));
     }
 
     if (topics.size === 0) {

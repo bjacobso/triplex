@@ -12,6 +12,12 @@ export interface Diagnostic {
 
 // Exhaustive over the public error module, including its re-exported manager errors.
 const defaults = {
+  WatchOptionsError: ["watch.invalid-options", "Correct the live-query options."],
+  WatchResumeError: [
+    "watch.invalid-resume",
+    "Use the token with its original query and database generation.",
+  ],
+  WatchResultTooLarge: ["watch.result-too-large", "Use a wrapped window or increase maxRows."],
   WriteError: ["write.failed", "Check the write input and storage availability."],
   OperationalEntryConflictError: [
     "operational.entry-conflict",
