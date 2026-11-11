@@ -29,7 +29,12 @@ export interface Assertion<K extends string = string> {
 /** Runtime declaration edges do not participate in content identity. Name-only targets remain useful for recursive schemas. */
 export interface ReferenceTarget {
   readonly entityType: string;
-  readonly nodes?: Effect.Effect<ReadonlyArray<ConfigNode.ConfigNode>, ConfigNode.DuplicateChildKeyError | import("../content/CanonicalJson.js").CanonicalEncodingError | Schema.SchemaError>;
+  readonly nodes?: Effect.Effect<
+    ReadonlyArray<ConfigNode.ConfigNode>,
+    | ConfigNode.DuplicateChildKeyError
+    | import("../content/CanonicalJson.js").CanonicalEncodingError
+    | Schema.SchemaError
+  >;
   readonly attributes?: Readonly<Record<string, { readonly definition: AnyDefinition }>>;
 }
 

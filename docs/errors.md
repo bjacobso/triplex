@@ -105,3 +105,28 @@ The OpenAPI document describes the envelope and all diagnostic fields.
 | `http.collection-not-found`       | Use a collection listed in OpenAPI.                                         | No        |
 | `http.not-found`                  | Use a route listed in OpenAPI.                                              | No        |
 | `http.method-not-allowed`         | Use a method listed in Allow.                                               | No        |
+
+## Database client mappings
+
+The [Database client](/database) uses existing stable codes; it adds no new error
+class or code. Its exported `DatabaseError` union contains its normalized read and
+validation errors and the underlying transaction, Datalog and sensitive errors.
+`command` preserves callback domain errors unchanged; hosts diagnose those themselves.
+Defects and interruption remain outside the typed failure channel.
+
+| Failure                                                                                                                 | Code and recovery                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing ref or incompatible declaration                                                                                 | `validation.failed`, path `schema.ref` or `schema.types`; provide the matching release/model.                                                         |
+| Invalid metadata, empty put, unknown alias/type, invalid interval or temporal source, reused/escaped/concurrent builder | `validation.failed`, a `meta.*`, `schema.types` or `command.*` path; correct that input.                                                              |
+| Invalid view basis                                                                                                      | `validation.failed`, path `basis.recordedAt`, `basis.recordedPosition` or `basis.validAt`.                                                            |
+| Entity decoder failure or Schema projection failure                                                                     | `validation.failed`, path `entity.values` or `results[index]`; inspect data or the projection. Malformed state is never silently converted to `null`. |
+| Config storage/corruption, entity/history/journal lookup, missing receipt after success/duplicate                       | `read.failed`; original cause is retained locally. Retry the same command ID to recover a committed receipt.                                          |
+| Unknown raw/typed query attribute                                                                                       | `schema.unknown-attribute`; preserves SchemaBound's path and nearest-key hint.                                                                        |
+| Datalog, constraints, preconditions, operational keys, sensitive values/planning                                        | Existing `datalog.*`, `constraint.violation`, `transaction.conflict.*`, `operational.entry-conflict`, `sensitive.value` and `sensitive.query` codes.  |
+| Missing source fact / stale source fact                                                                                 | `triple.not-found` / `transaction.conflict.precondition`.                                                                                             |
+| Invalid client/backend continuation                                                                                     | `pagination.invalid-cursor`; restart the read.                                                                                                        |
+| Duplicate command claim                                                                                                 | Recovered automatically as the original receipt. Other errors are not automatically retried.                                                          |
+
+Use `diagnose` instead of duplicating code strings in transports. Normalized client
+validation messages identify the field without copying values, payloads, ciphertext,
+query constants or arbitrary causes into diagnostics.

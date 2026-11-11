@@ -191,6 +191,7 @@ import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/
 import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
 import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
+import * as Database from "@triplex-build/triplex/database";
 import { Inbox, Outbox, OperationalEntryConflictError } from "@triplex-build/triplex/operational";
 import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
 import * as Cloudflare from "@triplex-build/triplex-cloudflare";
@@ -250,6 +251,8 @@ const Employer = EntityType.make("Employer", {
   name: Attribute.use(EmployerName, { required: true }),
 });
 const nameAssertion = Employer.attributes.name.assertion("Acme");
+const databaseLayer = Database.layer({schema: {types: [Employer]}});
+void databaseLayer;
 const sensitiveLayer = Sensitive.layer({
   database: "tenant-a",
   attributes: [Attribute.sensitive(Attribute.text(":employee/ssn"))],
@@ -327,7 +330,12 @@ if (CanonicalJson.encodeOrThrow({ z: -0, a: [undefined, 1] }) !== JSON.stringify
 import { EntityId, Triples, string } from "@triplex-build/triplex";
 import { Runtime, DatabaseScope } from "@triplex-build/triplex/runtime";
 import * as Derivation from "@triplex-build/triplex/derivation";
+import * as Database from "@triplex-build/triplex/database";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+
+if (typeof Database.layer !== "function" || typeof Database.Database !== "function") {
+  throw new Error("Public database entry point is unavailable");
+}
 
 if (typeof Runtime.define !== "function" || typeof DatabaseScope.test("packed") !== "string") {
   throw new Error("Public runtime entry point is unavailable");

@@ -382,23 +382,44 @@ export function make(
 /** Nodes for publishing declarations and their transitive reference targets, once per CID. */
 export const nodesOf = (
   ...types: ReadonlyArray<{
-    readonly nodes: Effect.Effect<ReadonlyArray<ConfigNode.ConfigNode>, ConfigNode.DuplicateChildKeyError | CanonicalJson.CanonicalEncodingError | import("effect").Schema.SchemaError>;
-    readonly attributes?: Readonly<Record<string, { readonly definition: Attribute.AnyDefinition }>>;
+    readonly nodes: Effect.Effect<
+      ReadonlyArray<ConfigNode.ConfigNode>,
+      | ConfigNode.DuplicateChildKeyError
+      | CanonicalJson.CanonicalEncodingError
+      | import("effect").Schema.SchemaError
+    >;
+    readonly attributes?: Readonly<
+      Record<string, { readonly definition: Attribute.AnyDefinition }>
+    >;
   }>
-): Effect.Effect<ReadonlyArray<ConfigNode.ConfigNode>, ConfigNode.DuplicateChildKeyError | CanonicalJson.CanonicalEncodingError | import("effect").Schema.SchemaError> => Effect.gen(function* () {
-  const visited = new Set<object>();
-  const nodes = new Map<string, ConfigNode.ConfigNode>();
-  const visit = (type: Attribute.ReferenceTarget | (typeof types)[number]): Effect.Effect<void, ConfigNode.DuplicateChildKeyError | CanonicalJson.CanonicalEncodingError | import("effect").Schema.SchemaError> => Effect.gen(function* () {
-    if (visited.has(type)) return;
-    visited.add(type);
-    if (type.nodes) for (const node of yield* type.nodes) nodes.set(node.cid, node);
-    for (const handle of Object.values(type.attributes ?? {})) {
-      if (handle.definition.target) yield* visit(handle.definition.target);
-    }
+): Effect.Effect<
+  ReadonlyArray<ConfigNode.ConfigNode>,
+  | ConfigNode.DuplicateChildKeyError
+  | CanonicalJson.CanonicalEncodingError
+  | import("effect").Schema.SchemaError
+> =>
+  Effect.gen(function* () {
+    const visited = new Set<object>();
+    const nodes = new Map<string, ConfigNode.ConfigNode>();
+    const visit = (
+      type: Attribute.ReferenceTarget | (typeof types)[number],
+    ): Effect.Effect<
+      void,
+      | ConfigNode.DuplicateChildKeyError
+      | CanonicalJson.CanonicalEncodingError
+      | import("effect").Schema.SchemaError
+    > =>
+      Effect.gen(function* () {
+        if (visited.has(type)) return;
+        visited.add(type);
+        if (type.nodes) for (const node of yield* type.nodes) nodes.set(node.cid, node);
+        for (const handle of Object.values(type.attributes ?? {})) {
+          if (handle.definition.target) yield* visit(handle.definition.target);
+        }
+      });
+    for (const type of types) yield* visit(type);
+    return [...nodes.values()];
   });
-  for (const type of types) yield* visit(type);
-  return [...nodes.values()];
-});
 
 /** A pattern-position term: variables pass through, constants encode as their attribute does. */
 const term = (path: string, definition: Attribute.AnyDefinition, value: unknown): Term => {
