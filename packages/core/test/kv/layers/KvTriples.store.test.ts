@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option, Stream } from "effect";
 import { Triples } from "../../../src/store/Triples.js";
 import type { TripleId, EntityId } from "@triplex-build/triplex";
 import { KvTriplesLive } from "../../../src/kv/layers/KvTriplesLive.js";
@@ -345,6 +345,75 @@ describe("KvTriplesLive - temporal match", () => {
         );
         expect(afterRetract.length).toBe(0);
       }),
+    );
+  });
+});
+
+describe("KvTriplesLive - entity type at a temporal basis", () => {
+  it("answers from the TYPE index, honouring recorded and valid time", async () => {
+    // Count the KV entries each range read returns, to see which index served the match.
+    let scanned = 0;
+    const backend = makeTestKvBackend();
+    const counting = {
+      ...backend,
+      getRange: (options: Parameters<typeof backend.getRange>[0]) =>
+        backend.getRange(options).pipe(Stream.tap(() => Effect.sync(() => scanned++))),
+      getRangeSync: (options: Parameters<NonNullable<typeof backend.getRangeSync>>[0]) => {
+        const entries = backend.getRangeSync!(options);
+        scanned += entries.length;
+        return entries;
+      },
+    };
+    const layer = KvTriplesLive.pipe(
+      Layer.provide(TripleStoreRuntimeLayer),
+      Layer.provide(Layer.succeed(KvBackend, counting)),
+    );
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* Triples;
+        // Plenty of other facts, so a full scan would be visible in the count.
+        yield* store.transact(
+          Array.from({ length: 500 }, (_, i) => ({
+            op: "assert" as const,
+            entityId: `other:${i}` as EntityId,
+            attribute: ":other/n",
+            value: num(i),
+          })),
+        );
+        const early = yield* store.assert({
+          entityId: "w:1",
+          attribute: ":widget/name",
+          value: str("first"),
+          entityType: "Widget",
+          validFrom: 1_000,
+          validTo: 2_000,
+        });
+        yield* store.assert({
+          entityId: "w:1",
+          attribute: ":widget/name",
+          value: str("second"),
+          entityType: "Widget",
+          validFrom: 2_000,
+        });
+        const recorded = Date.now();
+        yield* Effect.sleep("5 millis");
+        yield* store.retract(early.id);
+
+        const names = (triples: readonly { value: { value: unknown } }[]) =>
+          triples.map((t) => t.value.value).sort();
+        scanned = 0;
+        expect(names(yield* store.match({ entityType: "Widget" }, { validAt: 1_500 }))).toEqual([]);
+        expect(
+          names(
+            yield* store.match({ entityType: "Widget" }, { validAt: 1_500, recordedAt: recorded }),
+          ),
+        ).toEqual(["first"]);
+        expect(names(yield* store.match({ entityType: "Widget" }, { validAt: 2_500 }))).toEqual([
+          "second",
+        ]);
+        // Three reads of a two-entry type index, not three scans of 500+ facts and the journal.
+        expect(scanned).toBe(6);
+      }).pipe(Effect.provide(layer)),
     );
   });
 });
