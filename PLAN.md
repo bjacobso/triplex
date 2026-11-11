@@ -290,8 +290,8 @@ steps is what matters: preconditions, enforcement, operations including the new
 | ID   | Item                                      | Lane  | Depends    | Status      | Evidence                                                                                                                                                                                                                                    |
 | ---- | ----------------------------------------- | ----- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P2.1 | Land the entity helpers (PR #45)          | B     | P0.3       | done        | 2026-11-11: merged `ergo/p2.1`; #45 folded in, sensitive-modifier fix, `nodesOf`, memoized `pinned`, one declaration form. `trials/vendor-risk` stays on the old API as a historical record. Owner may close #45 once the session PR exists |
-| P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | pending     | D7 answered 2026-11-11; conflicts unchanged after `9f4e703`                                                                                                                                                                                 |
-| P2.3 | Typed decode of entity facts              | B     | P2.1       | active      | 2026-11-11: core half as `ergo/p2.3`; switching HTTP to the core decoder follows P1.2b                                                                                                                                                      |
+| P2.2 | Commit validators (PR #52)                | alone | P0.3, D7   | active      | 2026-11-11: `ergo/p2.2`, running alone; D7 answered                                                                                                                                                                                         |
+| P2.3 | Typed decode of entity facts              | B     | P2.1       | done        | 2026-11-11: core half merged (`ergo/p2.3`): `Type.decode`, literal requiredness in `Use<D, C, R>`, sealed markers, `withFacts` metadata. Core 813/813, integration 209/209. Switching HTTP `encodeEntity` to it is a follow-up              |
 | P2.4 | Temporal verbs                            | B     | P2.1       | done        | 2026-11-11: merged `ergo/p2.4`; `Change.end/replace/correct/combine`, typed `Type.end/replace/correct`, sealed re-assertion only from a same-transaction retracted fact. Core 805/805, integration 208/208                                  |
 | P2.5 | Client RFC: the `Database` service        | B     | P2.3, P2.4 | done        | 2026-11-11: merged `ergo/p2.5`; `docs/rfcs/database-client.md` (`@triplex-build/triplex/database`, startup compatibility check, admission-time pin, receipt on retry). P2.6 waits on D3                                                     |
 | P2.6 | Client implementation                     | B     | P2.5       | needs-owner | Waits on D3                                                                                                                                                                                                                                 |
@@ -405,8 +405,8 @@ Update this section last in every session.
 
 - **Last updated:** 2026-11-11, D1, D7 and D8 answered; #48 merged; #46 closed.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
-  - P2.3: block `block:01a1cc43-2843-75a1-ae3c-0822eb12f3a0`
-- **Open worktrees and branches from this plan:** `../triplex-wt/p2.3` on `ergo/p2.3`.
+  - P2.2 (alone): block `block:01a1cc4f-dc61-7bc3-80e5-4c72678ed9da`
+- **Open worktrees and branches from this plan:** `../triplex-wt/p2.2` on `ergo/p2.2`.
 - **Next action:** review P2.4, P1.2a and P3.1 as they report. Then P2.3 (typed decode, lane B),
   the CLI half of P1.2, and P3.4 (describe). Run P2.2 (#52) alone when no other agent is active.
   `pnpm check` and `pnpm test:postgres:integration` (45/45, Docker via OrbStack) passed on
@@ -422,6 +422,7 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P2.3 merged. Started P2.2 (#52) alone.
 - 2026-11-11: `pnpm pack:check` passed; e2e shows only the four pre-existing macOS screenshot
   failures.
 - 2026-11-11: P1.2b and the client RFC (P2.5) merged. Note: the CLI rebuilds the command name
