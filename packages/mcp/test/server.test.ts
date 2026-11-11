@@ -7,6 +7,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { EntityId } from "@triplex-build/triplex";
+import { execute } from "@triplex-build/triplex-cli";
 import { registrations } from "../src/index.js";
 
 const Site = EntityType.make("Site", {
@@ -56,6 +58,8 @@ it("serves the agent workflow, diagnostics, validation and redacted reads over M
           "query_run",
           "status",
           "transaction_apply",
+          "transaction_preview",
+          "why",
         ]);
         for (const tool of tools.tools) expect(tool.inputSchema.type).toBe("object");
         const call = Effect.fn(function* (name: string, args: Record<string, unknown> = {}) {
@@ -80,6 +84,10 @@ it("serves the agent workflow, diagnostics, validation and redacted reads over M
               .replaceAll(`<command-id for ${example.entityType}>`, `create-${example.entityType}`),
           );
           requests[example.entityType] = request;
+          for (const op of request.operations) op.validFrom = 1;
+          expect((yield* call("transaction_preview", request)).data).toEqual(
+            yield* execute({ _tag: "transaction-preview", request }),
+          );
           expect((yield* call("transaction_apply", request)).isError).toBe(false);
         }
         const entity = yield* call("entity_get", { entityId: "site:one" });
@@ -103,6 +111,18 @@ it("serves the agent workflow, diagnostics, validation and redacted reads over M
           isError: true,
           data: { code: "datalog.unbound-variable", retryable: false },
         });
+        const subject = { kind: "entity" as const, entityId: EntityId.make("site:one") };
+        const whyBasis = { validAt: Date.now() };
+        const explained = yield* call("why", { subject, basis: whyBasis });
+        expect(explained.data).toEqual(yield* execute({ _tag: "why", subject, basis: whyBasis }));
+        expect(explained.data.facts).toHaveLength(1);
+        expect(
+          yield* call("why", { subject: { kind: "fact", tripleId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" } }),
+        ).toMatchObject({ isError: true, data: { code: "why.subject-not-found" } });
+        expect(
+          (yield* call("transaction_preview", requests["Site"]!)).data.commandAlreadyCommitted
+            .commandId,
+        ).toBe("create-Site");
         const duplicate = yield* call("transaction_apply", requests["Site"]!);
         expect(duplicate).toMatchObject({
           isError: true,
@@ -113,6 +133,11 @@ it("serves the agent workflow, diagnostics, validation and redacted reads over M
             .replaceAll("site:one", "site:two")
             .replaceAll("create-Site", "duplicate-name"),
         );
+        const before = (yield* call("status")).data.position;
+        expect(
+          (yield* call("transaction_preview", violation)).data.violations.length,
+        ).toBeGreaterThan(0);
+        expect((yield* call("status")).data.position).toBe(before);
         expect(yield* call("transaction_apply", violation)).toMatchObject({
           isError: true,
           data: { code: "constraint.violation", retryable: false },
@@ -142,7 +167,21 @@ it("serves the agent workflow, diagnostics, validation and redacted reads over M
           meta: { actor: "agent:test", commandId: "secret" },
         });
         expect(write.isError).toBe(false);
-        const outputs = [write];
+        const secretPreview = yield* call("transaction_preview", {
+          operations: [
+            {
+              op: "assert",
+              entityId: "worker:one",
+              attribute: ":worker/secret",
+              value: { type: "string", value: planted },
+            },
+          ],
+          meta: { actor: "agent:test", commandId: "secret-preview" },
+        });
+        const secretWhy = yield* call("why", {
+          subject: { kind: "entity", entityId: "worker:one" },
+        });
+        const outputs = [write, secretPreview, secretWhy];
         for (const name of ["entity_get", "entity_facts", "entity_history"])
           outputs.push(yield* call(name, { entityId: "worker:one" }));
         outputs.push(yield* call("journal_receipt", { commandId: "secret" }));

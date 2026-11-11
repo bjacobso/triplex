@@ -5,3 +5,5 @@ export {
   type ExecuteOptions,
   type ExecuteDatabaseOptions,
 } from "./operations.js";
+
+export { WhyInput } from "./why.js";

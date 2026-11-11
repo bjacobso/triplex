@@ -35,6 +35,7 @@ import {
 } from "../errors/index.js";
 import { previewCommand, type Preview, type PreviewOptions } from "./Preview.js";
 export type { Preview, PreviewChange, PreviewOptions, PreviewDerivation } from "./Preview.js";
+export { previewTransaction } from "./Preview.js";
 import { Sensitivity } from "../sensitive/Sensitive.js";
 import type { EntityPageSnapshot } from "../EntityPage.js";
 

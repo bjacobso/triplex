@@ -1,4 +1,6 @@
 import { Attribute, ConfigNode, ConfigStore, EntityType } from "@triplex-build/triplex/config";
+import { Triples } from "@triplex-build/triplex";
+import * as Derivation from "@triplex-build/triplex/derivation";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";
 import { execFile } from "node:child_process";
@@ -64,7 +66,7 @@ describe("describe release schema", { timeout: 120_000 }, () => {
     expect(output).toMatchObject({
       ok: true,
       command: "describe",
-      data: { commands: { transaction: ["apply"] } },
+      data: { commands: { transaction: ["apply", "preview"] } },
     });
     const schema = output.data.schema;
     expect(schema.release).toEqual({
@@ -111,6 +113,114 @@ describe("describe release schema", { timeout: 120_000 }, () => {
     );
     expect(schema.derivations).toContainEqual({ kind: "policy", key: "work/safety" });
     expect(schema.rules).toHaveLength(5);
+  });
+
+  it("explains retractions and past state, and previews without writing", async () => {
+    const { directory, layer, cli } = await setup();
+    await Effect.runPromise(publish.pipe(Effect.provide(layer)));
+    const described = (await cli("describe")).data;
+    const example = described.schema.examples.find(
+      (e: { entityType: string }) => e.entityType === "Site",
+    );
+    const request = JSON.parse(
+      JSON.stringify(example.input)
+        .replaceAll("<entity-id of Site>", "site:preview")
+        .replaceAll("<text>", "Preview")
+        .replaceAll("<actor>", "agent:test")
+        .replaceAll("<command-id for Site>", "preview-site"),
+    );
+    for (const op of request.operations) op.validFrom = 1;
+    const path = join(directory, "preview.json");
+    await writeFile(path, JSON.stringify(request));
+    const position = (await cli("status")).data.position;
+    const preview = (await cli("transaction", "preview", "--input", path)).data;
+    expect(preview.violations).toEqual([]);
+    expect((await cli("status")).data.position).toBe(position);
+    const applied = (await cli("transaction", "apply", "--input", path)).data;
+    const receipt = (await cli("journal", "receipt", "preview-site")).data.transaction;
+    expect(
+      receipt.changes.map(
+        ({ tripleId: _id, recordedAt: _at, assertionTxId: _tx, ...c }: Record<string, unknown>) =>
+          c,
+      ),
+    ).toEqual(preview.changes);
+    const repeated = (await cli("transaction", "preview", "--input", path)).data;
+    expect(repeated.commandAlreadyCommitted.position).toBe(applied.position);
+    request.meta.commandId = "duplicate-preview";
+    for (const op of request.operations) op.entityId = "site:duplicate";
+    await writeFile(path, JSON.stringify(request));
+    expect(
+      (await cli("transaction", "preview", "--input", path)).data.violations.length,
+    ).toBeGreaterThan(0);
+    expect((await cli("status")).data.position).toBe(applied.position);
+    const candidateInput = await Effect.runPromise(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const definition = yield* Derivation.make({
+          name: "sites",
+          query: { find: ["?e", "?name"], where: [["?e", ":site/name", "?name"]] },
+          identity: ["?e"],
+          configSnapshot: request.meta.configSnapshot,
+        });
+        const basis = { validAt: 2, recordedPosition: applied.position };
+        const evaluated = yield* Derivation.evaluate(triples, definition, { basis });
+        const candidate = evaluated.candidates[0]!;
+        return {
+          subject: {
+            kind: "candidate",
+            definition,
+            candidateId: candidate.id,
+            revision: candidate.revision,
+          },
+          basis,
+        };
+      }).pipe(Effect.provide(layer)),
+    );
+    await writeFile(path, JSON.stringify(candidateInput));
+    const candidateWhy = (await cli("why", "candidate", "--input", path)).data;
+    expect(candidateWhy.derivation.candidate.id).toBe(candidateInput.subject.candidateId);
+    expect(candidateWhy.subject).not.toHaveProperty("definition");
+    const id = applied.asserted[0].id;
+    await writeFile(
+      path,
+      JSON.stringify({
+        operations: [{ op: "retract", id }],
+        meta: { actor: "agent:test", commandId: "retract-site" },
+      }),
+    );
+    const retracted = (await cli("transaction", "apply", "--input", path)).data;
+    const why = (await cli("why", "fact", id)).data;
+    expect(why.facts[0]).toMatchObject({ visible: false, retraction: retracted.transactionId });
+    expect(why.transactions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ commandId: "retract-site" })]),
+    );
+    const past = (
+      await cli(
+        "why",
+        "entity",
+        "site:preview",
+        "--recorded-position",
+        String(applied.position),
+        "--valid-at",
+        "2",
+      )
+    ).data;
+    expect(past.facts).toHaveLength(1);
+    expect(past.facts[0]).toMatchObject({ visible: true, retraction: null });
+    expect(
+      (
+        await cli(
+          "why",
+          "attribute",
+          "site:preview",
+          ":site/name",
+          "--recorded-position",
+          String(applied.position),
+          "--valid-at",
+          "2",
+        )
+      ).data.facts,
+    ).toEqual(past.facts);
   });
 
   it("generates wire inputs that apply under the pinned release's enforcement", async () => {
