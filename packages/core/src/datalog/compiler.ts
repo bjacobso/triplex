@@ -1,3 +1,7 @@
+import { planIntervalPattern } from "./interval.js";
+import { assertQueryBasis } from "./temporal.js";
+import { isIntervalPattern, normalizePattern, type FactPattern } from "./schema.js";
+import type { QueryTemporalBasis } from "./temporal.js";
 /**
  * SQL Compiler for Datalog Queries
  *
@@ -40,7 +44,7 @@ import type {
 /**
  * Tracks where a variable is bound in the SQL query
  */
-type TripleBindingPosition = "entity" | "attribute" | "value" | "tx";
+type TripleBindingPosition = "entity" | "attribute" | "value" | "tx" | "from" | "to";
 type RuleBindingPosition = "arg1" | "arg2";
 
 type VariableBinding =
@@ -103,6 +107,7 @@ interface CompilerContext {
   aggregateExpressions: Map<string, string>;
   /** Parameter collector for parameterized queries */
   collector: ParamCollector;
+  basis?: QueryTemporalBasis | undefined;
 }
 
 /**
@@ -163,28 +168,31 @@ export interface CompiledValueColumns {
 
 export interface CompileOptions {
   /** Evaluate every triple alias against this bitemporal basis. */
-  readonly basis?: {
-    readonly recordedAt?: number;
-    readonly recordedPosition?: number;
-    readonly validAt: number;
-  };
+  readonly basis?: QueryTemporalBasis;
 }
 
-const applyTemporalBasis = (sql: string, basis: CompileOptions["basis"]): string => {
-  if (basis === undefined) return sql;
-  const validAt = String(basis.validAt);
-  return sql.replace(
-    /\b([A-Za-z_][A-Za-z0-9_]*)\.retracted_at IS NULL/g,
-    (_condition, alias: string) => {
-      const recorded =
-        basis.recordedPosition !== undefined
-          ? `${alias}.recorded_position <= ${basis.recordedPosition}${basis.recordedAt === undefined ? "" : ` AND ${alias}.recorded_at <= ${basis.recordedAt}`} AND (${alias}.retracted_position IS NULL OR ${alias}.retracted_position > ${basis.recordedPosition}${basis.recordedAt === undefined ? "" : ` OR ${alias}.retracted_at > ${basis.recordedAt}`})`
-          : basis.recordedAt === undefined
-            ? `${alias}.retracted_at IS NULL`
-            : `${alias}.recorded_at <= ${basis.recordedAt} AND (${alias}.retracted_at IS NULL OR ${alias}.retracted_at > ${basis.recordedAt})`;
-      return `${recorded} AND ${alias}.valid_from <= ${validAt} AND (${alias}.valid_to IS NULL OR ${alias}.valid_to > ${validAt})`;
-    },
-  );
+/** Visibility is generated for each alias, including recursive and local scans. */
+const visibility = (alias: string, ctx: CompilerContext, attribute?: string): string => {
+  const basis = ctx.basis;
+  if (!basis) return `${alias}.retracted_at IS NULL`;
+  const add = (value: number) => ctx.collector.add(value);
+  const recorded =
+    basis.recordedPosition !== undefined
+      ? `${alias}.recorded_position <= ${add(basis.recordedPosition)}${basis.recordedAt === undefined ? "" : ` AND ${alias}.recorded_at <= ${add(basis.recordedAt)}`} AND (${alias}.retracted_position IS NULL OR ${alias}.retracted_position > ${add(basis.recordedPosition)}${basis.recordedAt === undefined ? "" : ` OR ${alias}.retracted_at > ${add(basis.recordedAt)}`})`
+      : basis.recordedAt === undefined
+        ? `${alias}.retracted_at IS NULL`
+        : `${alias}.recorded_at <= ${add(basis.recordedAt)} AND (${alias}.retracted_at IS NULL OR ${alias}.retracted_at > ${add(basis.recordedAt)})`;
+  if (
+    basis.validAt === undefined ||
+    (typeof attribute === "string" && attribute.startsWith(":_tx/"))
+  )
+    return `(${recorded})`;
+  const point = `${alias}.valid_from <= ${add(basis.validAt)} AND (${alias}.valid_to IS NULL OR ${alias}.valid_to > ${add(basis.validAt)})`;
+  const domain =
+    typeof attribute === "string" && !attribute.startsWith("?")
+      ? point
+      : `(SUBSTR(${alias}.attribute, 1, 5) = ':_tx/' OR (${point}))`;
+  return `(${recorded} AND (${domain}))`;
 };
 
 // =============================================================================
@@ -231,6 +239,10 @@ const getColumnForPosition = (
       return valueColumn ? `${alias}.${valueColumn}` : `${alias}.value_string`;
     case "tx":
       return `${alias}.tx_id`;
+    case "from":
+      return `${alias}.valid_from`;
+    case "to":
+      return `${alias}.valid_to`;
   }
 };
 
@@ -311,6 +323,17 @@ const compilePatternValueCondition = (
 
 /** Compare bindings using the flattened scalar semantics exposed by the KV executor. */
 const compileBindingEquality = (left: VariableBinding, right: VariableBinding): string => {
+  if (isBoundBinding(left) || isBoundBinding(right)) {
+    const bound = isBoundBinding(left) ? left : right;
+    const other = bound === left ? right : left;
+    const a = resolveBinding(bound);
+    if (isTripleValueBinding(other))
+      return `COALESCE((${numberScalarTypeCondition(other.alias)} AND ${a} = ${numberScalarExpression(other.alias)}), FALSE)`;
+    if (!isBoundBinding(other)) return "1 = 0";
+    const b = resolveBinding(other);
+    return `(${a} IS NOT DISTINCT FROM ${b})`;
+  }
+
   if (isTripleValueBinding(left) && isTripleValueBinding(right)) {
     return `(((${textScalarTypeCondition(left.alias)}) AND (${textScalarTypeCondition(right.alias)}) AND ${textScalarExpression(left.alias)} = ${textScalarExpression(right.alias)}) OR ((${numberScalarTypeCondition(left.alias)}) AND (${numberScalarTypeCondition(right.alias)}) AND ${numberScalarExpression(left.alias)} = ${numberScalarExpression(right.alias)}) OR (${left.alias}.value_type = 'boolean' AND ${right.alias}.value_type = 'boolean' AND ${left.alias}.value_boolean = ${right.alias}.value_boolean) OR ${sealedJoinCondition(left.alias, right.alias)})`;
   }
@@ -328,9 +351,17 @@ const compileBindingEquality = (left: VariableBinding, right: VariableBinding): 
 
 const compileBindingConstantEquality = (
   binding: VariableBinding,
-  value: Constant,
+  value: Constant | null,
   ctx: CompilerContext,
 ): string => {
+  if (isBoundBinding(binding)) {
+    const column = resolveBinding(binding);
+    if (value === null) return `${column} IS NULL`;
+    return typeof value === "number"
+      ? `COALESCE(${column} = ${formatValue(value, ctx)}, FALSE)`
+      : "1 = 0";
+  }
+  if (value === null) return "1 = 0";
   if (!isTripleValueBinding(binding)) {
     if (isTypedConstant(value) && value.type === "blind") return "1 = 0";
     const scalar = constantScalar(value);
@@ -353,10 +384,17 @@ const compileBindingConstantEquality = (
   return `((${textScalarTypeCondition(binding.alias)}) AND ${textScalarExpression(binding.alias)} = ${formatValue(scalar, ctx)})`;
 };
 
-const constantScalar = (value: Constant): string | number | boolean =>
-  isTypedConstant(value) ? value.value : value;
+function constantScalar(value: Constant): string | number | boolean;
+function constantScalar(value: Constant | null): string | number | boolean | null;
+function constantScalar(value: Constant | null): string | number | boolean | null {
+  return isTypedConstant(value) ? value.value : value;
+}
 
-const compileEqualityCondition = (left: Term, right: Term, ctx: CompilerContext): string => {
+const compileEqualityCondition = (
+  left: Term | null,
+  right: Term | null,
+  ctx: CompilerContext,
+): string => {
   if (isVariable(left) && isVariable(right)) {
     const leftBinding = ctx.bindings.get(left);
     const rightBinding = ctx.bindings.get(right);
@@ -386,7 +424,10 @@ interface OrderedTermExpression {
 }
 
 /** Resolve the numeric-only scalar contract used by ordered Datalog predicates. */
-const orderedTermExpression = (term: Term, ctx: CompilerContext): OrderedTermExpression | null => {
+const orderedTermExpression = (
+  term: Term | null,
+  ctx: CompilerContext,
+): OrderedTermExpression | null => {
   if (!isVariable(term)) {
     const value = constantScalar(term as Constant);
     return typeof value === "number" ? { expression: formatValue(value, ctx) } : null;
@@ -396,6 +437,11 @@ const orderedTermExpression = (term: Term, ctx: CompilerContext): OrderedTermExp
   if (aggregate !== undefined) return { expression: aggregate };
 
   const binding = ctx.bindings.get(term);
+  if (binding && isBoundBinding(binding))
+    return {
+      expression: resolveBinding(binding),
+      typeCondition: `${resolveBinding(binding)} IS NOT NULL`,
+    };
   if (!binding || !isTripleValueBinding(binding)) return null;
   return {
     expression: numberScalarExpression(binding.alias),
@@ -405,8 +451,8 @@ const orderedTermExpression = (term: Term, ctx: CompilerContext): OrderedTermExp
 
 const compileOrderedPredicateCondition = (
   op: ">" | ">=" | "<" | "<=",
-  left: Term,
-  right: Term,
+  left: Term | null,
+  right: Term | null,
   ctx: CompilerContext,
 ): string => {
   const leftTerm = orderedTermExpression(left, ctx);
@@ -433,6 +479,8 @@ const parseClause = (
   clause: Clause,
   options: { allowRuleApplications: boolean },
 ): InternalClause => {
+  if (isIntervalPattern(clause))
+    return InternalClause.Pattern({ pattern: normalizePattern(clause) });
   const head = clause[0];
 
   if (typeof head === "string" && predicateOperators.has(head as PredicateClause[0])) {
@@ -509,7 +557,8 @@ const classifyClauses = (
 /**
  * Create a new compiler context
  */
-const createContext = (dialect: SqlDialect): CompilerContext => ({
+const createContext = (dialect: SqlDialect, basis?: QueryTemporalBasis): CompilerContext => ({
+  basis,
   bindings: new Map(),
   aliasCounter: 0,
   joins: [],
@@ -552,11 +601,11 @@ const compilePattern = (
   // Build JOIN or FROM clause
   if (isFirstPattern) {
     // First pattern goes in FROM (no JOIN needed)
-    ctx.conditions.push(`${alias}.retracted_at IS NULL`);
+    ctx.conditions.push(visibility(alias, ctx, attribute));
   } else {
     // Subsequent patterns are JOINed
     // Find the join condition based on shared variables
-    let joinCondition = `${alias}.retracted_at IS NULL`;
+    let joinCondition = visibility(alias, ctx, attribute);
 
     // Check if entity is a bound variable
     if (isVariable(entity) && ctx.bindings.has(entity)) {
@@ -624,6 +673,7 @@ const compilePattern = (
     }
   }
 
+  compileBounds(pattern, alias, ctx, ctx.bindings, ctx.conditions);
   return alias;
 };
 
@@ -665,9 +715,10 @@ const compileNotPattern = (
   ctx: CompilerContext,
   localBindings: Map<string, VariableBinding>,
 ): string[] => {
+  pattern = normalizePattern(pattern as FactPattern);
   const [entity, attribute, value] = pattern;
   const tx = pattern.length === 4 ? pattern[3] : undefined;
-  const conditions: string[] = [`${alias}.retracted_at IS NULL`];
+  const conditions: string[] = [visibility(alias, ctx, attribute)];
 
   // Handle entity
   if (isVariable(entity)) {
@@ -729,7 +780,46 @@ const compileNotPattern = (
     }
   }
 
+  compileBounds(pattern, alias, ctx, localBindings, conditions);
   return conditions;
+};
+
+const isBoundBinding = (binding: VariableBinding): boolean =>
+  binding._tag === "Triple" && (binding.position === "from" || binding.position === "to");
+
+const compileBounds = (
+  pattern: PatternClause,
+  alias: string,
+  ctx: CompilerContext,
+  bindings: Map<string, VariableBinding>,
+  conditions: string[],
+): void => {
+  if (pattern.intervalRange) {
+    const range = pattern.intervalRange;
+    const column = resolveBinding(tripleBinding(alias, range.bound));
+    if (range.lower)
+      conditions.push(
+        `${column} ${range.lower.inclusive ? ">=" : ">"} ${formatValue(range.lower.value, ctx)}`,
+      );
+    if (range.upper)
+      conditions.push(
+        `${column} ${range.upper.inclusive ? "<=" : "<"} ${formatValue(range.upper.value, ctx)}`,
+      );
+  }
+  for (const [position, term] of Object.entries(pattern.valid ?? {})) {
+    if (term === undefined) continue;
+    const binding = tripleBinding(alias, position as "from" | "to");
+    if (isVariable(term)) {
+      const existing = bindings.get(term) ?? ctx.bindings.get(term);
+      if (existing) conditions.push(compileBindingEquality(binding, existing));
+      else bindings.set(term, binding);
+    } else
+      conditions.push(
+        term === null
+          ? `${resolveBinding(binding)} IS NULL`
+          : `${resolveBinding(binding)} = ${formatValue(term, ctx)}`,
+      );
+  }
 };
 
 /**
@@ -769,7 +859,12 @@ const compileNotCondition = (notClause: NotClause, ctx: CompilerContext): string
   for (const pattern of patterns) {
     const alias = nextAlias(ctx);
     fromParts.push(`triples ${alias}`);
-    const conditions = compileNotPattern(pattern, alias, ctx, localBindings);
+    const conditions = compileNotPattern(
+      planIntervalPattern(pattern, predicates),
+      alias,
+      ctx,
+      localBindings,
+    );
     allConditions.push(...conditions);
   }
 
@@ -837,6 +932,7 @@ const getColumnExpression = (binding: VariableBinding): string => {
 
 /** Encode a flattened binding with its scalar family for portable COUNT DISTINCT semantics. */
 const distinctCountExpression = (binding: VariableBinding): string => {
+  if (isBoundBinding(binding)) return `COALESCE(CAST(${resolveBinding(binding)} AS TEXT), 'null:')`;
   if (!isTripleValueBinding(binding)) return resolveBinding(binding);
   const { alias } = binding;
   return `CASE
@@ -863,6 +959,20 @@ interface OptionalProjectionExpressions {
  * Datalog context. Canonicalizing here lets SELECT DISTINCT and GROUP BY
  * collapse storage-level aliases such as number/datetime and string/ref.
  */
+const boundProjectionExpressions = (binding: VariableBinding): OptionalProjectionExpressions => {
+  const column = resolveBinding(binding);
+  return {
+    scalar: "NULL",
+    category: `CASE WHEN ${column} IS NULL THEN 3 ELSE 0 END`,
+    orderNumber: column,
+    orderText: "NULL",
+    type: `CASE WHEN ${column} IS NULL THEN NULL ELSE 'number' END`,
+    string: "NULL",
+    number: column,
+    boolean: "NULL",
+  };
+};
+
 const valueProjectionExpressions = (alias: string): OptionalProjectionExpressions => ({
   // SqlQueryExecutor decodes from the hidden canonical columns. Keeping the
   // public carrier constant prevents its SQL affinity from affecting DISTINCT.
@@ -910,7 +1020,7 @@ const optionalProjectionExpressions = (
     FROM triples opt
     WHERE opt.entity_id = ${entityExpr}
       AND opt.attribute = ${attributeExpr}
-      AND opt.retracted_at IS NULL
+      AND ${visibility("opt", ctx, projection.attribute)}
     LIMIT 1
   )`;
   };
@@ -938,6 +1048,15 @@ const optionalProjectionExpressions = (
 /** Equality over a grouped binding must reference the exact canonical
  * expressions present in GROUP BY so PostgreSQL accepts it. */
 const compileGroupedBindingEquality = (left: VariableBinding, right: VariableBinding): string => {
+  if (isBoundBinding(left) || isBoundBinding(right)) {
+    const bound = isBoundBinding(left) ? left : right;
+    const other = bound === left ? right : left;
+    if (isTripleValueBinding(other)) {
+      const projection = valueProjectionExpressions(other.alias);
+      return `COALESCE((${projection.type} = 'number' AND ${resolveBinding(bound)} = ${projection.number}), FALSE)`;
+    }
+    return compileBindingEquality(left, right);
+  }
   if (isTripleValueBinding(left) && isTripleValueBinding(right)) {
     const leftProjection = valueProjectionExpressions(left.alias);
     const rightProjection = valueProjectionExpressions(right.alias);
@@ -957,9 +1076,11 @@ const compileGroupedBindingEquality = (left: VariableBinding, right: VariableBin
 
 const compileGroupedBindingConstantEquality = (
   binding: VariableBinding,
-  value: Constant,
+  value: Constant | null,
   ctx: CompilerContext,
 ): string => {
+  if (isBoundBinding(binding) || value === null)
+    return compileBindingConstantEquality(binding, value, ctx);
   if (!isTripleValueBinding(binding)) {
     if (isTypedConstant(value) && value.type === "blind") return "1 = 0";
     const scalar = constantScalar(value);
@@ -970,6 +1091,7 @@ const compileGroupedBindingConstantEquality = (
 
   const projection = valueProjectionExpressions(binding.alias);
   const scalar = constantScalar(value);
+  if (scalar === null) return "1 = 0";
   if (typeof scalar === "number") {
     return `(${projection.type} = 'number' AND ${projection.number} = ${formatValue(scalar, ctx)})`;
   }
@@ -979,7 +1101,11 @@ const compileGroupedBindingConstantEquality = (
   return `(${projection.type} = 'string' AND ${projection.string} = ${formatValue(scalar, ctx)})`;
 };
 
-const compileGroupedEqualityCondition = (left: Term, right: Term, ctx: CompilerContext): string => {
+const compileGroupedEqualityCondition = (
+  left: Term | null,
+  right: Term | null,
+  ctx: CompilerContext,
+): string => {
   if (isVariable(left) && isVariable(right)) {
     const leftBinding = ctx.bindings.get(left);
     const rightBinding = ctx.bindings.get(right);
@@ -1001,7 +1127,7 @@ const compileGroupedEqualityCondition = (left: Term, right: Term, ctx: CompilerC
 };
 
 const groupedNumericTermExpression = (
-  term: Term,
+  term: Term | null,
   ctx: CompilerContext,
 ): OrderedTermExpression | null => {
   if (!isVariable(term)) {
@@ -1012,6 +1138,11 @@ const groupedNumericTermExpression = (
   if (aggregate !== undefined) return { expression: aggregate };
 
   const binding = ctx.bindings.get(term);
+  if (binding && isBoundBinding(binding))
+    return {
+      expression: resolveBinding(binding),
+      typeCondition: `${resolveBinding(binding)} IS NOT NULL`,
+    };
   if (!binding || !isTripleValueBinding(binding)) return null;
   const projection = valueProjectionExpressions(binding.alias);
   return { expression: projection.number, typeCondition: `${projection.type} = 'number'` };
@@ -1019,8 +1150,8 @@ const groupedNumericTermExpression = (
 
 const compileGroupedOrderedCondition = (
   op: ">" | ">=" | "<" | "<=",
-  left: Term,
-  right: Term,
+  left: Term | null,
+  right: Term | null,
   ctx: CompilerContext,
 ): string => {
   const leftTerm = groupedNumericTermExpression(left, ctx);
@@ -1039,21 +1170,30 @@ const compileGroupedOrderedCondition = (
  * to the same numeric scalar family. Equality between group keys keeps the
  * ordinary typed Datalog equality contract.
  */
-const compileHavingEqualityCondition = (left: Term, right: Term, ctx: CompilerContext): string => {
+const compileHavingEqualityCondition = (
+  left: Term | null,
+  right: Term | null,
+  ctx: CompilerContext,
+): string => {
   const hasAggregate =
     (isVariable(left) && ctx.aggregateExpressions.has(left)) ||
     (isVariable(right) && ctx.aggregateExpressions.has(right));
   if (!hasAggregate) return compileGroupedEqualityCondition(left, right, ctx);
 
-  const leftTerm = groupedNumericTermExpression(left, ctx);
-  const rightTerm = groupedNumericTermExpression(right, ctx);
+  const operand = (term: Term | null): OrderedTermExpression | null => {
+    if (term === null) return { expression: "NULL" };
+    const binding = isVariable(term) ? ctx.bindings.get(term) : undefined;
+    if (binding && isBoundBinding(binding)) return { expression: resolveBinding(binding) };
+    return groupedNumericTermExpression(term, ctx);
+  };
+  const leftTerm = operand(left),
+    rightTerm = operand(right);
   if (leftTerm === null || rightTerm === null) return "1 = 0";
-
-  const conditions = [leftTerm.typeCondition, rightTerm.typeCondition].filter(
+  const guards = [leftTerm.typeCondition, rightTerm.typeCondition].filter(
     (condition): condition is string => condition !== undefined,
   );
-  conditions.push(`${leftTerm.expression} = ${rightTerm.expression}`);
-  return `(${conditions.join(" AND ")})`;
+  guards.push(`${leftTerm.expression} IS NOT DISTINCT FROM ${rightTerm.expression}`);
+  return `COALESCE((${guards.join(" AND ")}), FALSE)`;
 };
 
 /**
@@ -1217,8 +1357,10 @@ const buildSelectAndGroupBy = (
       }
 
       const colName = `"${term}"`;
-      if (isTripleValueBinding(binding)) {
-        const projection = valueProjectionExpressions(binding.alias);
+      if (isTripleValueBinding(binding) || isBoundBinding(binding)) {
+        const projection = isBoundBinding(binding)
+          ? boundProjectionExpressions(binding)
+          : valueProjectionExpressions(binding.alias);
         const index = valueColumnMap.size;
         const columns: CompiledValueColumns = {
           category: `_triplex_value_${index}_category`,
@@ -1310,8 +1452,12 @@ export const compile = (
   options: CompileOptions = {},
 ): CompiledQuery => {
   const query = assertDatalogQuery(input);
+  assertQueryBasis(query, options.basis);
   const startTime = includeMetrics ? performance.now() : 0;
-  const ctx = createContext(dialect);
+  const ctx = createContext(
+    dialect,
+    query.validTime === "all" ? { ...options.basis, validAt: undefined } : options.basis,
+  );
   const { find, where, aggregate, having, orderBy, limit, offset, optionalProjection } = query;
   const { patterns, predicates, notClauses, orClauses } = classifyClauses(where, {
     allowRuleApplications: false,
@@ -1323,7 +1469,7 @@ export const compile = (
 
   // Compile patterns first (establishes bindings)
   patterns.forEach((pattern, idx) => {
-    const alias = compilePattern(pattern, ctx, idx === 0);
+    const alias = compilePattern(planIntervalPattern(pattern, predicates), ctx, idx === 0);
     ctx.patternAliases.set(idx, alias);
   });
 
@@ -1376,7 +1522,7 @@ export const compile = (
   ]
     .filter(Boolean)
     .join("\n");
-  const sql = applyTemporalBasis(currentSql, options.basis);
+  const sql = currentSql;
 
   const result: CompiledQuery = {
     sql,
@@ -1535,7 +1681,7 @@ const compileRuleDefinition = (rule: Rule, ctx: CompilerContext): string => {
 
       if (fromParts.length === 0) {
         fromParts.push(`triples ${alias}`);
-        allConditions.push(`${alias}.retracted_at IS NULL`);
+        allConditions.push(visibility(alias, ctx, attribute));
 
         // Handle entity
         if (isVariable(entity)) {
@@ -1560,7 +1706,7 @@ const compileRuleDefinition = (rule: Rule, ctx: CompilerContext): string => {
         }
       } else {
         // JOIN to the triples table
-        const joinConditions: string[] = [`${alias}.retracted_at IS NULL`];
+        const joinConditions: string[] = [visibility(alias, ctx, attribute)];
 
         // Handle entity - check if it should join to a previous binding
         if (isVariable(entity)) {
@@ -1693,7 +1839,7 @@ const compileRecursiveCTE = (ruleName: string, rules: Rule[], ctx: CompilerConte
     // WHERE t.attribute = ':attr' AND t.retracted_at IS NULL AND r.depth < maxDepth
 
     const conditions: string[] = [
-      `t.retracted_at IS NULL`,
+      visibility("t", ctx, attribute),
       textScalarTypeCondition("t"),
       `r.depth < ${ctx.collector.add(maxDepth)}`,
     ];
@@ -1822,6 +1968,7 @@ export const compileWithRules = (
   options: CompileOptions = {},
 ): CompiledQuery => {
   const query = assertDatalogQuery(input);
+  assertQueryBasis(query, options.basis);
   const { rules } = query;
 
   // If no rules, use the standard compiler
@@ -1831,7 +1978,10 @@ export const compileWithRules = (
 
   const startTime = includeMetrics ? performance.now() : 0;
 
-  const ctx = createContext(dialect);
+  const ctx = createContext(
+    dialect,
+    query.validTime === "all" ? { ...options.basis, validAt: undefined } : options.basis,
+  );
   const { find, where, aggregate, having, orderBy, limit, offset } = query as DatalogQuery & {
     having?: readonly HavingClause[];
     orderBy?: readonly OrderBySpec[];
@@ -1858,7 +2008,7 @@ export const compileWithRules = (
 
   // Compile patterns first (establishes bindings)
   patterns.forEach((pattern, idx) => {
-    const alias = compilePattern(pattern, ctx, idx === 0);
+    const alias = compilePattern(planIntervalPattern(pattern, predicates), ctx, idx === 0);
     ctx.patternAliases.set(idx, alias);
   });
 
@@ -1935,7 +2085,7 @@ export const compileWithRules = (
   ]
     .filter(Boolean)
     .join("\n");
-  const sql = applyTemporalBasis(currentSql, options.basis);
+  const sql = currentSql;
 
   const result: CompiledQuery = {
     sql,

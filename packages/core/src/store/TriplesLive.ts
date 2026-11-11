@@ -1,3 +1,4 @@
+import { assertQueryBasis, queryBasisForView, resolveQueryBasis } from "../datalog/temporal.js";
 /**
  * TriplesLive — the canonical `Triples` implementation over `StorageAdapter`
  * plus `QueryExecutor`.
@@ -195,7 +196,11 @@ export const TriplesLive = Layer.effect(
           ),
         query: (q, options) =>
           Effect.all([validateDatalogQuery(q), basis(options)]).pipe(
-            Effect.flatMap(([validated, resolved]) => executor.execute(validated, false, resolved)),
+            Effect.flatMap(([validated, resolved]) =>
+              queryBasisForView(validated, resolved, options).pipe(
+                Effect.flatMap((queryBasis) => executor.execute(validated, false, queryBasis)),
+              ),
+            ),
             Effect.map((response) => response.results),
           ),
       };
@@ -786,13 +791,29 @@ export const TriplesLive = Layer.effect(
 
     const queryAll = (q: DatalogQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
-        const basis = resolveTemporalBasis(options?.basis, yield* now);
-        return yield* executor.execute(q, options?.debug ?? false, basis);
+        const query = yield* validateDatalogQuery(q);
+        const currentTime = yield* now;
+        const basis = yield* Effect.try({
+          try: () => resolveQueryBasis(query, options?.basis, currentTime),
+          catch: (cause) =>
+            cause instanceof DatalogValidationError
+              ? cause
+              : new DatalogValidationError({ message: String(cause), query: q }),
+        });
+        const recordedPosition = basis.recordedPosition ?? (yield* adapter.currentCommitPosition());
+        return yield* executor.execute(query, options?.debug ?? false, {
+          ...basis,
+          recordedPosition,
+        });
       }).pipe(Effect.withSpan("triples.query"));
 
     const queryPage = (q: WrappedQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
         const query = yield* validateWrappedQuery(q);
+        yield* Effect.try({
+          try: () => assertQueryBasis(query.inner, options?.basis),
+          catch: (cause) => cause as DatalogValidationError,
+        });
         const currentTime = yield* now;
         const recordedPosition = yield* adapter.currentCommitPosition();
         const prepared = yield* Effect.try({
@@ -805,7 +826,7 @@ export const TriplesLive = Layer.effect(
               scope: runtime.scope,
             }),
           catch: (cause) =>
-            cause instanceof PaginationCursorError
+            cause instanceof PaginationCursorError || cause instanceof DatalogValidationError
               ? cause
               : new PaginationCursorError({
                   reason: "malformed",

@@ -13,7 +13,7 @@
 import { Context, Effect } from "effect";
 import type { DatalogQueryError, ReadError } from "../errors/index.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
-import type { ResolvedTemporalBasis } from "../Temporal.js";
+import type { QueryTemporalBasis as ResolvedTemporalBasis } from "../datalog/temporal.js";
 import type { PaginationValue } from "../Pagination.js";
 
 /**

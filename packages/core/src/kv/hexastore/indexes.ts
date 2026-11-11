@@ -12,7 +12,7 @@
  */
 
 import type { TuplePart } from "./tuple.js";
-import { encodeTuple, tString, tMax } from "./tuple.js";
+import { encodeTuple, tString, tNumber, tMax } from "./tuple.js";
 import { concat, increment } from "../kv/encoding.js";
 
 // ─── Index Prefixes ────────────────────────────────────────────────────────
@@ -46,6 +46,50 @@ export const liveFactRange = (entity: string, attribute?: string) => {
     encodeTuple(tString(entity), ...(attribute === undefined ? [] : [tString(attribute)])),
   );
   return { start, end: increment(start) };
+};
+
+/** Historical interval access paths; retractions retain entries. */
+export const INTERVAL_FROM_PREFIX = new Uint8Array([0x07]);
+export const INTERVAL_TO_PREFIX = new Uint8Array([0x08]);
+export const INTERVAL_READY_KEY = new Uint8Array([0x27, 1]);
+export const INTERVAL_CURSOR_KEY = new Uint8Array([0x27, 2]);
+export const intervalKey = (attribute: string, bound: "from" | "to", value: number, id: string) =>
+  concat(
+    bound === "from" ? INTERVAL_FROM_PREFIX : INTERVAL_TO_PREFIX,
+    encodeTuple(tString(attribute), tNumber(value === 0 ? 0 : value), tString(id)),
+  );
+
+export interface IntervalRange {
+  readonly bound: "from" | "to";
+  readonly lower?: { readonly value: number; readonly inclusive: boolean };
+  readonly upper?: { readonly value: number; readonly inclusive: boolean };
+}
+export const intervalRange = (attribute: string, range: IntervalRange) => {
+  const prefix = concat(
+    range.bound === "from" ? INTERVAL_FROM_PREFIX : INTERVAL_TO_PREFIX,
+    encodeTuple(tString(attribute)),
+  );
+  if (
+    range.lower &&
+    range.upper &&
+    (range.lower.value > range.upper.value ||
+      (range.lower.value === range.upper.value &&
+        (!range.lower.inclusive || !range.upper.inclusive)))
+  ) {
+    return { start: prefix, end: prefix };
+  }
+  const low =
+    range.lower === undefined
+      ? prefix
+      : concat(prefix, encodeTuple(tNumber(range.lower.value === 0 ? 0 : range.lower.value)));
+  const high =
+    range.upper === undefined
+      ? increment(prefix)
+      : concat(prefix, encodeTuple(tNumber(range.upper.value === 0 ? 0 : range.upper.value)));
+  return {
+    start: range.lower?.inclusive === false ? increment(low) : low,
+    end: range.upper?.inclusive === true ? increment(high) : high,
+  };
 };
 
 /** TripleId → full triple data */

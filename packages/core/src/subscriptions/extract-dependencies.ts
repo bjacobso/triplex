@@ -6,7 +6,8 @@
  */
 
 import {
-  isPatternClause,
+  isFactPattern,
+  normalizePattern,
   isNotClause,
   isOrClause,
   isRuleApplication,
@@ -111,8 +112,8 @@ export function extractDependencies(query: DatalogQuery): QueryDependencies {
       // Predicate clauses (>, <, =, etc.) don't add read dependencies
       return;
     }
-    if (isPatternClause(clause)) {
-      processPatternClause(clause);
+    if (isFactPattern(clause)) {
+      processPatternClause(normalizePattern(clause));
     } else if (isNotClause(clause)) {
       processNotClause(clause);
     } else if (isOrClause(clause)) {

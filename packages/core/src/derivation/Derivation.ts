@@ -1,3 +1,4 @@
+import { hasIntervalPatterns } from "../datalog/schema.js";
 import { Data, Effect, Option, Schema } from "effect";
 
 import type { ContentId } from "../content/ContentId.js";
@@ -10,6 +11,7 @@ import type { Triple } from "../Triple.js";
 import type { TransactionRecord, TriplesService } from "../store/Triples.js";
 import { SEALED_BINDING_PREFIX, sealedBinding, type TripleValue } from "../Value.js";
 import { Sensitivity } from "../sensitive/Sensitive.js";
+import { DatalogValidationError } from "../errors/index.js";
 import type { DatalogQueryError, ReadError } from "../errors/index.js";
 import { extractDependencies } from "../subscriptions/extract-dependencies.js";
 import * as TypeExpr from "../config/TypeExpr.js";
@@ -96,6 +98,8 @@ export const make = (
       });
     }
     if (
+      input.query.validTime === "all" ||
+      hasIntervalPatterns(input.query.where) ||
       input.query.aggregate?.length ||
       input.query.rules?.length ||
       input.query.limit !== undefined ||
@@ -106,7 +110,7 @@ export const make = (
     ) {
       return yield* new DefinitionError({
         message:
-          "Provenance derivations currently support complete structural Datalog queries without rules, disjunction, aggregation, limit, or offset",
+          "Provenance derivations currently support complete structural Datalog queries without interval patterns, all-time mode, rules, disjunction, aggregation, limit, or offset",
       });
     }
     const discovered = extractDependencies(input.query);
@@ -444,6 +448,12 @@ export const evaluate = (
   | CandidateConflictError
 > =>
   Effect.gen(function* () {
+    if (definition.query.validTime === "all" || hasIntervalPatterns(definition.query.where)) {
+      return yield* new DatalogValidationError({
+        query: definition.query,
+        message: "Exact derivation provenance does not support interval patterns or validTime all",
+      });
+    }
     // With sensitive attributes, plan the query once (rejecting unsupported
     // uses and rewriting plaintext constants to blind tokens) and withhold
     // sealed value variables from the internal provenance projection.

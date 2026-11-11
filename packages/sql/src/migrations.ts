@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { MigrationError } from "@triplex-build/triplex/internal";
 import {
+  INTERVAL_HISTORY_INDEX_DDLS,
   LIVE_PRECONDITION_INDEX_POSTGRES_DDL,
   TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL,
   TRIPLES_TABLE_DDL,
@@ -91,6 +92,16 @@ export const migrations: readonly Migration[] = [
     name: "triplex_transaction_entity_prefix_index",
     dialects: { pg: [TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL, "ANALYZE triples"] },
     up: [],
+  },
+  {
+    version: 8,
+    name: "triplex_interval_history_indexes",
+    dialects: {
+      pg: [
+        "ALTER TABLE triples ALTER COLUMN valid_from TYPE DOUBLE PRECISION, ALTER COLUMN valid_to TYPE DOUBLE PRECISION",
+      ],
+    },
+    up: INTERVAL_HISTORY_INDEX_DDLS,
   },
 ];
 

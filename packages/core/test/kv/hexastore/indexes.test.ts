@@ -236,3 +236,18 @@ describe("prefixRange", () => {
     expect(compare(start, end)).toBeLessThan(0);
   });
 });
+
+import { intervalRange } from "../../../src/kv/hexastore/indexes.js";
+it("represents contradictory interval predicates as an empty valid KV range", () => {
+  const range = intervalRange(":expiry", {
+    bound: "to",
+    lower: { value: 20, inclusive: true },
+    upper: { value: 10, inclusive: false },
+  });
+  expect(range.start).toEqual(range.end);
+});
+
+import { intervalKey } from "../../../src/kv/hexastore/indexes.js";
+it("canonicalizes signed zero in interval index keys", () => {
+  expect(intervalKey(":expiry", "from", -0, "id")).toEqual(intervalKey(":expiry", "from", 0, "id"));
+});

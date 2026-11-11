@@ -5,7 +5,10 @@ import {
   WrappedQuery as WrappedQuerySchema,
   isNotClause,
   isOrClause,
-  isPatternClause,
+  isFactPattern,
+  normalizePattern,
+  patternTerms,
+  type FactPattern,
   isPredicateClause,
   isRuleApplication,
   isTypedConstant,
@@ -141,8 +144,8 @@ const decodeQuery = (input: unknown): DatalogQuery => {
   return decoded.success;
 };
 
-const variablesInPattern = (pattern: PatternClause): readonly string[] =>
-  pattern.filter(isVariable);
+const variablesInPattern = (pattern: FactPattern): readonly string[] =>
+  patternTerms(pattern).filter(isVariable);
 
 const requireBoundTerms = (
   clause: PredicateClause,
@@ -166,6 +169,7 @@ const validatePredicate = (
   if (!orderedPredicateOps.has(clause[0])) return;
 
   for (const term of clause.slice(1)) {
+    if (term === null) continue;
     if (isVariable(term)) {
       if (!numericBindings.has(term)) {
         invalid(
@@ -203,6 +207,7 @@ const validateAggregateEquality = (
   if (!leftIsAggregate && !rightIsAggregate) return;
 
   const requireNumeric = (term: PredicateClause[1]): void => {
+    if (term === null) return;
     if (isVariable(term)) {
       if (!numericBindings.has(term)) {
         invalid(
@@ -239,11 +244,14 @@ const validateNot = (
   const localNumericBindings = new Set(outerNumericBindings);
   const inner = clause.slice(1) as readonly (PatternClause | PredicateClause)[];
   for (const candidate of inner) {
-    if (isPatternClause(candidate as Clause)) {
-      for (const variable of variablesInPattern(candidate as PatternClause)) {
+    if (isFactPattern(candidate as Clause)) {
+      for (const variable of variablesInPattern(candidate as FactPattern)) {
         localBindings.add(variable);
       }
-      const value = (candidate as PatternClause)[2];
+      const pattern = normalizePattern(candidate as FactPattern);
+      const value = pattern[2];
+      for (const bound of Object.values(pattern.valid ?? {}))
+        if (isVariable(bound)) localNumericBindings.add(bound);
       if (isVariable(value)) localNumericBindings.add(value);
     }
   }
@@ -324,16 +332,49 @@ const validateRules = (query: DatalogQuery): ReadonlySet<string> => {
 };
 
 const validateSemantics = (query: DatalogQuery): void => {
+  if (query.validTime === "all" && query.optionalProjection)
+    invalid(query, "optionalProjection is not supported with validTime all");
+  const validateTypes = (
+    clauses: readonly Clause[],
+    outerIdentities: ReadonlySet<string>,
+    outerBounds: ReadonlySet<string>,
+  ): void => {
+    const identities = new Set(outerIdentities),
+      bounds = new Set(outerBounds);
+    for (const clause of clauses) {
+      if (isFactPattern(clause)) {
+        const pattern = normalizePattern(clause);
+        for (const term of [pattern[0], pattern[1], pattern[3]])
+          if (isVariable(term)) identities.add(term);
+        for (const term of Object.values(pattern.valid ?? {}))
+          if (isVariable(term)) bounds.add(term);
+      } else if (isRuleApplication(clause))
+        for (const term of clause.slice(1)) if (isVariable(term)) identities.add(term);
+    }
+    for (const variable of bounds)
+      if (identities.has(variable))
+        invalid(query, `Interval variable ${variable} cannot also be a string identity`);
+    for (const clause of clauses) {
+      if (isNotClause(clause)) validateTypes(clause.slice(1) as Clause[], identities, bounds);
+      else if (isOrClause(clause))
+        for (const alternative of normalizeOrAlternatives(clause))
+          validateTypes([alternative], identities, bounds);
+    }
+  };
+  validateTypes(query.where, new Set(), new Set());
   const ruleNames = validateRules(query);
   const positiveBindings = new Set<string>();
   const numericBindings = new Set<string>();
   let hasPositiveRelation = false;
 
   for (const clause of query.where) {
-    if (isPatternClause(clause)) {
+    if (isFactPattern(clause)) {
+      const pattern = normalizePattern(clause);
+      for (const bound of Object.values(pattern.valid ?? {}))
+        if (isVariable(bound)) numericBindings.add(bound);
       hasPositiveRelation = true;
       for (const variable of variablesInPattern(clause)) positiveBindings.add(variable);
-      if (isVariable(clause[2])) numericBindings.add(clause[2]);
+      if (isVariable(pattern[2])) numericBindings.add(pattern[2]);
     } else if (isRuleApplication(clause)) {
       hasPositiveRelation = true;
       if (!ruleNames.has(clause[0])) {
@@ -524,6 +565,8 @@ export const validateDatalogQuery = (
 
 /** Validate wrapper shape and ensure filters/order reference projected inner columns. */
 export const assertWrappedQuery = (input: unknown): WrappedQuery => {
+  if (typeof input === "object" && input !== null && "validTime" in input)
+    invalid(input, "Wrapped query validTime belongs on inner");
   const decoded = Schema.decodeUnknownResult(WrappedQuerySchema)(input);
   if (Result.isFailure(decoded)) {
     return invalid(
