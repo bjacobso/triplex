@@ -1,6 +1,6 @@
 # Current state
 
-This document is the concise maturity contract for Triplex as of September 2026. The README
+This document is the concise maturity contract for Triplex as of November 2026. The README
 explains how to use the system, [Host integration](/host-integration) defines application
 boundaries, [Custom runtimes](/custom-runtimes) defines adapter composition, and the roadmap tracks
 work that is not complete.
@@ -76,6 +76,17 @@ work that is not complete.
   default workerd test exercises two-tenant isolation, restart persistence, lifecycle fencing, and
   generation-safe recreation.
 
+## Backend and API policy
+
+New surface targets in-memory KV, SQLite and PostgreSQL. KV and SQLite are supported;
+PostgreSQL remains a pre-1.0 production candidate. Cloudflare and FoundationDB are frozen,
+experimental backends: they must keep compiling and their existing tests must keep passing,
+but new features do not have to cover them.
+
+Triplex is greenfield before 1.0. Breaking public API changes are allowed when they make the API
+right. Update callers and record each break in a Changeset rather than retaining compatibility
+shims, deprecations or opt-in flags for old shapes.
+
 ## Backend maturity
 
 | Backend       | Bitemporal `Triples` | Shared conformance | Default CI | Intended use today             |
@@ -83,8 +94,8 @@ work that is not complete.
 | In-memory KV  | Yes                  | Yes                | Yes        | Tests, browser, ephemeral data |
 | SQLite        | Yes                  | Yes                | Yes        | Supported local persistence    |
 | PostgreSQL    | Yes                  | Yes                | Yes        | Pre-1.0 production candidate   |
-| Cloudflare DO | Yes                  | Harness + workerd  | Yes        | Experimental reference hosting |
-| FoundationDB  | Yes                  | Native + shared    | Yes        | Experimental                   |
+| Cloudflare DO | Yes                  | Harness + workerd  | Yes        | Experimental, frozen           |
+| FoundationDB  | Yes                  | Native + shared    | Yes        | Experimental, frozen           |
 
 PostgreSQL includes validated logical database IDs, deterministic safely quoted schema names, and
 per-pool-connection schema binding. Its host-owned-client and database-scoped paths are covered by
