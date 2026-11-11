@@ -13,6 +13,8 @@ Start or resume one persistent goal to complete GOAL.md in this repository.
 Read its requirements, ledger, and session handoff, then inspect the working tree
 and existing PRs before changing anything. Preserve and resume unfinished work.
 Treat GOAL.md as the authoritative scope and update it as each item progresses.
+Honor the latest owner direction: TX1.3/TX1.4 production redesign is deferred.
+Do not reopen its contract-choice question or resume it without a new explicit request.
 Work through every eligible item in order, with one PR per package or TX1 step.
 Report each PR and continue automatically; do not stop merely because a PR was
 opened. Keep unresolved design decisions in draft PRs, record their blockers,
@@ -36,6 +38,25 @@ Completion means reviewable PRs, reproducible evidence, an RFC, and filed issues
 it does not require PRs to be merged or packages to be released. Do not declare
 completion while required implementation, validation, or external deliverables
 remain blocked. Record partial progress and the specific remaining work honestly.
+
+## Latest owner direction — keep the current transaction model
+
+The owner said "lets just keep things simple for now" after discussing retaining
+the existing safe allocator and whole-command retries rather than approving #76.
+This explicitly supersedes the earlier request to choose a staged receipt/read
+contract and the pending-question handoff entries retained below as history.
+
+- Keep the existing transaction/position guarantees and typed full-transaction
+  retries. Retry the complete command/outer transaction when appropriate; do not
+  retry only a nested savepoint or weaken isolation/ordered visibility.
+- **Defer TX1.3/TX1.4 production work:** staged allocation, scope registry/planner
+  and ordered-publication redesign. No new public protocol or WorldVM architecture
+  change is authorized. Do not continue asking for the deferred contract choice.
+- Preserve every existing PR, draft, issue and evidence artifact. Do not merge,
+  close, release, publish or deploy anything as part of this direction.
+- Report the reviewable deliverables and stop. Resume deferred work only after a
+  new explicit owner request. The original zero-allocation-conflict target remains
+  **unmet**; this deferral does not mean the original full goal was achieved.
 
 ## Context
 
@@ -96,29 +117,30 @@ required and none may be edited.
 
 ## Ordered work ledger
 
-Statuses: `pending`, `active`, `pr-open`, `blocked`, `refuted`, `not-needed`.
+Statuses: `pending`, `active`, `pr-open`, `blocked`, `deferred`, `refuted`, `not-needed`.
+`deferred` means explicitly excluded from current execution by the owner, not achieved.
 `pr-open` requires its acceptance evidence and checks; otherwise describe missing
 work explicitly. RFC approval and issue-only work do not authorize implementation.
 
-| Order | Item                                   | Status  | PR / issue / evidence                                                                                                      | Dependency or blocker                                                                                |
-| ----- | -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 1     | TX8: schema guard and Postgres fixture | pr-open | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                                      | Browser baseline failures documented                                                                 |
-| 2     | TX2: public commit-position reads      | pr-open | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                                      | Based on TX8 PR #59                                                                                  |
-| 2b    | TX2 read-surface position follow-up    | pr-open | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                                 | Based on #66; host/HTTP/dashboard local checks pass                                                  |
-| 3     | TX1.1: contention baseline benchmark   | pr-open | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                             | Based on TX2 PR #60                                                                                  |
-| 4     | TX1.2: typed retryable SQL conflicts   | pr-open | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                            | Based on benchmark PR #61                                                                            |
-| 5     | TX1.3: late position allocation        | blocked | [Draft #63](https://github.com/bjacobso/triplex/pull/63), [investigation #76](https://github.com/bjacobso/triplex/pull/76) | Owner receipt/read-profile decision pending; snapshot counterexample proved; production target unmet |
-| 6     | TX1.4: scoped concurrency, if needed   | blocked | [Draft #64](https://github.com/bjacobso/triplex/pull/64), [investigation #77](https://github.com/bjacobso/triplex/pull/77) | Seven mechanism tests pass; full planner and publication contract/proof remain                       |
-| 7     | TX4: inbox/outbox                      | pr-open | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                                      | Based on #64; native FDB validated in #78                                                            |
-| 8     | TX5: cheap preconditions               | pr-open | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                                      | Based on #65; native FDB/backfill validated in #78                                                   |
-| 9     | TX6: filtered transaction feed         | pr-open | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                                      | Based on #67; native prefix oracle validated in #78                                                  |
-| 10    | TX3: host-sealing/erasure RFC only     | pr-open | [Draft RFC #69](https://github.com/bjacobso/triplex/pull/69)                                                               | RFC deliverable ready; no implementation authorized                                                  |
-| 11    | TX7: change-journal issue              | pr-open | [Issue #70](https://github.com/bjacobso/triplex/issues/70)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
-| 12    | TX9: BlobStore issue                   | pr-open | [Issue #71](https://github.com/bjacobso/triplex/issues/71)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
-| 13    | Direct-read pagination issue           | pr-open | [Issue #72](https://github.com/bjacobso/triplex/issues/72)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
-| 14    | Canonical-JSON public encoding issue   | refuted | [Docs issue #74](https://github.com/bjacobso/triplex/issues/74)                                                            | Issue-only audit/evidence retained; no runtime implementation                                        |
-| 15    | Datalog valid-time binding issue       | pr-open | [Issue #73](https://github.com/bjacobso/triplex/issues/73)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                        |
-| 16    | Native FoundationDB coverage follow-up | pr-open | [PR #78](https://github.com/bjacobso/triplex/pull/78), [report](test/evidence/foundationdb-native.md)                      | 19 native tests pass on arm64 and Linux x86_64; all hosted checks green                              |
+| Order | Item                                   | Status   | PR / issue / evidence                                                                                                      | Dependency or blocker                                                                           |
+| ----- | -------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1     | TX8: schema guard and Postgres fixture | pr-open  | [PR #59](https://github.com/bjacobso/triplex/pull/59), [report](test/evidence/tx8.md)                                      | Browser baseline failures documented                                                            |
+| 2     | TX2: public commit-position reads      | pr-open  | [PR #60](https://github.com/bjacobso/triplex/pull/60), [report](test/evidence/tx2.md)                                      | Based on TX8 PR #59                                                                             |
+| 2b    | TX2 read-surface position follow-up    | pr-open  | [PR #67](https://github.com/bjacobso/triplex/pull/67), [report](test/evidence/tx2-host.md)                                 | Based on #66; host/HTTP/dashboard local checks pass                                             |
+| 3     | TX1.1: contention baseline benchmark   | pr-open  | [PR #61](https://github.com/bjacobso/triplex/pull/61), [report](test/evidence/tx1-baseline.md)                             | Based on TX2 PR #60                                                                             |
+| 4     | TX1.2: typed retryable SQL conflicts   | pr-open  | [PR #62](https://github.com/bjacobso/triplex/pull/62), [report](test/evidence/tx1-conflicts.md)                            | Based on benchmark PR #61                                                                       |
+| 5     | TX1.3: late position allocation        | deferred | [Draft #63](https://github.com/bjacobso/triplex/pull/63), [investigation #76](https://github.com/bjacobso/triplex/pull/76) | Owner chose existing safe allocator and full-command retries; original performance target unmet |
+| 6     | TX1.4: scoped concurrency, if needed   | deferred | [Draft #64](https://github.com/bjacobso/triplex/pull/64), [investigation #77](https://github.com/bjacobso/triplex/pull/77) | Owner deferred production staging/registry/publication redesign; diagnostics preserved          |
+| 7     | TX4: inbox/outbox                      | pr-open  | [PR #65](https://github.com/bjacobso/triplex/pull/65), [report](test/evidence/tx4.md)                                      | Based on #64; native FDB validated in #78                                                       |
+| 8     | TX5: cheap preconditions               | pr-open  | [PR #66](https://github.com/bjacobso/triplex/pull/66), [report](test/evidence/tx5.md)                                      | Based on #65; native FDB/backfill validated in #78                                              |
+| 9     | TX6: filtered transaction feed         | pr-open  | [PR #68](https://github.com/bjacobso/triplex/pull/68), [report](test/evidence/tx6.md)                                      | Based on #67; native prefix oracle validated in #78                                             |
+| 10    | TX3: host-sealing/erasure RFC only     | pr-open  | [Draft RFC #69](https://github.com/bjacobso/triplex/pull/69)                                                               | RFC deliverable ready; no implementation authorized                                             |
+| 11    | TX7: change-journal issue              | pr-open  | [Issue #70](https://github.com/bjacobso/triplex/issues/70)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                   |
+| 12    | TX9: BlobStore issue                   | pr-open  | [Issue #71](https://github.com/bjacobso/triplex/issues/71)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                   |
+| 13    | Direct-read pagination issue           | pr-open  | [Issue #72](https://github.com/bjacobso/triplex/issues/72)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                   |
+| 14    | Canonical-JSON public encoding issue   | refuted  | [Docs issue #74](https://github.com/bjacobso/triplex/issues/74)                                                            | Issue-only audit/evidence retained; no runtime implementation                                   |
+| 15    | Datalog valid-time binding issue       | pr-open  | [Issue #73](https://github.com/bjacobso/triplex/issues/73)                                                                 | Issue-only audit/evidence retained; no runtime implementation                                   |
+| 16    | Native FoundationDB coverage follow-up | pr-open  | [PR #78](https://github.com/bjacobso/triplex/pull/78), [report](test/evidence/foundationdb-native.md)                      | 19 native tests pass on arm64 and Linux x86_64; all hosted checks green                         |
 
 ### TX8 — Schema-version guard and Postgres fixture
 
@@ -286,35 +308,29 @@ not applicable rather than implying an implementation exists.
 - Canonical ledger: this checkout, currently `test/foundationdb-operational-conformance`. Carry the
   ledger forward on the integration tip as the PR stack grows. Initial plan commit
   is also preserved on `goal/worldvm-operational-primitives` (`c59d7d9`).
-- Goal status: blocked on the allocator receipt/read-profile owner decision. Independent
-  deliverables, including FoundationDB native validation follow-up #78, are reviewable.
-  TX1.3/4 production implementation, cross-adapter proof and benchmark rerun remain undone.
+- Execution status: stopped following explicit owner scope deferral. Keep the
+  existing safe allocator, transaction/position guarantees and typed whole-command
+  retries. TX1.3/TX1.4 production redesign is deferred, not awaiting a contract choice.
+  All independent deliverables remain reviewable; the original full goal is not achieved.
 - Integration tip / PR stack: `test/foundationdb-operational-conformance` (#78),
   based on `investigate/tx1-invariant-scopes` (#77), based on
   `investigate/tx1-ordered-publication` (#76, includes test-glob fix 3149f11), based on
   `docs/operational-followup-issues` (#75), based on `docs/tx3-host-sealing-rfc` (#69),
   based on `feat/tx6-entity-filtered-feed` (#68), then #67 → #66 → #65 → #64 → #63
   → #62 → #61 → #60 → #59. No merges performed.
-- Next action: await the pending owner answer before implementing a new staged
-  profile. #78 source b443a4b passes every hosted check, including its new native
-  FoundationDB job (19 tests, no skips, 59.97s on Linux x86_64); local arm64 native
-  suite also passes 19. Root/type checks, 11 tarballs/clean consumer and 45 PG pass.
-  Recommended pending option in #76: opt-in commit-owned callback with pending
-  receipts, final positions after native commit, committed-only read paths and
-  private-table role controls. Do not weaken ordering or treat the proposed filter
-  as a complete protocol. No remaining independent deliverable authorizes code
-  past that gate; RFC-only and issue-only proposals stay unimplemented.
-- Decisions: owner chose investigation of staged ordered publication with
-  database-owned invariant scopes. Investigate it after independent deliverables.
-  Strict ordering, coherent older-writer snapshots and mandatory invariant scope
-  authority remain proof obligations. Do not weaken them or treat the direction
-  choice as proof that an implementable protocol exists.
-- Outstanding prerequisites: the new receipt/read-profile owner decision is pending.
-  Docker and GitHub authentication are available. Browser
-  screenshot baselines fail on untouched main as described in the TX8 report.
-  FoundationDB native coverage now runs using the verified 7.3.75 client extracted
-  under /tmp with direct Node/DYLD_LIBRARY_PATH; see the new report for exact commands.
-  Nothing was installed system-wide. The hosted Linux job now passes all 19 tests; retained evidence is linked below.
+- Next action: none under the current execution scope. Report and stop. Do not
+  reopen the deferred receipt/read-contract question. Resume TX1.3/TX1.4 only on
+  a new explicit owner request; preserve all existing PRs and evidence meanwhile.
+- Decision: owner chose "keep things simple for now": retain the existing safe
+  allocator and typed full-transaction retries. No new staging protocol, scope
+  registry or WorldVM architecture change. The original 16-writer zero-allocation-
+  conflict target remains unmet; ordering, snapshot and atomicity guarantees remain.
+- Reviewable deliverables: implementations #59/#60/#62/#65–#68/#78, baseline #61,
+  RFC #69, issue evidence #75 and issues #70–#74. Design/diagnostic drafts #63/#64/
+  #76/#77 are preserved as investigations, without production implementation approval.
+- Validation retained: root/type checks, 11-tarball clean consumer, 45 PostgreSQL
+  tests, and 19 native FoundationDB tests on arm64/Linux x86_64. Historical exact
+  revisions/commands and CI evidence remain linked; no runtime code changes in this update.
 
 Append dated progress entries below. Update the ledger and handoff before ending
 a session, after each PR/issue, and whenever evidence changes a decision. Resume
@@ -805,3 +821,18 @@ All independent implementation/RFC/issue deliverables are reviewable; remaining
 TX1 production work and benchmark rerun depend on the owner contract choice.
 The goal is therefore blocked, not complete. Resume from this canonical branch
 when the owner answers the existing question; preserve all constraints and PRs.
+
+### Owner scope deferral — stop after recording
+
+Owner direction received from the status conversation: "lets just keep things
+simple for now," specifically retaining the existing safe allocator and whole-
+command retries instead of approving #76. Recorded TX1.3/TX1.4 as deferred and
+superseded the pending contract-choice question. No new public protocol, staging,
+scope registry, publication redesign or WorldVM architecture change was made.
+
+All existing PRs were verified OPEN before this ledger-only update and are
+preserved; no merge, close or release was performed. Reviewable implementations,
+benchmark, RFC, issues and diagnostic evidence remain linked in the ledger.
+The original zero-allocation-conflict target remains unmet and the original full
+goal is not claimed achieved. Current execution stops here under the owner's
+explicit deferral; no further contract-choice prompt is required or authorized.
