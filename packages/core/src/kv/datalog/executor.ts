@@ -1,3 +1,6 @@
+import { assertQueryBasis } from "../../datalog/temporal.js";
+import { planIntervalPattern } from "../../datalog/interval.js";
+import { isFactPattern, normalizePattern } from "../../datalog/schema.js";
 /**
  * KV Datalog query executor.
  *
@@ -18,7 +21,7 @@
 import { Effect, Stream } from "effect";
 import type { KvTripleStore } from "../hexastore/KvTripleStore.js";
 import { isSealedBinding, type TripleValue } from "../../Value.js";
-import type { ResolvedTemporalBasis } from "../../Temporal.js";
+import type { QueryTemporalBasis as ResolvedTemporalBasis } from "../../datalog/temporal.js";
 import {
   type Context,
   type Constant,
@@ -42,7 +45,6 @@ import {
   isNotClause,
   isOrClause,
   isRuleApplication,
-  isPatternClause,
   emptyContext,
 } from "./types.js";
 import { executePattern } from "./pattern.js";
@@ -80,7 +82,12 @@ const innerClausesMatchContext = (
     // Datalog clauses are declarative. Establish every local binding before
     // evaluating predicates, matching the SQL NOT EXISTS compiler.
     for (const pattern of patterns) {
-      current = yield* executePattern(store, pattern, current, asOf);
+      current = yield* executePattern(
+        store,
+        planIntervalPattern(pattern, predicates),
+        current,
+        asOf,
+      );
       if (current.length === 0) return false;
     }
 
@@ -99,7 +106,10 @@ const patternAlternativeMatchesContext = (
   context: Context,
   asOf?: ResolvedTemporalBasis,
 ): Effect.Effect<boolean> =>
-  Effect.map(executePattern(store, pattern, [context], asOf), (matches) => matches.length > 0);
+  Effect.map(
+    executePattern(store, normalizePattern(pattern), [context], asOf),
+    (matches) => matches.length > 0,
+  );
 
 const notClauseInnerClauses = (clause: NotClause): (PatternClause | PredicateClause)[] =>
   clause.slice(1) as (PatternClause | PredicateClause)[];
@@ -129,7 +139,12 @@ const orAlternativeMatchesContext = (
     );
   }
 
-  return patternAlternativeMatchesContext(store, alternative as PatternClause, context, asOf);
+  return patternAlternativeMatchesContext(
+    store,
+    normalizePattern(alternative as import("../../datalog/schema.js").FactPattern),
+    context,
+    asOf,
+  );
 };
 
 /**
@@ -273,7 +288,12 @@ const deriveRulePairs = (
             ? clause[0] === ruleName
               ? applyRulePairs(current, clause, pairs)
               : []
-            : yield* executePattern(store, clause as PatternClause, current, asOf);
+            : yield* executePattern(
+                store,
+                normalizePattern(clause as import("../../datalog/schema.js").FactPattern),
+                current,
+                asOf,
+              );
           if (current.length === 0) break;
         }
         for (const context of current) {
@@ -318,6 +338,7 @@ const executeClause = (
   contexts: readonly Context[],
   rules: readonly Rule[],
   asOf?: ResolvedTemporalBasis,
+  predicates: readonly PredicateClause[] = [],
 ): Effect.Effect<Context[]> => {
   if (isPredicateClause(clause)) {
     return Effect.succeed(
@@ -337,8 +358,13 @@ const executeClause = (
     return executeRules(store, rules, contexts, clause as RuleApplication, asOf);
   }
 
-  if (isPatternClause(clause)) {
-    return executePattern(store, clause as PatternClause, contexts, asOf);
+  if (isFactPattern(clause)) {
+    return executePattern(
+      store,
+      planIntervalPattern(clause as import("../../datalog/schema.js").FactPattern, predicates),
+      contexts,
+      asOf,
+    );
   }
 
   // Unknown clause type — pass through
@@ -387,7 +413,14 @@ const executeWhere = (
     ];
 
     for (const clause of executionOrder) {
-      contexts = yield* executeClause(store, clause, contexts, rules, asOf);
+      contexts = yield* executeClause(
+        store,
+        clause,
+        contexts,
+        rules,
+        asOf,
+        clauses.filter(isPredicateClause),
+      );
       if (contexts.length === 0) break;
     }
 
@@ -499,7 +532,7 @@ const hydrateOptionalProjection = (
           entityFields = new Map<string, Constant | null>();
           const datoms = yield* asOf === undefined
             ? store.getEntity(entityId).pipe(Stream.runCollect)
-            : store.scanCollectTemporalAsync({ entity: entityId }, asOf);
+            : store.scanCollectDatalogAsync({ entity: entityId }, asOf);
           for (const datom of datoms) {
             if (!entityFields.has(datom.attribute)) {
               entityFields.set(datom.attribute, tripleValueToResultValue(datom.value));
@@ -567,7 +600,7 @@ const aggregate = (
     for (const [op, inputVar, outputVar] of aggregates) {
       const values = group
         .map((ctx) => ctx[inputVar])
-        .filter((v): v is Constant => v !== undefined);
+        .filter((v): v is Constant | null => v !== undefined);
 
       row[outputVar] = computeAggregate(op, values);
     }
@@ -578,10 +611,10 @@ const aggregate = (
   return aggregatedResults;
 };
 
-const aggregateValueKey = (value: Constant): string =>
+const aggregateValueKey = (value: Constant | null): string =>
   `${typeof value}:${typeof value === "object" ? JSON.stringify(value) : String(value)}`;
 
-const computeAggregate = (op: string, values: readonly Constant[]): Constant | null => {
+const computeAggregate = (op: string, values: readonly (Constant | null)[]): Constant | null => {
   switch (op) {
     case "count":
       return new Set(values.map(aggregateValueKey)).size;
@@ -718,8 +751,15 @@ export const executeQuery = (
 ): Effect.Effect<QueryResult, DatalogQueryValidationError> => {
   return Effect.gen(function* () {
     const query = yield* validateDatalogQuery(input);
+    yield* Effect.try({
+      try: () => assertQueryBasis(query, options.basis),
+      catch: (cause) => cause as import("../../errors/index.js").DatalogValidationError,
+    });
+    yield* store.ensureIntervalIndexes();
     // 1. Execute WHERE clauses
-    const contexts = yield* executeWhere(store, query.where, rules, options.basis);
+    const queryBasis =
+      query.validTime === "all" ? { ...options.basis, validAt: undefined } : options.basis;
+    const contexts = yield* executeWhere(store, query.where, rules, queryBasis);
 
     // 2. Extract find variables (and aggregate input variables)
     // When aggregation is requested, we must preserve aggregate input variables

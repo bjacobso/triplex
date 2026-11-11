@@ -1627,9 +1627,11 @@ describe("Recursive Datalog Queries", () => {
       expect(plan.queryPlan.steps[0].query).toContain("t0.attribute = ?");
       expect(queryResult.debug?.generatedSql).toContain("t0.valid_from <=");
       expect(queryResult.debug?.generatedSql).toContain("t1.valid_from <=");
-      // Temporal instants are emitted as safe numeric literals, so query
-      // parameters still describe the same logical filters.
-      expect(plan.queryPlan.steps[0].params).toEqual([...(queryResult.debug!.params ?? [])]);
+      // Execution additionally parameterizes its captured recorded cut and valid point.
+      expect(queryResult.debug!.params).toEqual(
+        expect.arrayContaining([...(plan.queryPlan.steps[0].params ?? [])]),
+      );
+      expect(queryResult.results).toEqual([{ "?name": "Alice" }, { "?name": "Charlie" }]);
     });
 
     it("should include compilation metrics", async () => {

@@ -194,7 +194,7 @@ exclusive. Supply either `recordedAt` or `recordedPosition`; giving both is reje
 A position is a non-negative safe integer, with zero selecting the empty cut.
 Position cuts distinguish commits even when their recorded timestamps are identical.
 If both recorded fields are omitted, Triplex uses the latest recorded state; if `validAt` is
-omitted, it uses the runtime's current time. Setting only one axis does not freeze the other.
+omitted, it uses the runtime's current time (except Datalog `validTime: "all"`). Setting only one axis does not freeze the other.
 
 Recorded time is the commit clock. The Triplex transaction boundary assigns it, and there is no
 option to supply or backdate it, so a historical import records everything at the import's commit
@@ -206,14 +206,22 @@ distinguish commits in the same millisecond.
 
 ### Read an assertion's interval
 
-Datalog patterns bind entity, attribute, value, and optionally the asserting transaction. They
-cannot bind an assertion's `validFrom` or `validTo`. Questions such as "which exceptions expire
-within 30 days" have two workarounds:
+Datalog can bind the stored bounds in the same query:
 
-- **Two bases.** Query the same thing at `validAt: t` and at `validAt: t + 30 days`; the bindings
-  present in the first result and absent from the second end inside that window.
-- **Direct reads.** Use `match` or `entity` for the candidate entities and read each `Triple`'s
-  `validTo` (an `Option`).
+```ts
+{ pattern: ["?exception", ":exception/status", "approved", "?tx"],
+  valid: { from: "?start", to: "?end" } }
+```
+
+Bounds are complete stored intervals: finite epoch-millisecond numbers, with `null` for an open
+end. Binding bounds preserves point filtering. Use query-wide `validTime: "all"` to enumerate
+intervals at one recorded cut, without `validAt`. All-time joins do not imply interval overlap,
+and retracted assertions remain absent unless you select an earlier recorded cut.
+
+To ask who asserted a backdated fact, join its fourth-term transaction to `:_tx/actor` in the
+same query. Reserved transaction metadata obeys only the recorded cut and ignores valid-time
+filtering. Other attributes on that entity retain ordinary domain validity; direct fact reads
+keep their existing semantics. See the [worked queries](/datalog#intervals-and-all-time-queries).
 
 Store a date as an ordinary `instant` attribute only when it is domain data in its own right, not to
 duplicate the assertion's interval.

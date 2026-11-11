@@ -5,7 +5,7 @@ import { Context, Data, Effect, Layer, Option, Schema } from "effect";
 import * as CanonicalJson from "../content/CanonicalJson.js";
 import * as ContentIds from "../content/ContentId.js";
 import { unsafe } from "../Branded.js";
-import { isNotClause, isPatternClause } from "../datalog/schema.js";
+import { isNotClause, isPatternClause, hasIntervalPatterns } from "../datalog/schema.js";
 import type {
   DatalogQueryError,
   ReadError,
@@ -55,6 +55,8 @@ export type OverlayError =
   | UnsupportedOverlayDefinitionError;
 
 const patternsUseTransactions = (definition: Definition): boolean =>
+  definition.query.validTime === "all" ||
+  hasIntervalPatterns(definition.query.where) ||
   definition.query.where.some((clause) => {
     if (isPatternClause(clause)) return clause.length === 4;
     if (!isNotClause(clause)) return false;
@@ -122,7 +124,8 @@ export const evaluateOverlay = (
     if (patternsUseTransactions(definition)) {
       return yield* new UnsupportedOverlayDefinitionError({
         definition: definition.id,
-        message: "Hypothetical evaluation does not support transaction-binding clauses",
+        message:
+          "Hypothetical evaluation does not support interval patterns, validTime all, or transaction-binding clauses",
       });
     }
 

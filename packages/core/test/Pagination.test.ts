@@ -148,7 +148,7 @@ describe("paged query cursor contract", () => {
   it.each([
     ["invalid base64", "%%%"],
     ["invalid JSON", Base64Url.encode(new TextEncoder().encode("{"))],
-    ["invalid shape", encoded({ version: 1, queryFingerprint: "x", scopeFingerprint: "y" })],
+    ["invalid shape", encoded({ version: 2, queryFingerprint: "x", scopeFingerprint: "y" })],
   ])("rejects %s with a typed error", (_label, cursor) => {
     expect(() =>
       preparePagination({
@@ -162,7 +162,7 @@ describe("paged query cursor contract", () => {
 
   it("rejects unsupported versions", () => {
     const cursor = encoded({
-      version: 2,
+      version: 3,
       queryFingerprint: "x",
       scopeFingerprint: "y",
       basis: { recordedAt: 100, recordedPosition: 4, validAt: 100 },
@@ -183,7 +183,7 @@ describe("paged query cursor contract", () => {
 
   it("rejects non-finite cursor values and invalid commit positions", () => {
     const cursor = encoded({
-      version: 1,
+      version: 2,
       queryFingerprint: "x",
       scopeFingerprint: "y",
       basis: { recordedAt: 100, recordedPosition: -1, validAt: 100 },

@@ -455,3 +455,118 @@ describe("various value types", () => {
     expect(result!.value).toEqual(blobVal);
   });
 });
+
+describe("history-preserving interval indexes", () => {
+  it("backfills old stores and scans selective bound ranges after retraction", async () => {
+    const datoms = Array.from({ length: 1000 }, (_, i) =>
+      makeDatom({ validFrom: i, validTo: 1000 + i }),
+    );
+    await run(store.assertBatch(datoms));
+    // Simulate an existing store with no interval indexes or ready marker.
+    await run(
+      kv.transact((tx) =>
+        Effect.gen(function* () {
+          for (const prefix of [7, 8, 0x27]) {
+            for (const [key] of yield* Stream.runCollect(
+              tx.getRange({ start: new Uint8Array([prefix]), end: new Uint8Array([prefix + 1]) }),
+            ))
+              yield* tx.delete(key);
+          }
+        }),
+      ),
+    );
+    const reloaded = createKvTripleStore(kv);
+    await run(reloaded.ensureIntervalIndexes());
+    await run(reloaded.retract(datoms[500]!.tripleId, 2000, "tx:2", 2));
+    const pattern = {
+      attribute: ":employee/name",
+      intervalRange: {
+        bound: "to" as const,
+        lower: { value: 1500, inclusive: true },
+        upper: { value: 1501, inclusive: false },
+      },
+    };
+    expect(
+      reloaded.scanCollectDatalog(pattern, { recordedPosition: 1 })?.map((d) => d.tripleId),
+    ).toEqual([datoms[500]!.tripleId]);
+    expect(reloaded.scanCollectDatalog(pattern, { recordedPosition: 2 })).toEqual([]);
+    for (const position of [1, 2]) {
+      const fallback = reloaded
+        .scanCollectDatalog({ attribute: pattern.attribute }, { recordedPosition: position })!
+        .filter((datom) => datom.validTo !== null && datom.validTo >= 1500 && datom.validTo < 1501);
+      expect(reloaded.scanCollectDatalog(pattern, { recordedPosition: position })).toEqual(
+        fallback,
+      );
+    }
+    const startPattern = {
+      attribute: ":employee/name",
+      intervalRange: {
+        bound: "from" as const,
+        lower: { value: 500, inclusive: false },
+        upper: { value: 502, inclusive: true },
+      },
+    };
+    expect(
+      reloaded.scanCollectDatalog(startPattern, { recordedPosition: 1 })?.map((d) => d.validFrom),
+    ).toEqual([501, 502]);
+  });
+});
+
+import { executeQuery } from "../../../src/kv/datalog/executor.js";
+it("batches asynchronous interval metadata reads and scans only range candidates", async () => {
+  const backend = makeTestKvBackend();
+  let candidateCount = 0,
+    batches = 0,
+    historyReads = 0;
+  const {
+    getRangeSync: _syncRange,
+    getSync: _syncGet,
+    setAllStr: _syncSet,
+    ...asyncBackend
+  } = backend;
+  const instrumented: KvBackendService = {
+    ...asyncBackend,
+    getRange: (options) =>
+      backend.getRange(options).pipe(
+        Stream.tap(() =>
+          Effect.sync(() => {
+            candidateCount++;
+          }),
+        ),
+      ),
+    getMany: (keys) => {
+      batches++;
+      return backend.getMany(keys);
+    },
+    get: (key) => {
+      if (key[0] === 0x20) historyReads++;
+      return backend.get(key);
+    },
+  };
+  const indexed = createKvTripleStore(instrumented);
+  await run(
+    indexed.assertBatch(
+      Array.from({ length: 2000 }, (_, i) =>
+        makeDatom({ attribute: ":expiry", validFrom: i, validTo: 5000 + i }),
+      ),
+    ),
+  );
+  await run(indexed.ensureIntervalIndexes());
+  indexed.clearCache();
+  candidateCount = batches = historyReads = 0;
+  const answer = await Effect.runPromise(
+    executeQuery(indexed, {
+      validTime: "all",
+      find: ["?end"],
+      where: [
+        { pattern: ["?e", ":expiry", "?value"], valid: { to: "?end" } },
+        [">=", "?end", 6000],
+        ["<", "?end", 6010],
+      ],
+    }),
+  );
+  expect(answer.results).toHaveLength(10);
+  expect(candidateCount).toBe(10);
+  expect(batches).toBe(1);
+  expect(historyReads).toBe(0);
+});

@@ -61,9 +61,10 @@ Check these in order:
    the error is in `ReadError.cause`. Without the layer, unknown keys still return `[]`.
    Build queries from your `Attribute` definitions' `.key` (or entity type handles'
    `attributes.x.key`) to avoid spelling mistakes. See [Datalog](/datalog#query-shape) for wiring.
-7. **Transaction provenance under a past `validAt`:** `:_tx/*` facts are valid only from their
-   commit instant, so joining them into a query whose `validAt` is earlier returns `[]`. Read
-   provenance in a second query at the current basis; see [Datalog](/datalog#query-shape).
+7. **Transaction provenance under a past `validAt`:** join the assertion's fourth-term
+   transaction to `:_tx/actor` in the same query. These reserved metadata rows follow only
+   recorded time. If the join is empty, check that the recorded cut includes the assertion's
+   commit and that the assertion is valid at the requested point. See [Datalog](/datalog#query-shape).
 
 Use `triples.explain(query)` or CLI `query explain`, then run with debug output to inspect the
 compiled plan without changing the query.

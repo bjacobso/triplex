@@ -1,3 +1,4 @@
+import type { QueryTemporalBasis } from "../../datalog/temporal.js";
 /**
  * Hexastore triple store implementation on ordered KV storage.
  *
@@ -24,6 +25,9 @@ import { TxAttributes } from "../../utils/id.js";
 import { unsafe } from "../../Branded.js";
 import {
   AVET_PREFIX,
+  intervalKey,
+  INTERVAL_READY_KEY,
+  INTERVAL_CURSOR_KEY,
   liveFactKey,
   liveFactKeyStr,
   liveFactRange,
@@ -647,6 +651,15 @@ export class KvTripleStore {
 
     if (datom.retractedAt === null)
       entries.push([liveFactKey(datom.entity, datom.attribute, datom.tripleId), tripleIdValue]);
+    entries.push([
+      intervalKey(datom.attribute, "from", datom.validFrom, datom.tripleId),
+      tripleIdValue,
+    ]);
+    if (datom.validTo !== null)
+      entries.push([
+        intervalKey(datom.attribute, "to", datom.validTo, datom.tripleId),
+        tripleIdValue,
+      ]);
     entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
 
     // TYPE index for entityType queries
@@ -694,6 +707,15 @@ export class KvTripleStore {
 
       if (datom.retractedAt === null)
         entries.push([liveFactKey(datom.entity, datom.attribute, datom.tripleId), tripleIdValue]);
+      entries.push([
+        intervalKey(datom.attribute, "from", datom.validFrom, datom.tripleId),
+        tripleIdValue,
+      ]);
+      if (datom.validTo !== null)
+        entries.push([
+          intervalKey(datom.attribute, "to", datom.validTo, datom.tripleId),
+          tripleIdValue,
+        ]);
       entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
 
       if (datom.entityType !== null) {
@@ -715,7 +737,7 @@ export class KvTripleStore {
   private assertBatchStr(datoms: readonly Datom[]): Effect.Effect<void> {
     // Up to seven entries: EAVT, AEVT, AVET, META, LIVE, TYPE, and VAET.
     const entries: Array<readonly [string, Uint8Array]> = Array.from(
-      { length: datoms.length * 7 },
+      { length: datoms.length * 9 },
       (): readonly [string, Uint8Array] => ["", new Uint8Array(0)],
     );
     let idx = 0;
@@ -740,6 +762,17 @@ export class KvTripleStore {
 
       if (datom.retractedAt === null)
         entries[idx++] = [liveFactKeyStr(eStr, aStr, tripleIdStr), tripleIdValue];
+      const keyString = (bytes: Uint8Array) =>
+        Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+      entries[idx++] = [
+        keyString(intervalKey(datom.attribute, "from", datom.validFrom, datom.tripleId)),
+        tripleIdValue,
+      ];
+      if (datom.validTo !== null)
+        entries[idx++] = [
+          keyString(intervalKey(datom.attribute, "to", datom.validTo, datom.tripleId)),
+          tripleIdValue,
+        ];
       entries[idx++] = [metaKeyStr(tripleIdStr), serializeDatom(datom)];
 
       if (datom.entityType !== null) {
@@ -998,6 +1031,65 @@ export class KvTripleStore {
     });
   }
 
+  private intervalIndexesReady = false;
+
+  /** Resumable bounded backfill. No planner uses a partially built index. */
+  ensureIntervalIndexes(): Effect.Effect<void> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.intervalIndexesReady) return;
+      let complete = false;
+      while (!complete) {
+        complete = yield* this.kv.transact((tx) =>
+          Effect.gen(function* () {
+            if ((yield* tx.get(INTERVAL_READY_KEY))?.[0] === 1) return true;
+            const cursor = yield* tx.get(INTERVAL_CURSOR_KEY);
+            const entries = yield* Stream.runCollect(
+              tx.getRange({
+                start: cursor === null ? META_PREFIX : concat(cursor, new Uint8Array([0])),
+                end: new Uint8Array([0x21]),
+                limit: 501,
+              }),
+            );
+            const batch = entries.slice(0, 500);
+            for (const [, bytes] of batch) {
+              const datom = deserializeDatom(bytes);
+              const id = textEncoder.encode(datom.tripleId);
+              yield* tx.set(
+                intervalKey(datom.attribute, "from", datom.validFrom, datom.tripleId),
+                id,
+              );
+              if (datom.validTo !== null)
+                yield* tx.set(
+                  intervalKey(datom.attribute, "to", datom.validTo, datom.tripleId),
+                  id,
+                );
+            }
+            if (entries.length <= 500) {
+              yield* tx.set(INTERVAL_READY_KEY, new Uint8Array([1]));
+              yield* tx.delete(INTERVAL_CURSOR_KEY);
+              return true;
+            }
+            yield* tx.set(INTERVAL_CURSOR_KEY, batch.at(-1)![0]);
+            return false;
+          }),
+        );
+      }
+      this.intervalIndexesReady = true;
+    });
+  }
+
+  /** Datalog visibility: reserved transaction metadata follows only recorded time. */
+  scanCollectDatalog(pattern: ScanPattern, basis: QueryTemporalBasis): Datom[] | null {
+    const datoms = this.scanCollect(pattern, { includeRetracted: true });
+    return datoms === null ? null : datoms.filter((datom) => visibleAt(datom, basis, true));
+  }
+
+  scanCollectDatalogAsync(pattern: ScanPattern, basis: QueryTemporalBasis): Effect.Effect<Datom[]> {
+    return this.scanCollectAsync(pattern, { includeRetracted: true }).pipe(
+      Effect.map((datoms) => datoms.filter((datom) => visibleAt(datom, basis, true))),
+    );
+  }
+
   /** Synchronous bitemporal scan, when the backend supports it. */
   scanCollectTemporal(pattern: ScanPattern, basis: ResolvedTemporalBasis): Datom[] | null {
     const datoms = this.scanCollect(pattern, { includeRetracted: true });
@@ -1097,7 +1189,7 @@ const matchesPattern = (datom: Datom, pattern: ScanPattern): boolean => {
   return true;
 };
 
-const visibleAt = (datom: Datom, basis: ResolvedTemporalBasis): boolean => {
+const visibleAt = (datom: Datom, basis: QueryTemporalBasis, datalog = false): boolean => {
   const recordedVisible =
     basis.recordedPosition !== undefined
       ? datom.recordedPosition <= basis.recordedPosition &&
@@ -1111,8 +1203,10 @@ const visibleAt = (datom: Datom, basis: ResolvedTemporalBasis): boolean => {
           (datom.retractedAt === null || datom.retractedAt > basis.recordedAt);
   return (
     recordedVisible &&
-    datom.validFrom <= basis.validAt &&
-    (datom.validTo === null || datom.validTo > basis.validAt)
+    (basis.validAt === undefined ||
+      (datalog && datom.attribute.startsWith(":_tx/")) ||
+      (datom.validFrom <= basis.validAt &&
+        (datom.validTo === null || datom.validTo > basis.validAt)))
   );
 };
 

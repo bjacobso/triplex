@@ -1,3 +1,4 @@
+import { datalogTimeSealedCases } from "./datalogTimeCases.js";
 /**
  * Shared conformance for sensitive (sealed) attribute values.
  *
@@ -222,6 +223,94 @@ const valueOf = (facts: readonly Triple[], attribute: string): TripleValue | und
   facts.find((fact) => fact.attribute === attribute)?.value;
 
 export const sensitiveConformanceCases: readonly SensitiveConformanceCase[] = [
+  {
+    name: "interval metadata is unsealed while value aliases retain sensitive taint",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const entityId = eid("sc:interval");
+      yield* t.transact([
+        {
+          op: "assert",
+          entityId,
+          attribute: ":sc-employee/ssn",
+          value: text(PLANTED_PLAINTEXT),
+          validFrom: 10,
+          validTo: 20,
+        },
+      ]);
+      const pattern = [entityId, ":sc-employee/ssn", "?sealed"] as const;
+      const interval = { pattern, valid: { from: "?from", to: "?end" } } as const;
+      yield* same(
+        (yield* t.queryAll({ validTime: "all", find: ["?from", "?end"], where: [interval] }))
+          .results,
+        [{ "?from": 10, "?end": 20 }],
+        "presence may expose assertion bounds",
+      );
+      yield* same(
+        (yield* t.queryAll({
+          validTime: "all",
+          find: ["?end"],
+          where: [
+            { pattern: [entityId, ":sc-employee/ssn", PLANTED_PLAINTEXT], valid: { to: "?end" } },
+          ],
+        })).results,
+        [{ "?end": 20 }],
+        "blind equality may expose assertion bounds",
+      );
+      const equality = {
+        pattern: [entityId, ":sc-employee/ssn", PLANTED_PLAINTEXT],
+        valid: { to: "?end" },
+      } as const;
+      yield* same(
+        (yield* t.queryAll({
+          validTime: "all",
+          find: ["?end"],
+          where: [interval, ["not", equality]],
+        })).results,
+        [],
+        "negated interval equality is rewritten to a blind token",
+      );
+      yield* same(
+        (yield* t.queryAll({
+          validTime: "all",
+          find: ["?end"],
+          where: [interval, ["or", [equality]]],
+        })).results,
+        [{ "?end": 20 }],
+        "disjunctive interval equality is rewritten to a blind token",
+      );
+      for (const query of [
+        { validTime: "all", find: ["?sealed"], where: [interval] },
+        {
+          validTime: "all",
+          find: ["?sealed"],
+          where: [interval],
+          orderBy: [{ variable: "?sealed" }],
+        },
+        {
+          validTime: "all",
+          find: ["?count"],
+          where: [interval],
+          aggregate: [["count", "?sealed", "?count"]],
+        },
+        {
+          validTime: "all",
+          find: ["?from"],
+          where: [
+            { pattern, valid: { from: "?sealed" } },
+            { pattern, valid: { from: "?from" } },
+          ],
+        },
+      ] as const) {
+        const failed = yield* Effect.result(t.queryAll(query));
+        yield* check(
+          failed._tag === "Failure" && failed.failure instanceof SensitiveQueryError,
+          "sealed values must remain tainted in interval queries",
+        );
+      }
+    }),
+  },
+
   {
     name: "guards a sensitive attribute through blind equality without exposing plaintext",
     run: Effect.gen(function* () {
@@ -631,6 +720,7 @@ const sealedFact = (blind: string | undefined, marker: string): SealedValue => (
 });
 
 export const sealedStorageCases: readonly SealedStorageCase[] = [
+  ...datalogTimeSealedCases,
   {
     name: "round-trips sealed values and keeps them out of plaintext comparison",
     run: Effect.gen(function* () {

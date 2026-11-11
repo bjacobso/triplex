@@ -657,8 +657,8 @@ describe("Datalog SQL Compiler", () => {
       const result = compile(query);
 
       expect(result.sql).toContain("HAVING");
-      expect(result.sql).toContain("HAVING NOT ((COUNT(DISTINCT");
-      expect(result.sql).toContain("= ?");
+      expect(result.sql).toContain("HAVING NOT (COALESCE((COUNT(DISTINCT");
+      expect(result.sql).toContain("IS NOT DISTINCT FROM ?");
       expect(result.params).toContain(0);
     });
   });

@@ -14,6 +14,7 @@ import {
   isNotClause,
   isOrClause,
   isPatternClause,
+  isIntervalPattern,
   isPredicateClause,
   isRuleApplication,
   isTypedConstant,
@@ -111,7 +112,7 @@ interface Collector {
   readonly uses: Map<string, Use[]>;
 }
 
-const record = (collector: Collector, term: Term, use: Use) => {
+const record = (collector: Collector, term: Term | null, use: Use) => {
   if (!isVariable(term)) return;
   const uses = collector.uses.get(term) ?? [];
   uses.push(use);
@@ -171,7 +172,10 @@ const rewritePattern = (
     ) as PatternClause;
   });
 
-const recordPredicate = (collector: Collector, clause: readonly [unknown, Term, Term]) => {
+const recordPredicate = (
+  collector: Collector,
+  clause: readonly [unknown, Term | null, Term | null],
+) => {
   record(collector, clause[1], { kind: "predicate" });
   record(collector, clause[2], { kind: "predicate" });
 };
@@ -186,10 +190,17 @@ const rewriteNot = (
     for (const nested of clause.slice(1)) {
       if (nested === undefined) continue;
       const candidate = nested as Clause;
-      if (isPatternClause(candidate)) {
+      if (isIntervalPattern(candidate)) {
+        for (const bound of Object.values(candidate.valid))
+          if (bound !== undefined) record(collector, bound, { kind: "plain" });
+        inner.push({
+          ...candidate,
+          pattern: yield* rewritePattern(policy, collector, candidate.pattern),
+        });
+      } else if (isPatternClause(candidate)) {
         inner.push(yield* rewritePattern(policy, collector, candidate));
       } else {
-        recordPredicate(collector, candidate as readonly [unknown, Term, Term]);
+        recordPredicate(collector, candidate as readonly [unknown, Term | null, Term | null]);
         inner.push(candidate);
       }
     }
@@ -202,6 +213,11 @@ const rewriteClause = (
   clause: Clause,
 ): Effect.Effect<Clause, SensitiveQueryError> =>
   Effect.gen(function* () {
+    if (isIntervalPattern(clause)) {
+      for (const bound of Object.values(clause.valid))
+        if (bound !== undefined) record(collector, bound, { kind: "plain" });
+      return { ...clause, pattern: yield* rewritePattern(policy, collector, clause.pattern) };
+    }
     if (isPatternClause(clause)) return yield* rewritePattern(policy, collector, clause);
     if (isPredicateClause(clause)) {
       recordPredicate(collector, clause);

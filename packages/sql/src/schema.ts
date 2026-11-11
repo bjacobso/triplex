@@ -145,11 +145,18 @@ export const TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT
   ON triples (value_string COLLATE "C", recorded_position, entity_id)
   WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL`;
 
+/** Non-partial indexes preserve interval access at historical recorded cuts. */
+export const INTERVAL_HISTORY_INDEX_DDLS = [
+  "CREATE INDEX IF NOT EXISTS idx_attribute_valid_to_history ON triples (attribute, valid_to, recorded_position)",
+  "CREATE INDEX IF NOT EXISTS idx_attribute_valid_from_history ON triples (attribute, valid_from, recorded_position)",
+] as const;
+
 export const INDEX_DDLS = [
   ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
+  ...INTERVAL_HISTORY_INDEX_DDLS,
 ] as const;
 
 /**
@@ -171,6 +178,8 @@ export const INDEX_NAMES = [
   "idx_entity_recorded_position",
   "idx_entity_attr",
   "idx_tx_id",
+  "idx_attribute_valid_to_history",
+  "idx_attribute_valid_from_history",
 ] as const;
 
 // =============================================================================

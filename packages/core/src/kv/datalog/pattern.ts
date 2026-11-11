@@ -19,7 +19,7 @@ import type { Datom } from "../hexastore/KvTripleStore.js";
 import type { KvTripleStore } from "../hexastore/KvTripleStore.js";
 import type { ScanPattern } from "../hexastore/scan.js";
 import { isVariable, type Context, type Term, type Constant, type PatternClause } from "./types.js";
-import type { ResolvedTemporalBasis } from "../../Temporal.js";
+import type { QueryTemporalBasis as ResolvedTemporalBasis } from "../../datalog/temporal.js";
 import { unsafe } from "../../Branded.js";
 
 // ─── TripleValue → Constant ────────────────────────────────────────────────
@@ -160,7 +160,8 @@ export const patternToScanPattern = (pattern: PatternClause, context: Context): 
     entity?: string;
     attribute?: string;
     value?: TripleValue;
-  } = {};
+    intervalRange?: import("../hexastore/indexes.js").IntervalRange;
+  } = pattern.intervalRange === undefined ? {} : { intervalRange: pattern.intervalRange };
 
   if (entity.bound) result.entity = String(entity.value);
   if (attr.bound) result.attribute = String(attr.value);
@@ -238,13 +239,22 @@ export const bindDatom = (
     if (ctx === null) return null;
   }
 
+  for (const [key, term] of Object.entries(pattern.valid ?? {})) {
+    if (term === undefined) continue;
+    ctx = matchTerm(term, key === "from" ? datom.validFrom : datom.validTo, ctx);
+    if (ctx === null) return null;
+  }
   return ctx;
 };
 
 /**
  * Match a single term against a value in the context.
  */
-const matchTerm = (term: Term, value: Constant, context: Context | null): Context | null => {
+const matchTerm = (
+  term: Term | null,
+  value: Constant | null,
+  context: Context | null,
+): Context | null => {
   if (context === null) return null;
 
   if (isVariable(term)) {
@@ -308,7 +318,7 @@ export const executePattern = (
       for (const scanPattern of patternToScanPatterns(pattern, ctx)) {
         const datoms = yield* basis === undefined
           ? store.scanCollectAsync(scanPattern)
-          : store.scanCollectTemporalAsync(scanPattern, basis);
+          : store.scanCollectDatalogAsync(scanPattern, basis);
 
         for (let i = 0; i < datoms.length; i++) {
           const bound = bindDatom(pattern, datoms[i]!, ctx);
@@ -355,7 +365,7 @@ const executePatternSync = (
       const datoms =
         basis === undefined
           ? store.scanCollect(scanPattern)
-          : store.scanCollectTemporal(scanPattern, basis);
+          : store.scanCollectDatalog(scanPattern, basis);
       if (datoms === null) return null; // Backend doesn't support sync
 
       for (let i = 0; i < datoms.length; i++) {
@@ -400,11 +410,14 @@ const executePatternHashJoin = (
   const attrValue = String(attrTerm);
 
   // Do ONE scan of the attribute index
-  const scanPattern: ScanPattern = { attribute: attrValue };
+  const scanPattern: ScanPattern = {
+    attribute: attrValue,
+    ...(pattern.intervalRange ? { intervalRange: pattern.intervalRange } : {}),
+  };
   const allDatoms =
     basis === undefined
       ? store.scanCollect(scanPattern)
-      : store.scanCollectTemporal(scanPattern, basis);
+      : store.scanCollectDatalog(scanPattern, basis);
   if (allDatoms === null) return null;
 
   // Build hash map: entity → Datom[]
@@ -460,12 +473,15 @@ const executePatternHashJoinAsync = (
   const attrValue = String(attrTerm);
 
   // Do ONE batched scan of the attribute index
-  const scanPattern: ScanPattern = { attribute: attrValue };
+  const scanPattern: ScanPattern = {
+    attribute: attrValue,
+    ...(pattern.intervalRange ? { intervalRange: pattern.intervalRange } : {}),
+  };
 
   return Effect.gen(function* () {
     const allDatoms = yield* basis === undefined
       ? store.scanCollectAsync(scanPattern)
-      : store.scanCollectTemporalAsync(scanPattern, basis);
+      : store.scanCollectDatalogAsync(scanPattern, basis);
 
     // Build hash map: entity → Datom[]
     const entityMap = new Map<string, Datom[]>();
