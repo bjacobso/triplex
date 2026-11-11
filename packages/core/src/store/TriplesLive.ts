@@ -904,6 +904,8 @@ export const TriplesLive = Layer.effect(
       entityPage,
       match,
       history,
+      liveFacts: (entityId) =>
+        adapter.liveFacts(entityId).pipe(Effect.map((rows) => rows.map(rowToTriple))),
       transaction,
       transactionByCommand,
       transactions,

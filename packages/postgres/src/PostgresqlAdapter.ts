@@ -26,6 +26,7 @@ import {
 import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
+  makeSqlLiveFactsLookup,
   makeSqlTransactionPrefixLookup,
   packValue,
   runMigrations,
@@ -661,6 +662,10 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
       return {
         ...entries,
         transactionIdsForEntityPrefix: makeSqlTransactionPrefixLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          PostgresqlDialect,
+        ),
+        liveFacts: makeSqlLiveFactsLookup(
           { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
           PostgresqlDialect,
         ),

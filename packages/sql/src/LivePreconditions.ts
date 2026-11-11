@@ -8,6 +8,21 @@ import {
 import type { StorageAdapterService } from "@triplex-build/triplex/runtime";
 import type { SqlStatementRunner } from "./SqlQueryExecutor.js";
 
+/** Uses the existing partial entity index (only unretracted rows). */
+export const makeSqlLiveFactsLookup =
+  (runner: SqlStatementRunner, dialect: SqlDialect): StorageAdapterService["liveFacts"] =>
+  (entityId) => {
+    const p = createParamCollector(dialect);
+    return runner
+      .run<TripleRow>(
+        `SELECT * FROM triples WHERE entity_id = ${p.add(entityId)} AND retracted_at IS NULL`,
+        p.params,
+      )
+      .pipe(
+        Effect.mapError((cause) => new ReadError({ message: "Failed to read live facts", cause })),
+      );
+  };
+
 /** Live indexes exclude history; PostgreSQL also uses a selective expression key. */
 export const makeSqlLivePreconditionLookup =
   (

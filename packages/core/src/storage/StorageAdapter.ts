@@ -24,6 +24,8 @@ import type { TransactionId } from "../Branded.js";
  * StorageAdapterService - Backend-agnostic storage primitives
  */
 export interface StorageAdapterService {
+  /** Indexed unretracted assertions across all valid time at the current recorded cut. */
+  readonly liveFacts: (entityId: string) => Effect.Effect<readonly TripleRow[], ReadError>;
   /** Indexed changed-entity prefix candidates, deduplicated and ordered by global position. */
   readonly transactionIdsForEntityPrefix: (
     prefix: string,

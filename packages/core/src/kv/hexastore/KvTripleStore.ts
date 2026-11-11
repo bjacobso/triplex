@@ -619,15 +619,23 @@ export class KvTripleStore {
     attribute: string | undefined,
     limit: 1 | 2,
   ): Effect.Effect<Datom[], ReadError> {
+    return this.liveFacts(entity, attribute, limit);
+  }
+
+  /** Read the live-only index without touching retained retracted history. */
+  liveFacts(entity: string, attribute?: string, limit?: 1 | 2): Effect.Effect<Datom[], ReadError> {
     return Effect.gen({ self: this }, function* () {
       const ready = yield* this.kv.get(LIVE_FACT_READY_KEY);
       if (ready === null || ready[0] !== 1)
         return yield* new ReadError({
           message:
-            "KV live-fact index requires backfill; upgrade all writers, then run KvTriples.migrateLiveFacts until complete before using cheap preconditions",
+            "KV live-fact index requires backfill; upgrade all writers, then run KvTriples.migrateLiveFacts until complete before using live-fact reads",
         });
       const rows = yield* Stream.runCollect(
-        this.kv.getRange({ ...liveFactRange(entity, attribute), limit }),
+        this.kv.getRange({
+          ...liveFactRange(entity, attribute),
+          ...(limit === undefined ? {} : { limit }),
+        }),
       );
       const facts: Datom[] = [];
       for (const [, value] of rows) {

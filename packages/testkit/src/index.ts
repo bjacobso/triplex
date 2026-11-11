@@ -82,6 +82,47 @@ export interface ConformanceCase {
  * The behavioral cases every `Triples` backend must pass.
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
+  {
+    name: "liveFacts includes expired and future assertions but excludes retracted history",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const entityId = eid("conf:live-facts");
+      const expired = yield* t.assert({
+        entityId,
+        attribute: ":live/value",
+        value: string("expired"),
+        validFrom: 0,
+        validTo: 1,
+      });
+      const future = yield* t.assert({
+        entityId,
+        attribute: ":live/value",
+        value: string("future"),
+        validFrom: Date.now() + 1000000,
+      });
+      const removed = yield* t.assert({
+        entityId,
+        attribute: ":live/value",
+        value: string("removed"),
+      });
+      yield* t.retract(removed.id);
+      yield* t.assert({
+        entityId: eid("conf:live-facts:other"),
+        attribute: ":live/value",
+        value: string("other"),
+      });
+      const facts = yield* t.liveFacts(entityId);
+      yield* check(
+        JSON.stringify(facts.map((f) => f.id).sort()) ===
+          JSON.stringify([expired.id, future.id].sort()),
+        "live facts must span all valid time and exclude history and other entities",
+      );
+      yield* check(
+        (yield* t.liveFacts(eid("conf:live-facts:missing"))).length === 0,
+        "missing entity has no live facts",
+      );
+    }),
+  },
   ...commitValidatorConformanceCases,
   ...datalogTimeConformanceCases,
   {
