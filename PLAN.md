@@ -443,6 +443,10 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: P3.3 merged (`db.preview`). P3.2 stopped: `Triples.get` returns retracted facts on KV but
+  not SQL. Decision: `get` is live-only on every backend; new `assertion(id)` returns any assertion
+  with `retractedAt`. P3.2 given store and backend scope for it. The watcher missed P3.2's report
+  (baseline taken after it was written); fixed to report existing reports at startup.
 - 2026-11-11: P3.3 merged (`db.preview`).
 - 2026-11-11: P2.6b merged; added P2.6c. Started P3.3 (`db.preview`) (indexed live facts for `tx.get`).
 - 2026-11-11: P3.0 merged; full check (29/27/15) and Postgres 48/48 pass on `dc402c7`. Pushed to #81.
