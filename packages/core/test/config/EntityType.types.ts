@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import type { TransactAssertOp } from "../../src/Triple.js";
 import type { Triple } from "../../src/Triple.js";
 import { EntityId } from "../../src/Branded.js";
@@ -134,3 +135,58 @@ Worker.correct(fact, {});
 Worker.correct(fact, { title: "Supervisor" });
 // @ts-expect-error a single cardinality-many fact takes one value
 Worker.correct(fact, { trainedFor: [harbor] });
+
+// Read types retain requiredness, arrays, enums, refs, and normalized instants.
+const ReadModel = EntityType.make("ReadModel", {
+  required: Attribute.text(":read/required").required(),
+  optional: Attribute.text(":read/optional"),
+  many: Attribute.text(":read/many").many(),
+  requiredMany: Attribute.text(":read/required-many").required({ cardinality: "many" }),
+  explicit: Attribute.use(Attribute.boolean(":read/explicit"), { required: true }),
+  state: Attribute.enumOf(":read/state", ["on", "off"]).required(),
+  ref: Attribute.ref(":read/ref", Site).required(),
+  instant: Attribute.instant(":read/instant").required(),
+});
+export const readTypes = Effect.gen(function* () {
+  const value = yield* ReadModel.decode([]);
+  const required: string | EntityType.SealedMarker = value.required;
+  const optional: string | EntityType.SealedMarker | undefined = value.optional;
+  const many: ReadonlyArray<string | EntityType.SealedMarker> = value.many;
+  const requiredMany: ReadonlyArray<string | EntityType.SealedMarker> = value.requiredMany;
+  const explicit: boolean | EntityType.SealedMarker = value.explicit;
+  const state: "on" | "off" | EntityType.SealedMarker = value.state;
+  const ref: EntityId = value.ref;
+  const instant: number | EntityType.SealedMarker = value.instant;
+  // @ts-expect-error optional scalars may be absent
+  const absent: string | EntityType.SealedMarker = value.optional;
+  // @ts-expect-error instants never decode as Date
+  const date: Date = value.instant;
+  const partial = yield* ReadModel.decode([], { allowPartial: true });
+  // @ts-expect-error partial reads may omit required scalars
+  const partialRequired: string | EntityType.SealedMarker = partial.required;
+  const metadata = yield* ReadModel.decode([], { withFacts: true });
+  const fact: Triple | undefined = metadata.facts.required[0];
+  return {
+    required,
+    optional,
+    many,
+    requiredMany,
+    explicit,
+    state,
+    ref,
+    instant,
+    absent,
+    date,
+    partialRequired,
+    fact,
+  };
+});
+
+// Every modifier retains the literal flag; broad options keep it unknown.
+export const requiredFlag: true = Attribute.text(":read/a").required().required;
+export const optionalFlag: false = Attribute.use(Attribute.text(":read/b")).required;
+export const manyRequiredFlag: true = Attribute.text(":read/c").many({ required: true }).required;
+export const uniqueRequiredFlag: true = Attribute.text(":read/d").unique({
+  required: true,
+}).required;
+export const broadFlag: boolean = Attribute.use(Attribute.text(":read/e"), options).required;

@@ -11,8 +11,23 @@ import type { TripleValue } from "../Value.js";
 import * as Attribute from "./Attribute.js";
 import * as ConfigNode from "./ConfigNode.js";
 import { ENTITY_SCHEMA_KIND } from "./EntityValidation.js";
+import {
+  decode,
+  type DecodeOptions,
+  type DecodeResult,
+  type EntityDecodeError,
+} from "./EntityDecode.js";
 import * as GraphConstraint from "./GraphConstraint.js";
 import * as TypeExpr from "./TypeExpr.js";
+
+export {
+  EntityDecodeError,
+  type DecodeOptions,
+  type SealedMarker,
+  type Decoded,
+  type DecodeResult,
+  type WithFacts,
+} from "./EntityDecode.js";
 
 const ENTITY_TYPE_NAME = /^[A-Z][A-Za-z0-9]*$/;
 const RESERVED_PROPERTIES = new Set([
@@ -23,6 +38,7 @@ const RESERVED_PROPERTIES = new Set([
   "attributes",
   "constraints",
   "assert",
+  "decode",
   "end",
   "replace",
   "correct",
@@ -37,10 +53,10 @@ export type Field = Attribute.Use<Attribute.AnyDefinition> | Attribute.AnyDefini
 
 /** Normalize fields so a bare definition becomes its optional, cardinality-one use. */
 export type UsesOf<F extends Readonly<Record<string, Field>>> = {
-  readonly [P in keyof F]: F[P] extends Attribute.Use<infer D, infer C>
-    ? Attribute.Use<D, C>
+  readonly [P in keyof F]: F[P] extends Attribute.Use<infer D, infer C, infer R>
+    ? Attribute.Use<D, C, R>
     : F[P] extends Attribute.AnyDefinition
-      ? Attribute.Use<F[P], "one">
+      ? Attribute.Use<F[P], "one", false>
       : never;
 };
 
@@ -124,6 +140,11 @@ export type EntityType<N extends string, A extends Uses> = {
     values: Values<A>,
     options?: Attribute.AssertionOptions,
   ) => ReadonlyArray<TransactAssertOp>;
+  /** Decode already-visible facts; temporal selection belongs to the read operation. */
+  readonly decode: <const O extends DecodeOptions = {}>(
+    facts: ReadonlyArray<Triple>,
+    options?: O,
+  ) => Effect.Effect<DecodeResult<A, O>, EntityDecodeError>;
   /** End a fact belonging to this type. Throws ChangeRangeError for an invalid split. */
   readonly end: (fact: Triple, at: number) => Change.Change;
   /** Encode one aliased replacement and preserve the fact's past and original end. */
@@ -341,6 +362,8 @@ export function make(
     node,
     nodes,
     assert,
+    decode: (facts: ReadonlyArray<Triple>, options?: DecodeOptions) =>
+      decode(name, handles, facts, options),
     end: (fact: Triple, at: number) => {
       checkFact(fact);
       return Change.end(fact, at);
