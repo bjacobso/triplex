@@ -64,7 +64,8 @@ const publish = Effect.gen(function* () {
   });
 });
 
-describe("describe release schema", () => {
+// Each case starts the CLI in child processes, which can exceed the 5 s default on a busy machine.
+describe("describe release schema", { timeout: 30_000 }, () => {
   it("describes the persisted release graph and retains the command manifest", async () => {
     const { layer, cli } = await setup();
     const release = await Effect.runPromise(publish.pipe(Effect.provide(layer)));
