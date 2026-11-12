@@ -199,6 +199,19 @@ same transaction as the facts and envelope; exactly one commits. A loser receive
 `CommandAlreadyCommittedError` with the original transaction ID, and
 `Triples.transactionByCommand(commandId)` loads that durable receipt.
 
+Receipt and journal ordering is backend-independent. `TransactionResult.triples` contains only
+assertions, in the order their operations were submitted to `transact`, including assertions with
+`validTo`. `TransactionRecord.changes` follows the submitted operation order with retractions and
+assertions interleaved. This applies to `transaction`, `transactionByCommand`, `transactions`, and
+`transactionsForEntity`, as well as the resolved changes passed to commit validators.
+A `retract-pattern` expands at its operation position in ascending triple-ID order. Retractions
+that change no fact and inbox/outbox operations contribute no fact changes. The receipt's
+`retracted` field counts successful retractions; it does not add retracted facts to `triples`.
+
+New `:_tx/change` JSON facts store an internal `changeIndex` so journal reads do not depend on
+storage scan order. Existing journals remain readable using metadata fact IDs as the ordering
+fallback; their original submitted order cannot be recovered if an older writer reordered changes.
+
 `Triples.transactionsForEntity(entityId, request)` uses the changed-entity references to read a
 bounded newest-first audit page without replaying or decoding the global journal. It deduplicates
 transactions that changed several facts on the entity, then hydrates their authoritative complete

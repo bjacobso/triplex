@@ -735,9 +735,12 @@ const makeKvTriplesService = Effect.gen(function* () {
                 case "retract-pattern": {
                   const pat = patternToScan(op.pattern as unknown as Pattern);
                   const scanned = yield* transactionStore.scanCollectAsync(pat);
-                  const datoms = op.pattern.entityType
+                  const matched = op.pattern.entityType
                     ? scanned.filter((datom) => datom.entityType === op.pattern.entityType)
                     : scanned;
+                  const datoms = [...matched].sort((left, right) =>
+                    left.tripleId < right.tripleId ? -1 : left.tripleId > right.tripleId ? 1 : 0,
+                  );
                   if (!isSystemWriteAuthorized(meta)) {
                     for (const datom of datoms) {
                       const reserved = reservedWriteError({
