@@ -4,7 +4,7 @@ import {
   CurrentDialect,
   makeTripleStoreRuntimeLayer,
   TriplesLive,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "../src/index.js";
 

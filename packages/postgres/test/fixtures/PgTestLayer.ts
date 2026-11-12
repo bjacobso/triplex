@@ -39,7 +39,7 @@ import {
   CurrentDialect,
   TriplesLive,
   TripleStoreRuntimeLayer,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 import {
   makePostgresqlLayerFromUrl,

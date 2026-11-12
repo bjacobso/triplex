@@ -2,7 +2,7 @@ import {
   encodeSealedEnvelope,
   type TripleValue,
   type ValueType,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 
 /** Encode a typed Triplex value into the SQL table's value columns. */
 export const packValue = (

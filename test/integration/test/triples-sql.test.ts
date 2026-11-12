@@ -14,8 +14,8 @@ import {
   boolean,
   ref as makeRef,
 } from "@triplex-build/triplex/internal";
-import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
-import { SqliteAdapterLive } from "@triplex-build/triplex-sqlite";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex/sql";
+import { SqliteAdapterLive } from "@triplex-build/triplex/sqlite";
 import { EntityId, TransactionId, TripleId } from "@triplex-build/triplex";
 import { SqliteTestLayer } from "./fixtures/SqliteTestLayer.js";
 

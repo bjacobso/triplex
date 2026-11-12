@@ -1,6 +1,5 @@
 ---
-"@triplex-build/triplex-sql": patch
-"@triplex-build/triplex-testkit": patch
+"@triplex-build/triplex": patch
 ---
 
 Provision a shared numeric/datetime expression index through an additive SQL migration, enabling

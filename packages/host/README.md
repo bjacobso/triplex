@@ -1,4 +1,4 @@
-# @triplex-build/triplex-host
+# @triplex-build/triplex/host
 
 Portable Effect contracts for hosting isolated Triplex databases. This package owns immutable
 instance identity, authorization, lifecycle registry/provisioner contracts, route fencing, and the
@@ -13,6 +13,6 @@ accessing the bound `Triples` service. Unknown tenants never auto-provision thro
 The initial v1 protocol includes transactions, entity/triple reads, Datalog queries and pages,
 receipt lookup, and journal polling. Raw SQL and provisioning are intentionally absent.
 
-Status: private experimental workspace package.
+Status: experimental subpath in the single Triplex package.
 
 MIT © 2026 Ben Jacobson.

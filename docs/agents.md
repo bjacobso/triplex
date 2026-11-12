@@ -11,10 +11,10 @@ you have a specific reason not to, and each section links to the reference behin
 Start with `@triplex-build/triplex/database`: declare your model, publish it, then open the
 [schema-bound client](/database). The examples below come from the checked, executable
 [client site-safety scenario](https://github.com/bjacobso/triplex/blob/main/docs/snippets/client-site-safety.ts).
-CI type-checks and runs it alongside the lower-level homepage scenario. This page is also available as
+CI type-checks and runs it alongside the lower-level site-safety scenario. This page is also available as
 [Markdown](/agents.md), and the full documentation is available as [`/llms-full.txt`](/llms-full.txt).
 
-Agents can also inspect and write a database through the private, experimental [MCP server](/mcp).
+Agents can also inspect and write a database through the experimental [MCP server](/mcp).
 Start with its `describe` tool to discover the live release and example transactions, then use the
 same CLI operations through MCP with an actor and command ID on every write.
 
@@ -202,7 +202,7 @@ Raw duplicate commands fail with `CommandAlreadyCommittedError`; recover the rec
 `transactionByCommand`. Raw read-decide-write commands must pass `EntityState` preconditions, and
 `Change.correct`, `Change.replace` and `Change.end` return operations and preconditions that must
 be submitted together. Install [SchemaBound](/datalog#query-shape) for release-checked raw queries.
-The [homepage scenario](https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety)
+The [primitive site-safety scenario](https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety)
 executes this primitive form and its receipt recovery as a separate checked example.
 
 ## Anti-patterns
@@ -233,7 +233,8 @@ Only retry a retryable conflict after reloading facts. Add `--debug` to include 
 `cause` string; see [Error diagnostics](/errors). Writes require `meta.actor` and `meta.commandId`.
 
 ```sh
-npm install --global @triplex-build/triplex-cli
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node \
+  @effect/platform-node @effect/platform-node-shared
 triplex --sqlite ./app.db describe                  # capabilities and live release schema
 triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db entity facts worker:maria

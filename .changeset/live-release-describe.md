@@ -1,5 +1,5 @@
 ---
-"@triplex-build/triplex-cli": minor
+"@triplex-build/triplex": minor
 ---
 
 Read the selected database release in `describe`, defaulting to `live` with a `--ref` override.

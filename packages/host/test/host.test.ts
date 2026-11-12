@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit, Layer, Schema } from "effect";
-import { EntityId, Triples, KvTriples, type PagedQueryResponse } from "@triplex-build/triplex";
+import { EntityId, Triples, KvTriples, type PagedQueryResponse } from "@triplex-internal/core";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
   AuthorizationError,

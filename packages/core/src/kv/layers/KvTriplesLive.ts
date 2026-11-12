@@ -1248,6 +1248,18 @@ export const KvTriples = {
     Layer.provide(TripleStoreRuntimeLayer),
   ),
 
+  /** Fresh in-memory store using an injected Effect clock for commit instants. */
+  layerWithClock: (now: Effect.Effect<number>) =>
+    KvTriplesLive.pipe(
+      Layer.provide(Layer.sync(KvBackend, makeTestKvBackend)),
+      Layer.provide(
+        Layer.effect(
+          TripleStoreRuntime,
+          Effect.map(TripleStoreRuntime, (runtime) => ({ ...runtime, now })),
+        ).pipe(Layer.provide(TripleStoreRuntimeLayer)),
+      ),
+    ),
+
   /** Fresh in-memory store with an explicit opaque-cursor scope identity. */
   layerWithScope: (scope: string) =>
     KvTriplesLive.pipe(

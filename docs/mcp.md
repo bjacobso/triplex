@@ -1,34 +1,31 @@
 # MCP server
 
-`@triplex-build/triplex-mcp` is a **private, experimental** workspace package. It exposes one
-Triplex database per process through MCP over stdio, using Effect's MCP server. Build it from a
-source checkout; it is not published to npm:
+`triplex mcp` exposes one database per process through MCP over stdio, using Effect's
+MCP server. The server is experimental and ships in `@triplex-build/triplex`.
+The `/mcp` library entry exports `tools`, `registrations` and `TransactionInput`.
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex-mcp...
-node packages/mcp/dist/bin.js --sqlite /absolute/path/to/app.db
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node \
+  @effect/platform-node @effect/platform-node-shared
+npx triplex mcp --sqlite /absolute/path/to/app.db
 ```
 
-Register it with an MCP client using the client's server configuration. Replace both absolute
-paths with your checkout and database locations:
+Register it with an MCP client using the client's server configuration. Replace
+the database path and use the installed binary's absolute path if it is not on PATH:
 
 ```json
 {
   "mcpServers": {
     "triplex": {
-      "command": "node",
-      "args": [
-        "/absolute/path/to/triplex/packages/mcp/dist/bin.js",
-        "--sqlite",
-        "/absolute/path/to/app.db"
-      ]
+      "command": "triplex",
+      "args": ["mcp", "--sqlite", "/absolute/path/to/app.db"]
     }
   }
 }
 ```
 
-The built package also defines a `triplex-mcp` binary. The client must support MCP protocol
-version `2025-11-25`. Stdout carries only MCP messages; startup diagnostics go to stderr.
+The client must support MCP protocol version `2025-11-25`. Stdout carries only MCP
+messages; startup diagnostics go to stderr.
 
 Backend flags follow the [CLI](/tools): `--sqlite <file>` defaults to `./triplex.sqlite`;
 `--postgres-url <url>` selects PostgreSQL (or use the `TRIPLEX_POSTGRES_URL` environment variable).
@@ -39,7 +36,7 @@ process's working directory. Opening SQLite can apply pending migrations.
 ## Tools
 
 Each tool advertises an Effect-derived input schema through `tools/list`. Inputs use the same
-field names and wire values as the CLI's public `execute` operations, without the `_tag` field.
+field names and wire values as the CLI's internal `execute` operations, without the `_tag` field.
 
 | Tool                  | Input                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------- |

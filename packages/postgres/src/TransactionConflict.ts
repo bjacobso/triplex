@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { isSqlError } from "effect/sql/SqlError";
-import { TransactionConflictError } from "@triplex-build/triplex";
+import { TransactionConflictError } from "@triplex-internal/core";
 
 /** Normalize structured SQL reasons, retaining the original failure for diagnostics. */
 export const transactionConflict = (cause: unknown): TransactionConflictError | undefined => {

@@ -1,6 +1,5 @@
 ---
-"@triplex-build/triplex-host": patch
-"@triplex-build/triplex-http": minor
+"@triplex-build/triplex": minor
 ---
 
 Preserve `recordedPosition` when forwarding tenant-protocol `Query` and `QueryPage`

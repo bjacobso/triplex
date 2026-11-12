@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GraphConstraint } from "@triplex-build/triplex/config";
+import { GraphConstraint } from "@triplex-internal/core/config";
 import { beforeAll, expect, it } from "vitest";
 import { assertBuiltCliIsFresh, cliArgs } from "./builtCli.js";
 

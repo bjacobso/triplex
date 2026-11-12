@@ -1,12 +1,11 @@
 # RFC: durable derivation runner
 
-Status: proposed for P4.2; owner approval is required before implementation. This
-RFC changes no package source or existing exports. All runner names and code
-below are proposed API fragments, not runnable examples of a shipped package.
+Status: accepted; implemented as `@triplex-build/triplex/runner`. The approved design below
+records the delivery contract; see [Runner](../runner.md) for the shipped API.
 
 ## 1. Recommendation, API and compliance host
 
-Add `@triplex-build/triplex-runner` beside HTTP and CLI. It follows the global
+Add `@triplex-build/triplex/runner` beside HTTP and CLI. It follows the global
 ordered journal, materializes affected definitions, delivers pure candidate diffs
 to Effect handlers, and schedules dependency boundaries. It owns catch-up and
 wakeups; the host still decides what a task means. It must never infer that a
@@ -18,7 +17,7 @@ host code can keep additions, removals and revisions in one application module.
 There is no Promise interface.
 
 ```ts
-import * as Runner from "@triplex-build/triplex-runner";
+import * as Runner from "@triplex-build/triplex/runner";
 
 type Delivery = {
   readonly version: 1;
@@ -79,7 +78,7 @@ all `ConsumerCheckpoint` calls with this composition:
 ```ts
 import { Effect } from "effect";
 import * as Database from "@triplex-build/triplex/database";
-import * as Runner from "@triplex-build/triplex-runner";
+import * as Runner from "@triplex-build/triplex/runner";
 
 // Fragment inside the host's scoped Effect, after deployment and definition creation.
 const serve = Effect.gen(function* () {
@@ -425,7 +424,7 @@ continue to pass, but this RFC adds no certification for them.
 
 ## 7. Package and implementation gate
 
-The package is `@triplex-build/triplex-runner`, directory `packages/runner`.
+The package is `@triplex-build/triplex/runner`, a browser-safe module assembled into the single published package.
 Runtime dependencies are public exports of `@triplex-build/triplex` and Effect
 only, with versions in the root catalog and Effect's peer range matching core.
 No dependency on HTTP, CLI, host, SQL or backend internals is needed. It can stay
@@ -435,8 +434,7 @@ embedding host; a future Node adapter would be an explicit separate subpath.
 
 Implementation must add package exports/build wiring, the runner schema and
 acquisition checks, durable protocol/recovery tests, a complete compliance-host
-rewrite, checked documentation and a Changeset. None is shipped by this design
-item. An implementation that needs another public core capability must specify
+rewrite, checked documentation and a Changeset. The implementation ships these surfaces. An implementation that needs another public core capability must specify
 and test it rather than import internals or weaken delivery semantics.
 
 ## 8. Conformance corpus and owner questions
@@ -503,6 +501,5 @@ Owner approval should settle these proposed policies before implementation:
   extraction until duplicate feed/timer cost is measured. This does not reopen
   the settled separate-package/core-browser-safety decision.
 
-These are approval questions for the subsequent implementation, not claims that
-the RFC or the runner has already been approved. The Phase 4 gate remains the
+These policies were approved in D14. The Phase 4 gate remains the
 working compliance host and shared conformance evidence, not this document alone.

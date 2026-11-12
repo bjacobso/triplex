@@ -38,6 +38,9 @@ work that is not complete.
 - Content-addressed Datalog derivations with explicit candidate identity, source provenance,
   immutable materialization runs, freshness positions, temporal wakeups, pure reconciliation, and
   read-only hypothetical overlays.
+- A [durable derivation runner](/runner) with acknowledged candidate snapshots, prepared batches,
+  Outbox delivery, bounded retries, poison pause/resume, checkpoints and offline temporal replay.
+  The compliance host uses runner handlers and schema-bound commands for open → satisfied → reopened.
 - Standalone demos for basic linked facts and the application-owned compliance/work boundary, plus
   a Foldkit/Tailwind browser dashboard that exercises facts, reflected entity-type tables,
   config-rendered form previews, raw Datalog, derivations, the journal, and full configuration
@@ -70,7 +73,7 @@ work that is not complete.
   back together without an internal second pool.
 - The VitePress documentation is published as a Cloudflare assets-only Worker through the
   repository's Effect-native Alchemy stack at <https://triplex.build>.
-- A private portable host package now defines immutable tenant database identity, authorization,
+- A portable host subpath now defines immutable tenant database identity, authorization,
   CAS lifecycle contracts, route fencing, and a schema-decoded v1 data protocol. The Cloudflare
   package exposes a complete `CloudflareTriples` layer using one Durable Object SQLite handle for
   storage and Datalog, and passes the shared backend corpus both in its native-SQL harness and in
@@ -120,8 +123,8 @@ It remains experimental; these tests do not establish production operations or s
 
 ## Honest limitations
 
-- Seven public packages are published under the `@triplex-build` organization scope. The GitHub
-  repository is `bjacobso/triplex`.
+- The single `@triplex-build/triplex` package replaces the original seven public packages.
+  The GitHub repository is `bjacobso/triplex`; see [releasing](/releasing) for old-name deprecations.
 - The superseded `@bjacobso` bootstrap packages are not the installation path for new consumers.
 - `SubscriptionManager` discovers dependencies and reports possible invalidations. It does not
   push result deltas or automatically re-run queries.
@@ -142,7 +145,7 @@ It remains experimental; these tests do not establish production operations or s
 - Config decision verification proves internal content integrity given a trusted decision root. It
   does not independently prove that an external actor chose the right rule or answer.
 - Constraint enforcement is opt-in and serialized through the commit-position boundary. Direct
-  adapter writes, authorization, general Datalog invariants, inbox/outbox delivery, timers, retries,
+  adapter writes, authorization, general Datalog invariants, external inbox/outbox transport,
   and application workflow lifecycle are host responsibilities. Hosts can enforce authorization and
   invariants atomically with commit validators, but Triplex ships no policy grammar. Validators run
   while the commit is serialized, and on Cloudflare they must be synchronous.
@@ -156,14 +159,14 @@ It remains experimental; these tests do not establish production operations or s
 
 ## Release follow-up
 
-1. Configure npm trusted publishing for all seven packages and verify a tokenless `next` publish.
-2. Verify the published packages in a clean registry-only consumer, including peer dependencies,
+1. Configure npm trusted publishing for the single package and verify a tokenless `next` publish.
+2. Verify the single package in a clean registry-only consumer, including peer dependencies,
    provenance, CLI, and exports.
 3. Deprecate the superseded `@bjacobso` canaries with migration guidance.
 
-Cloudflare and FoundationDB are private for the first release. Their source stays in the monorepo
-and continues to compile, but Changesets cannot publish them accidentally.
+Cloudflare and FoundationDB ship as experimental, frozen subpaths in the single package.
+Their implementation workspaces stay private and are excluded from Changesets.
 
 The six pre-stable `@bjacobso` canary packages must be deprecated after the corresponding
-`@triplex-build` stable packages are available. The old artifacts remain available so existing
+single `@triplex-build/triplex` release is available. The old artifacts remain available so existing
 canary installs receive a migration message instead of breaking.

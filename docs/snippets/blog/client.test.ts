@@ -19,6 +19,22 @@ it("runs declare/publish/command/get/projected query/asOf in the first program",
   });
 });
 
+it("runs the homepage client with a retry receipt, typed reads and historical attribution", () => {
+  const result = run("home/client-run.ts");
+  expect(result.retry).toEqual(result.receipt);
+  expect(result.worker).toEqual({ name: "Maria" });
+  expect(result.current).toEqual({ name: "Maria Rivera" });
+  expect(result.knownThen).toEqual({ name: "Maria" });
+  expect(result.explanation.basis.recordedPosition).toBe(result.receipt.position);
+  expect(result.explanation.transactions).toEqual([
+    expect.objectContaining({
+      actor: "user:dana",
+      commandId: "create:worker:maria",
+      release: expect.objectContaining({ status: "found", label: "workers-v1" }),
+    }),
+  ]);
+});
+
 it("runs the agent guide with enforcement, retry receipts, audit and derived work", () => {
   const result = run("client-site-safety-run.ts");
   expect(result.retry).toEqual(result.receipt);

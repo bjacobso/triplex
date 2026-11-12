@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { EntityId, TransactionId, Triples, number } from "@triplex-build/triplex";
-import { makeSqlTransactionPrefixLookup, SqliteDialect } from "@triplex-build/triplex-sql";
+import { makeSqlTransactionPrefixLookup, SqliteDialect } from "@triplex-build/triplex/sql";
 import { expect } from "vitest";
 
 const fixtureId = (value: number): string => {

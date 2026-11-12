@@ -1,7 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-postgres": minor
-"@triplex-build/triplex-testkit": patch
 ---
 
 Surface structured PostgreSQL serialization and deadlock failures as

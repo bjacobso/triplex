@@ -1,6 +1,5 @@
 ---
-"@triplex-build/triplex-cli": minor
-"@triplex-build/triplex-http": minor
+"@triplex-build/triplex": minor
 ---
 
 Replace CLI and HTTP failure bodies with stable core Diagnostic envelopes.

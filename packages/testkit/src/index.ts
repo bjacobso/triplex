@@ -26,11 +26,11 @@ import {
   Triples,
   UnboundVariableError,
   EntityId,
-} from "@triplex-build/triplex";
-import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-build/triplex/operational";
+} from "@triplex-internal/core";
+import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-internal/core/operational";
 import { commitValidatorConformanceCases } from "./commitValidatorCases.js";
-import * as Derivation from "@triplex-build/triplex/derivation";
-import { GraphConstraint } from "@triplex-build/triplex/config";
+import * as Derivation from "@triplex-internal/core/derivation";
+import { GraphConstraint } from "@triplex-internal/core/config";
 import {
   type RuntimeOptions,
   type RuntimeDefinition,
@@ -39,7 +39,7 @@ import {
   SnapshotWriter,
   ChangeEmitter,
   TripleStoreRuntime,
-} from "@triplex-build/triplex/runtime";
+} from "@triplex-internal/core/runtime";
 
 const eid = EntityId.make;
 const ref = (value: string) => makeRef(eid(value));
@@ -140,7 +140,7 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
         "CONF:FEED:",
         "conf:other:",
       ];
-      let retractId: import("@triplex-build/triplex").TripleId | undefined;
+      let retractId: import("@triplex-internal/core").TripleId | undefined;
       for (let i = 0; i < 28; i++) {
         const first = eid(`${prefixes[i % prefixes.length]}${i}`);
         const second = eid(`${prefixes[(i * 3 + 1) % prefixes.length]}second:${i}`);
@@ -3628,3 +3628,11 @@ export { liveQueryCases } from "./liveQueryCases.js";
 export { whyConformance, whyTestLayer } from "./whyCases.js";
 export { assertionConformance } from "./assertionCases.js";
 export { whyReadBoundaryConformance } from "./whyReadBoundaryCases.js";
+
+export {
+  runnerWorldsCase,
+  runnerCases,
+  runnerConformance,
+  runnerPersistenceCase,
+  settleRunner,
+} from "./runnerCases.js";

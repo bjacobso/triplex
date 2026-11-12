@@ -1,14 +1,14 @@
-# @triplex-build/triplex-sql
+# @triplex-build/triplex/sql
 
 Shared SQL migrations, database management, and Datalog execution for Triplex. Most applications
 install this transitively through a concrete backend package.
 
-Install `@triplex-build/triplex-sql` from npm when building a custom SQL runtime. Use Node.js 22+
+Install `@triplex-build/triplex/sql` from npm when building a custom SQL runtime. Use Node.js 22+
 and the compatible Effect 4 release candidate.
 
 The public surface includes the ordered `migrations`, explicit `runMigrations`, SQL
 query executors, and SQL-backed `DatabaseManager`/registry layers. Use
-`@triplex-build/triplex-sqlite` or `@triplex-build/triplex-postgres` for a concrete client and adapter.
+`@triplex-build/triplex/sqlite` or `@triplex-build/triplex/postgres` for a concrete client and adapter.
 
 For [custom runtimes](../../docs/custom-runtimes.md), `makeSqlQueryExecutorLayer(runner, dialect)`
 captures the SQL dialect without an ambient `CurrentDialect` requirement. The existing

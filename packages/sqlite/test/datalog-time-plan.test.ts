@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { compile } from "@triplex-build/triplex/datalog";
+import { compile } from "@triplex-internal/core/datalog";
 import { SqliteTestLayer } from "../src/SqliteLayer.js";
 
 it("uses historical bound indexes for selective expiry and start ranges", async () => {

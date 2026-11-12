@@ -54,7 +54,7 @@ three tests include the reader counterexample that rules out ambient substitutio
 Exact command:
 
 ```sh
-pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/staged-publication.test.ts
+pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/staged-publication.test.ts
 ```
 
 The candidate matches PostgreSQL's documented snapshot behavior: repeatable reads

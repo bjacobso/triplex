@@ -18,9 +18,9 @@ import {
   string,
   type QueryResponse,
   type TriplesService,
-} from "@triplex-build/triplex";
-import { GraphConstraint } from "@triplex-build/triplex/config";
-import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-build/triplex/operational";
+} from "@triplex-internal/core";
+import { GraphConstraint } from "@triplex-internal/core/config";
+import { ConsumerCheckpoint, Inbox, Outbox } from "@triplex-internal/core/operational";
 
 const eid = EntityId.make;
 const ref = (value: string) => makeRef(eid(value));

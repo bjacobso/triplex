@@ -42,7 +42,7 @@ export {
   type SqlStorageAdapterService,
   type SqlDialect,
   SqliteDialect,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 
 // Storage backend
 export { StorageBackend, type StorageBackendService } from "./StorageBackend.js";

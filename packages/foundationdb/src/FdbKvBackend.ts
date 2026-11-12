@@ -34,7 +34,7 @@ import {
   type KvEntry,
   type KvTransaction,
   type RangeOptions,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 
 // ─── FDB imports (dynamic to allow graceful failure) ───────────────────────
 

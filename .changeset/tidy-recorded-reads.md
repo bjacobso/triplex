@@ -1,9 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sql": minor
-"@triplex-build/triplex-sqlite": minor
-"@triplex-build/triplex-postgres": minor
-"@triplex-build/triplex-testkit": minor
 ---
 
 Add indexed `Triples.resolveRecordedBasis` and `Triples.dependencyStateAll` reads.

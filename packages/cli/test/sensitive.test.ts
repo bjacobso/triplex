@@ -1,6 +1,6 @@
-import { EntityId, KvTriples } from "@triplex-build/triplex";
-import { Attribute, ConfigStore } from "@triplex-build/triplex/config";
-import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
+import { EntityId, KvTriples } from "@triplex-internal/core";
+import { Attribute, ConfigStore } from "@triplex-internal/core/config";
+import { KeyProvider, Sensitive, ValueCodec } from "@triplex-internal/core/sensitive";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 

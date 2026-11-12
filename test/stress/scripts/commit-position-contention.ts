@@ -11,7 +11,7 @@ import {
   databaseToSchema,
   PgTriples,
   type PostgresqlConfig,
-} from "@triplex-build/triplex-postgres";
+} from "@triplex-build/triplex/postgres";
 import { GenericContainer, Wait } from "testcontainers";
 
 const integer = (name: string, fallback: number, min: number, max: number) => {
