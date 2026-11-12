@@ -426,6 +426,19 @@ it.
 | W2.5 | S8: replace the incubation banner with the proof line and the family strip                                                                                                                                                                                                                                                                                                                                                  | C     | WorldVM `rollout/family.json` | blocked | The canonical family file does not exist yet in WorldVM                                                                            |
 | W3   | Runner implementation (D14) as the `/runner` subpath                                                                                                                                                                                                                                                                                                                                                                        | B     | W1                            | pr-open | 2026-11-11: #86 (`ergonomics/runner`, on #84); corpus 34/34 KV+SQLite, 16/16 Postgres; fixed a lost-wakeup race                    |
 
+## Ask 0007: release readiness for 0.3.0
+
+From `worldvm-project/asks/0007-triplex-release-readiness.md` (meta orchestrator, at Ben's
+request). Reply goes in that file's Status block. Do not publish, tag or change npm settings.
+
+| ID  | Item                                                                                                        | Lane | Depends | Status      | Evidence                                                                                                            |
+| --- | ----------------------------------------------------------------------------------------------------------- | ---- | ------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| R1  | Fix the Postgres multi-organization setup race, with a stress test that reproduces it first; own PR to main | A    |         | pr-open     | 2026-11-12: `fix/postgres-org-setup-race`; ordering test fails on old code; manager pool leak fixed; Postgres 79/79 |
+| R2  | Verify release PR #35 on its head: install, check, pack check, Postgres integration; tarball name and size  | A    | R1      | waiting     | Rerun after R1 merges and the release PR regenerates                                                                |
+| R3  | Confirm the 0.3.0 bump, the CHANGELOG and `docs/releasing.md`                                               | A    |         | in-progress |                                                                                                                     |
+| R4  | Publish path: trusted publisher, why Release runs failed, whether publish can fail                          | A    |         | in-progress | Earlier failures were the version job ("mixed changeset"), fixed by #87; 0.2.0 was published with a token, not OIDC |
+| R5  | Exact `npm deprecate` commands for after the release                                                        | A    |         | in-progress |                                                                                                                     |
+
 Proof line check (2026-11-11): WorldVM's current runtime keeps each world's subject records and
 bases in Triplex (`worldvm/packages/runtime/src/subject/triplex-records.ts`, `triplex-basis.ts`; one
 database per world), and its Cloudflare demo uses Triplex too. Proposed wording: "WorldVM keeps each

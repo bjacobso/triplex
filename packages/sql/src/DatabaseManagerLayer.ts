@@ -463,6 +463,8 @@ export const DatabaseManagerLive = Layer.effect(
       Effect.gen(function* () {
         // Stop the cleanup fiber
         yield* Fiber.interrupt(cleanupFiber);
+        // Each cached database owns its connection pools; release them with the manager.
+        yield* closeAllConnections();
         yield* Effect.logInfo("Database manager finalized");
       }),
     );

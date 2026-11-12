@@ -6,7 +6,7 @@
  * The registry uses the "public" schema.
  */
 
-import { Context, Effect, Layer, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 import { PgClient } from "@effect/sql-pg";
 import { createHash } from "node:crypto";
@@ -102,24 +102,41 @@ const createScopedPoolLayer = (config: PostgresqlBackendConfig, schema: string) 
     ...(config.pool?.idleTimeout !== undefined && { idleTimeout: config.pool.idleTimeout }),
   });
 
-const createSchemaLayer = (config: PostgresqlBackendConfig, schema: string) =>
-  createScopedPoolLayer(config, schema).pipe(
-    Layer.tap((ctx) =>
+/**
+ * Create the schema on a short-lived connection that is not bound to it.
+ *
+ * A composed database layer may initialize an adapter pool and a query pool
+ * for the same new schema concurrently. PostgreSQL's `IF NOT EXISTS` check can
+ * still race at the namespace unique index, so lock this deterministic schema
+ * identity through creation.
+ *
+ * This must finish before any schema-bound connection opens. A backend that
+ * started before another session committed the schema can keep resolving its
+ * search path without it. It then sees the schema in catalog lookups but
+ * creates unqualified tables in `pg_catalog`, which fails migrations.
+ */
+const ensureSchema = (config: PostgresqlBackendConfig, schema: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql.withTransaction(
       Effect.gen(function* () {
-        const sql = Context.get(ctx, SqlClient.SqlClient);
-        // A composed database layer may initialize an adapter pool and a query
-        // pool for the same new schema concurrently. PostgreSQL's `IF NOT
-        // EXISTS` check can still race at the namespace unique index, so lock
-        // this deterministic schema identity through creation.
-        yield* sql.withTransaction(
-          Effect.gen(function* () {
-            yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${schema}, 0))`;
-            yield* sql.unsafe(`CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(schema)}`);
-          }),
-        );
+        yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${schema}, 0))`;
+        yield* sql.unsafe(`CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(schema)}`);
+      }),
+    );
+  }).pipe(
+    Effect.provide(
+      PgClient.layer({
+        url: Redacted.make(connectionUrl(config)),
+        minConnections: 0,
+        maxConnections: 1,
       }),
     ),
+    Effect.scoped,
   );
+
+const createSchemaLayer = (config: PostgresqlBackendConfig, schema: string) =>
+  Layer.unwrap(ensureSchema(config, schema).pipe(Effect.as(createScopedPoolLayer(config, schema))));
 
 /**
  * A pool whose every physical connection is bound to one validated Triplex
