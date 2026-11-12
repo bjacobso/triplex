@@ -65,7 +65,8 @@ Check these constraints with the people you work for before adopting it:
   `^:[a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*$`. An attribute owns its identity and value type.
 - An entity type owns how it uses an attribute: `required`, `cardinality` (`"one"` or `"many"`),
   and `unique`. The same attribute can be required in one type and optional in another. Declare a
-  use with `.required()`, `.many()`, or `.unique()`; a bare attribute is optional and single-valued.
+  use with `.required()`, `.many()`, or `.unique()`, chaining in any order, such as
+  `.required().unique()` or `.many().required()`. A bare attribute is optional and single-valued.
 - Model relationships as `Attribute.ref(key, TargetType)`. There are no join tables. Datalog joins
   on shared values.
 - Available value types: `text`, `number`, `integer`, `boolean`, `date`, `instant`, `enumOf`,
