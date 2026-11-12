@@ -435,10 +435,9 @@ Update this section last in every session.
 - **Last updated:** 2026-11-11, session 1 continued after the owner approved D2, D3, D9, D10, D11.
 - **Running subagents (Rex session `session:01a1a8f5-a3ea-7747-84dd-9a8334d169e3`):**
   - P2.7 trial (cold author): block `block:01a1cd10-065d-7acd-a46e-720436c6fefb`
-- **Open worktrees and branches from this plan:** none. #81 (`ergonomics/next`) is complete and
-  awaiting the owner; further work goes on `ergonomics/next-2`, stacked on it.
-- **Next action:** after the owner merges #81, record its squash on `ergonomics/next-2` with an
-  ours-merge (tree check first) and open the next PR. Runner implementation waits on D14.
+- **Open worktrees and branches from this plan:** `../triplex-wt/trial-base` (detached, P2.7 packages).
+  #80 and #81 merged; the open session PR is #82 from `ergonomics/next-2`.
+- **Next action:** record the P2.7 trial on #82. Runner implementation waits on D14; README on D12.
 - **Known blockers:** D12 (README), D13 (PostgreSQL `BIGINT`, applied on #81) and D14 (runner RFC)
   await the owner.
   owner considering the trade-offs) are open.
@@ -447,6 +446,8 @@ Update this section last in every session.
 
 Newest first. One line per event: date, item, what happened, link.
 
+- 2026-11-11: owner merged #81 (squash `dfa9298`, tree identical to `4adc6c2`); recorded with an
+  ours-merge on `ergonomics/next-2` and opened #82.
 - 2026-11-11: started the P2.7 phase-2 gate trial (author directed to the client).
 - 2026-11-11: #81 CI green on `4adc6c2` (8/8). P4.2 runner RFC merged on `ergonomics/next-2`; added D14.
 - 2026-11-11: P4.4c-fix (live-query clock bug) and a CI timeout fix pushed to #81. P2.6c merged on
