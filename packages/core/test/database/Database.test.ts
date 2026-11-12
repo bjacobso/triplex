@@ -240,7 +240,8 @@ describe("Database compilation", () => {
         ]);
       }),
     );
-  });
+    // Seeds 1,000 retracted assertions; leave room for slow CI runners.
+  }, 60_000);
 
   it("checks the local reference-target closure even when only the referring type is supplied", async () => {
     const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });

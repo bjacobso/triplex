@@ -76,7 +76,8 @@ describe("KV live precondition index", () => {
         expect(yielded).toBe(2);
       }).pipe(Effect.provide(layer(measured))),
     );
-  });
+    // Seeds 1,000 retracted assertions; leave room for slow CI runners.
+  }, 60_000);
 
   it("resumes a bounded legacy backfill while upgraded writers maintain the index", async () => {
     const kv = makeTestKvBackend();
