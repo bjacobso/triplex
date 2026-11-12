@@ -1,5 +1,5 @@
-import { EntityId, type Triple, type TripleValue } from "@triplex-build/triplex";
-import { Attribute, CanonicalJson, EntityType, TypeSchema } from "@triplex-build/triplex/config";
+import { EntityId, type Triple, type TripleValue } from "@triplex-internal/core";
+import { Attribute, CanonicalJson, EntityType, TypeSchema } from "@triplex-internal/core/config";
 import { Effect, Schema } from "effect";
 
 import type { AttributeDescriptor, EntityDescriptor } from "./ConfigApi.js";

@@ -1,10 +1,10 @@
 /** Shared browser-safe live-query corpus. Run against a fresh Triples store. */
 import { Effect, Fiber, Stream } from "effect";
 import { TestClock } from "effect/testing";
-import { EntityId, Triples, string, type TransactOp } from "@triplex-build/triplex";
-import { LiveQuery, type WatchSnapshot } from "@triplex-build/triplex/live-query";
-import { ConsumerCheckpoint, Outbox } from "@triplex-build/triplex/operational";
-import type { DatalogQuery } from "@triplex-build/triplex/datalog";
+import { EntityId, Triples, string, type TransactOp } from "@triplex-internal/core";
+import { LiveQuery, type WatchSnapshot } from "@triplex-internal/core/live-query";
+import { ConsumerCheckpoint, Outbox } from "@triplex-internal/core/operational";
+import type { DatalogQuery } from "@triplex-internal/core/datalog";
 const check = (condition: boolean, message: string) =>
   condition ? Effect.void : Effect.fail(new Error(message));
 const equal = (a: unknown, b: unknown, message: string) =>

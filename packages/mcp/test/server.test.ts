@@ -1,5 +1,5 @@
-import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
-import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
+import { Attribute, ConfigStore, EntityType } from "@triplex-internal/core/config";
+import { KeyProvider, Sensitive, ValueCodec } from "@triplex-internal/core/sensitive";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";
 import { McpProtocol, McpTest } from "effect/ai";
@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { EntityId } from "@triplex-build/triplex";
+import { EntityId } from "@triplex-internal/core";
 import { execute } from "@triplex-build/triplex-cli";
 import { registrations } from "../src/index.js";
 

@@ -70,7 +70,7 @@ work that is not complete.
   back together without an internal second pool.
 - The VitePress documentation is published as a Cloudflare assets-only Worker through the
   repository's Effect-native Alchemy stack at <https://triplex.build>.
-- A private portable host package now defines immutable tenant database identity, authorization,
+- A portable host subpath now defines immutable tenant database identity, authorization,
   CAS lifecycle contracts, route fencing, and a schema-decoded v1 data protocol. The Cloudflare
   package exposes a complete `CloudflareTriples` layer using one Durable Object SQLite handle for
   storage and Datalog, and passes the shared backend corpus both in its native-SQL harness and in
@@ -120,8 +120,8 @@ It remains experimental; these tests do not establish production operations or s
 
 ## Honest limitations
 
-- Seven public packages are published under the `@triplex-build` organization scope. The GitHub
-  repository is `bjacobso/triplex`.
+- The single `@triplex-build/triplex` package replaces the original seven public packages.
+  The GitHub repository is `bjacobso/triplex`; see [releasing](/releasing) for old-name deprecations.
 - The superseded `@bjacobso` bootstrap packages are not the installation path for new consumers.
 - `SubscriptionManager` discovers dependencies and reports possible invalidations. It does not
   push result deltas or automatically re-run queries.
@@ -156,14 +156,14 @@ It remains experimental; these tests do not establish production operations or s
 
 ## Release follow-up
 
-1. Configure npm trusted publishing for all seven packages and verify a tokenless `next` publish.
-2. Verify the published packages in a clean registry-only consumer, including peer dependencies,
+1. Configure npm trusted publishing for the single package and verify a tokenless `next` publish.
+2. Verify the single package in a clean registry-only consumer, including peer dependencies,
    provenance, CLI, and exports.
 3. Deprecate the superseded `@bjacobso` canaries with migration guidance.
 
-Cloudflare and FoundationDB are private for the first release. Their source stays in the monorepo
-and continues to compile, but Changesets cannot publish them accidentally.
+Cloudflare and FoundationDB ship as experimental, frozen subpaths in the single package.
+Their implementation workspaces stay private and are excluded from Changesets.
 
 The six pre-stable `@bjacobso` canary packages must be deprecated after the corresponding
-`@triplex-build` stable packages are available. The old artifacts remain available so existing
+single `@triplex-build/triplex` release is available. The old artifacts remain available so existing
 canary installs receive a migration message instead of breaking.

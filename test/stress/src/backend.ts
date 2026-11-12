@@ -24,19 +24,19 @@ import { SqliteClient } from "@effect/sql-sqlite-node";
 import { NodeServices } from "@effect/platform-node";
 import { DatabaseManager } from "@triplex-build/triplex";
 import { Triples, type TriplesService } from "@triplex-build/triplex";
-import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
-import { makeSqliteBackend } from "@triplex-build/triplex-sqlite";
+import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex/sql";
+import { makeSqliteBackend } from "@triplex-build/triplex/sqlite";
 import {
   makePostgresqlBackendFromUrl,
   makePostgresqlLayerFromUrl,
-} from "@triplex-build/triplex-postgres";
+} from "@triplex-build/triplex/postgres";
 import {
   InMemoryKvBackendLive,
   KvTriplesLive,
   RuntimeServicesLive,
   TripleStoreRuntimeLayer,
 } from "@triplex-build/triplex/internal";
-import { makeFdbKvBackend, type FdbKvBackendConfig } from "@triplex-build/triplex-foundationdb";
+import { makeFdbKvBackend, type FdbKvBackendConfig } from "@triplex-build/triplex/foundationdb";
 import { promises as fs } from "node:fs";
 
 // ─── Types ─────────────────────────────────────────────────────────────────

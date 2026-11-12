@@ -35,7 +35,7 @@ The first two plain-policy reads were tested before changing the helper. Exact
 command:
 
 ```sh
-pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/invariant-scopes.test.ts
+pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/invariant-scopes.test.ts
 ```
 
 These experiments establish lock/claim mechanisms, **not a complete scope planner**.

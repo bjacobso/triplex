@@ -10,8 +10,8 @@ import { Context, Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 import { PgClient } from "@effect/sql-pg";
 import { createHash } from "node:crypto";
-import type { DatabaseId } from "@triplex-build/triplex";
-import { type SqlDialect } from "@triplex-build/triplex/internal";
+import type { DatabaseId } from "@triplex-internal/core";
+import { type SqlDialect } from "@triplex-internal/core/internal";
 import {
   runMigrations,
   StorageBackend,

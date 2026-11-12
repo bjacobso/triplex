@@ -1,26 +1,56 @@
 # Releasing Triplex
 
-Triplex uses Changesets for one coordinated package-family release. Publishing is performed by
-GitHub Actions; routine releases should not depend on a maintainer's local npm configuration.
+Triplex publishes one npm package, `@triplex-build/triplex`, through Changesets and
+GitHub Actions. All implementation workspaces are private and ignored by Changesets.
 
-## Release set
+## Release set and packing from main
 
-The public release set contains:
+After cloning `main`, install and pack from the repository root:
 
-- `@triplex-build/triplex`
-- `@triplex-build/triplex-sql`
-- `@triplex-build/triplex-sqlite`
-- `@triplex-build/triplex-postgres`
-- `@triplex-build/triplex-testkit`
-- `@triplex-build/triplex-cli`
-- `@triplex-build/triplex-http`
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm pack
+```
 
-`@triplex-build/triplex-cloudflare` and `@triplex-build/triplex-foundationdb` remain private workspace
-packages until they pass the supported backend conformance contract. The dashboard and examples
-are also private.
+The prepack hook builds the private module graph and dashboard, then emits one
+`triplex-build-triplex-<version>.tgz`. It contains the existing core exports plus
+`/sql`, `/sqlite`, `/postgres`, `/cloudflare`, `/foundationdb`, `/host`, `/http`,
+`/testkit`, `/testkit/postgres` and `/mcp`, and the `triplex` executable. Dashboard
+JavaScript, CSS and fonts are prebuilt assets; consumers install no UI runtime.
+Cloudflare and FoundationDB remain **experimental and frozen** even though their
+subpaths now ship. `/runner` is reserved for later work and is not exported yet.
 
-The first release published all seven packages in September 2026. Review pending Changesets and
-the coordinated release set before each subsequent publication.
+Only `effect` is a required peer. Install the backend driver separately:
+
+```sh
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node
+# PostgreSQL instead:
+npm install @triplex-build/triplex effect @effect/sql-pg
+```
+
+The bin's Node services also need `@effect/platform-node` and
+`@effect/platform-node-shared`, both optional peers. Library-only and browser
+consumers do not need them. `pnpm pack:check` verifies the effect-only consumer,
+then installs the SQLite driver and Node adapters to exercise the bin and server.
+
+## Deprecate the old npm names after the consolidated release
+
+Ben should publish and verify the unified release before deprecating all versions
+of these six names. Do not unpublish any artifacts. Use these exact messages:
+
+| Old npm package                   | Deprecation message                                                                                                           |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `@triplex-build/triplex-sql`      | Use @triplex-build/triplex/sql from the single @triplex-build/triplex package.                                                |
+| `@triplex-build/triplex-sqlite`   | Use @triplex-build/triplex/sqlite from the single @triplex-build/triplex package; install @effect/sql-sqlite-node separately. |
+| `@triplex-build/triplex-postgres` | Use @triplex-build/triplex/postgres from the single @triplex-build/triplex package; install @effect/sql-pg separately.        |
+| `@triplex-build/triplex-http`     | Use @triplex-build/triplex/http from the single @triplex-build/triplex package.                                               |
+| `@triplex-build/triplex-testkit`  | Use @triplex-build/triplex/testkit (or /testkit/postgres) from the single @triplex-build/triplex package.                     |
+| `@triplex-build/triplex-cli`      | Install @triplex-build/triplex for the triplex bin; use triplex mcp and triplex dashboard for the bundled tools.              |
+
+For each row, the owner can run `npm deprecate '<old-name>@*' '<message>'` after
+verifying the new paths. Cloudflare, FoundationDB, host, MCP and dashboard were
+never published under the old workspace names and need no npm deprecation.
 
 ## Required repository configuration
 
@@ -29,7 +59,7 @@ Create a GitHub environment named `npm-publish` and require maintainer approval 
 Repository Actions settings must allow GitHub Actions to create pull requests so the version job
 can maintain the release PR.
 
-The release workflow uses npm trusted publishing. Each public package needs this trusted publisher:
+The release workflow uses npm trusted publishing. The single public package needs this trusted publisher:
 
 | Field       | Value         |
 | ----------- | ------------- |
@@ -113,29 +143,29 @@ so CI can provision or upgrade the existing state store when required.
 Install from the registry in a clean directory outside this monorepo:
 
 ```sh
-pnpm init
-pnpm add effect@4.1.1 \
-  @triplex-build/triplex@next \
-  @triplex-build/triplex-sqlite@next \
-  @triplex-build/triplex-cli@next
-pnpm exec triplex --help
-pnpm exec triplex --sqlite ./canary.sqlite describe
+npm install @triplex-build/triplex@next effect @effect/sql-sqlite-node \
+  @effect/platform-node @effect/platform-node-shared
+npx triplex --help
+npx triplex --sqlite ./canary.sqlite describe
+npx triplex mcp --sqlite ./canary.sqlite
+# In another terminal, verify the local dashboard:
+npx triplex dashboard --sqlite ./canary.sqlite --port 4174
 ```
 
 Also execute a small Effect program that asserts and queries a fact through SQLite. Confirm the
 installed core contains only documented `dist` exports, there is one Effect runtime, and npm shows
-provenance for every canary package.
+provenance for the single canary package.
 
 ## Stable release
 
 Every public API change must include a Changeset. On pushes to `main`, the release workflow either
-updates a version PR or publishes the already-versioned packages:
+updates a version PR or publishes the already-versioned package:
 
-1. Review the generated versions, changelogs, lockfile changes, and package set in the release PR.
+1. Review the generated versions, changelogs, lockfile changes, and single publishable package in the release PR.
 2. Require a green CI run, including PostgreSQL and the packed external-consumer test.
 3. Merge the release PR.
 4. Approve the `npm-publish` environment deployment.
-5. Verify the `latest` dist-tags, provenance, package contents, Git tags, and GitHub releases.
+5. Verify the `latest` dist-tag, provenance, package contents, Git tags, and GitHub releases.
 
 `pnpm release:version`, `pnpm release:publish`, and `pnpm release:canary` are the corresponding
 low-level commands. The stable commands are intentionally separated so the version changes are

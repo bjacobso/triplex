@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { expect } from "vitest";
 import { EntityId, Triples, number } from "@triplex-build/triplex";
-import { makeSqlLivePreconditionLookup, SqliteDialect } from "@triplex-build/triplex-sql";
+import { makeSqlLivePreconditionLookup, SqliteDialect } from "@triplex-build/triplex/sql";
 
 /** Same guarded value, growing retracted history and unrelated live attributes. */
 export const livePreconditionIndexPlan = (backend: "sqlite" | "postgres") =>

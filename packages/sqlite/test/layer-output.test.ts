@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { Effect, Layer } from "effect";
-import { Triples } from "@triplex-build/triplex";
+import { Triples } from "@triplex-internal/core";
 import { SqliteTriples } from "../src/SqliteTriples.js";
 
 it("exposes only Triples from each SQLite convenience layer", async () => {

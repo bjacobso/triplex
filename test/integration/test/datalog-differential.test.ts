@@ -13,7 +13,7 @@ import {
   type QueryContext,
 } from "@triplex-build/triplex/internal";
 import { EntityId } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 import { ConfigStore, EntityValidation, TypeExpr } from "@triplex-build/triplex/config";
 
 const eid = EntityId.make;

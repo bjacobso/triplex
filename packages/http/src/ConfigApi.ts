@@ -5,7 +5,7 @@ import {
   GraphConstraint,
   TypeExpr,
   TypeSchema,
-} from "@triplex-build/triplex/config";
+} from "@triplex-internal/core/config";
 import { Effect, Result, Schema } from "effect";
 
 import { ConfigConflictError, type CompileError, UnsupportedConfigError } from "./Errors.js";
@@ -44,7 +44,7 @@ export interface EntityDescriptor {
 
 export interface ConfigApiDescriptor {
   readonly protocolVersion: 1;
-  readonly snapshotId: import("@triplex-build/triplex/config").ConfigStore.ConfigSnapshot["id"];
+  readonly snapshotId: import("@triplex-internal/core/config").ConfigStore.ConfigSnapshot["id"];
   readonly label: string;
   readonly entities: ReadonlyArray<EntityDescriptor>;
   readonly constraints: ReadonlyArray<GraphConstraint.Rule>;
@@ -137,7 +137,7 @@ const referenceKinds = (expr: TypeExpr.TypeExpr): ReadonlyArray<string> => {
 
 /** Compile only persisted release data; no DSL handles are retained or consulted. */
 export const compile = (
-  snapshot: import("@triplex-build/triplex/config").ConfigStore.ConfigSnapshot,
+  snapshot: import("@triplex-internal/core/config").ConfigStore.ConfigSnapshot,
   options: ExposureOptions = {},
 ): Effect.Effect<ConfigApiDescriptor, CompileError> =>
   Effect.gen(function* () {

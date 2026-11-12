@@ -1,8 +1,8 @@
 import { Effect, Layer } from "effect";
-import { EntityId, Triples, string, type SealedValue } from "@triplex-build/triplex";
-import { Attribute, EntityType, ConfigStore } from "@triplex-build/triplex/config";
-import * as Derivation from "@triplex-build/triplex/derivation";
-import { Why } from "@triplex-build/triplex/why";
+import { EntityId, Triples, string, type SealedValue } from "@triplex-internal/core";
+import { Attribute, EntityType, ConfigStore } from "@triplex-internal/core/config";
+import * as Derivation from "@triplex-internal/core/derivation";
+import { Why } from "@triplex-internal/core/why";
 import { attributeFixture, candidateFixture } from "./whyFixtures.js";
 
 const check = (condition: boolean, message: string) =>

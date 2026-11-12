@@ -1,6 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-testkit": minor
 ---
 
 Add the browser-safe `live-query` subpath with scoped `LiveQuery.watch`, complete exact-cut snapshots, resume tokens, deadline scheduling, optional coalescing and pull backpressure. Export a shared KV/SQLite/PostgreSQL observation corpus from testkit.

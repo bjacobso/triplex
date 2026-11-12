@@ -1,15 +1,15 @@
-# @triplex-build/triplex-cloudflare
+# @triplex-build/triplex/cloudflare
 
 Cloudflare Durable Object SQLite storage support for Triplex.
 
-This is a private experimental workspace package and is not available from npm. Evaluate it only
-from a source checkout with the repository's locked dependencies.
+This experimental, frozen backend ships as a subpath of `@triplex-build/triplex`.
+Its implementation workspace remains private; new features target KV, SQLite and PostgreSQL.
 
 Compose the complete service once in a Durable Object constructor and retain the resulting Effect
 runtime for the object's activation:
 
 ```ts
-import { CloudflareTriples } from "@triplex-build/triplex-cloudflare";
+import { CloudflareTriples } from "@triplex-build/triplex/cloudflare";
 
 const layer = CloudflareTriples.layer({
   state: durableObjectState,
@@ -32,8 +32,8 @@ import {
   changeEmission,
   type ChangeEmitterService,
 } from "@triplex-build/triplex/runtime";
-import { SqlSnapshotsLive } from "@triplex-build/triplex-sql";
-import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex-cloudflare";
+import { SqlSnapshotsLive } from "@triplex-build/triplex/sql";
+import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex/cloudflare";
 
 declare const state: DOState;
 declare const emitter: ChangeEmitterService;
@@ -55,10 +55,10 @@ All work inside a `Triples.transact` boundary must remain synchronous. Effects t
 timer, network request, or other asynchronous service fail and roll back the native
 `transactionSync` callback.
 
-`pnpm --filter @triplex-build/triplex-cloudflare test` runs the shared backend corpus twice: once in a
+`pnpm --filter @triplex-build/triplex/cloudflare test` runs the shared backend corpus twice: once in a
 fast native-SQL harness and once inside Cloudflare's workerd Vitest integration with a real
 SQLite-backed Durable Object.
 
-Status: private experimental workspace package, held from the first npm release.
+Status: experimental and frozen; shipped in the single Triplex package.
 
 MIT © 2026 Ben Jacobson.

@@ -69,7 +69,7 @@ query result types, adapter errors, snapshot and emission contracts, and `StoreC
 `TriplesLive`, SQL compilation functions, and hexastore key encoders remain implementation details.
 
 `StorageAdapterService` has no `rawQuery` requirement. SQL adapters can implement the separate
-`SqlStorageAdapterService` refinement exported by `@triplex-build/triplex-sql`.
+`SqlStorageAdapterService` refinement exported by `@triplex-build/triplex/sql`.
 
 Custom `StorageAdapterService` implementations must provide `recordedPositionAt(instant, head)`
 and `dependencyStateAll(resolvedBasis)`. The former returns the greatest committed journal
@@ -139,8 +139,8 @@ import {
   changeEmission,
   type ChangeEmitterService,
 } from "@triplex-build/triplex/runtime";
-import { SqlSnapshotsLive } from "@triplex-build/triplex-sql";
-import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex-cloudflare";
+import { SqlSnapshotsLive } from "@triplex-build/triplex/sql";
+import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex/cloudflare";
 
 declare const state: DOState;
 declare const emitter: ChangeEmitterService;
@@ -244,8 +244,8 @@ Run the shared suite in one expression using testkit:
 ```ts check
 import { Effect } from "effect";
 import { DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
-import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex-cloudflare";
-import { runtimeConformance } from "@triplex-build/triplex-testkit";
+import { makeCloudflareRuntime, type DOState } from "@triplex-build/triplex/cloudflare";
+import { runtimeConformance } from "@triplex-build/triplex/testkit";
 
 declare const isolatedState: DOState;
 await Effect.runPromise(

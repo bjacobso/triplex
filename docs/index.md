@@ -23,7 +23,7 @@ pageClass: triplex-index
 <div class="th-install">
 
 ```sh
-npm install @triplex-build/triplex effect@4.1.1
+npm install @triplex-build/triplex effect
 ```
 
 </div>
@@ -288,8 +288,8 @@ npm install @triplex-build/triplex effect@4.1.1
 <p>On PostgreSQL, Triplex can share your application’s transaction, so your own rows, Triplex facts, the journal, and an outbox row commit or roll back together.</p>
 <ul class="th-checklist" aria-label="Storage runtimes and their status">
 <li><span><strong>In-memory KV</strong><small><code>@triplex-build/triplex</code> · tests, browser, edge</small></span><em class="is-supported">Supported</em></li>
-<li><span><strong>SQLite</strong><small><code>@triplex-build/triplex-sqlite</code> · durable baseline</small></span><em class="is-supported">Supported</em></li>
-<li><span><strong>PostgreSQL</strong><small><code>@triplex-build/triplex-postgres</code></small></span><em class="is-candidate">Pre-1.0 production candidate</em></li>
+<li><span><strong>SQLite</strong><small><code>@triplex-build/triplex/sqlite</code> · durable baseline</small></span><em class="is-supported">Supported</em></li>
+<li><span><strong>PostgreSQL</strong><small><code>@triplex-build/triplex/postgres</code></small></span><em class="is-candidate">Pre-1.0 production candidate</em></li>
 <li class="is-experimental"><span><strong>Cloudflare Durable Objects</strong><small>Private workspace package</small></span><em>Experimental</em></li>
 <li class="is-experimental"><span><strong>FoundationDB</strong><small>Private workspace package</small></span><em>Experimental</em></li>
 </ul>

@@ -1,6 +1,7 @@
 {
   "name": "@triplex-build/triplex-cli",
   "version": "0.1.1",
+  "private": true,
   "description": "Agent-friendly Effect CLI for exploring and operating Triplex databases.",
   "keywords": [
     "agent",
@@ -40,9 +41,6 @@
       "default": "./dist/index.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "clean": "rm -rf dist",
@@ -51,10 +49,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^",
     "@triplex-build/triplex-postgres": "workspace:^",
     "@triplex-build/triplex-sql": "workspace:^",
-    "@triplex-build/triplex-sqlite": "workspace:^"
+    "@triplex-build/triplex-sqlite": "workspace:^",
+    "@triplex-internal/core": "workspace:^"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",

@@ -1,4 +1,4 @@
-import { EntityId, type TransactRequest, type TripleValue } from "@triplex-build/triplex";
+import { EntityId, type TransactRequest, type TripleValue } from "@triplex-internal/core";
 import {
   Attribute,
   ConfigNode,
@@ -6,7 +6,7 @@ import {
   EntityValidation,
   GraphConstraint,
   TypeExpr,
-} from "@triplex-build/triplex/config";
+} from "@triplex-internal/core/config";
 import { Effect, Schema } from "effect";
 
 export const manifest = {

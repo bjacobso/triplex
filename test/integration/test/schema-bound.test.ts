@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { Effect, Layer } from "effect";
 import { EntityId, Triples } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 import { Attribute, ConfigStore, SchemaBound } from "@triplex-build/triplex/config";
 
 const base = ConfigStore.layer.pipe(Layer.provideMerge(SqliteTriples.layerMemory));

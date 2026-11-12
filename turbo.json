@@ -22,6 +22,36 @@
       "dependsOn": ["build", "^build"],
       "inputs": ["src/**", "test/**", "package.json", "vitest.config.ts"],
       "outputs": []
+    },
+    "@triplex-build/triplex-dashboard#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "vite.config.ts", "index.html", "public/**"],
+      "outputs": ["dist/**", "dist-server/**"]
+    },
+    "@triplex-build/triplex#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "package.json",
+        "README.md",
+        "LICENSE",
+        "$TURBO_ROOT$/scripts/assemble-package.mjs"
+      ],
+      "outputs": ["dist/**", "publish/**"]
+    },
+    "@triplex-build/triplex-cli#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/triplex/package.json"],
+      "outputs": ["dist/**"]
+    },
+    "@triplex-build/triplex#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["package.json", "$TURBO_ROOT$/scripts/check-single-package.test.mjs"],
+      "outputs": []
+    },
+    "@triplex-build/triplex#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["package.json", "$TURBO_ROOT$/scripts/check-single-package.test.mjs"],
+      "outputs": []
     }
   }
 }

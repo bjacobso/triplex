@@ -1,8 +1,8 @@
-# @triplex-build/triplex-testkit
+# @triplex-build/triplex/testkit
 
 Reusable backend fixture and capability helpers for testing Triplex adapters.
 
-Install `@triplex-build/triplex-testkit` from npm with Node.js 22+ and the compatible Effect 4
+Install `@triplex-build/triplex/testkit` from npm with Node.js 22+ and the compatible Effect 4
 release candidate.
 
 `triplesConformanceCases` and `makeTriplesConformanceSuite` define the behavioral contract used by
@@ -17,13 +17,13 @@ explicitly. This is a Triples contract check, not a guarantee of snapshot/emitte
 crash durability, cross-process isolation, or migration safety.
 
 For Postgres tests, install the compatible `@effect/sql-pg` optional peer and use
-the separate `@triplex-build/triplex-testkit/postgres` entrypoint:
+the separate `@triplex-build/triplex/testkit/postgres` entrypoint:
 
 ```ts
 import { Effect } from "effect";
 import { Triples } from "@triplex-build/triplex";
-import { PgTriples } from "@triplex-build/triplex-postgres";
-import { postgresSchemaLayer } from "@triplex-build/triplex-testkit/postgres";
+import { PgTriples } from "@triplex-build/triplex/postgres";
+import { postgresSchemaLayer } from "@triplex-build/triplex/testkit/postgres";
 
 const TestDatabase = postgresSchemaLayer({
   url: process.env.PG_TEST_URL!,

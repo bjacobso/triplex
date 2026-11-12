@@ -7,7 +7,7 @@ import {
   EntityId,
   Triples,
   string,
-} from "@triplex-build/triplex";
+} from "@triplex-internal/core";
 import { sqliteInternalLayer } from "./SqliteInternalLayer.js";
 
 const record = EntityId.make("host:record:1");

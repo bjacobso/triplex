@@ -17,7 +17,14 @@ const sourceFor = (packageDir: string, target: ExportTarget): string | undefined
     .replace("./dist/", "./src/")
     .replace(/\.d\.ts$/, ".ts")
     .replace(/\.js$/, ".ts");
-  const absolute = path.resolve(packageDir, source);
+  const absolute =
+    path.basename(packageDir) === "triplex"
+      ? path.resolve(
+          packageDir,
+          "..",
+          source.replace("./src/", "").replace(/^([^/]+)\//, "$1/src/"),
+        )
+      : path.resolve(packageDir, source);
   return fs.existsSync(absolute) ? absolute : undefined;
 };
 
@@ -32,7 +39,11 @@ export function workspaceAliases() {
     if (!fs.existsSync(manifestPath)) continue;
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as PackageJson;
-    if (!manifest.name?.startsWith("@triplex-build/triplex")) continue;
+    if (
+      !manifest.name?.startsWith("@triplex-build/triplex") &&
+      manifest.name !== "@triplex-internal/core"
+    )
+      continue;
 
     for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
       const replacement = sourceFor(packageDir, target);

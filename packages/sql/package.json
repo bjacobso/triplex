@@ -1,6 +1,7 @@
 {
   "name": "@triplex-build/triplex-sql",
   "version": "0.2.0",
+  "private": true,
   "description": "Shared SQL layers and query execution for Triplex",
   "keywords": [
     "database",
@@ -35,9 +36,6 @@
       "default": "./dist/index.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "dev": "tsdown --watch",
@@ -46,7 +44,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^"
+    "@triplex-internal/core": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "catalog:",

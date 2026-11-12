@@ -1,5 +1,5 @@
 import { Effect, Option } from "effect";
-import { EntityId, TripleId, Triples, string } from "@triplex-build/triplex";
+import { EntityId, TripleId, Triples, string } from "@triplex-internal/core";
 
 /** Public identity reads distinguish live assertions from retained history. */
 export const assertionConformance = Effect.gen(function* () {

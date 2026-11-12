@@ -4,8 +4,8 @@ import {
   createParamCollector,
   type SqlDialect,
   type TripleRow,
-} from "@triplex-build/triplex/internal";
-import type { StorageAdapterService } from "@triplex-build/triplex/runtime";
+} from "@triplex-internal/core/internal";
+import type { StorageAdapterService } from "@triplex-internal/core/runtime";
 import type { SqlStatementRunner } from "./SqlQueryExecutor.js";
 
 /** Uses the existing partial entity index (only unretracted rows). */

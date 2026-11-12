@@ -14,7 +14,7 @@
 import { Effect, Stream } from "effect";
 import { describe, expect, layer } from "@effect/vitest";
 import { createRequire } from "node:module";
-import { KvBackend } from "@triplex-build/triplex";
+import { KvBackend } from "@triplex-internal/core";
 import { makeFdbKvBackendService } from "../src/FdbKvBackend.js";
 import { FdbClusterFile, FdbContainerLayer, FdbTestLayer } from "./fixtures/FdbTestLayer.js";
 

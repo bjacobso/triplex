@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { diagnose } from "@triplex-build/triplex";
+import { diagnose } from "@triplex-internal/core";
 import { Console, Effect, Layer } from "effect";
 import { McpProtocol, McpServer } from "effect/ai";
 import { registrations } from "./index.js";

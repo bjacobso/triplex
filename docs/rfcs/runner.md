@@ -6,7 +6,7 @@ below are proposed API fragments, not runnable examples of a shipped package.
 
 ## 1. Recommendation, API and compliance host
 
-Add `@triplex-build/triplex-runner` beside HTTP and CLI. It follows the global
+Add `@triplex-build/triplex/runner` beside HTTP and CLI. It follows the global
 ordered journal, materializes affected definitions, delivers pure candidate diffs
 to Effect handlers, and schedules dependency boundaries. It owns catch-up and
 wakeups; the host still decides what a task means. It must never infer that a
@@ -18,7 +18,7 @@ host code can keep additions, removals and revisions in one application module.
 There is no Promise interface.
 
 ```ts
-import * as Runner from "@triplex-build/triplex-runner";
+import * as Runner from "@triplex-build/triplex/runner";
 
 type Delivery = {
   readonly version: 1;
@@ -79,7 +79,7 @@ all `ConsumerCheckpoint` calls with this composition:
 ```ts
 import { Effect } from "effect";
 import * as Database from "@triplex-build/triplex/database";
-import * as Runner from "@triplex-build/triplex-runner";
+import * as Runner from "@triplex-build/triplex/runner";
 
 // Fragment inside the host's scoped Effect, after deployment and definition creation.
 const serve = Effect.gen(function* () {
@@ -425,7 +425,7 @@ continue to pass, but this RFC adds no certification for them.
 
 ## 7. Package and implementation gate
 
-The package is `@triplex-build/triplex-runner`, directory `packages/runner`.
+The package is `@triplex-build/triplex/runner`, a future module assembled into the single published package.
 Runtime dependencies are public exports of `@triplex-build/triplex` and Effect
 only, with versions in the root catalog and Effect's peer range matching core.
 No dependency on HTTP, CLI, host, SQL or backend internals is needed. It can stay
