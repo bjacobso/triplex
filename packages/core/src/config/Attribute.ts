@@ -94,9 +94,15 @@ export interface Use<
 > {
   readonly _tag: "AttributeUse";
   readonly attribute: D;
-  readonly required: R;
+  readonly isRequired: R;
   readonly cardinality: C;
-  readonly unique: boolean;
+  readonly isUnique: boolean;
+  /** Require this use, preserving cardinality and uniqueness. */
+  readonly required: () => Use<D, C, true>;
+  /** Allow many values, preserving requiredness and uniqueness. */
+  readonly many: () => Use<D, "many", R>;
+  /** Require unique values, preserving cardinality and requiredness. */
+  readonly unique: () => Use<D, C, R>;
 }
 
 /** The cardinality `use` records for an options literal; `one` unless `many` is explicit. */
@@ -258,17 +264,45 @@ export const ref = <const K extends string, const Target extends ReferenceTarget
   target,
 });
 
+/** Immutable use builder; methods live on the prototype, outside the usage data. */
+class AttributeUse<
+  D extends AnyDefinition,
+  C extends Cardinality,
+  R extends boolean,
+> implements Use<D, C, R> {
+  readonly _tag = "AttributeUse";
+
+  constructor(
+    readonly attribute: D,
+    readonly cardinality: C,
+    readonly isRequired: R,
+    readonly isUnique: boolean,
+  ) {}
+
+  required(): Use<D, C, true> {
+    return new AttributeUse(this.attribute, this.cardinality, true, this.isUnique);
+  }
+
+  many(): Use<D, "many", R> {
+    return new AttributeUse(this.attribute, "many", this.isRequired, this.isUnique);
+  }
+
+  unique(): Use<D, C, R> {
+    return new AttributeUse(this.attribute, this.cardinality, this.isRequired, true);
+  }
+}
+
 /** Requiredness and cardinality belong to an entity's use, not the global attribute. */
 export const use = <D extends AnyDefinition, const O extends UseOptions = {}>(
   attribute: D,
   options?: O,
-): Use<D, CardinalityOf<O>, RequiredOf<O>> => ({
-  _tag: "AttributeUse",
-  attribute,
-  required: (options?.required ?? false) as RequiredOf<O>,
-  cardinality: (options?.cardinality ?? "one") as CardinalityOf<O>,
-  unique: options?.unique ?? false,
-});
+): Use<D, CardinalityOf<O>, RequiredOf<O>> =>
+  new AttributeUse(
+    attribute,
+    (options?.cardinality ?? "one") as CardinalityOf<O>,
+    (options?.required ?? false) as RequiredOf<O>,
+    options?.unique ?? false,
+  );
 
 /** A typed fact descriptor; spread it into an `assert` operation with an entity id. */
 export const assertion = <D extends AnyDefinition>(

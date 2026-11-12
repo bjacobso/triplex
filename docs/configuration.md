@@ -49,7 +49,7 @@ import { Attribute, EntityType } from "@triplex-build/triplex/config";
 export const EmployerName = Attribute.text(":employer/name");
 
 export const Employer = EntityType.make("Employer", {
-  name: EmployerName.required({ unique: true }),
+  name: EmployerName.required().unique(),
 });
 
 // A bare attribute is an optional, single-valued use.
@@ -91,10 +91,16 @@ value, or a `validTo` that is not later than `validFrom`, throws.
 Requiredness is not inherently true of `:employer/name`; it is true of the way `Employer` uses the
 attribute. Reference attributes follow the same separation.
 
-`.required()`, `.many()`, and `.unique()` describe a use and accept the remaining options, for
-example `.required({ unique: true })` or `.many({ required: true })`. They are shorthands for
-`Attribute.use(attribute, options)`, which remains available. Declare entity types with
-`EntityType.make(name, fields)`, passing aliased fields directly.
+`.required()`, `.many()`, and `.unique()` describe a use and chain in any order:
+`.required().unique()`, `.unique().many()`, or `.many().required()`. Each call returns a new use,
+preserving the other constraints and leaving the original unchanged. Inspect a use with
+`isRequired`, `cardinality`, and `isUnique`; entity handles retain `required`, `cardinality`, and
+`unique` data fields.
+
+The first modifier on a definition also accepts the remaining options, for example
+`.required({ unique: true })` or `.many({ required: true })`. These and
+`Attribute.use(attribute, options)` produce the same configuration content IDs as chaining.
+Declare entity types with `EntityType.make(name, fields)`, passing aliased fields directly.
 
 `Employer.nodes` yields the independently identified attribute definitions followed by the entity
 schema. Use `EntityType.nodesOf(Employer, EmployerSummary, Employment)` to publish several types
