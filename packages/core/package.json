@@ -97,6 +97,11 @@
       "types": "./dist/why/index.d.ts",
       "import": "./dist/why/index.js",
       "default": "./dist/why/index.js"
+    },
+    "./runner": {
+      "types": "./dist/runner/index.d.ts",
+      "import": "./dist/runner/index.js",
+      "default": "./dist/runner/index.js"
     }
   },
   "scripts": {
