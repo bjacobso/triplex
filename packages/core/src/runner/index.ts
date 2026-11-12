@@ -989,6 +989,9 @@ export const start = <E, R>(
         });
       const coordinator = Effect.gen(function* () {
         while (!stopped) {
+          // Capture the wake signal before reading the head: a commit or finished
+          // delivery that wakes the runner during the reads below must not be lost.
+          const signal = pulse;
           head = yield* store(t.currentPosition());
           scannedPosition = head;
           const launchTime = yield* Clock.currentTimeMillis;
@@ -1003,7 +1006,6 @@ export const start = <E, R>(
             )
               yield* launch(l);
           }
-          const signal = pulse;
           const time = yield* Clock.currentTimeMillis;
           const deadlines = locals.flatMap((l) =>
             l.busy

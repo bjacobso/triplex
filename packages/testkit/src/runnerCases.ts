@@ -1,5 +1,5 @@
 /** Durable runner corpus. The caller supplies a fresh persistent Triples layer and TestClock. */
-import { Deferred, Effect, Fiber, Layer, Option, type Scope } from "effect";
+import { Clock, Deferred, Effect, Fiber, Layer, Option, type Scope } from "effect";
 import { TestClock } from "effect/testing";
 import {
   EntityId,
@@ -46,17 +46,54 @@ const options = (id = "test") => ({
   idleCheckMs: 1,
   retry: { maxAttempts: 2, initialDelayMs: 1, maxDelayMs: 1, random: () => 1 },
 });
-/** Let backend I/O settle before advancing the injected clock. Never uses wall sleeps. */
+/**
+ * Wait until the runner status satisfies `predicate`. Backend I/O is awaited in real time
+ * (bounded at 30 s). The injected clock moves only when the runner is provably waiting on
+ * it: to reach a scheduled retry, or by one idle-check tick when commits it has not scanned
+ * (or a due deadline) sit unchanged across several real-time waits. Slow backends therefore
+ * cannot drift the clock past the valid-time boundaries a case asserts on.
+ */
 export const settleRunner = <E>(
   h: Runner.Handle<E>,
   predicate: (s: Runner.RunnerStatus) => boolean,
-): Effect.Effect<void, Runner.RunnerError | E> =>
+): Effect.Effect<void, Runner.RunnerError | E, Triples> =>
   Effect.gen(function* () {
-    for (let i = 0; i < 5000; i++) {
-      const failure = h.await;
-      if (predicate(yield* h.status)) return;
-      yield* Effect.raceFirst(Effect.yieldNow, failure);
-      if (i % 10 === 0) yield* TestClock.adjust(1);
+    const t = yield* Triples;
+    const live = TestClock.withLive(Clock.currentTimeMillis);
+    const deadline = (yield* live) + 30_000;
+    let previous = "";
+    let unchanged = 0;
+    while ((yield* live) < deadline) {
+      const status = yield* h.status;
+      if (predicate(status)) return;
+      yield* Effect.raceFirst(Effect.yieldNow, h.await);
+      const fingerprint = JSON.stringify(status);
+      unchanged = fingerprint === previous ? unchanged + 1 : 0;
+      previous = fingerprint;
+      const now = yield* Clock.currentTimeMillis;
+      const retryAt = status.registrations
+        .map((r) => (r.pending && !r.pending.paused ? r.pending.retryAt : null))
+        .filter((at): at is number => at !== null && at > now);
+      if (retryAt.length > 0 && unchanged >= 5) {
+        yield* TestClock.setTime(Math.min(...retryAt));
+        continue;
+      }
+      const head = yield* t
+        .currentPosition()
+        .pipe(
+          Effect.mapError(
+            (error) => new Runner.RunnerError({ code: "Store", message: error.message }),
+          ),
+        );
+      const due = status.registrations.some(
+        (r) => r.nextDeadline !== null && r.nextDeadline <= now,
+      );
+      if ((head > status.scannedPosition || due) && unchanged >= 5) {
+        yield* TestClock.adjust(1);
+        unchanged = 0;
+        continue;
+      }
+      yield* TestClock.withLive(Effect.sleep(1));
     }
     return yield* Effect.fail(
       new Runner.RunnerError({ code: "Store", message: "Runner did not settle" }),
@@ -415,10 +452,8 @@ const effects = {
       yield* TestClock.setTime(150);
       yield* settleRunner(h, () => batches.length === 2);
       yield* equal(batches[1]!.basis.validAt, 120, "future start evaluated at exact boundary");
-      yield* check(
-        (yield* h.status).registrations[0]!.nextDeadline === 200,
-        "empty run schedules expiry",
-      );
+      // The empty run schedules expiry once it is acknowledged.
+      yield* settleRunner(h, (s) => s.registrations[0]!.nextDeadline === 200);
       yield* TestClock.setTime(200);
       yield* settleRunner(h, () => batches.length === 3);
       yield* equal(
