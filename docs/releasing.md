@@ -16,10 +16,10 @@ pnpm pack
 The prepack hook builds the private module graph and dashboard, then emits one
 `triplex-build-triplex-<version>.tgz`. It contains the existing core exports plus
 `/sql`, `/sqlite`, `/postgres`, `/cloudflare`, `/foundationdb`, `/host`, `/http`,
-`/testkit`, `/testkit/postgres` and `/mcp`, and the `triplex` executable. Dashboard
+`/testkit`, `/testkit/postgres`, `/mcp` and `/runner`, and the `triplex` executable. Dashboard
 JavaScript, CSS and fonts are prebuilt assets; consumers install no UI runtime.
 Cloudflare and FoundationDB remain **experimental and frozen** even though their
-subpaths now ship. `/runner` is reserved for later work and is not exported yet.
+subpaths now ship.
 
 Only `effect` is a required peer. Install the backend driver separately:
 
@@ -74,8 +74,10 @@ Allow direct `npm publish` for this workflow. It runs on a GitHub-hosted runner 
 ## One-time npm bootstrap
 
 npm package settings do not exist until the package has first been created. The seven public
-packages were bootstrapped under `@triplex-build` with a short-lived token. Routine releases use
-GitHub Actions OIDC without an npm token.
+packages were bootstrapped under `@triplex-build` with a token, and 0.2.0 was still published with
+it. Since 0.3.0, releases use GitHub Actions OIDC without an npm token: the publish job has no token
+in its environment, and npm records provenance. The leftover `NPM_TOKEN` repository secret is no
+longer used; delete it and revoke its token.
 
 For a new package added to the family, repeat the minimal bootstrap sequence:
 
