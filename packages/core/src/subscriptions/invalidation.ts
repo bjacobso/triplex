@@ -2,19 +2,13 @@
  * Subscription Invalidation Check
  *
  * Pure function that determines if a subscription's dependencies
- * overlap with a batch of changes, using three-level filtering.
+ * overlap with a batch of changes, using proven attribute/subject dependencies.
  */
 
 import type { QueryDependencies, TripleChange, InvalidationResult } from "./types.js";
-import { extractEntityType } from "./extract-dependencies.js";
 
 /**
  * Check if a subscription with given dependencies is affected by a batch of changes.
- *
- * Uses three-level filtering:
- * 1. Entity Type — Does the change affect an entity type the query reads?
- * 2. Attribute — Does the change affect an attribute the query reads?
- * 3. Entity ID — If the query is scoped to specific entities, is this one of them?
  *
  * This is a conservative check: it may return true when the subscription
  * wouldn't actually change (false positive), but should never return false
@@ -37,66 +31,21 @@ export function checkInvalidation(
     };
   }
 
-  // Fast path: query reads nothing (degenerate case)
-  if (deps.attributes.size === 0 && deps.entityTypes.size === 0) {
-    if (deps.hasDynamicAttributes) {
-      return {
-        affected: true,
-        matchingChanges: [...changes],
-        reason: "Query reads dynamic attributes and cannot be narrowed statically",
-      };
-    }
-
+  if (deps.hasDynamicAttributes) {
     return {
-      affected: false,
-      matchingChanges: [],
-      reason: "Query has no data dependencies",
+      affected: true,
+      matchingChanges: [...changes],
+      reason: "Query reads dynamic attributes and cannot be narrowed statically",
     };
   }
-
-  const matchingChanges: TripleChange[] = [];
-
-  for (const change of changes) {
-    // Level 1: Check entity type
-    const changeEntityType = extractEntityType(change.attribute);
-    if (changeEntityType !== null && deps.entityTypes.size > 0) {
-      if (!deps.entityTypes.has(changeEntityType)) {
-        // This change is for a different entity type, skip
-        continue;
-      }
-    }
-
-    // Level 2: Check attribute
-    if (
-      !deps.hasDynamicAttributes &&
-      deps.attributes.size > 0 &&
-      !deps.attributes.has(change.attribute)
-    ) {
-      // Query doesn't read this attribute, skip
-      continue;
-    }
-
-    // Level 3: Check a specific entity only when every pattern for this type is
-    // bound. A query may contain both ["alice", :employee/name, ?name] and
-    // [?employee, :employee/age, ?age]; filtering the second pattern through
-    // Alice would create a silent false negative.
-    if (deps.boundEntityIds.size > 0 && changeEntityType !== null) {
-      if (
-        deps.boundEntityTypes.has(changeEntityType) &&
-        !deps.unboundEntityTypes.has(changeEntityType)
-      ) {
-        // This entity type is scoped - check if the specific entity is bound
-        if (!deps.boundEntityIds.has(change.entityId)) {
-          // Query only reads specific entities of this type, this isn't one, skip
-          continue;
-        }
-      }
-      // If the entity type doesn't have bound IDs, don't filter (all entities allowed)
-    }
-
-    // This change matches the subscription's dependencies
-    matchingChanges.push(change);
+  if (deps.attributes.size === 0 && deps.entityTypes.size === 0) {
+    return { affected: false, matchingChanges: [], reason: "Query has no data dependencies" };
   }
+  const matchingChanges = changes.filter((change) => {
+    if (!deps.attributes.has(change.attribute)) return false;
+    const subjects = deps.subjectsByAttribute?.get(change.attribute);
+    return subjects == null || subjects.has(change.entityId);
+  });
 
   if (matchingChanges.length === 0) {
     return {

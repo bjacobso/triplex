@@ -8,7 +8,8 @@ work that is not complete.
 ## Delivered
 
 - One `Triples` service for atomic writes, triple-pattern reads, batched entity reads, history,
-  raw Datalog, stable query pages, dependency state, and the ordered transaction journal.
+  raw Datalog, stable query pages, fixed and all-attribute dependency state, indexed recorded-basis
+  resolution, and the ordered transaction journal.
 - First-class bitemporality. Facts have independent recorded and valid intervals, and direct reads
   and Datalog use one shared temporal basis.
 - Atomically unique command receipts, causal metadata, typed assertion/retraction changes, commit

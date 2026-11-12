@@ -260,8 +260,10 @@ export interface TriplesService {
     | CommitRejectedError
   >;
   // --- Triple-level reads --------------------------------------------------
-  /** Fetch a single triple by id. */
+  /** Fetch an unretracted assertion by ID, regardless of valid time. */
   readonly get: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
+  /** Fetch the retained assertion by ID, including retraction metadata. */
+  readonly assertion: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
   /** Fetch all live triples for an entity. */
   readonly entity: (
     entityId: EntityId,
@@ -299,6 +301,13 @@ export interface TriplesService {
   ) => Effect.Effect<EntityTransactionPage, ReadError>;
   /** Latest committed backend position, including internal maintenance writes. */
   readonly currentPosition: () => Effect.Effect<number, ReadError>;
+  /** Resolve a timestamp or position against one captured committed head. */
+  readonly resolveRecordedBasis: (basis?: {
+    readonly recordedAt?: number;
+    readonly recordedPosition?: number;
+  }) => Effect.Effect<{ readonly recordedPosition: number }, ReadError>;
+  /** Indexed dependency freshness and schedule over every attribute. */
+  readonly dependencyStateAll: (basis?: TemporalBasis) => Effect.Effect<DependencyState, ReadError>;
   /**
    * Indexed freshness and valid-time schedule for a fixed attribute dependency
    * set. An empty set has source position zero and no temporal boundary.

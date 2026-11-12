@@ -12,6 +12,8 @@ import {
 } from "@triplex-build/triplex";
 import { ConfigStore, InMemoryConfigStore } from "@triplex-build/triplex/config";
 import type { ContentId } from "@triplex-build/triplex/content";
+import { Why, type WhyOptions, type WhySubject } from "@triplex-build/triplex/why";
+import { previewTransaction } from "@triplex-build/triplex/database";
 import { Effect, Option } from "effect";
 
 import { describeRelease, manifest } from "./describe.js";
@@ -61,6 +63,8 @@ export type ExecuteOptions =
       readonly debug: boolean;
     }
   | { readonly _tag: "query-explain"; readonly query: DatalogQueryType }
+  | ({ readonly _tag: "why"; readonly subject: WhySubject } & WhyOptions)
+  | { readonly _tag: "transaction-preview"; readonly request: TransactRequest }
   | { readonly _tag: "transaction-apply"; readonly request: TransactRequest }
   | { readonly _tag: "journal-list"; readonly after: number; readonly limit: number }
   | { readonly _tag: "journal-receipt"; readonly commandId: string }
@@ -312,6 +316,13 @@ const executeRaw = (
         });
       case "query-explain":
         return yield* triples.explain(options.query);
+      case "why":
+        return yield* Effect.gen(function* () {
+          const why = yield* Why;
+          return yield* why.why(options.subject, options);
+        }).pipe(Effect.provide(Why.layer));
+      case "transaction-preview":
+        return yield* previewTransaction(triples, options.request);
       case "transaction-apply":
         return yield* triples
           .transact(

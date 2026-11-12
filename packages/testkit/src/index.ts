@@ -1,3 +1,4 @@
+import { datalogTimeConformanceCases } from "./datalogTimeCases.js";
 /**
  * Shared backend test helpers for Triplex.
  *
@@ -82,6 +83,7 @@ export interface ConformanceCase {
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
   ...commitValidatorConformanceCases,
+  ...datalogTimeConformanceCases,
   {
     name: "entity-prefix feeds are the ordered complete subsequence of the global journal",
     run: Effect.gen(function* () {
@@ -3497,3 +3499,10 @@ export function runtimeConformance(
   return makeTriplesConformanceSuite().pipe(Effect.provide(layer));
 }
 export * from "./sensitive.js";
+
+export { recordedReadsConformance } from "./recordedReadsCases.js";
+
+export { liveQueryCases } from "./liveQueryCases.js";
+export { whyConformance, whyTestLayer } from "./whyCases.js";
+export { assertionConformance } from "./assertionCases.js";
+export { whyReadBoundaryConformance } from "./whyReadBoundaryCases.js";

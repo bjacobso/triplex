@@ -1,6 +1,6 @@
-import { EntityId, type SealedValue, type Triple, type TripleValue } from "@triplex-build/triplex";
-import { CanonicalJson, TypeSchema } from "@triplex-build/triplex/config";
-import { Effect, Option, Result, Schema } from "effect";
+import { EntityId, type Triple, type TripleValue } from "@triplex-build/triplex";
+import { Attribute, CanonicalJson, EntityType, TypeSchema } from "@triplex-build/triplex/config";
+import { Effect, Schema } from "effect";
 
 import type { AttributeDescriptor, EntityDescriptor } from "./ConfigApi.js";
 import { DataShapeConflictError, RequestValidationError } from "./Errors.js";
@@ -27,10 +27,6 @@ const SealedMarkerSchema = Schema.Struct({
 }).annotate({
   identifier: "SealedValue",
   description: "A sensitive value sealed at rest. Plaintext is never returned by this API.",
-});
-
-const sealedMarker = (value: SealedValue): SealedMarker => ({
-  $sealed: { valueType: value.valueType, keyId: value.keyId },
 });
 
 const valueSchema = (
@@ -164,111 +160,71 @@ export const decodeInput = (
     return result;
   });
 
-interface StoredValue {
-  readonly value: unknown;
-  /** Distinctness identity: canonical plaintext, or the blind token for sealed values. */
-  readonly identity: string;
-}
+// Rehydrate only the public model declaration; all stored-value decoding lives in core.
+const decoders = new WeakMap<EntityDescriptor, ReturnType<typeof entityDecoder>>();
+const entityDecoder = (entity: EntityDescriptor) =>
+  EntityType.make(
+    entity.entityType,
+    Object.fromEntries(
+      entity.attributes.map((attribute) => {
+        const definition = {
+          ...Attribute.text(attribute.key),
+          type: attribute.type,
+          valueType: attribute.storage,
+          sensitive: attribute.sensitive,
+          encode: (value: unknown) => tripleValue(attribute, value),
+        };
+        return [
+          attribute.key,
+          Attribute.use(definition, {
+            required: attribute.required,
+            cardinality: attribute.cardinality,
+            unique: attribute.unique,
+          }),
+        ];
+      }),
+    ),
+  );
 
-const decodeStoredValue = (
-  entityId: string,
-  attribute: AttributeDescriptor,
-  value: TripleValue,
-): StoredValue => {
-  const path = `$.attributes[${JSON.stringify(attribute.key)}]`;
-  if (value.type === "sealed") {
-    // Storage is self-describing: a sealed value renders sealed even when the
-    // pinned release no longer marks the attribute sensitive.
-    if (value.valueType !== attribute.storage) {
-      throw conflict(
-        entityId,
-        path,
-        `Stored sealed ${value.valueType} value is incompatible with configured ${attribute.storage} storage`,
-      );
-    }
-    return {
-      value: sealedMarker(value),
-      identity: `sealed:${value.blind ?? `opaque:${value.ciphertext}`}`,
-    };
-  }
-  if (attribute.sensitive) {
-    throw conflict(
-      entityId,
-      path,
-      "A sensitive attribute has an unsealed stored value; it is not returned",
-    );
-  }
-  if (value.type !== attribute.storage) {
-    throw conflict(
-      entityId,
-      path,
-      `Stored ${value.type} value is incompatible with configured ${attribute.storage} storage`,
-    );
-  }
-  const raw = value.value;
-  if (attribute.storage === "ref" && typeof raw === "string" && raw.length === 0) {
-    throw conflict(entityId, path, "Stored reference is not a valid entity ID");
-  }
-  const decoded = Schema.decodeUnknownResult(TypeSchema.compile(attribute.type))(raw);
-  if (Result.isFailure(decoded)) {
-    throw conflict(
-      entityId,
-      path,
-      `Stored value does not satisfy the configured type: ${decoded.failure.message}`,
-    );
-  }
-  return { value: decoded.success, identity: `plain:${canonical(decoded.success)}` };
-};
-
-/** Materialize only declared attributes and reject ambiguous or incompatible stored state. */
+/** Adapt the shared core entity decoder to the HTTP document and diagnostic envelope. */
 export const encodeEntity = (
   entity: EntityDescriptor,
   facts: readonly Triple[],
 ): Effect.Effect<EntityDocument, DataShapeConflictError> =>
-  Effect.try({
-    try: () => {
-      const entityId = facts[0]?.entityId ?? "";
-      const memberships = new Set(
-        facts.flatMap((fact) => (Option.isSome(fact.entityType) ? [fact.entityType.value] : [])),
+  Effect.gen(function* () {
+    let decoder = decoders.get(entity);
+    if (decoder === undefined) {
+      decoder = entityDecoder(entity);
+      decoders.set(entity, decoder);
+    }
+    const entityId = facts[0]?.entityId ?? "";
+    const decoded = yield* decoder
+      .decode(facts, {
+        scalarCardinality: "distinct",
+        factValidation: "membership",
+        valueDiagnostics: "detailed",
+      })
+      .pipe(
+        Effect.mapError((error) =>
+          conflict(
+            entityId,
+            error.reason === "entityType"
+              ? "$.type"
+              : error.alias === undefined
+                ? "$"
+                : `$.attributes[${JSON.stringify(error.alias)}]`,
+            error.message,
+          ),
+        ),
       );
-      if (!memberships.has(entity.entityType)) {
-        throw conflict(entityId, "$.type", `Entity is not a ${entity.entityType}`);
-      }
-      if ([...memberships].some((membership) => membership !== entity.entityType)) {
-        throw conflict(entityId, "$.type", "Mixed entity-type membership is not supported");
-      }
-      const attributes: Record<string, unknown> = {};
-      for (const descriptor of entity.attributes) {
-        const values = facts
-          .filter((fact) => fact.attribute === descriptor.key)
-          .map((fact) => decodeStoredValue(entityId, descriptor, fact.value));
-        const distinct = [
-          ...new Map(values.map((stored) => [stored.identity, stored.value])).entries(),
-        ]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([, value]) => value);
-        if (descriptor.cardinality === "one" && distinct.length > 1) {
-          throw conflict(
-            entityId,
-            `$.attributes[${JSON.stringify(descriptor.key)}]`,
-            "A scalar attribute has multiple distinct live values",
-          );
-        }
-        if (descriptor.required && distinct.length === 0) {
-          throw conflict(
-            entityId,
-            `$.attributes[${JSON.stringify(descriptor.key)}]`,
-            "A required attribute is missing",
-          );
-        }
-        if (distinct.length > 0) {
-          attributes[descriptor.key] = descriptor.cardinality === "many" ? distinct : distinct[0];
-        }
-      }
-      return { id: entityId, type: entity.entityType, attributes };
-    },
-    catch: (error) =>
-      error instanceof DataShapeConflictError
-        ? error
-        : conflict(facts[0]?.entityId ?? "", "$", String(error)),
+    const attributes: Record<string, unknown> = {};
+    for (const attribute of entity.attributes) {
+      const value = decoded[attribute.key];
+      if (
+        value !== undefined &&
+        !(attribute.cardinality === "many" && (value as readonly unknown[]).length === 0)
+      )
+        attributes[attribute.key] = value;
+    }
+    return { id: entityId, type: entity.entityType, attributes };
   });

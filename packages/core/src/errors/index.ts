@@ -157,6 +157,7 @@ export class UndefinedVariableError extends Data.TaggedError("UndefinedVariableE
 
 // Schema/validation errors
 export class ValidationError extends Data.TaggedError("ValidationError")<{
+  readonly code?: string;
   readonly field: string;
   readonly message: string;
   readonly value?: unknown;
@@ -311,3 +312,39 @@ export type TripleStoreError =
   | DatalogErrorUnion
   | ValidationError
   | MigrationError;
+
+/** Invalid live-query configuration or watch options. */
+export class WatchOptionsError extends Data.TaggedError("WatchOptionsError")<{
+  readonly message: string;
+}> {}
+/** An incompatible, malformed, or unavailable observation basis. */
+export class WatchResumeError extends Data.TaggedError("WatchResumeError")<{
+  readonly message: string;
+}> {}
+/** Complete raw results exceeded the configured observation limit. */
+export class WatchResultTooLarge extends Data.TaggedError("WatchResultTooLarge")<{
+  readonly message: string;
+  readonly maxRows: number;
+  readonly rows: number;
+}> {}
+/** Invalid explanation input; never includes definitions or fact values. */
+export class WhyInvalidRequest extends Data.TaggedError("WhyInvalidRequest")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}
+export class WhySubjectNotFound extends Data.TaggedError("WhySubjectNotFound")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}
+export class WhyCandidateRevisionMismatch extends Data.TaggedError("WhyCandidateRevisionMismatch")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}
+export class WhyIncompleteHistory extends Data.TaggedError("WhyIncompleteHistory")<{
+  readonly subjectId: string;
+  readonly reason: string;
+  readonly message: string;
+}> {}

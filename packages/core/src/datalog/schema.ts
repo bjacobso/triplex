@@ -129,6 +129,76 @@ export const PatternClause = Schema.Union([PatternClause4, PatternClause3]).anno
   description: "A pattern clause [entity, attribute, value, tx?] for matching triples",
 });
 
+/** Stored assertion bounds, independent of query membership. */
+const BoundInstant = Schema.Number.pipe(
+  Schema.check(
+    Schema.makeFilter((value: number) => Number.isInteger(value) && value >= 0, {
+      expected: "a non-negative integer epoch-millisecond instant",
+    }),
+  ),
+);
+const closedObject = (keys: readonly string[]) =>
+  Schema.Unknown.pipe(
+    Schema.check(
+      Schema.makeFilter(
+        (input: unknown) =>
+          typeof input === "object" &&
+          input !== null &&
+          !Array.isArray(input) &&
+          Object.keys(input).every((key) => keys.includes(key)),
+        { expected: `an object containing only ${keys.join(", ")}` },
+      ),
+    ),
+  );
+export const IntervalBounds = closedObject(["from", "to"]).pipe(
+  Schema.decodeTo(
+    Schema.Struct({
+      from: Schema.optional(Schema.Union([Variable, BoundInstant])),
+      to: Schema.optional(Schema.Union([Variable, BoundInstant, Schema.Null])),
+    }),
+  ),
+  Schema.check(
+    Schema.makeFilter(
+      (bounds) =>
+        (bounds.from !== undefined || bounds.to !== undefined) &&
+        !(
+          typeof bounds.from === "number" &&
+          typeof bounds.to === "number" &&
+          bounds.to <= bounds.from
+        ),
+      { expected: "at least one bound and a nonempty concrete interval" },
+    ),
+  ),
+);
+export type IntervalBounds = typeof IntervalBounds.Type;
+export const IntervalPattern = closedObject(["pattern", "valid"]).pipe(
+  Schema.decodeTo(Schema.Struct({ pattern: PatternClause, valid: IntervalBounds })),
+);
+export type IntervalPattern = typeof IntervalPattern.Type;
+export const FactPattern = Schema.Union([PatternClause, IntervalPattern]);
+export type FactPattern = typeof FactPattern.Type;
+export const isIntervalPattern = (clause: unknown): clause is IntervalPattern =>
+  typeof clause === "object" && clause !== null && !Array.isArray(clause) && "pattern" in clause;
+export const normalizePattern = (clause: FactPattern): PatternClause =>
+  isIntervalPattern(clause)
+    ? Object.assign([...clause.pattern] as PatternClause, { valid: clause.valid })
+    : clause;
+export const patternTerms = (clause: FactPattern): readonly (Term | null)[] => {
+  const pattern = normalizePattern(clause);
+  return [...pattern, ...Object.values(pattern.valid ?? {}).filter((term) => term !== undefined)];
+};
+export const isFactPattern = (clause: Clause): clause is FactPattern =>
+  isIntervalPattern(clause) || isPatternClause(clause);
+
+/** Traverse only clause scopes, never typed constants or arbitrary query metadata. */
+export const hasIntervalPatterns = (clauses: readonly Clause[]): boolean =>
+  clauses.some(
+    (clause) =>
+      isIntervalPattern(clause) ||
+      (isNotClause(clause) && hasIntervalPatterns(clause.slice(1) as Clause[])) ||
+      (isOrClause(clause) && hasIntervalPatterns(normalizeOrAlternatives(clause))),
+  );
+
 /**
  * Predicate clause: [operator, left, right]
  * Used for filtering based on comparisons
@@ -137,7 +207,11 @@ export const PatternClause = Schema.Union([PatternClause4, PatternClause3]).anno
  * - [">=", "?age", 18]
  * - ["!=", "?status", "inactive"]
  */
-export const PredicateClause = Schema.Tuple([PredicateOp, Term, Term]).annotate({
+export const PredicateClause = Schema.Tuple([
+  PredicateOp,
+  Schema.Union([Term, Schema.Null]),
+  Schema.Union([Term, Schema.Null]),
+]).annotate({
   identifier: "PredicateClause",
   description: "A predicate clause [op, left, right] for filtering",
 });
@@ -145,7 +219,7 @@ export const PredicateClause = Schema.Tuple([PredicateOp, Term, Term]).annotate(
 /**
  * Inner clause within a `not` — patterns and predicates only (no nested not/or/link).
  */
-const NotInnerClause = Schema.Union([PredicateClause, PatternClause]).annotate({
+const NotInnerClause = Schema.Union([PredicateClause, FactPattern]).annotate({
   identifier: "NotInnerClause",
   description: "A pattern or predicate clause inside a not",
 });
@@ -180,7 +254,7 @@ export const NotClause = Schema.Tuple([
  * Alternative within an `or` — patterns, predicates, and negation only.
  * `or` alternatives are filter/existence checks and do not bind variables outward.
  */
-export const OrAlternative = Schema.Union([PredicateClause, NotClause, PatternClause]).annotate({
+export const OrAlternative = Schema.Union([PredicateClause, NotClause, FactPattern]).annotate({
   identifier: "OrAlternative",
   description: "A pattern, predicate, or not clause inside an or",
 });
@@ -240,7 +314,7 @@ export const Clause = Schema.Union([
   NotClause,
   OrClause,
   RuleApplication,
-  PatternClause,
+  FactPattern,
 ]).annotate({
   identifier: "Clause",
   description: "A clause that is a pattern, predicate, not, or, or rule application",
@@ -356,7 +430,11 @@ export const OrderBySpec = Schema.Struct({
  * Examples:
  * - [">=", "?count", 5] - only include groups where count >= 5
  */
-export const HavingClause = Schema.Tuple([PredicateOp, Term, Term]).annotate({
+export const HavingClause = Schema.Tuple([
+  PredicateOp,
+  Schema.Union([Term, Schema.Null]),
+  Schema.Union([Term, Schema.Null]),
+]).annotate({
   identifier: "HavingClause",
   description: "A having clause for filtering aggregated results",
 });
@@ -398,6 +476,7 @@ export const HavingClause = Schema.Tuple([PredicateOp, Term, Term]).annotate({
  * ```
  */
 export const DatalogQuery = Schema.Struct({
+  validTime: Schema.optional(Schema.Literals(["point", "all"])),
   find: Schema.Array(Term),
   where: Schema.Array(Clause),
   aggregate: Schema.optional(Schema.Array(AggregateSpec)),
@@ -553,7 +632,10 @@ export type Term = typeof Term.Type;
 export type PredicateOp = typeof PredicateOp.Type;
 export type PatternClause3 = typeof PatternClause3.Type;
 export type PatternClause4 = typeof PatternClause4.Type;
-export type PatternClause = typeof PatternClause.Type;
+export type PatternClause = typeof PatternClause.Type & {
+  readonly valid?: IntervalBounds;
+  readonly intervalRange?: import("../kv/hexastore/indexes.js").IntervalRange;
+};
 export type PredicateClause = typeof PredicateClause.Type;
 export type NotClause = typeof NotClause.Type;
 export type OrAlternative = typeof OrAlternative.Type;
@@ -622,7 +704,7 @@ export const normalizeOrAlternatives = (
     if (isOrClause(candidate)) {
       throw new Error(`Nested or alternatives are not supported: ${JSON.stringify(clause)}`);
     }
-    if (!isPredicateClause(candidate) && !isNotClause(candidate) && !isPatternClause(candidate)) {
+    if (!isPredicateClause(candidate) && !isNotClause(candidate) && !isFactPattern(candidate)) {
       throw new Error(`Invalid or alternative: ${JSON.stringify(clause)}`);
     }
     return candidate as OrAlternative;

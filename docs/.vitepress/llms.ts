@@ -21,13 +21,16 @@ const summary =
   "The database that remembers why: an embedded fact database for TypeScript back-office " +
   "systems. Every write records who made it, which versioned rules governed it, and when it was " +
   "true, so audit questions and open work become queries. Triplex is pre-1.0; install with " +
-  "`npm install @triplex-build/triplex effect@4.0.0-rc.112`.";
+  "`npm install @triplex-build/triplex effect@4.1.1`.";
 
-const keyFacts = `Triplex requires Effect 4 (\`effect@4.0.0-rc.112\`; Effect 3 is not compatible), is ESM-only, and targets
+const keyFacts = `Triplex requires Effect 4 (\`effect@4.1.1\`; Effect 3 is not compatible), is ESM-only, and targets
 Node.js 22+ plus modern browsers and edge runtimes for the core. In-memory and SQLite storage are
-supported, PostgreSQL is a production candidate, and Cloudflare and FoundationDB are experimental.
+supported, PostgreSQL is a production candidate, and Cloudflare and FoundationDB are experimental
+and frozen.
 
-Coding agents modeling a back-office domain should read the modeling guide first. Every page is
+Coding agents modeling a back-office domain should read the modeling guide first and write through
+the schema-bound \`Database\` client (\`@triplex-build/triplex/database\`), which pins and
+enforces the live release on every command. Every page is
 available as Markdown by appending \`.md\` to its URL. Code on the homepage and in the modeling
 guide is type-checked and executed in CI.`;
 

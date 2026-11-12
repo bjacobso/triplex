@@ -1,5 +1,10 @@
 import { Context, Effect, Layer } from "effect";
-import { Triples, type MigrationError } from "../../src/index.js";
+import {
+  CommitValidation,
+  Triples,
+  type MigrationError,
+  type TriplesService,
+} from "../../src/index.js";
 import {
   Runtime,
   DatabaseScope,
@@ -17,6 +22,15 @@ import {
   type StorageAdapterService,
   type QueryExecutorService,
 } from "../../src/runtime/index.js";
+
+type ViewQueryResult = Effect.Success<ReturnType<CommitValidation.View["query"]>>;
+type CompleteQueryResult = Effect.Success<ReturnType<TriplesService["queryAll"]>>;
+type SameResult = [ViewQueryResult] extends [CompleteQueryResult]
+  ? [CompleteQueryResult] extends [ViewQueryResult]
+    ? true
+    : false
+  : false;
+export const checkedValidatorQueryResult: SameResult = true;
 
 class Connection extends Context.Service<
   Connection,

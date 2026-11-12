@@ -146,7 +146,9 @@ describe("KvTriplesLive - retract", () => {
 
         yield* store.retract(triple.id);
 
-        const after = yield* store.get(triple.id);
+        // get is live-only on every backend; assertion keeps the retracted fact.
+        expect(yield* store.get(triple.id)).toBeNull();
+        const after = yield* store.assertion(triple.id);
         expect(after).not.toBeNull();
         expect(Option.isSome(after!.retractedAt)).toBe(true);
       }),

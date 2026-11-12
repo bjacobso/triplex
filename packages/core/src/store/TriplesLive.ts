@@ -1,3 +1,5 @@
+import { resolveRecordedBasis } from "./recordedBasis.js";
+import { assertQueryBasis, queryBasisForView, resolveQueryBasis } from "../datalog/temporal.js";
 /**
  * TriplesLive — the canonical `Triples` implementation over `StorageAdapter`
  * plus `QueryExecutor`.
@@ -31,7 +33,7 @@ import type {
   TripleRow,
   TransactOp,
 } from "../Triple.js";
-import { queryToPattern } from "../Triple.js";
+import { queryToPattern, validateTransactionIntervals } from "../Triple.js";
 import { decodeSealedEnvelope } from "../Value.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
@@ -195,8 +197,11 @@ export const TriplesLive = Layer.effect(
           ),
         query: (q, options) =>
           Effect.all([validateDatalogQuery(q), basis(options)]).pipe(
-            Effect.flatMap(([validated, resolved]) => executor.execute(validated, false, resolved)),
-            Effect.map((response) => response.results),
+            Effect.flatMap(([validated, resolved]) =>
+              queryBasisForView(validated, resolved, options).pipe(
+                Effect.flatMap((queryBasis) => executor.execute(validated, false, queryBasis)),
+              ),
+            ),
           ),
       };
     };
@@ -310,6 +315,7 @@ export const TriplesLive = Layer.effect(
       adapter
         .withTransaction(
           Effect.gen(function* () {
+            yield* validateTransactionIntervals(operations);
             if (!isSystemWriteAuthorized(meta)) {
               const reserved = reservedAssertError(operations);
               if (reserved) return yield* Effect.fail(reserved);
@@ -786,13 +792,29 @@ export const TriplesLive = Layer.effect(
 
     const queryAll = (q: DatalogQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
-        const basis = resolveTemporalBasis(options?.basis, yield* now);
-        return yield* executor.execute(q, options?.debug ?? false, basis);
+        const query = yield* validateDatalogQuery(q);
+        const currentTime = yield* now;
+        const basis = yield* Effect.try({
+          try: () => resolveQueryBasis(query, options?.basis, currentTime),
+          catch: (cause) =>
+            cause instanceof DatalogValidationError
+              ? cause
+              : new DatalogValidationError({ message: String(cause), query: q }),
+        });
+        const recordedPosition = basis.recordedPosition ?? (yield* adapter.currentCommitPosition());
+        return yield* executor.execute(query, options?.debug ?? false, {
+          ...basis,
+          recordedPosition,
+        });
       }).pipe(Effect.withSpan("triples.query"));
 
     const queryPage = (q: WrappedQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
         const query = yield* validateWrappedQuery(q);
+        yield* Effect.try({
+          try: () => assertQueryBasis(query.inner, options?.basis),
+          catch: (cause) => cause as DatalogValidationError,
+        });
         const currentTime = yield* now;
         const recordedPosition = yield* adapter.currentCommitPosition();
         const prepared = yield* Effect.try({
@@ -805,7 +827,7 @@ export const TriplesLive = Layer.effect(
               scope: runtime.scope,
             }),
           catch: (cause) =>
-            cause instanceof PaginationCursorError
+            cause instanceof PaginationCursorError || cause instanceof DatalogValidationError
               ? cause
               : new PaginationCursorError({
                   reason: "malformed",
@@ -875,6 +897,8 @@ export const TriplesLive = Layer.effect(
       retractByPattern,
       transact,
       get,
+      assertion: (id) =>
+        adapter.getById(id, true).pipe(Effect.map((row) => (row ? rowToTriple(row) : null))),
       entity,
       entities,
       entityPage,
@@ -885,6 +909,12 @@ export const TriplesLive = Layer.effect(
       transactions,
       transactionsForEntity: entityTransactions,
       currentPosition: adapter.currentCommitPosition,
+      resolveRecordedBasis: (basis) =>
+        resolveRecordedBasis(adapter.currentCommitPosition, adapter.recordedPositionAt, now, basis),
+      dependencyStateAll: (basis) =>
+        Effect.gen(function* () {
+          return yield* adapter.dependencyStateAll(resolveTemporalBasis(basis, yield* now));
+        }),
       dependencyState: (attributes, basis) =>
         Effect.gen(function* () {
           const resolved = resolveTemporalBasis(basis, yield* now);

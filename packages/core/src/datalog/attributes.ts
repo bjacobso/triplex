@@ -3,7 +3,9 @@ import { UnknownAttributeError } from "../errors/index.js";
 import {
   isNotClause,
   isOrClause,
-  isPatternClause,
+  isFactPattern,
+  normalizePattern,
+  isIntervalPattern,
   isVariable,
   normalizeOrAlternatives,
 } from "./schema.js";
@@ -25,8 +27,13 @@ const positionsOf = (query: DatalogQuery | WrappedQuery): readonly AttributePosi
       normalizeOrAlternatives(clause).forEach((alternative, index) =>
         visit(alternative, `${path} alternative ${index}`),
       );
-    } else if (isPatternClause(clause) && !isVariable(clause[1])) {
-      positions.push({ key: clause[1], path: `${path}[1]` });
+    } else if (isFactPattern(clause)) {
+      const pattern = normalizePattern(clause);
+      if (!isVariable(pattern[1]))
+        positions.push({
+          key: pattern[1],
+          path: `${path}${isIntervalPattern(clause) ? ".pattern" : ""}[1]`,
+        });
     }
   };
   query.where.forEach((clause, index) => visit(clause, `where[${index}]`));

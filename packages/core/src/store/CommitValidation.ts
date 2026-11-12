@@ -27,12 +27,16 @@ import {
 } from "../errors/index.js";
 import type { EntryKind, PendingEntriesPage, PendingEntriesRequest } from "../operational/Entry.js";
 import type { DatalogQuery } from "../datalog/types.js";
-import type { QueryResult } from "../storage/QueryExecutor.js";
 import type { Triple, TripleInput, TransactOp } from "../Triple.js";
 import type { Pattern } from "../types/Pattern.js";
 import { datetime, json, number, string, type TripleValue } from "../Value.js";
 import { isSystemWriteAuthorized, transactSystem } from "./systemNamespace.js";
-import { Triples, type TransactionChange, type TriplesService } from "./Triples.js";
+import {
+  Triples,
+  type QueryResponse,
+  type TransactionChange,
+  type TriplesService,
+} from "./Triples.js";
 
 // =============================================================================
 // Contract
@@ -105,11 +109,11 @@ export interface View {
     pattern: Pattern,
     options?: ViewOptions,
   ) => Effect.Effect<readonly Triple[], ReadError>;
-  /** Complete (unpaged) Datalog at this view's cut. */
+  /** Complete (unpaged) Datalog at this view's cut, with the same response as `Triples.queryAll`. */
   readonly query: (
     query: DatalogQuery,
     options?: ViewOptions,
-  ) => Effect.Effect<QueryResult, ReadError | DatalogQueryError>;
+  ) => Effect.Effect<QueryResponse, ReadError | DatalogQueryError>;
 }
 
 /** Everything a validator may inspect. */

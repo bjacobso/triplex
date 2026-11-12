@@ -12,6 +12,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
   {
     text: "Start",
     items: [
+      { text: "Database client", link: "/database" },
       { text: "Getting started", link: "/getting-started" },
       { text: "Modeling a back-office domain", link: "/agents" },
       { text: "Playground", link: "/playground" },
@@ -25,6 +26,8 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Datalog", link: "/datalog" },
       { text: "Configuration walkthrough", link: "/configuration-versioning" },
       { text: "Derivations", link: "/derivations" },
+      { text: "Live queries", link: "/live-queries" },
+      { text: "Explain with why", link: "/why" },
       { text: "Provenance", link: "/provenance" },
     ],
   },
@@ -47,6 +50,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
     text: "Operate",
     items: [
       { text: "CLI and dashboard", link: "/tools" },
+      { text: "MCP server", link: "/mcp" },
       { text: "Data explorer", link: "/explorer" },
       { text: "Host integration", link: "/host-integration" },
       { text: "Troubleshooting and FAQ", link: "/troubleshooting" },
@@ -134,6 +138,8 @@ export default defineConfig({
           { text: "Datalog", link: "/datalog" },
           { text: "Configuration walkthrough", link: "/configuration-versioning" },
           { text: "Derivations", link: "/derivations" },
+          { text: "Live queries", link: "/live-queries" },
+          { text: "Explain with why", link: "/why" },
           { text: "Provenance", link: "/provenance" },
           { text: "Current state", link: "/current-state" },
         ],

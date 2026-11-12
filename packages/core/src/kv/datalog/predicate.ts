@@ -22,7 +22,7 @@ import {
  * - Constants are returned as-is
  * Returns null if a variable is unbound.
  */
-export const resolveTerm = (term: Term, context: Context): Constant | null => {
+export const resolveTerm = (term: Term | null, context: Context): Constant | null => {
   if (isVariable(term)) {
     return term in context ? context[term]! : null;
   }
@@ -53,7 +53,11 @@ export const evaluatePredicate = (predicate: PredicateClause, context: Context):
   const right = resolveTerm(rightTerm, context);
 
   // Unbound variables → predicate fails
-  if (left === null || right === null) return false;
+  if (
+    (isVariable(leftTerm) && !(leftTerm in context)) ||
+    (isVariable(rightTerm) && !(rightTerm in context))
+  )
+    return false;
 
   // Numeric comparisons require numbers
   if (op === ">" || op === ">=" || op === "<" || op === "<=") {

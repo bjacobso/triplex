@@ -25,13 +25,20 @@ import {
   encodeRefStr,
   encodeBlobStr,
 } from "./tuple.js";
-import { selectIndex, prefixRange, type IndexChoice } from "./indexes.js";
+import {
+  selectIndex,
+  prefixRange,
+  intervalRange,
+  type IntervalRange,
+  type IndexChoice,
+} from "./indexes.js";
 
 /**
  * A scan pattern with optional bound components.
  * undefined means "any" (variable/wildcard).
  */
 export interface ScanPattern {
+  readonly intervalRange?: IntervalRange;
   readonly entity?: string;
   readonly attribute?: string;
   readonly value?: TripleValue;
@@ -120,7 +127,10 @@ export const patternToScan = (
     isRef,
   );
 
-  const { start, end } = prefixRange(choice.index, choice.prefixParts);
+  const { start, end } =
+    pattern.attribute !== undefined && pattern.intervalRange !== undefined
+      ? intervalRange(pattern.attribute, pattern.intervalRange)
+      : prefixRange(choice.index, choice.prefixParts);
 
   return { choice, start, end };
 };

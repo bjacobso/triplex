@@ -453,12 +453,13 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
   // Read Operations
   // =========================================================================
 
-  const getById: StorageAdapterService["getById"] = (id) =>
+  const getById: StorageAdapterService["getById"] = (id, includeRetracted = false) =>
     Effect.try({
       try: () => {
         const cursor = sqlStorage.exec<TripleRow>(
-          `SELECT * FROM triples WHERE id = ? AND retracted_at IS NULL`,
+          `SELECT * FROM triples WHERE id = ? AND (retracted_at IS NULL OR ? = 1)`,
           id,
+          includeRetracted ? 1 : 0,
         );
         const rows = cursorToArray(cursor);
         return rows.length > 0 ? rows[0]! : null;
@@ -706,6 +707,19 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
     nextCommitPosition,
     currentCommitPosition,
     dependencyState,
+    // D9/D11: Cloudflare is frozen; new indexed read capabilities are unsupported.
+    dependencyStateAll: () =>
+      Effect.fail(
+        new ReadError({
+          message: "dependencyStateAll is unsupported on frozen Cloudflare backend",
+        }),
+      ),
+    recordedPositionAt: () =>
+      Effect.fail(
+        new ReadError({
+          message: "resolveRecordedBasis timestamps are unsupported on frozen Cloudflare backend",
+        }),
+      ),
     claimCommand,
     insert,
     batchInsert,

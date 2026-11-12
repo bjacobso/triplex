@@ -145,17 +145,33 @@ export const TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT
   ON triples (value_string COLLATE "C", recorded_position, entity_id)
   WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL`;
 
+/** Non-partial indexes preserve interval access at historical recorded cuts. */
+export const INTERVAL_HISTORY_INDEX_DDLS = [
+  "CREATE INDEX IF NOT EXISTS idx_attribute_valid_to_history ON triples (attribute, valid_to, recorded_position)",
+  "CREATE INDEX IF NOT EXISTS idx_attribute_valid_from_history ON triples (attribute, valid_from, recorded_position)",
+] as const;
+
+/** Covering metadata only: wildcard freshness and journal timestamp resolution. */
+export const PUBLIC_READ_INDEX_DDLS = [
+  "CREATE INDEX IF NOT EXISTS idx_dependency_all ON triples(recorded_position, retracted_position, recorded_at, retracted_at, valid_from, valid_to)",
+  "CREATE INDEX IF NOT EXISTS idx_journal_instant_position ON triples(recorded_at, recorded_position, attribute, entity_type) WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'",
+] as const;
+
 export const INDEX_DDLS = [
+  ...PUBLIC_READ_INDEX_DDLS,
   ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
+  ...INTERVAL_HISTORY_INDEX_DDLS,
 ] as const;
 
 /**
  * Index names for drop/recreate operations during bulk loading
  */
 export const INDEX_NAMES = [
+  "idx_dependency_all",
+  "idx_journal_instant_position",
   "idx_entity",
   "idx_attribute",
   "idx_attribute_history",
@@ -171,6 +187,8 @@ export const INDEX_NAMES = [
   "idx_entity_recorded_position",
   "idx_entity_attr",
   "idx_tx_id",
+  "idx_attribute_valid_to_history",
+  "idx_attribute_valid_from_history",
 ] as const;
 
 // =============================================================================

@@ -1,3 +1,12 @@
+import { validateTransactionIntervals } from "../../Triple.js";
+import {
+  dependencyProjections,
+  recordedPositionAt,
+  type DependencyProjection,
+} from "../hexastore/readIndexes.js";
+import { resolveRecordedBasis } from "../../store/recordedBasis.js";
+import { explainAccessPaths } from "../datalog/explain.js";
+import { assertQueryBasis, queryBasisForView, resolveQueryBasis } from "../../datalog/temporal.js";
 import { checkCheapPreconditions } from "../../store/cheapPreconditions.js";
 import { initializeKvLiveFacts, migrateKvLiveFacts } from "../hexastore/KvTripleStore.js";
 /**
@@ -136,7 +145,7 @@ const currentKvCommitPosition = (backend: KvBackendService): Effect.Effect<numbe
   );
 
 const dependencyStateFromDatoms = (
-  datoms: readonly Datom[],
+  datoms: readonly DependencyProjection[],
   basis: ResolvedTemporalBasis,
 ): { readonly sourcePosition: number; readonly nextTemporalBoundary?: number } => {
   let sourcePosition = 0;
@@ -334,8 +343,14 @@ const kvCommitView = (
       ),
     query: (q, options) =>
       basis(options).pipe(
-        Effect.flatMap((resolved) => executeQuery(store, q, q.rules ?? [], { basis: resolved })),
-        Effect.map((result) => result.results as unknown as QueryResult),
+        Effect.flatMap((resolved) =>
+          queryBasisForView(q, resolved, options).pipe(
+            Effect.flatMap((queryBasis) =>
+              executeQuery(store, q, q.rules ?? [], { basis: queryBasis }),
+            ),
+          ),
+        ),
+        Effect.map((result) => ({ results: result.results as unknown as QueryResult })),
         Effect.mapError((error) =>
           error instanceof ReadError ||
           error instanceof DatalogValidationError ||
@@ -357,6 +372,7 @@ const makeKvTriplesService = Effect.gen(function* () {
   // Single hexastore handle shared by the write path and the Datalog path so
   // their datom caches can never diverge.
   const hexaStore = createKvTripleStore(kvBackend);
+  yield* hexaStore.initializeReadIndexes();
 
   // === Triple-level reads (needed by retractByPattern below) ===============
 
@@ -536,6 +552,7 @@ const makeKvTriplesService = Effect.gen(function* () {
         .transact((tx) => {
           const transactionStore = createKvTripleStore(transactionBackend(tx));
           return Effect.gen(function* () {
+            yield* validateTransactionIntervals(operations);
             if (!isSystemWriteAuthorized(meta)) {
               const reserved = reservedAssertError(operations);
               if (reserved) return yield* Effect.fail(reserved);
@@ -792,10 +809,20 @@ const makeKvTriplesService = Effect.gen(function* () {
     get: (id: TripleId) =>
       Effect.gen(function* () {
         const datom = yield* hexaStore.getById(id);
-        return datom !== null ? datomToTriple(datom) : null;
+        return datom !== null && datom.retractedAt === null ? datomToTriple(datom) : null;
       }).pipe(
         Effect.catch((e) =>
           Effect.fail(new ReadError({ message: `Get failed: ${String(e)}`, cause: e })),
+        ),
+      ),
+
+    assertion: (id: TripleId) =>
+      Effect.gen(function* () {
+        const datom = yield* hexaStore.getById(id);
+        return datom !== null ? datomToTriple(datom) : null;
+      }).pipe(
+        Effect.catch((e) =>
+          Effect.fail(new ReadError({ message: `Assertion read failed: ${String(e)}`, cause: e })),
         ),
       ),
 
@@ -1013,6 +1040,18 @@ const makeKvTriplesService = Effect.gen(function* () {
 
     currentPosition: () => currentKvCommitPosition(kvBackend),
 
+    resolveRecordedBasis: (basis) =>
+      resolveRecordedBasis(
+        () => currentKvCommitPosition(kvBackend),
+        (instant, head) => recordedPositionAt(kvBackend, instant, head),
+        runtime.now,
+        basis,
+      ),
+    dependencyStateAll: (basis) =>
+      Effect.gen(function* () {
+        const resolved = resolveTemporalBasis(basis, yield* runtime.now);
+        return dependencyStateFromDatoms(yield* dependencyProjections(kvBackend), resolved);
+      }),
     dependencyState: (attributes, basis) =>
       Effect.gen(function* () {
         const unique = [...new Set(attributes)];
@@ -1030,8 +1069,20 @@ const makeKvTriplesService = Effect.gen(function* () {
 
     queryAll: (q: DatalogQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
-        const basis = resolveTemporalBasis(options?.basis, yield* runtime.now);
-        return yield* executeQuery(hexaStore, q, q.rules ?? [], { basis });
+        const query = yield* validateDatalogQuery(q);
+        const currentTime = yield* runtime.now;
+        const basis = yield* Effect.try({
+          try: () => resolveQueryBasis(query, options?.basis, currentTime),
+          catch: (cause) =>
+            cause instanceof DatalogValidationError
+              ? cause
+              : new DatalogValidationError({ message: String(cause), query: q }),
+        });
+        const recordedPosition =
+          basis.recordedPosition ?? (yield* currentKvCommitPosition(kvBackend));
+        return yield* executeQuery(hexaStore, query, query.rules ?? [], {
+          basis: { ...basis, recordedPosition },
+        });
       }).pipe(
         Effect.map((result) => {
           const results = result.results as unknown as QueryResult;
@@ -1062,6 +1113,10 @@ const makeKvTriplesService = Effect.gen(function* () {
     queryPage: (q: WrappedQuery, options?: QueryOptions) =>
       Effect.gen(function* () {
         const query = yield* validateWrappedQuery(q);
+        yield* Effect.try({
+          try: () => assertQueryBasis(query.inner, options?.basis),
+          catch: (cause) => cause as DatalogValidationError,
+        });
         const currentTime = yield* runtime.now;
         const recordedPosition = yield* currentKvCommitPosition(kvBackend);
         const prepared = yield* Effect.try({
@@ -1074,7 +1129,7 @@ const makeKvTriplesService = Effect.gen(function* () {
               scope: runtime.scope,
             }),
           catch: (cause) =>
-            cause instanceof PaginationCursorError
+            cause instanceof PaginationCursorError || cause instanceof DatalogValidationError
               ? cause
               : new PaginationCursorError({
                   reason: "malformed",
@@ -1120,7 +1175,7 @@ const makeKvTriplesService = Effect.gen(function* () {
         Effect.map((query) => ({
           queryPlan: {
             backend: "kv-store" as const,
-            steps: [{ label: "main", query: JSON.stringify(query, null, 2) }],
+            steps: [{ label: "main", query: explainAccessPaths(query) }],
           },
           metrics: makeKvMetrics(query),
         })),
@@ -1131,7 +1186,7 @@ const makeKvTriplesService = Effect.gen(function* () {
         Effect.map((query) => ({
           queryPlan: {
             backend: "kv-store" as const,
-            steps: [{ label: "main", query: JSON.stringify(query, null, 2) }],
+            steps: [{ label: "main", query: explainAccessPaths(query.inner) }],
           },
         })),
       ),

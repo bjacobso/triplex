@@ -1,0 +1,29 @@
+
+ RUN  v5.0.4 /Users/benjacobson/Development/personal/triplex-trials/certification-expiry-2026-11-11
+
+(node:27556) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ test/certification.test.ts > KV > Q1: exact chosen-instant eligibility and named missing requirements at both sites 36ms
+ ✓ test/certification.test.ts > KV > Q1,Q3: exclusive expiry, inclusive start, seamless future renewal and real gap at ±1ms 39ms
+ ✓ test/certification.test.ts > KV > Q2: 30-day inclusive horizon, overlap union and stable deduplicated candidates 22ms
+ ✓ test/certification.test.ts > KV > Q2,Q3: host 30-day threshold is a temporal edge, even with no source writes 32ms
+ ✓ test/certification.test.ts > KV > Q3: time-only expiry detection, conservative wakeup and refresh retain real-gap work 38ms
+ ✓ test/certification.test.ts > KV > Q4,Q5: correction staleness, refreshed provenance and past-versus-present belief at one valid instant 89ms
+ ✓ test/certification.test.ts > KV > Q6: renewal resolves obsolete work, preserves decisions, and expiry reopens without duplicates 69ms
+ ✓ test/certification.test.ts > KV > Q6: Triplex atomic precondition rejects duplicate host creation and preserves journal 1ms
+ ✓ test/certification.test.ts > SQLite > Q1: exact chosen-instant eligibility and named missing requirements at both sites 23ms
+ ✓ test/certification.test.ts > SQLite > Q1,Q3: exclusive expiry, inclusive start, seamless future renewal and real gap at ±1ms 25ms
+ ✓ test/certification.test.ts > SQLite > Q2: 30-day inclusive horizon, overlap union and stable deduplicated candidates 19ms
+ ✓ test/certification.test.ts > SQLite > Q2,Q3: host 30-day threshold is a temporal edge, even with no source writes 22ms
+ ✓ test/certification.test.ts > SQLite > Q3: time-only expiry detection, conservative wakeup and refresh retain real-gap work 31ms
+ ✓ test/certification.test.ts > SQLite > Q4,Q5: correction staleness, refreshed provenance and past-versus-present belief at one valid instant 126ms
+ ✓ test/certification.test.ts > SQLite > Q6: renewal resolves obsolete work, preserves decisions, and expiry reopens without duplicates 44ms
+ ✓ test/certification.test.ts > SQLite > Q6: Triplex atomic precondition rejects duplicate host creation and preserves journal 3ms
+ ✓ test/certification.test.ts > Q1,Q2: host merges chained overlaps and touching intervals, rejects invalid intervals 0ms
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  14:07:26
+   Duration  2.10s (transform 39%, tests 31%, import 29%)
+
+0

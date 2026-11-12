@@ -6,7 +6,8 @@
  */
 
 import {
-  isPatternClause,
+  isFactPattern,
+  normalizePattern,
   isNotClause,
   isOrClause,
   isRuleApplication,
@@ -63,22 +64,6 @@ function isAttribute(term: Term): term is string {
 }
 
 /**
- * Infer the entity type from an entity ID using common naming conventions.
- * e.g., "emp:alice" → "employee" (prefix "emp"), "dept:eng" → "department" (prefix "dept")
- *
- * This uses heuristics and won't always be accurate, but provides a reasonable
- * default for entity ID → type mapping.
- */
-function inferEntityTypeFromId(entityId: string): string | null {
-  // Common prefix patterns: "emp:xxx" → employee, "dept:xxx" → department, etc.
-  const colonIndex = entityId.indexOf(":");
-  if (colonIndex > 0) {
-    return entityId.slice(0, colonIndex);
-  }
-  return null;
-}
-
-/**
  * Extract dependencies from a Datalog query.
  *
  * Processes all clause types:
@@ -93,6 +78,7 @@ function inferEntityTypeFromId(entityId: string): string | null {
  */
 export function extractDependencies(query: DatalogQuery): QueryDependencies {
   const attributes = new Set<string>();
+  const subjectsByAttribute = new Map<string, Set<string> | null>();
   const entityTypes = new Set<string>();
   const boundEntityIds = new Set<string>();
   const boundEntityTypes = new Set<string>();
@@ -111,14 +97,16 @@ export function extractDependencies(query: DatalogQuery): QueryDependencies {
       // Predicate clauses (>, <, =, etc.) don't add read dependencies
       return;
     }
-    if (isPatternClause(clause)) {
-      processPatternClause(clause);
+    if (isFactPattern(clause)) {
+      processPatternClause(normalizePattern(clause));
     } else if (isNotClause(clause)) {
       processNotClause(clause);
     } else if (isOrClause(clause)) {
       processOrClause(clause);
     } else if (isRuleApplication(clause)) {
       processRuleApplication(clause);
+    } else {
+      hasDynamicAttributes = true;
     }
   }
 
@@ -128,6 +116,15 @@ export function extractDependencies(query: DatalogQuery): QueryDependencies {
     // Extract attribute (if it's a constant attribute, not a variable)
     if (isAttribute(attr)) {
       attributes.add(attr);
+      if (isConstantString(entity)) {
+        if (subjectsByAttribute.get(attr) !== null) {
+          const subjects = subjectsByAttribute.get(attr) ?? new Set<string>();
+          subjects.add(entity);
+          subjectsByAttribute.set(attr, subjects);
+        }
+      } else {
+        subjectsByAttribute.set(attr, null);
+      }
       const entityType = extractEntityType(attr);
       if (entityType) entityTypes.add(entityType);
 
@@ -166,24 +163,15 @@ export function extractDependencies(query: DatalogQuery): QueryDependencies {
 
   function processRuleApplication(rule: RuleApplication): void {
     // ["ruleName", arg1, arg2] — record the rule name
-    const [ruleName, arg1, arg2] = rule;
+    const [ruleName, ...args] = rule;
+    for (const arg of args) {
+      if (isConstantString(arg) && !isAttribute(arg)) boundEntityIds.add(arg);
+    }
     ruleNames.add(ruleName);
-
-    // If args are constants, they're bound (but we can't determine entity type from rules)
-    if (isConstantString(arg1) && !isAttribute(arg1)) {
-      boundEntityIds.add(arg1);
-      // Try to infer entity type from ID
-      const inferredType = inferEntityTypeFromId(arg1);
-      if (inferredType) boundEntityTypes.add(inferredType);
-    }
-    if (isConstantString(arg2) && !isAttribute(arg2)) {
-      boundEntityIds.add(arg2);
-      const inferredType = inferEntityTypeFromId(arg2);
-      if (inferredType) boundEntityTypes.add(inferredType);
-    }
 
     if (expandedRules.has(ruleName)) return;
     expandedRules.add(ruleName);
+    if (!rulesByName.has(ruleName)) hasDynamicAttributes = true;
     for (const definition of rulesByName.get(ruleName) ?? []) {
       for (const bodyClause of definition.body) {
         processClause(bodyClause as Clause);
@@ -198,6 +186,7 @@ export function extractDependencies(query: DatalogQuery): QueryDependencies {
 
   return {
     attributes,
+    subjectsByAttribute,
     hasDynamicAttributes,
     entityTypes,
     boundEntityIds,

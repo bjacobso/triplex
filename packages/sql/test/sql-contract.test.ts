@@ -5,7 +5,7 @@ import { INDEX_NAMES, migrations, packValue } from "../src/index.js";
 
 describe("SQL package contract", () => {
   it("keeps migration versions ordered and index declarations complete", () => {
-    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(new Set(migrations.flatMap((migration) => migration.up)).size).toBe(
       migrations.flatMap((migration) => migration.up).length,
     );

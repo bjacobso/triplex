@@ -12,6 +12,12 @@ export interface Diagnostic {
 
 // Exhaustive over the public error module, including its re-exported manager errors.
 const defaults = {
+  WatchOptionsError: ["watch.invalid-options", "Correct the live-query options."],
+  WatchResumeError: [
+    "watch.invalid-resume",
+    "Use the token with its original query and database generation.",
+  ],
+  WatchResultTooLarge: ["watch.result-too-large", "Use a wrapped window or increase maxRows."],
   WriteError: ["write.failed", "Check the write input and storage availability."],
   OperationalEntryConflictError: [
     "operational.entry-conflict",
@@ -38,6 +44,19 @@ const defaults = {
   ConstraintViolationError: [
     "constraint.violation",
     "Correct the violated constraints and ensure all of an entity's facts share one valid-time interval.",
+  ],
+  WhyInvalidRequest: [
+    "why.invalid-request",
+    "Supply a valid basis and causation depth from 0 to 32.",
+  ],
+  WhySubjectNotFound: ["why.subject-not-found", "Check the subject ID and recorded basis."],
+  WhyCandidateRevisionMismatch: [
+    "why.candidate-revision-mismatch",
+    "Replay the exact candidate revision and basis.",
+  ],
+  WhyIncompleteHistory: [
+    "why.incomplete-history",
+    "Inspect missing or inconsistent journal attribution.",
   ],
   ReadError: ["read.failed", "Check the read input and storage availability."],
   EntityNotFoundError: ["entity.not-found", "Check the entity ID and temporal basis."],
@@ -107,6 +126,13 @@ export const diagnose = (error: unknown): Diagnostic => {
     return { code: "internal", message: "Unknown internal error", retryable: false };
   }
   const known = error as InstanceType<(typeof Errors)[keyof typeof Errors]>;
+  if (
+    known instanceof Errors.WriteError &&
+    known.cause instanceof Errors.ValidationError &&
+    known.cause.code === "time.invalid-bound"
+  ) {
+    return diagnose(known.cause);
+  }
   const [code, fix] = defaults[known._tag];
   const base: Diagnostic = { code, message: known.message || known._tag, fix, retryable: false };
   if (known instanceof Errors.TransactionConflictError) {
@@ -167,7 +193,15 @@ export const diagnose = (error: unknown): Diagnostic => {
       fix: known.fix ?? fix,
     };
   }
-  if (known instanceof Errors.InvalidTripleError || known instanceof Errors.ValidationError)
-    return { ...base, path: known.field };
+  if (known instanceof Errors.ValidationError)
+    return {
+      ...base,
+      code: known.code ?? code,
+      path: known.field,
+      ...(known.code === "time.invalid-bound"
+        ? { fix: "Use integer epoch milliseconds for valid-time bounds." }
+        : {}),
+    };
+  if (known instanceof Errors.InvalidTripleError) return { ...base, path: known.field };
   return base;
 };

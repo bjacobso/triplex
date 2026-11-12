@@ -190,3 +190,27 @@ export const uniqueRequiredFlag: true = Attribute.text(":read/d").unique({
   required: true,
 }).required;
 export const broadFlag: boolean = Attribute.use(Attribute.text(":read/e"), options).required;
+
+// The Database front door retains each declaration's write and decoded read types.
+import * as Database from "../../src/database/index.js";
+declare const client: Database.DatabaseService;
+declare const tx: Database.Command;
+export const clientReadTypes = Effect.gen(function* () {
+  const entity = yield* client.get(ReadModel, maria);
+  if (entity) {
+    const name: string | EntityType.SealedMarker = entity.values.required;
+    const ref: EntityId = entity.values.ref;
+    const many: ReadonlyArray<string | EntityType.SealedMarker> = entity.values.many;
+    // @ts-expect-error sealed or normalized instants are never Date
+    const instant: Date = entity.values.instant;
+    return { name, ref, many, instant };
+  }
+  return null;
+});
+export const clientWrites = tx.put(Worker, maria, { name: "Maria", trainedFor: [harbor] });
+// @ts-expect-error client values retain declaration alias types
+tx.put(Worker, maria, { active: "yes" });
+// @ts-expect-error client temporal edits take one scalar even for many-valued aliases
+tx.correct(Worker, fact, { trainedFor: [harbor] });
+// @ts-expect-error command metadata requires an actor
+client.command({ commandId: "id" }, () => Effect.void);

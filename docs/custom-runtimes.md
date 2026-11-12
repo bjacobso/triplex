@@ -71,6 +71,16 @@ query result types, adapter errors, snapshot and emission contracts, and `StoreC
 `StorageAdapterService` has no `rawQuery` requirement. SQL adapters can implement the separate
 `SqlStorageAdapterService` refinement exported by `@triplex-build/triplex-sql`.
 
+Custom `StorageAdapterService` implementations must provide `recordedPositionAt(instant, head)`
+and `dependencyStateAll(resolvedBasis)`. The former returns the greatest committed journal
+position at or before the timestamp, bounded by the already captured head (zero when empty).
+Use indexed journal lookups and covering temporal indexes, without scanning journal envelopes
+or fact payloads. `TriplesLive` captures and validates the public recorded basis and resolves
+future timestamps to its captured head. The all-attribute dependency read includes historical
+assertions and retractions and future valid-time starts and ends; an empty fixed dependency
+array still means no dependencies. Host-owned SQL schemas must apply migration v9 before using
+these reads. Decorators that spread the inner service retain both reads automatically.
+
 For SQL execution, `makeSqlQueryExecutorLayer(runner, dialect)` captures the dialect at construction.
 Custom runtime authors do not need `CurrentDialect`. The older `SqlQueryExecutorLive` retains its
 ambient-dialect behavior for existing callers.

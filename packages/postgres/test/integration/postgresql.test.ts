@@ -398,6 +398,70 @@ describe("PostgreSQL Integration", () => {
     },
   );
   it.skipIf(!DOCKER_AVAILABLE)(
+    "uses interval history indexes for selective end/start ranges at older cuts",
+    { timeout: 120_000 },
+    async () => {
+      await runWithHostSql(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql.unsafe(`INSERT INTO triples(id, entity_id, attribute, value_type, value_string, recorded_at, recorded_position, valid_from, valid_to, tx_id)
+          SELECT 'time-plan:' || n, 'time-plan:' || n, ':time-plan/expiry', 'string', 'approved', 1, 1, n, n + 100000, 'time-plan:tx'
+          FROM generate_series(1, 20000) AS n`);
+          yield* sql.unsafe("ANALYZE triples");
+          for (const [bound, column, lower, upper] of [
+            ["to", "valid_to", 110000, 110010],
+            ["from", "valid_from", 10000, 10010],
+          ] as const) {
+            const q = {
+              validTime: "all",
+              find: ["?e", "?bound"],
+              where: [
+                { pattern: ["?e", ":time-plan/expiry", "approved"], valid: { [bound]: "?bound" } },
+                [">=", "?bound", lower],
+                ["<", "?bound", upper],
+              ],
+            } as const;
+            const compiled = compile(q, PostgresqlDialect, false, {
+              basis: { recordedPosition: 1 },
+            });
+            const plan = yield* sql.unsafe(
+              `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${compiled.sql}`,
+              compiled.params,
+            );
+            expect(JSON.stringify(plan)).toContain(`idx_attribute_${column}_history`);
+            expect(yield* sql.unsafe(compiled.sql, compiled.params)).toHaveLength(10);
+            yield* sql.unsafe(
+              "UPDATE triples SET retracted_at = 2, retracted_position = 2 WHERE attribute = ':time-plan/expiry' AND valid_from = 10000",
+            );
+            expect(yield* sql.unsafe(compiled.sql, compiled.params)).toHaveLength(10);
+          }
+          const provenance = compile(
+            { find: ["?actor"], where: [["time-plan:tx", ":_tx/actor", "?actor"]] },
+            PostgresqlDialect,
+            false,
+            { basis: { recordedPosition: 1, validAt: 0 } },
+          );
+          const plan = yield* sql.unsafe(
+            `EXPLAIN (FORMAT JSON) ${provenance.sql}`,
+            provenance.params,
+          );
+          const provenancePlan = JSON.stringify(plan);
+          // With rare actor metadata, PostgreSQL may prefer the history index:
+          // attribute and recorded_position are index conditions; entity is residual.
+          expect(provenancePlan).toMatch(
+            /idx_(entity_recorded_position|temporal|attribute_valid_from_history)/,
+          );
+          if (provenancePlan.includes("idx_attribute_valid_from_history")) {
+            expect(provenancePlan).toContain(
+              `"Index Cond":"((attribute = ':_tx/actor'::text) AND (recorded_position <= 1))"`,
+            );
+          }
+          yield* sql.unsafe("DELETE FROM triples WHERE attribute = ':time-plan/expiry'");
+        }),
+      );
+    },
+  );
+  it.skipIf(!DOCKER_AVAILABLE)(
     "uses an entity-position index for a selective historical cut",
     { timeout: 120_000 },
     async () => {

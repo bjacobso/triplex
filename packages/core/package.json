@@ -42,6 +42,11 @@
       "import": "./dist/datalog/index.js",
       "default": "./dist/datalog/index.js"
     },
+    "./live-query": {
+      "types": "./dist/live/index.d.ts",
+      "import": "./dist/live/index.js",
+      "default": "./dist/live/index.js"
+    },
     "./subscriptions": {
       "types": "./dist/subscriptions/index.d.ts",
       "import": "./dist/subscriptions/index.js",
@@ -81,6 +86,16 @@
       "types": "./dist/internal.d.ts",
       "import": "./dist/internal.js",
       "default": "./dist/internal.js"
+    },
+    "./database": {
+      "types": "./dist/database/index.d.ts",
+      "import": "./dist/database/index.js",
+      "default": "./dist/database/index.js"
+    },
+    "./why": {
+      "types": "./dist/why/index.d.ts",
+      "import": "./dist/why/index.js",
+      "default": "./dist/why/index.js"
     }
   },
   "publishConfig": {

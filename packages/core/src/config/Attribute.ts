@@ -5,6 +5,7 @@ import { Effect, type Schema } from "effect";
 import type { PlainValue, SealableValueType, TripleValue } from "../Value.js";
 import type { EntityId } from "../Branded.js";
 import * as Values from "../Value.js";
+import { validateAssertionBounds } from "../Triple.js";
 import * as ConfigNode from "./ConfigNode.js";
 import * as TypeExpr from "./TypeExpr.js";
 
@@ -13,9 +14,9 @@ export const KIND = "attribute";
 const ATTRIBUTE_KEY = /^:[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*$/;
 
 export interface AssertionOptions {
-  /** Start of the domain-valid interval, in epoch milliseconds (inclusive). */
+  /** Start of the domain-valid interval, in integer epoch milliseconds (inclusive). */
   readonly validFrom?: number | undefined;
-  /** End of the domain-valid interval, in epoch milliseconds (exclusive). */
+  /** End of the domain-valid interval, in integer epoch milliseconds (exclusive). */
   readonly validTo?: number | undefined;
 }
 
@@ -26,7 +27,21 @@ export interface Assertion<K extends string = string> {
   readonly validTo?: number;
 }
 
+/** Runtime declaration edges do not participate in content identity. Name-only targets remain useful for recursive schemas. */
+export interface ReferenceTarget {
+  readonly entityType: string;
+  readonly nodes?: Effect.Effect<
+    ReadonlyArray<ConfigNode.ConfigNode>,
+    | ConfigNode.DuplicateChildKeyError
+    | import("../content/CanonicalJson.js").CanonicalEncodingError
+    | Schema.SchemaError
+  >;
+  readonly attributes?: Readonly<Record<string, { readonly definition: AnyDefinition }>>;
+}
+
 export interface Definition<K extends string, V> {
+  /** The declaration supplied to ref; retained for transitive nodesOf traversal. */
+  readonly target?: ReferenceTarget;
   readonly _tag: "Attribute";
   readonly key: K;
   readonly type: TypeExpr.TypeExpr;
@@ -229,17 +244,19 @@ export const enumOf = <const K extends string, const V extends string>(
   make(key, TypeExpr.enumOf(values), "string", (value) => Values.string(value));
 
 /** A relation attribute whose values are entity ids of `target`. */
-export const ref = <const K extends string, const Target extends { readonly entityType: string }>(
+export const ref = <const K extends string, const Target extends ReferenceTarget>(
   key: K,
   target: Target,
-): Definition<K, EntityId> =>
-  make(key, TypeExpr.ref(target.entityType), "ref", Values.ref, [
+): Definition<K, EntityId> => ({
+  ...make(key, TypeExpr.ref(target.entityType), "ref", Values.ref, [
     {
       rel: "references-entity-type",
       kind: "entity-schema",
       key: target.entityType,
     },
-  ]);
+  ]),
+  target,
+});
 
 /** Requiredness and cardinality belong to an entity's use, not the global attribute. */
 export const use = <D extends AnyDefinition, const O extends UseOptions = {}>(
@@ -259,12 +276,8 @@ export const assertion = <D extends AnyDefinition>(
   value: ValueOf<D>,
   options: AssertionOptions = {},
 ): Assertion<D["key"]> => {
-  if (options.validFrom !== undefined && !Number.isFinite(options.validFrom)) {
-    throw new TypeError("validFrom must be a finite epoch-millisecond value");
-  }
-  if (options.validTo !== undefined && !Number.isFinite(options.validTo)) {
-    throw new TypeError("validTo must be a finite epoch-millisecond value");
-  }
+  const invalid = validateAssertionBounds(options);
+  if (invalid) throw invalid;
   if (
     options.validFrom !== undefined &&
     options.validTo !== undefined &&
