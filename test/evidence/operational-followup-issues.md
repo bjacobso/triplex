@@ -12,7 +12,7 @@ change representation and records the actual byte experiment. Raw evidence:
 SQLite 3.50.4. Reproduce against public built packages:
 
 ```sh
-pnpm --filter @triplex-build/triplex/sqlite exec tsx scripts/measure-journal.ts /tmp/tx7-journal.json
+pnpm --filter @triplex-build/triplex-sqlite exec tsx scripts/measure-journal.ts /tmp/tx7-journal.json
 ```
 
 | Business string bytes | Actual history rows | Actual change JSON bytes | Proposed ID-only JSON bytes | Estimated JSON bytes saved |

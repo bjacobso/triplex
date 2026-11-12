@@ -14,7 +14,7 @@ Start with `@triplex-build/triplex/database`: declare your model, publish it, th
 CI type-checks and runs it alongside the lower-level homepage scenario. This page is also available as
 [Markdown](/agents.md), and the full documentation is available as [`/llms-full.txt`](/llms-full.txt).
 
-Agents can also inspect and write a database through the private, experimental [MCP server](/mcp).
+Agents can also inspect and write a database through the experimental [MCP server](/mcp).
 Start with its `describe` tool to discover the live release and example transactions, then use the
 same CLI operations through MCP with an actor and command ID on every write.
 
@@ -233,7 +233,8 @@ Only retry a retryable conflict after reloading facts. Add `--debug` to include 
 `cause` string; see [Error diagnostics](/errors). Writes require `meta.actor` and `meta.commandId`.
 
 ```sh
-npm install --global @triplex-build/triplex/cli
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node \
+  @effect/platform-node @effect/platform-node-shared
 triplex --sqlite ./app.db describe                  # capabilities and live release schema
 triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db entity facts worker:maria

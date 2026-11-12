@@ -1,7 +1,13 @@
 # Architecture
 
-Triplex separates the storage-independent data model from backend implementations and now
-hosts typed configuration as a modular layer over the same core.
+Triplex publishes one package, `@triplex-build/triplex`, assembled by `packages/triplex`
+from private implementation workspaces. The assembly rewrites cross-workspace imports
+to relative ESM paths so service identities are shared across subpaths. Core remains
+browser-safe and independent of backends; drivers and Node platform adapters are optional
+peers imported only by the owning backend subpath or bin. The dashboard ships as prebuilt
+assets, without UI runtime dependencies in the published manifest.
+
+The storage-independent data model and backend implementations retain this module graph:
 
 - `@triplex-build/triplex` owns triples, typed values, Effect service contracts, the in-memory ordered-KV
   hexastore, Datalog schemas and engines, snapshots, and subscriptions. It also owns
@@ -154,7 +160,7 @@ hosts typed configuration as a modular layer over the same core.
   contracts, authorization, the versioned data protocol, and target-side route fencing. It does
   not import a backend. Concrete gateway, registry, and provisioner wiring depends on both host and
   backend packages and initially lives in examples.
-- `@triplex-build/triplex/cli` is an application package over the public core, config, SQLite, and
+- The `triplex` bin is an application over the public core, config, SQLite, and
   PostgreSQL surfaces. It uses Effect v4's CLI modules for typed parsing and service composition;
   it does not expose or depend on backend adapters or `@triplex-build/triplex/internal`.
 - `@triplex-build/triplex/http` is an optional application-facing package over public core and config
@@ -169,7 +175,7 @@ hosts typed configuration as a modular layer over the same core.
 - Backend maturity is explicit rather than inferred from package existence. In-memory KV and
   SQLite are the supported baseline. PostgreSQL passes the shared conformance and isolation
   integration suite in CI but remains a pre-1.0 production candidate. Cloudflare and FoundationDB
-  are private, experimental and frozen workspace packages: they must keep compiling and their
+  ship as experimental and frozen subpaths from private workspaces: they must keep compiling and their
   existing tests must keep passing, but new surface targets only in-memory KV, SQLite and
   PostgreSQL and does not have to cover them. Cloudflare's workerd conformance is part of the
   default check; FoundationDB's native suite also runs in CI and remains opt-in locally.
@@ -182,7 +188,7 @@ hosts typed configuration as a modular layer over the same core.
   removal. A workerd suite verifies two-tenant authorization, storage and cursor isolation,
   lifecycle fencing, restart persistence, and recreation. Provider credentials and tenant
   lifecycle remain control-plane concerns.
-- `test/integration` owns tests that intentionally compose multiple publishable packages.
+- `test/integration` owns tests that intentionally compose multiple public subpaths.
 - `test/stress` owns opt-in performance and scale tests.
 
 The core package may not depend on a backend package. SQL and backend packages may depend on core,
@@ -195,5 +201,5 @@ content-addressing semantics in Node.js, browsers, and edge runtimes.
 
 Repository and release maturity are tracked separately in
 [`docs/current-state.md`](docs/current-state.md). The GitHub repository has moved to
-`bjacobso/triplex`; npm publication is still pending and is governed by
+`bjacobso/triplex`; npm publication is governed by
 [`docs/releasing.md`](docs/releasing.md).

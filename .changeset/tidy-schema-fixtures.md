@@ -1,6 +1,5 @@
 ---
-"@triplex-build/triplex-postgres": minor
-"@triplex-build/triplex-testkit": minor
+"@triplex-build/triplex": minor
 ---
 
 Check the current schema version when acquiring an unmigrated PostgreSQL adapter

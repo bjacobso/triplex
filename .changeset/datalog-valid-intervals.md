@@ -1,9 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sql": minor
-"@triplex-build/triplex-testkit": minor
-"@triplex-build/triplex-sqlite": minor
-"@triplex-build/triplex-postgres": minor
 ---
 
 Add Datalog interval patterns (`{ pattern, valid: { from?, to? } }`) and query-wide

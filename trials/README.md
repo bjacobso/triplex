@@ -22,7 +22,7 @@ From the repository root, with Node.js >=22.19.0 and pinned pnpm 10.11.0:
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
-pnpm turbo run build --filter=@triplex-build/triplex/sqlite... --filter=@triplex-build/triplex/cli...
+pnpm turbo run build --filter=@triplex-build/triplex
 mkdir -p trials/runs/vendor-risk-YYYY-MM-DD
 bash trials/setup.sh trials/runs/vendor-risk-YYYY-MM-DD
 cp trials/briefs/vendor-risk.md trials/runs/vendor-risk-YYYY-MM-DD/BRIEF.md

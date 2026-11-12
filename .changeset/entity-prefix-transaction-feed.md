@@ -1,10 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sql": minor
-"@triplex-build/triplex-sqlite": patch
-"@triplex-build/triplex-postgres": patch
-"@triplex-build/triplex-host": minor
-"@triplex-build/triplex-testkit": minor
 ---
 
 Add `entityIdPrefix` to `transactions({ after, limit })` and tenant-protocol

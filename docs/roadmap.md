@@ -36,15 +36,15 @@ shims, deprecations or opt-in flags for old shapes.
 
 - Delivered: a Changesets v3 GitHub workflow maintains the version PR, publishes stable releases,
   and can manually publish `next` snapshots without committing snapshot versions.
-- Delivered: package checks install all tarballs and exercise the CLI as an external consumer.
+- Delivered: package checks install one tarball and exercise the CLI as an external consumer.
 - Delivered: the PostgreSQL multi-connection isolation and shared conformance suite run in CI.
-- Delivered: Cloudflare and FoundationDB are private experimental workspace packages and cannot be
-  included in the first release accidentally.
+- Delivered: Cloudflare and FoundationDB ship as experimental, frozen subpaths; their implementation
+  workspaces remain private.
 - Delivered: the GitHub repository cutover to `bjacobso/triplex`.
 - Delivered: the initial version PR and the first publication of all seven public packages under
   `@triplex-build`.
-- Remaining: verify trusted publishing for all seven public packages with a tokenless `next`
-  release and test the registry packages in a clean external consumer.
+- Remaining: verify trusted publishing for the single public package with a tokenless `next`
+  release and test the registry package in a clean external consumer.
 
 ## Immediate correctness gate: backend parity
 
@@ -85,7 +85,7 @@ shims, deprecations or opt-in flags for old shapes.
   binary and identity-only. Same-named definitions union, repeated variables unify, and unsupported
   recursion fails during typed preflight.
 - Keep PostgreSQL labelled as a pre-1.0 production candidate while its now-required CI corpus gains
-  operational history. Keep FoundationDB and Cloudflare private, experimental and frozen, preserving compilation
+  operational history. Keep FoundationDB and Cloudflare experimental and frozen, preserving compilation
   and existing tests without requiring new surface coverage.
 
 ## 1. Schema-Aware Constraints & Enforcement

@@ -1,10 +1,10 @@
 # CLI and dashboard
 
 Triplex includes two operator tools: a published JSON-first CLI for repeatable commands and a
-browser dashboard for interactive exploration. Both are pre-1.0. The dashboard is a private
-workspace package rather than a published application.
+browser dashboard for interactive exploration. Both are pre-1.0 and ship in the single
+`@triplex-build/triplex` package. The dashboard includes prebuilt static assets.
 
-The private, experimental [MCP server](/mcp) exposes the CLI's implementation as stdio tools for
+The experimental [MCP server](/mcp) exposes the CLI's implementation as stdio tools for
 agent clients. It serves one database per process, advertises input schemas, requires an actor
 and command ID on writes, and returns the same data and runtime diagnostics as the CLI.
 
@@ -14,14 +14,16 @@ After following [Getting started](/getting-started), build the CLI and its works
 then define a short shell function for the built binary:
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex/cli...
-triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
+pnpm turbo run build --filter=@triplex-build/triplex
+triplex() { node --disable-warning=ExperimentalWarning packages/triplex/dist/bin.js "$@"; }
 ```
 
-The examples below use the repository command. Install `@triplex-build/triplex/cli` from npm to
+The examples below use the repository command. Install `@triplex-build/triplex` from npm to
 use the same `triplex` binary in an application:
 
 ```sh
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node \
+  @effect/platform-node @effect/platform-node-shared
 triplex --sqlite ./app.db describe
 triplex --sqlite ./app.db status
 ```
@@ -219,7 +221,7 @@ Edits are real Triplex writes but disappear when the app runtime restarts.
 To inspect a persistent database, build and run the local HTTP host:
 
 ```sh
-pnpm dashboard:serve -- --sqlite /absolute/path/to/triplex.db
+npx triplex dashboard --sqlite /absolute/path/to/triplex.db
 ```
 
 The dashboard includes a spreadsheet-like entity grid with managed/runtime type filters, typed form
