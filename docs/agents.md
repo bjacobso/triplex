@@ -11,7 +11,7 @@ you have a specific reason not to, and each section links to the reference behin
 Start with `@triplex-build/triplex/database`: declare your model, publish it, then open the
 [schema-bound client](/database). The examples below come from the checked, executable
 [client site-safety scenario](https://github.com/bjacobso/triplex/blob/main/docs/snippets/client-site-safety.ts).
-CI type-checks and runs it alongside the lower-level homepage scenario. This page is also available as
+CI type-checks and runs it alongside the lower-level site-safety scenario. This page is also available as
 [Markdown](/agents.md), and the full documentation is available as [`/llms-full.txt`](/llms-full.txt).
 
 Agents can also inspect and write a database through the experimental [MCP server](/mcp).
@@ -202,7 +202,7 @@ Raw duplicate commands fail with `CommandAlreadyCommittedError`; recover the rec
 `transactionByCommand`. Raw read-decide-write commands must pass `EntityState` preconditions, and
 `Change.correct`, `Change.replace` and `Change.end` return operations and preconditions that must
 be submitted together. Install [SchemaBound](/datalog#query-shape) for release-checked raw queries.
-The [homepage scenario](https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety)
+The [primitive site-safety scenario](https://github.com/bjacobso/triplex/tree/main/docs/snippets/home/site-safety)
 executes this primitive form and its receipt recovery as a separate checked example.
 
 ## Anti-patterns
