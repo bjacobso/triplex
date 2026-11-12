@@ -3,8 +3,8 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
-import { EntityId, Triples, string, PatternClause } from "@triplex-build/triplex";
-import { CanonicalJson } from "@triplex-build/triplex/content";
+import { EntityId, Triples, string, PatternClause } from "@triplex-internal/core";
+import { CanonicalJson } from "@triplex-internal/core/content";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 
 const result = await Effect.runPromise(

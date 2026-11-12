@@ -1,6 +1,7 @@
 {
   "name": "@triplex-build/triplex-http",
   "version": "0.1.1",
+  "private": true,
   "description": "Configuration-derived HTTP APIs for Triplex",
   "keywords": [
     "effect",
@@ -36,9 +37,6 @@
       "default": "./dist/index.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "dev": "tsdown --watch",
@@ -47,7 +45,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^",
+    "@triplex-internal/core": "workspace:^",
     "ulidx": "catalog:"
   },
   "devDependencies": {

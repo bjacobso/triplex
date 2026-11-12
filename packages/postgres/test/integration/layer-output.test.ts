@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
-import { DatabaseId, Triples } from "@triplex-build/triplex";
+import { DatabaseId, Triples } from "@triplex-internal/core";
 import { PgTriples, makePostgresqlLayerFromUrl } from "@triplex-build/triplex-postgres";
 import {
   checkDockerAvailable,

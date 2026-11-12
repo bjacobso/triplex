@@ -1,6 +1,6 @@
-import { EntityId, KvTriples, Triples, type TriplesService } from "@triplex-build/triplex";
-import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
-import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
+import { EntityId, KvTriples, Triples, type TriplesService } from "@triplex-internal/core";
+import { Attribute, ConfigStore, EntityType } from "@triplex-internal/core/config";
+import { KeyProvider, Sensitive, ValueCodec } from "@triplex-internal/core/sensitive";
 import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/http";
 import { describe, expect, it } from "vitest";

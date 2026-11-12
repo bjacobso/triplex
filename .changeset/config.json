@@ -7,5 +7,18 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [
+    "@triplex-internal/core",
+    "@triplex-build/triplex-sql",
+    "@triplex-build/triplex-sqlite",
+    "@triplex-build/triplex-postgres",
+    "@triplex-build/triplex-cloudflare",
+    "@triplex-build/triplex-foundationdb",
+    "@triplex-build/triplex-host",
+    "@triplex-build/triplex-http",
+    "@triplex-build/triplex-testkit",
+    "@triplex-build/triplex-cli",
+    "@triplex-build/triplex-mcp",
+    "@triplex-build/triplex-dashboard"
+  ]
 }

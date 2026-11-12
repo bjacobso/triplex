@@ -45,7 +45,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^",
+    "@triplex-internal/core": "workspace:^",
     "foundationdb": "catalog:"
   },
   "devDependencies": {

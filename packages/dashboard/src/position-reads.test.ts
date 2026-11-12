@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { EntityId, Triples, string } from "@triplex-internal/core";
 import { describe, expect, it } from "vitest";
 import { loadDashboardAt, loadEntityTypePage } from "./data.js";
 import { DashboardDemoLayer } from "./demo/layer.js";

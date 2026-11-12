@@ -1,0 +1,212 @@
+{
+  "name": "@triplex-build/triplex",
+  "version": "0.2.0",
+  "description": "The database that remembers why: an embedded, bitemporal fact database for TypeScript back-office systems, built on Effect.",
+  "keywords": [
+    "configuration",
+    "content-addressed",
+    "database",
+    "datalog",
+    "effect",
+    "sha-256",
+    "triplestore"
+  ],
+  "homepage": "https://github.com/bjacobso/triplex#readme",
+  "bugs": {
+    "url": "https://github.com/bjacobso/triplex/issues"
+  },
+  "license": "MIT",
+  "author": "Ben Jacobson",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bjacobso/triplex.git",
+    "directory": "packages/triplex"
+  },
+  "bin": {
+    "triplex": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./datalog": {
+      "types": "./dist/core/datalog/index.d.ts",
+      "import": "./dist/core/datalog/index.js",
+      "default": "./dist/core/datalog/index.js"
+    },
+    "./live-query": {
+      "types": "./dist/core/live/index.d.ts",
+      "import": "./dist/core/live/index.js",
+      "default": "./dist/core/live/index.js"
+    },
+    "./subscriptions": {
+      "types": "./dist/core/subscriptions/index.d.ts",
+      "import": "./dist/core/subscriptions/index.js",
+      "default": "./dist/core/subscriptions/index.js"
+    },
+    "./config": {
+      "types": "./dist/core/config/index.d.ts",
+      "import": "./dist/core/config/index.js",
+      "default": "./dist/core/config/index.js"
+    },
+    "./content": {
+      "types": "./dist/core/content/index.d.ts",
+      "import": "./dist/core/content/index.js",
+      "default": "./dist/core/content/index.js"
+    },
+    "./derivation": {
+      "types": "./dist/core/derivation/index.d.ts",
+      "import": "./dist/core/derivation/index.js",
+      "default": "./dist/core/derivation/index.js"
+    },
+    "./sensitive": {
+      "types": "./dist/core/sensitive/index.d.ts",
+      "import": "./dist/core/sensitive/index.js",
+      "default": "./dist/core/sensitive/index.js"
+    },
+    "./operational": {
+      "types": "./dist/core/operational/index.d.ts",
+      "import": "./dist/core/operational/index.js",
+      "default": "./dist/core/operational/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/core/runtime/index.d.ts",
+      "import": "./dist/core/runtime/index.js",
+      "default": "./dist/core/runtime/index.js"
+    },
+    "./internal": {
+      "types": "./dist/core/internal.d.ts",
+      "import": "./dist/core/internal.js",
+      "default": "./dist/core/internal.js"
+    },
+    "./database": {
+      "types": "./dist/core/database/index.d.ts",
+      "import": "./dist/core/database/index.js",
+      "default": "./dist/core/database/index.js"
+    },
+    "./why": {
+      "types": "./dist/core/why/index.d.ts",
+      "import": "./dist/core/why/index.js",
+      "default": "./dist/core/why/index.js"
+    },
+    "./sql": {
+      "types": "./dist/sql/index.d.ts",
+      "import": "./dist/sql/index.js",
+      "default": "./dist/sql/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite/index.d.ts",
+      "import": "./dist/sqlite/index.js",
+      "default": "./dist/sqlite/index.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres/index.d.ts",
+      "import": "./dist/postgres/index.js",
+      "default": "./dist/postgres/index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare/index.d.ts",
+      "import": "./dist/cloudflare/index.js",
+      "default": "./dist/cloudflare/index.js"
+    },
+    "./foundationdb": {
+      "types": "./dist/foundationdb/index.d.ts",
+      "import": "./dist/foundationdb/index.js",
+      "default": "./dist/foundationdb/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js",
+      "default": "./dist/host/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
+    },
+    "./testkit": {
+      "types": "./dist/testkit/index.d.ts",
+      "import": "./dist/testkit/index.js",
+      "default": "./dist/testkit/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js",
+      "default": "./dist/mcp/index.js"
+    },
+    "./testkit/postgres": {
+      "types": "./dist/testkit/postgres.d.ts",
+      "import": "./dist/testkit/postgres.js",
+      "default": "./dist/testkit/postgres.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "publish",
+    "linkDirectory": false
+  },
+  "scripts": {
+    "build": "node ../../scripts/assemble-package.mjs",
+    "prepack": "pnpm --dir ../.. exec turbo run build --filter=@triplex-build/triplex",
+    "test": "node --test ../../scripts/check-single-package.test.mjs",
+    "typecheck": "node --test ../../scripts/check-single-package.test.mjs",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "ulidx": "catalog:"
+  },
+  "devDependencies": {
+    "@triplex-build/triplex-cli": "workspace:^",
+    "@triplex-build/triplex-cloudflare": "workspace:^",
+    "@triplex-build/triplex-dashboard": "workspace:^",
+    "@triplex-build/triplex-foundationdb": "workspace:^",
+    "@triplex-build/triplex-host": "workspace:^",
+    "@triplex-build/triplex-http": "workspace:^",
+    "@triplex-build/triplex-mcp": "workspace:^",
+    "@triplex-build/triplex-postgres": "workspace:^",
+    "@triplex-build/triplex-sql": "workspace:^",
+    "@triplex-build/triplex-sqlite": "workspace:^",
+    "@triplex-build/triplex-testkit": "workspace:^",
+    "@triplex-internal/core": "workspace:^",
+    "effect": "catalog:"
+  },
+  "peerDependencies": {
+    "@effect/platform-node": "catalog:peers",
+    "@effect/platform-node-shared": "catalog:peers",
+    "@effect/sql-pg": "catalog:peers",
+    "@effect/sql-sqlite-node": "catalog:peers",
+    "effect": "catalog:peers",
+    "foundationdb": "^2.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@effect/sql-sqlite-node": {
+      "optional": true
+    },
+    "@effect/sql-pg": {
+      "optional": true
+    },
+    "foundationdb": {
+      "optional": true
+    },
+    "@effect/platform-node": {
+      "optional": true
+    },
+    "@effect/platform-node-shared": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

@@ -1,6 +1,6 @@
 import { describe } from "vitest";
 import { KvTriples } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 import { databaseBehavior } from "./database-behavior.js";
 
 for (const [name, backend] of [

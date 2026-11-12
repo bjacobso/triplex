@@ -40,9 +40,10 @@ Add a Changeset for a publishable package change. Release checks include a packe
 and the PostgreSQL integration gate in CI. Current maturity and release gates live in
 [`docs/current-state.md`](docs/current-state.md).
 
-The seven public packages were bootstrapped with a short-lived npm token. Subsequent releases use
+The single published package is `@triplex-build/triplex`; all implementation workspaces are
+private. The original seven-package family was bootstrapped with a short-lived npm token. Releases use
 npm trusted publishing from GitHub owner `bjacobso`, repository `triplex`, workflow `release.yml`,
-and the approval-protected `npm-publish` environment. Each package needs its own trusted publisher
+and the approval-protected `npm-publish` environment. Only `@triplex-build/triplex` needs a trusted publisher
 connection with direct publishing allowed. The workflow grants `id-token: write` and uses an
 OIDC-capable npm CLI.
 

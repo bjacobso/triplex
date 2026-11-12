@@ -10,3 +10,5 @@ coverage/
 playwright-report/
 test-results/
 **/.openai/hosting.json
+dist-server/
+packages/triplex/publish/

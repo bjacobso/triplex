@@ -1,6 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-testkit": patch
 ---
 
 Return `QueryResponse` from `CommitValidation.View.query`, matching the complete

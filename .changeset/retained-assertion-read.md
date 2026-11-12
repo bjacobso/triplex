@@ -1,8 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sqlite": patch
-"@triplex-build/triplex-postgres": patch
-"@triplex-build/triplex-cloudflare": patch
 ---
 
 Add `Triples.assertion(id)` for retained assertions, including retraction metadata.

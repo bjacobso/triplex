@@ -14,8 +14,8 @@ import {
   KvTriples,
   makeTripleStoreRuntimeLayer,
   RuntimeServicesLive,
-} from "@triplex-build/triplex/internal";
-import { Sha256 } from "@triplex-build/triplex/content";
+} from "@triplex-internal/core/internal";
+import { Sha256 } from "@triplex-internal/core/content";
 import { makeFdbKvBackend, type FdbKvBackendConfig } from "./FdbKvBackend.js";
 
 export const FdbTriples = {

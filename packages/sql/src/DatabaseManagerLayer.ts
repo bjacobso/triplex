@@ -33,8 +33,8 @@ import {
   DatabaseAlreadyExists,
   getTripleStoreRuntime,
   DatabaseId,
-} from "@triplex-build/triplex/internal";
-import type { DatabaseId as DatabaseIdType } from "@triplex-build/triplex";
+} from "@triplex-internal/core/internal";
+import type { DatabaseId as DatabaseIdType } from "@triplex-internal/core";
 import { SqlQueryExecutorLive } from "./SqlQueryExecutor.js";
 import { StorageBackend } from "./StorageBackend.js";
 
@@ -77,7 +77,7 @@ const validateDatabaseId = (name: string): Effect.Effect<DatabaseIdType, Interna
 
 interface CachedServices {
   triples: TriplesService;
-  snapshotService: import("@triplex-build/triplex").SnapshotServiceShape;
+  snapshotService: import("@triplex-internal/core").SnapshotServiceShape;
   scope: Scope.Closeable;
   lastAccessedAt: number;
 }
@@ -432,7 +432,7 @@ export const DatabaseManagerLive = Layer.effect(
     const getSnapshotService = (
       name: string,
     ): Effect.Effect<
-      import("@triplex-build/triplex").SnapshotServiceShape | null,
+      import("@triplex-internal/core").SnapshotServiceShape | null,
       DatabaseNotFound | InternalError
     > =>
       Effect.gen(function* () {

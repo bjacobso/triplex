@@ -7,8 +7,8 @@
   "author": "Ben Jacobson",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "clean": "rm -rf dist",
+    "build": "vite build && tsdown",
+    "clean": "rm -rf dist dist-server",
     "dev": "vite --host 0.0.0.0 --port 4173",
     "serve": "tsx src/server.ts",
     "test": "vitest run",
@@ -17,9 +17,9 @@
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "catalog:",
     "@fontsource/ibm-plex-mono": "catalog:",
-    "@triplex-build/triplex": "workspace:^",
     "@triplex-build/triplex-postgres": "workspace:^",
-    "@triplex-build/triplex-sqlite": "workspace:^"
+    "@triplex-build/triplex-sqlite": "workspace:^",
+    "@triplex-internal/core": "workspace:^"
   },
   "devDependencies": {
     "@effect/platform-browser": "catalog:",

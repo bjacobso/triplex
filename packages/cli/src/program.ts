@@ -1,10 +1,5 @@
-import {
-  makePostgresqlBackend,
-  PgTriples,
-  type PostgresqlConfig,
-} from "@triplex-build/triplex-postgres";
+import type { PostgresqlConfig } from "@triplex-build/triplex-postgres";
 import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
-import { makeSqliteBackend, SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
   diagnose,
   type Diagnostic,
@@ -18,10 +13,10 @@ import {
   TransactRequest,
   WrappedQuery,
   queryToPattern,
-} from "@triplex-build/triplex";
-import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
-import { ConfigStore } from "@triplex-build/triplex/config";
-import { ContentId } from "@triplex-build/triplex/content";
+} from "@triplex-internal/core";
+import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@triplex-internal/core/internal";
+import { ConfigStore } from "@triplex-internal/core/config";
+import { ContentId } from "@triplex-internal/core/content";
 import {
   Cause,
   Console,
@@ -233,14 +228,24 @@ const databaseLayer = Effect.fn(function* () {
   const url = fromFlag ?? process.env["TRIPLEX_POSTGRES_URL"];
   const triplesLayer =
     url === undefined
-      ? Option.match(root.databaseId, {
-          onNone: () => SqliteTriples.layer({ filename: root.sqlite }),
-          onSome: (id) => SqliteTriples.layer({ filename: `${root.dataDir}/${id}.db` }),
+      ? (yield* Effect.promise(() => import("@triplex-build/triplex-sqlite"))).SqliteTriples.layer({
+          filename: Option.match(root.databaseId, {
+            onNone: () => root.sqlite,
+            onSome: (id) => `${root.dataDir}/${id}.db`,
+          }),
         })
       : Option.match(root.databaseId, {
-          onNone: () => PgTriples.layerFromUrl(url),
-          onSome: (id) => PgTriples.layerForDatabaseMigrated(postgresConfig(url), id),
-        });
+          onNone: () =>
+            Effect.promise(() => import("@triplex-build/triplex-postgres")).pipe(
+              Effect.map(({ PgTriples }) => PgTriples.layerFromUrl(url)),
+            ),
+          onSome: (id) =>
+            Effect.promise(() => import("@triplex-build/triplex-postgres")).pipe(
+              Effect.map(({ PgTriples }) =>
+                PgTriples.layerForDatabaseMigrated(postgresConfig(url), id),
+              ),
+            ),
+        }).pipe(Layer.unwrap);
   return ConfigStore.layer.pipe(Layer.provideMerge(triplesLayer));
 });
 
@@ -249,8 +254,12 @@ const databaseManagerLayer = Effect.fn(function* () {
   const url = optionValue(root.postgresUrl) ?? process.env["TRIPLEX_POSTGRES_URL"];
   const backend =
     url === undefined
-      ? makeSqliteBackend({ dataDir: root.dataDir })
-      : makePostgresqlBackend(postgresConfig(url));
+      ? (yield* Effect.promise(() => import("@triplex-build/triplex-sqlite"))).makeSqliteBackend({
+          dataDir: root.dataDir,
+        })
+      : (yield* Effect.promise(
+          () => import("@triplex-build/triplex-postgres"),
+        )).makePostgresqlBackend(postgresConfig(url));
 
   return DatabaseManagerLive.pipe(
     Layer.provide(DatabaseRegistryLive),

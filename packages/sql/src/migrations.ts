@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { MigrationError } from "@triplex-build/triplex/internal";
+import { MigrationError } from "@triplex-internal/core/internal";
 import {
   PUBLIC_READ_INDEX_DDLS,
   INTERVAL_HISTORY_INDEX_DDLS,

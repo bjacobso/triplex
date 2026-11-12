@@ -8,12 +8,11 @@ For machine-readable error codes and recovery hints, see [Error diagnostics](/er
 
 ## Why does npm return 404 for a Triplex package?
 
-The seven public packages use the `@triplex-build` scope. Check the full package name and clear a
-stale local npm cache if a newly published version returns 404. Cloudflare and FoundationDB remain
-private workspace packages. Do not switch new examples back to the superseded `@bjacobso` scope.
+Install `@triplex-build/triplex`; backend imports are subpaths such as `/sqlite` and `/postgres`,
+not separate npm packages. Cloudflare and FoundationDB ship as experimental, frozen subpaths.
+Check the full package name and clear a stale local npm cache if a newly published version returns 404. Do not switch new examples back to the superseded `@bjacobso` scope.
 
-Keep every Triplex package on one coordinated release and use the exact Effect
-peer version declared by that release. The current source tree targets Node.js 22+ and
+Use a compatible Effect peer version for the installed Triplex release. The current source tree targets Node.js 22+ and
 `effect@4.1.1`; Effect 3 is incompatible. Multiple Effect copies or a version mismatch can make
 service tags and runtime types disagree even when imports look correct.
 

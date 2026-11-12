@@ -1,9 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sql": minor
-"@triplex-build/triplex-postgres": patch
-"@triplex-build/triplex-sqlite": patch
-"@triplex-build/triplex-testkit": minor
 ---
 
 Expose `recordedPosition` on the shared temporal read basis for entity, batch,

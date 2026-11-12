@@ -1,6 +1,6 @@
-import { Attribute, ConfigNode, ConfigStore, EntityType } from "@triplex-build/triplex/config";
-import { Triples } from "@triplex-build/triplex";
-import * as Derivation from "@triplex-build/triplex/derivation";
+import { Attribute, ConfigNode, ConfigStore, EntityType } from "@triplex-internal/core/config";
+import { Triples } from "@triplex-internal/core";
+import * as Derivation from "@triplex-internal/core/derivation";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";
 import { execFile } from "node:child_process";

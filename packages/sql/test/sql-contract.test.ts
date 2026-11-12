@@ -1,4 +1,4 @@
-import { boolean, datetime, json, number, ref, string } from "@triplex-build/triplex";
+import { boolean, datetime, json, number, ref, string } from "@triplex-internal/core";
 import { describe, expect, it } from "vitest";
 
 import { INDEX_NAMES, migrations, packValue } from "../src/index.js";

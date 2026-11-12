@@ -436,7 +436,7 @@ Design, partially built:
 | Cloudflare   | Yes (migration v4)       | Yes         | Same in the native-SQL harness; both corpora in workerd                                       |
 | FoundationDB | Yes (shared KV encoding) | Yes         | Native sealed/decorator corpora, full Triples corpus through the decorator, raw subspace scan |
 
-The shared corpora are exported from `@triplex-build/triplex-testkit` as `sealedStorageCases`,
+The shared corpora are exported from `@triplex-build/triplex/testkit` as `sealedStorageCases`,
 `sensitiveConformanceCases`, `sensitiveConformanceLayer` and `findPlaintext`.
 
 ## Proposed host-sealing integration

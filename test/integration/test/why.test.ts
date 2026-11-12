@@ -8,14 +8,14 @@ import {
   DeterministicTripleStoreRuntimeLive,
 } from "@triplex-build/triplex/internal";
 import { InMemoryKvBackendLive } from "@triplex-build/triplex/internal";
-import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex-sqlite";
-import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
+import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex/sqlite";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex/sql";
 import {
   assertionConformance,
   whyReadBoundaryConformance,
   whyConformance,
   whyTestLayer,
-} from "@triplex-build/triplex-testkit";
+} from "@triplex-build/triplex/testkit";
 
 // D9/D11 freeze Cloudflare; its new historical timestamp/wildcard reads return ReadError.
 // FoundationDB inherits these reads from KV; native coverage remains opt-in.

@@ -12,7 +12,7 @@ import {
   WrappedQuery,
   type TriplesService,
   type QueryOptions as TriplesQueryOptions,
-} from "@triplex-build/triplex";
+} from "@triplex-internal/core";
 import { InstanceIdentity, sameInstanceIdentity } from "./Identity.js";
 import {
   StaleRouteError,

@@ -21,12 +21,12 @@ import {
   string as str,
   number as num,
   ref,
-} from "@triplex-build/triplex";
-import { KvBackend, KvTriplesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core";
+import { KvBackend, KvTriplesLive, TripleStoreRuntimeLayer } from "@triplex-internal/core/internal";
 import { FdbTestLayer } from "./fixtures/FdbTestLayer.js";
 import { FdbClusterFile } from "./fixtures/FdbTestLayer.js";
 import { FdbTriples } from "../src/index.js";
-import { Outbox } from "@triplex-build/triplex/operational";
+import { Outbox } from "@triplex-internal/core/operational";
 import {
   makeTriplesConformanceSuite,
   makeSealedStorageSuite,

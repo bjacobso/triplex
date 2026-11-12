@@ -44,8 +44,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^",
-    "@triplex-build/triplex-sql": "workspace:^"
+    "@triplex-build/triplex-sql": "workspace:^",
+    "@triplex-internal/core": "workspace:^"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "catalog:",

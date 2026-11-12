@@ -6,13 +6,13 @@ import {
   type TransactionMeta,
   type Triple,
   type TransactOp,
-} from "@triplex-build/triplex";
+} from "@triplex-internal/core";
 import { Clock, Context, Effect, Layer, Option } from "effect";
 import { ulid } from "ulidx";
 
 import type { ConfigApiDescriptor, EntityDescriptor } from "./ConfigApi.js";
 import { decodeInput, encodeEntity, type EntityDocument } from "./EntityCodec.js";
-import { Sensitivity, type SensitivityService } from "@triplex-build/triplex/sensitive";
+import { Sensitivity, type SensitivityService } from "@triplex-internal/core/sensitive";
 import {
   EntityNotFoundHttpError,
   RequestValidationError,
@@ -80,7 +80,7 @@ const assertOperations = (
   entity: EntityDescriptor,
   values: ReadonlyMap<
     import("./ConfigApi.js").AttributeDescriptor,
-    ReadonlyArray<import("@triplex-build/triplex").TripleValue>
+    ReadonlyArray<import("@triplex-internal/core").TripleValue>
   >,
 ): ReadonlyArray<TransactOp> =>
   [...values].flatMap(([attribute, facts]) =>
@@ -108,7 +108,7 @@ const transactionMeta = (
 });
 
 const rejectScheduledFacts = (
-  triples: import("@triplex-build/triplex").TriplesService,
+  triples: import("@triplex-internal/core").TriplesService,
   id: ReturnType<typeof EntityId.make>,
 ) =>
   Effect.gen(function* () {

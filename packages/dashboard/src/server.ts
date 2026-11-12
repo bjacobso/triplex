@@ -1,9 +1,7 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { PgTriples } from "@triplex-build/triplex-postgres";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
-import { ConfigStore } from "@triplex-build/triplex/config";
+import { ConfigStore } from "@triplex-internal/core/config";
 import { Effect, Layer, Schema } from "effect";
 import { HttpRouter, HttpServerResponse, HttpStaticServer } from "effect/http";
 import { createServer } from "node:http";
@@ -20,8 +18,8 @@ interface ServerOptions {
 }
 
 const usage = `Usage:
-  pnpm --filter @triplex-build/triplex-dashboard serve -- --sqlite <database.db> [--port 4174]
-  pnpm --filter @triplex-build/triplex-dashboard serve -- --postgres <connection-url> [--port 4174]`;
+  triplex dashboard --sqlite <database.db> [--port 4174]
+  triplex dashboard --postgres <connection-url> [--port 4174]`;
 
 const parseOptions = (args: readonly string[]): ServerOptions => {
   const valueAfter = (flag: string): string | undefined => {
@@ -72,7 +70,9 @@ const ApiRoutes = Layer.mergeAll(
   ),
 );
 
-const distDirectory = fileURLToPath(new URL("../dist", import.meta.url));
+const distDirectory = fileURLToPath(
+  new URL(import.meta.url.includes("/src/") ? "../dist" : "../dashboard", import.meta.url),
+);
 const StaticRoutes = HttpStaticServer.layer({
   root: distDirectory,
   index: "index.html",
@@ -80,13 +80,13 @@ const StaticRoutes = HttpStaticServer.layer({
 });
 
 const options = parseOptions(process.argv.slice(2));
-const databaseLayer = ConfigStore.layer.pipe(
-  Layer.provideMerge(
-    options.source === "sqlite"
-      ? SqliteTriples.layer({ filename: options.target })
-      : PgTriples.layerFromUrl(options.target),
-  ),
-);
+const triplesLayer =
+  options.source === "sqlite"
+    ? (await import("@triplex-build/triplex-sqlite")).SqliteTriples.layer({
+        filename: options.target,
+      })
+    : (await import("@triplex-build/triplex-postgres")).PgTriples.layerFromUrl(options.target);
+const databaseLayer = ConfigStore.layer.pipe(Layer.provideMerge(triplesLayer));
 const sourceLabel =
   options.source === "sqlite"
     ? `sqlite://${options.target}`

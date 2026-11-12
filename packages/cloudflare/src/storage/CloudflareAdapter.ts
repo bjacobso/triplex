@@ -31,7 +31,7 @@ import {
   makeSqlTransactionPrefixLookup,
   SqliteDialect,
 } from "@triplex-build/triplex-sql";
-import type { TripleRow } from "@triplex-build/triplex/runtime";
+import type { TripleRow } from "@triplex-internal/core/runtime";
 
 // =============================================================================
 // Durable Object Types

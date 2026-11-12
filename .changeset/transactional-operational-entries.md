@@ -1,9 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sql": minor
-"@triplex-build/triplex-sqlite": patch
-"@triplex-build/triplex-postgres": patch
-"@triplex-build/triplex-testkit": minor
 ---
 
 Add indexed inbox/outbox entries that compose with facts in `transact`, deduplicate

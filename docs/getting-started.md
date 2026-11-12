@@ -15,10 +15,10 @@ Effect 3 is incompatible. Do not use the superseded `@bjacobso` package names fo
 - Node.js 22.19.0 or newer
 - Corepack and pnpm 10.11.0 (the repository declares the exact package-manager version)
 
-For an application, install the published core package and its Effect peer dependency:
+For an application, install the single published package and its Effect peer dependency:
 
 ```sh
-npm install @triplex-build/triplex effect@4.1.1
+npm install @triplex-build/triplex effect
 ```
 
 ## Run the schema-bound client example
@@ -91,10 +91,10 @@ entity, or recover retry receipts. Prefer the client for application commands an
 SQLite is the supported local persistent backend. Install it alongside core and Effect:
 
 ```sh
-npm install @triplex-build/triplex-sqlite
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node
 ```
 
-In the first program, import `SqliteTriples` from `@triplex-build/triplex-sqlite` and replace
+In the first program, import `SqliteTriples` from `@triplex-build/triplex/sqlite` and replace
 `KvTriples.layer` inside `Store` with `SqliteTriples.layer({ filename: "./triplex.db" })`.
 Keep `ConfigStore.layer` over that same store and provide the client after publishing. On a
 persistent database, issue a new command ID only for a new domain command; rerunning the example
@@ -113,7 +113,7 @@ unbuilt checkout cannot be imported. Build the packages you need and their depen
 ```sh
 cd triplex
 pnpm install --frozen-lockfile
-pnpm turbo run build --filter=@triplex-build/triplex-sqlite...
+pnpm turbo run build --filter=@triplex-build/triplex
 ```
 
 Then link them into your project. Link Effect from the copy core resolves too, so your code and
@@ -123,7 +123,7 @@ Triplex share one Effect instance; two copies make service tags disagree:
 cd ../my-project
 mkdir -p node_modules/@triplex-build
 ln -sfn "$PWD/../triplex/packages/core" node_modules/@triplex-build/triplex
-ln -sfn "$PWD/../triplex/packages/sqlite" node_modules/@triplex-build/triplex-sqlite
+ln -sfn "$PWD/../triplex/packages/sqlite" node_modules/@triplex-build/triplex/sqlite
 ln -sfn "$PWD/../triplex/packages/core/node_modules/effect" node_modules/effect
 ```
 

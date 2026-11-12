@@ -1,10 +1,10 @@
-import { EntityId, KvTriples, Triples, type Triple } from "@triplex-build/triplex";
+import { EntityId, KvTriples, Triples, type Triple } from "@triplex-internal/core";
 import {
   Attribute,
   EntityType,
   InMemoryConfigStore,
   TypeExpr,
-} from "@triplex-build/triplex/config";
+} from "@triplex-internal/core/config";
 import { Effect, Option } from "effect";
 import { expect, it } from "vitest";
 import { compile } from "../src/ConfigApi.js";

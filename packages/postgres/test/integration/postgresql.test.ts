@@ -30,16 +30,16 @@ import {
   string,
   number,
   ref,
-} from "@triplex-build/triplex";
-import { Outbox } from "@triplex-build/triplex/operational";
-import { compile } from "@triplex-build/triplex/datalog";
-import { ConfigNode, ConfigStore, GraphConstraint } from "@triplex-build/triplex/config";
+} from "@triplex-internal/core";
+import { Outbox } from "@triplex-internal/core/operational";
+import { compile } from "@triplex-internal/core/datalog";
+import { ConfigNode, ConfigStore, GraphConstraint } from "@triplex-internal/core/config";
 import {
   DatabaseRegistry,
   IdGeneratorLive,
   RuntimeClockLive,
   TripleStoreRuntimeLayer,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import {
   DatabaseManagerLive,
   DatabaseRegistryLive,

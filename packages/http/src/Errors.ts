@@ -1,4 +1,4 @@
-import { diagnose, type Diagnostic } from "@triplex-build/triplex";
+import { diagnose, type Diagnostic } from "@triplex-internal/core";
 import { Data } from "effect";
 
 export class UnsupportedConfigError extends Data.TaggedError("UnsupportedConfigError")<{

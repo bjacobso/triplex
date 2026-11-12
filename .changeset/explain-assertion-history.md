@@ -1,6 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-testkit": minor
 ---
 
 Add the `why` subpath with the `Why` service for exact-cut explanations of facts,

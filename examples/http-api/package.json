@@ -14,8 +14,6 @@
   "dependencies": {
     "@effect/platform-node": "catalog:",
     "@triplex-build/triplex": "workspace:^",
-    "@triplex-build/triplex-http": "workspace:^",
-    "@triplex-build/triplex-sqlite": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {

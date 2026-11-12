@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SqlError, SerializationError, DeadlockError, SqlSyntaxError } from "effect/sql/SqlError";
-import { TransactionConflictError, WriteError } from "@triplex-build/triplex";
+import { TransactionConflictError, WriteError } from "@triplex-internal/core";
 import { transactionConflict } from "../src/TransactionConflict.js";
 
 describe("Postgres transaction conflicts", () => {

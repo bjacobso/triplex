@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
-import { KvTriples } from "@triplex-build/triplex";
+import { KvTriples } from "@triplex-internal/core";
 
 import {
   makeSealedStorageSuite,
