@@ -23,7 +23,7 @@ pageClass: triplex-index
 <div class="th-install">
 
 ```sh
-npm install @triplex-build/triplex effect@4.1.1
+npm install @triplex-build/triplex effect
 ```
 
 </div>

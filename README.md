@@ -75,7 +75,7 @@ and never ask about history or provenance. Triplex is a system of record, not a 
 Install the core package and its Effect peer dependency from npm:
 
 ```sh
-npm install @triplex-build/triplex effect@4.1.1
+npm install @triplex-build/triplex effect
 ```
 
 To run the checked repository examples from a source checkout:
@@ -398,13 +398,13 @@ See the [HTTP API guide](docs/http-api.md) and [standalone host](examples/http-a
 
 ## Agent CLI
 
-`@triplex-build/triplex/cli` exposes the same database and configuration services through Effect v4's
+The `triplex` bin exposes the same database and configuration services through Effect v4's
 typed CLI modules. It is JSON-first, non-interactive, schema-validates external input, and supports
 SQLite, PostgreSQL, and database-scoped PostgreSQL:
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex/cli...
-triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
+pnpm turbo run build --filter=@triplex-build/triplex
+triplex() { node --disable-warning=ExperimentalWarning packages/triplex/dist/bin.js "$@"; }
 triplex --sqlite ./app.db describe
 triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db --pretty config object form quiz/bitemporal-facts
@@ -474,7 +474,7 @@ pagination, projection, and host/runtime boundaries.
 
 `@triplex-build/triplex/sql` contains shared migrations and SQL query execution rather than a database.
 `@triplex-build/triplex/testkit` contains the behavioral conformance corpus used by adapters.
-`@triplex-build/triplex/host` is a private experimental package for portable tenant identity,
+`@triplex-build/triplex/host` is an experimental subpath for portable tenant identity,
 authorization, lifecycle, and protocol contracts. The deployable reference wiring is in
 [`examples/tenant-host-cloudflare`](examples/tenant-host-cloudflare).
 

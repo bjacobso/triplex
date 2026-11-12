@@ -1,6 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-cli": minor
 ---
 
 Expose raw transaction preview through the database subpath, sharing the client's constraint

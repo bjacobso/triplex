@@ -1,11 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sql": minor
-"@triplex-build/triplex-sqlite": minor
-"@triplex-build/triplex-postgres": minor
-"@triplex-build/triplex-testkit": minor
-"@triplex-build/triplex-http": minor
-"@triplex-build/triplex-cli": minor
 ---
 
 Add opt-in sensitive attribute values. `Attribute.sensitive` marks an attribute in its

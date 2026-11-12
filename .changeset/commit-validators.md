@@ -1,9 +1,5 @@
 ---
 "@triplex-build/triplex": minor
-"@triplex-build/triplex-sqlite": patch
-"@triplex-build/triplex-postgres": patch
-"@triplex-build/triplex-testkit": minor
-"@triplex-build/triplex-http": patch
 ---
 
 Add commit validators: host checks that run inside `Triples.transact` after operations and the

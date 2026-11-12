@@ -53,7 +53,7 @@ live-index backfill is required only if adopting its cheap preconditions.
 The failing portable test was run before implementation:
 
 ```sh
-pnpm --filter @triplex-build/triplex/testkit exec vitest run test/fixtures.test.ts -t 'entity-prefix feeds'
+pnpm --filter @triplex-build/triplex-testkit exec vitest run test/fixtures.test.ts -t 'entity-prefix feeds'
 ```
 
 It failed because the feed ignored the requested prefix. The oracle creates 28
@@ -93,7 +93,7 @@ Final cumulative commands:
 pnpm check
 pnpm pack:check
 pnpm test:postgres:integration
-pnpm --filter @triplex-build/triplex/cloudflare test
+pnpm --filter @triplex-build/triplex-cloudflare test
 ```
 
 `pnpm check` passes and all **34 PostgreSQL integration tests pass**, including
@@ -121,8 +121,8 @@ Small-table plans may differ at the database planner's discretion; no plan is fo
 
 ```sh
 TRIPLEX_FEED_KV_EVIDENCE=/tmp/tx6-kv-io.json pnpm --filter @triplex-build/triplex exec vitest run test/operational/TransactionFeed.test.ts
-TRIPLEX_FEED_PLANS=/tmp/tx6-sqlite-plans.json pnpm --filter @triplex-build/triplex/sqlite exec vitest run test/transaction-prefix-index.test.ts
-TRIPLEX_FEED_PLANS=/tmp/tx6-postgres-plans.json pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'entity-prefix transaction candidates'
+TRIPLEX_FEED_PLANS=/tmp/tx6-sqlite-plans.json pnpm --filter @triplex-build/triplex-sqlite exec vitest run test/transaction-prefix-index.test.ts
+TRIPLEX_FEED_PLANS=/tmp/tx6-postgres-plans.json pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'entity-prefix transaction candidates'
 ```
 
 Raw clean-revision artifacts: [KV I/O](tx6-kv-io.json),

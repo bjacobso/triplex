@@ -14,15 +14,12 @@ for file in package.json tsconfig.json vitest.config.ts node_modules; do
     exit 1
   fi
 done
-for package in core sqlite; do
-  if [[ ! -f "$ROOT/packages/$package/dist/index.d.ts" ]]; then
-    echo "Build packages first: missing packages/$package/dist/index.d.ts" >&2
-    exit 1
-  fi
-done
+if [[ ! -f "$ROOT/packages/triplex/dist/core/index.d.ts" ]]; then
+  echo "Build the public package first: pnpm turbo run build --filter=@triplex-build/triplex" >&2
+  exit 1
+fi
 mkdir -p "$TRIAL/node_modules/@triplex-build" "$TRIAL/node_modules/@types" "$TRIAL/src" "$TRIAL/test"
-ln -s "$ROOT/packages/core" "$TRIAL/node_modules/@triplex-build/triplex"
-ln -s "$ROOT/packages/sqlite" "$TRIAL/node_modules/@triplex-build/triplex/sqlite"
+ln -s "$ROOT/packages/triplex" "$TRIAL/node_modules/@triplex-build/triplex"
 # One Effect copy, shared with core, to preserve service identity.
 ln -s "$ROOT/packages/core/node_modules/effect" "$TRIAL/node_modules/effect"
 ln -s "$ROOT/node_modules/vitest" "$TRIAL/node_modules/vitest"

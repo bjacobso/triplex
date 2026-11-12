@@ -91,7 +91,7 @@ writes are outside the guarantee. The backfill adds no commit position or receip
 The failing test was written and run first:
 
 ```sh
-pnpm --filter @triplex-build/triplex/testkit exec vitest run test/fixtures.test.ts -t 'attribute-value and absence'
+pnpm --filter @triplex-build/triplex-testkit exec vitest run test/fixtures.test.ts -t 'attribute-value and absence'
 ```
 
 It failed because an incorrect value guard was ignored. Portable coverage now
@@ -124,8 +124,8 @@ entities on the same attribute. Actual public guards run before plans are captur
 from the production query builder. No plan is forced.
 
 ```sh
-TRIPLEX_LIVE_PLANS=/tmp/tx5-sqlite-plans.json pnpm --filter @triplex-build/triplex/sqlite exec vitest run test/live-precondition-index.test.ts
-TRIPLEX_LIVE_PLANS=/tmp/tx5-postgres-plans.json pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'bounds cheap guards'
+TRIPLEX_LIVE_PLANS=/tmp/tx5-sqlite-plans.json pnpm --filter @triplex-build/triplex-sqlite exec vitest run test/live-precondition-index.test.ts
+TRIPLEX_LIVE_PLANS=/tmp/tx5-postgres-plans.json pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'bounds cheap guards'
 ```
 
 Raw plans: [SQLite](tx5-sqlite-plans.json), [PostgreSQL](tx5-postgres-plans.json).

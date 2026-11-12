@@ -42,7 +42,7 @@ The testkit's new Postgres-only entrypoint replaces per-test schema creation,
 migration wiring, schema binding, and cleanup:
 
 ```ts
-import { postgresSchemaLayer } from "@triplex-build/triplex/testkit/postgres";
+import { postgresSchemaLayer } from "@triplex-build/triplex-testkit/postgres";
 
 const TestDatabase = postgresSchemaLayer({
   url: process.env.PG_TEST_URL!,
@@ -89,9 +89,9 @@ Commands and outcomes:
 
 - `pnpm install --frozen-lockfile`: passed. After adding testkit dependencies,
   `pnpm install --lockfile-only` followed by the frozen install passed.
-- `pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'rejects a v2 schema'`:
+- `pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'rejects a v2 schema'`:
   failed before implementation (`applicationRan` was true); passed after the guard.
-- `pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'isolates migrated test schemas'`:
+- `pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'isolates migrated test schemas'`:
   failed before the fixture existed; subsequent integration runs pass its behavior.
 - `pnpm check`: passed, including format, lint, TypeScript, checked docs/examples,
   default unit/integration/workerd suites, packages, docs build, and local llms links.
