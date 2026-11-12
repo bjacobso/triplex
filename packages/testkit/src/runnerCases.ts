@@ -533,28 +533,19 @@ const effects = {
       const recovered = yield* launch(d, batches);
       yield* caught(recovered, replaced.position);
       yield* equal(batches.length, 0, "replacement at expiry prevents transient reopen");
-      yield* equal(
-        (yield* recovered.status).registrations[0]!.nextDeadline,
-        40,
-        "corrected deadline installed",
-      );
+      // corrected deadline installed: the timer is installed once the run is acknowledged.
+      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === 40);
       const corrected = yield* t.transact([
         { op: "retract", id: replaced.triples[0]!.id },
         { ...op("worker", "yes", ":test/trained"), validFrom: 20, validTo: 30 },
       ]);
       yield* caught(recovered, corrected.position);
-      yield* equal(
-        (yield* recovered.status).registrations[0]!.nextDeadline,
-        30,
-        "earlier deadline re-arms minimum timer",
-      );
+      // earlier deadline re-arms minimum timer: the timer is installed once the run is acknowledged.
+      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === 30);
       const retracted = yield* t.transact([{ op: "retract", id: corrected.triples[0]!.id }]);
       yield* caught(recovered, retracted.position);
-      yield* equal(
-        (yield* recovered.status).registrations[0]!.nextDeadline,
-        null,
-        "retracted schedule cancelled",
-      );
+      // retracted schedule cancelled: the timer is installed once the run is acknowledged.
+      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === null);
       yield* equal(batches.length, 1, "retraction opens once");
     }),
   "1b duplicate proofs merge provenance and unchanged revisions suppress callbacks": Effect.gen(
