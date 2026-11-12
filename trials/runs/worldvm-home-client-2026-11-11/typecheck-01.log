@@ -1,0 +1,3 @@
+src/model.ts(9,55): error TS2349: This expression is not callable.
+  Type 'Boolean' has no call signatures.
+2

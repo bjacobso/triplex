@@ -1,0 +1,28 @@
+
+ RUN  v5.0.4 /Users/benjacobson/Development/personal/triplex-trials/worldvm-home-client-2026-11-11
+
+(node:57871) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/homes.test.ts [ test/homes.test.ts ]
+TypeError: Attribute.text(...).required(...).unique is not a function
+ ❯ src/model.ts:9:55
+      7|
+      8| export const Home = EntityType.make("SubjectHome", {
+      9|   subject: Attribute.text(":home/subject").required().unique(),
+       |                                                       ^
+     10|   status: Attribute.text(":home/status").required(),
+     11|   secret: Attribute.sensitive(Attribute.text(":home/secret")).required…
+ ❯ test/homes.test.ts:10:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  16:06:12
+   Duration  791ms (worker 97%, environment 3%)
+
+1
