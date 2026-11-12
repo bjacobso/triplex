@@ -68,6 +68,7 @@ export interface TransactionResult {
   readonly txId: TransactionId;
   readonly position: number;
   readonly instant: number;
+  /** Asserted triples in submitted assertion order; retractions are counted separately. */
   readonly triples: readonly Triple[];
   readonly retracted: number;
 }
@@ -134,6 +135,11 @@ export interface TransactionRecord {
   readonly correlationId?: string;
   readonly causationId?: string;
   readonly configSnapshot?: string;
+  /**
+   * Changes in submitted operation order, with assertions and retractions interleaved.
+   * A retract-pattern expands in ascending triple-ID order at its operation position.
+   * No-op retractions and operational entry operations contribute no fact changes.
+   */
   readonly changes: readonly TransactionChange[];
 }
 

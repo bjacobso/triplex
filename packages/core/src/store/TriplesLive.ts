@@ -510,7 +510,9 @@ export const TriplesLive = Layer.effect(
                 }
                 case "retract-pattern": {
                   const pattern = queryToPattern(op.pattern);
-                  const matched = yield* adapter.query(pattern);
+                  const matched = [...(yield* adapter.query(pattern))].sort((left, right) =>
+                    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+                  );
                   if (!isSystemWriteAuthorized(meta)) {
                     for (const row of matched) {
                       const reserved = reservedWriteError({

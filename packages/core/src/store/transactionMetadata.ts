@@ -52,7 +52,9 @@ export const metadataInputs = (
     ...[...new Set(changes.map((change) => change.entityId))].map((entityId) =>
       input(TxAttributes.CHANGED_ENTITY, { type: "ref", value: entityId }),
     ),
-    ...changes.map((change) => input(TxAttributes.CHANGE, { type: "json", value: change })),
+    ...changes.map((change, changeIndex) =>
+      input(TxAttributes.CHANGE, { type: "json", value: { ...change, changeIndex } }),
+    ),
   ];
 };
 
@@ -74,7 +76,8 @@ const decodeChange = (value: unknown): TransactionChange | undefined => {
   ) {
     return undefined;
   }
-  const candidate = value as Record<string, unknown>;
+  // The persisted ordering key is internal to the journal encoding.
+  const { changeIndex: _, ...candidate } = value as Record<string, unknown>;
   if (
     (candidate["op"] !== "assert" && candidate["op"] !== "retract") ||
     typeof candidate["tripleId"] !== "string" ||
@@ -119,9 +122,28 @@ export const transactionRecordFromTriples = (
   ) {
     return null;
   }
-  const changes = triples.flatMap((triple) => {
-    if (triple.attribute !== TxAttributes.CHANGE || triple.value.type !== "json") return [];
-    const change = decodeChange(triple.value.value);
+  const changeTriples = triples.filter(
+    (triple) => triple.attribute === TxAttributes.CHANGE && triple.value.type === "json",
+  );
+  const changeIndex = (triple: Triple): number => {
+    const value = triple.value.type === "json" ? triple.value.value : undefined;
+    if (typeof value !== "object" || value === null || !("changeIndex" in value)) return 0;
+    return typeof value.changeIndex === "number" &&
+      Number.isSafeInteger(value.changeIndex) &&
+      value.changeIndex >= 0
+      ? value.changeIndex
+      : 0;
+  };
+  // Legacy metadata was inserted sequentially with monotonic IDs. It remains
+  // readable without a backfill; explicit indices make new records independent
+  // of ID allocation and backend row/scan order.
+  changeTriples.sort(
+    (left, right) =>
+      changeIndex(left) - changeIndex(right) ||
+      (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+  );
+  const changes = changeTriples.flatMap((triple) => {
+    const change = decodeChange(triple.value.type === "json" ? triple.value.value : undefined);
     return change === undefined ? [] : [change];
   });
   return {
