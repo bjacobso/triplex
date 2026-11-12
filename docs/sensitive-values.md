@@ -441,7 +441,7 @@ The shared corpora are exported from `@triplex-build/triplex-testkit` as `sealed
 
 ## Proposed host-sealing integration
 
-The [host-sealed values RFC](rfcs/tx3-host-sealed-values.md) proposes an explicit
+The [host-sealed values RFC](https://github.com/bjacobso/triplex/blob/main/docs/rfcs/tx3-host-sealed-values.md) proposes an explicit
 trusted-host import contract and compares a custom KeyProvider alternative. It
 requires an owner decision and changes no current behavior. Raw storage already
 round-trips sealed envelopes; the Sensitive decorator continues to reject them.

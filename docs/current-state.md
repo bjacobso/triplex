@@ -7,79 +7,59 @@ work that is not complete.
 
 ## Delivered
 
-- One `Triples` service for atomic writes, triple-pattern reads, batched entity reads, history,
-  raw Datalog, stable query pages, fixed and all-attribute dependency state, indexed recorded-basis
-  resolution, and the ordered transaction journal.
-- First-class bitemporality. Facts have independent recorded and valid intervals, and direct reads
-  and Datalog use one shared temporal basis.
-- Atomically unique command receipts, causal metadata, typed assertion/retraction changes, commit
-  positions, compare-and-retract preconditions, indexed snapshot-stable entity timelines, and
-  durable consumer checkpoints.
-- Backend-independent Datalog semantics for patterns, joins, predicates, negation, disjunction,
-  aggregates, ordering, pagination, and the intentionally constrained binary recursive-rule form.
-  Query preflight rejects unsupported or ambiguous programs before backend execution.
-- Immutable entity snapshots as a projection, distinct from immutable configuration release
-  snapshots.
-- Public `Runtime.define` and `Runtime.fromKv` builders, structured `DatabaseScope` identities,
-  typed capability providers, deterministic fixtures, and a testkit `runtimeConformance` helper.
-  Snapshot and emitter providers are explicit requirements; base stores use `Capabilities.none`.
-- A browser-safe canonical encoding and domain-separated SHA-256 `ContentId` foundation shared by
-  entity snapshots, config graphs, derivations, validation observations, and decisions.
-- Typed configuration nodes, catalogs, releases, refs, impact queries, reactors, evaluation proofs,
-  an immutable in-memory reference store, and a transactional Triples-backed `ConfigStore`.
-- An ontology DSL that separates global attribute identity/type from usage-local requiredness,
-  cardinality, uniqueness, and reference-target constraints.
-- Queryable validation observations plus opt-in atomic enforcement of required, cardinality,
-  uniqueness, and reference-target constraints.
-- [Commit validators](/commit-validators): host checks inside the transaction boundary over
-  db-before and db-after views, with typed rejections, runtime-wide installation for every write
-  path, and optional durable rejection records. Shared conformance covers KV, SQLite, PostgreSQL,
-  and Cloudflare.
-- Content-addressed Datalog derivations with explicit candidate identity, source provenance,
-  immutable materialization runs, freshness positions, temporal wakeups, pure reconciliation, and
-  read-only hypothetical overlays.
-- Standalone demos for basic linked facts and the application-owned compliance/work boundary, plus
-  a Foldkit/Tailwind browser dashboard that exercises facts, reflected entity-type tables,
-  config-rendered form previews, raw Datalog, derivations, the journal, and full configuration
-  object/revision/release history through one app-lifetime Effect layer.
-- Opt-in sensitive attribute values. `Attribute.sensitive` marks an attribute in its
-  content-addressed node. `Sensitive.layer` decorates any `Triples` so a pluggable `ValueCodec`
-  seals values before storage: a reference AES-256-GCM codec over WebCrypto with a keyed
-  blind index, or a non-confidential identity codec for development. Reads, the journal,
-  snapshots, the CLI, the dashboard and HTTP return sealed values, and `Sensitive.open` is the only
-  path to plaintext. Datalog, uniqueness and derivations support presence and blind equality; every
-  other use of a sealed value fails during planning with `SensitiveQueryError`. SQL migration v3 and
-  Cloudflare migration v4 add the ciphertext and blind-index columns. KV, SQLite, PostgreSQL and
-  Cloudflare pass shared sealed-value conformance and raw-storage plaintext scans. See
-  [Sensitive values](/sensitive-values).
-- An Effect v4 agent CLI with schema-decoded commands and stable JSON output for SQLite and
-  PostgreSQL. It explores entities, bitemporal facts, Datalog, causal history, configuration
-  revisions/releases/refs/impact, applies attributed idempotent transactions, and moves refs.
-- A backend-neutral configuration-derived HTTP package with exact-keyword runtime schemas, REST
-  CRUD, OpenAPI, immutable version resolution, host authorization, bounded exact-cut pages, and
-  atomic constraint-enforced writes over both in-memory KV and SQLite.
-- A baseline SQL v1 migration, additive v2 numeric range index, host-owned migration entrypoints, Changesets configuration and
-  release automation, dist-only exports, package tarball checks (including the installed CLI), and
-  Effect dependencies aligned through the root pnpm catalog.
-- Additive Cloudflare v2 snapshot and v3 numeric index migrations, and a Cloudflare runtime implementation
-  using only public core and SQL exports. Existing facts are preserved; snapshot backfill is
-  explicit, and pre-upgrade Cloudflare pagination cursors must be restarted.
-- PostgreSQL layers for standalone pools, an ambient host-owned `SqlClient`, and validated
-  database-scoped pools. Ambient composition shares Effect SQL's fiber-local transaction so host
-  rows, Triplex facts/journal, command claims, commit positions, and host outbox rows commit or roll
-  back together without an internal second pool.
-- The VitePress documentation is published as a Cloudflare assets-only Worker through the
-  repository's Effect-native Alchemy stack at <https://triplex.build>.
-- A private portable host package now defines immutable tenant database identity, authorization,
-  CAS lifecycle contracts, route fencing, and a schema-decoded v1 data protocol. The Cloudflare
-  package exposes a complete `CloudflareTriples` layer using one Durable Object SQLite handle for
-  storage and Datalog, and passes the shared backend corpus both in its native-SQL harness and in
-  workerd against a real SQLite-backed Durable Object.
-- A private Cloudflare reference host wires an authenticated gateway, a durable CAS registry, one
-  SQLite Durable Object per database, idempotent provisioning, suspension/resume/deletion fencing,
-  request budgets, and a separately state-named Alchemy v2 stack with retention protection. Its
-  default workerd test exercises two-tenant isolation, restart persistence, lifecycle fencing, and
-  generation-safe recreation.
+Start with the [Database client](/database), not raw storage primitives, when building an
+application. The following surface is shipped on this branch:
+
+- **Schema-bound commands and reads.** `Database` on the `/database` subpath checks startup
+  compatibility against the live release, pins that release at command admission, and enforces
+  its constraints. It provides typed entity reads and explicit Effect Schema query projections,
+  effectful `asOf` historical views, idempotent receipts, and read-only `preview` of operations,
+  changes, violations and derivation candidates. Preview does not commit or reserve a command ID.
+- **Ontology and temporal writes.** `SchemaBound` checks queries against a release, rejecting
+  unknown attributes before execution. `Type.decode` decodes entity facts through the declared
+  aliases. Chainable use modifiers such as `.required().unique()` preserve literal types.
+  `Change.end`, `Change.replace`, `Change.correct` and `Change.combine`, and typed entity helpers,
+  express temporal edits with their preconditions. See the [modeling guide](/agents).
+- **Facts and exact history.** One `Triples` service provides atomic writes, triple reads, Datalog,
+  entity pages, history and the ordered transaction journal. `get` is live-only on every backend;
+  `assertion(id)` retrieves an assertion even after retraction, including `retractedAt`.
+  Indexed `liveFacts(entityId)` avoids replaying an entity's history. `resolveRecordedBasis`
+  resolves recorded timestamps to exact commit cuts; `dependencyState` and `dependencyStateAll`
+  provide freshness positions and future temporal edges for fixed or all-attribute dependencies.
+- **Time in Datalog.** [Datalog](/datalog) supports interval patterns
+  (`{ pattern, valid: { from, to } }`) and query-wide `validTime: "all"` alongside ordinary
+  point-in-time reads. `:_tx/*` metadata is recorded-only, including at historical valid times.
+  Bounds are integer epoch milliseconds; open interval ends are `null`, and ordered predicates
+  require finite bounds. Shared KV, SQLite and PostgreSQL coverage checks these semantics.
+- **Live results.** [Live queries](/live-queries) expose `LiveQuery.watch` as complete,
+  position-pinned snapshots on relevant commits and valid-time boundaries, with resume tokens,
+  optional coalescing, pull backpressure and one shared feed reader. They are not durable handlers.
+- **Explanations and diagnostics.** [Why](/why) explains facts, attribute values, entities and
+  supplied derivation candidates at an exact basis. Public errors have stable codes, offending
+  paths and suggested fixes through [diagnose](/errors).
+- **Configuration and validation.** Content-addressed nodes, releases, refs, evaluation proofs,
+  persisted configuration, queryable validation observations, and atomic requiredness,
+  cardinality, uniqueness and reference-target enforcement. [Commit validators](/commit-validators)
+  let hosts reject a proposed transaction using read-only before/after views.
+- **Derivations and operations.** Content-addressed candidates, immutable freshness-aware
+  materializations, temporal wakeups, pure reconciliation, hypothetical overlays, causal
+  transaction metadata, atomically unique command receipts and durable consumer checkpoints.
+- **Runtime and storage composition.** Public runtime builders, structured database scopes,
+  browser-safe content IDs, testkit conformance helpers, immutable entity snapshots, indexed
+  snapshot-stable pages, and host-owned SQL migrations. PostgreSQL supports ambient host-owned
+  clients and database-scoped pools, allowing host rows and Triplex writes to share a transaction.
+- **Sensitive values.** [Sensitive attributes](/sensitive-values), a sealing decorator,
+  WebCrypto AES-256-GCM and development identity codecs, blind equality, explicit opening, and
+  redacted tooling. Unsupported operations over sealed values fail during planning.
+- **Tools.** The [CLI](/tools) offers `why`, live-release `describe`, and `transaction preview`
+  beside reads, queries, configuration and attributed writes. The [MCP server](/mcp) exposes the
+  same execution path over stdio; it is private and is not published on npm. The dashboard and
+  [explorer](/explorer) inspect facts, history, configuration and derivations. The configuration
+  HTTP API provides runtime schemas, CRUD, OpenAPI and host authorization.
+- **Reference hosting and publishing.** A private Cloudflare reference host exercises tenant
+  isolation, lifecycle fencing and restart persistence. Documentation is built with VitePress and
+  hosted at <https://triplex.build>. Package builds, tarball consumer checks and Changesets
+  release workflows are in place.
 
 ## Backend and API policy
 
@@ -123,8 +103,12 @@ It remains experimental; these tests do not establish production operations or s
 - Seven public packages are published under the `@triplex-build` organization scope. The GitHub
   repository is `bjacobso/triplex`.
 - The superseded `@bjacobso` bootstrap packages are not the installation path for new consumers.
-- `SubscriptionManager` discovers dependencies and reports possible invalidations. It does not
-  push result deltas or automatically re-run queries.
+- `SubscriptionManager` only reports possible invalidations; use `LiveQuery.watch` for result
+  snapshots. Incremental result deltas are not implemented.
+- The durable runner is designed, not built. Journal replay, checkpoints and temporal schedules
+  are available as primitives; hosts still own handler execution, retries and delivery.
+- `why` does not yet provide structured negative witnesses. Its derivation explanation support
+  has the same restricted provenance boundary as derivations.
 - Entity snapshots, validation results, and derivation materializations are projections. Callers
   must inspect their source position and freshness; projection failure cannot roll back an already
   committed source transaction.
