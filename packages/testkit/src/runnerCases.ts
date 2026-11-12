@@ -62,6 +62,7 @@ export const settleRunner = <E>(
     const live = TestClock.withLive(Clock.currentTimeMillis);
     const deadline = (yield* live) + 30_000;
     let previous = "";
+    let lastHead = 0;
     let unchanged = 0;
     while ((yield* live) < deadline) {
       const status = yield* h.status;
@@ -85,6 +86,7 @@ export const settleRunner = <E>(
             (error) => new Runner.RunnerError({ code: "Store", message: error.message }),
           ),
         );
+      lastHead = head;
       const due = status.registrations.some(
         (r) => r.nextDeadline !== null && r.nextDeadline <= now,
       );
@@ -96,7 +98,10 @@ export const settleRunner = <E>(
       yield* TestClock.withLive(Effect.sleep(1));
     }
     return yield* Effect.fail(
-      new Runner.RunnerError({ code: "Store", message: "Runner did not settle" }),
+      new Runner.RunnerError({
+        code: "Store",
+        message: `Runner did not settle (head ${lastHead}, now ${yield* Clock.currentTimeMillis}): ${previous}`,
+      }),
     );
   });
 const caught = <E>(h: Runner.Handle<E>, position: number) =>
@@ -428,8 +433,10 @@ const effects = {
     }),
   "6 negation, future starts and empty-run expiry produce open satisfied reopened": Effect.gen(
     function* () {
+      // Boundaries sit seconds apart: settling may tick the injected clock by a few
+      // milliseconds on slow backends, which must never reach the next boundary.
       const t = yield* Triples;
-      yield* TestClock.setTime(110);
+      yield* TestClock.setTime(110_000);
       yield* t.transact([op("worker")]);
       const d = yield* Derivation.make({
         name: "safety",
@@ -447,14 +454,14 @@ const effects = {
       const h = yield* launch(d, batches);
       yield* settleRunner(h, () => batches.length === 1);
       yield* t.transact([
-        { ...op("worker", "yes", ":test/trained"), validFrom: 120, validTo: 200 },
+        { ...op("worker", "yes", ":test/trained"), validFrom: 120_000, validTo: 200_000 },
       ]);
-      yield* TestClock.setTime(150);
+      yield* TestClock.setTime(150_000);
       yield* settleRunner(h, () => batches.length === 2);
-      yield* equal(batches[1]!.basis.validAt, 120, "future start evaluated at exact boundary");
+      yield* equal(batches[1]!.basis.validAt, 120_000, "future start evaluated at exact boundary");
       // The empty run schedules expiry once it is acknowledged.
-      yield* settleRunner(h, (s) => s.registrations[0]!.nextDeadline === 200);
-      yield* TestClock.setTime(200);
+      yield* settleRunner(h, (s) => s.registrations[0]!.nextDeadline === 200_000);
+      yield* TestClock.setTime(200_000);
       yield* settleRunner(h, () => batches.length === 3);
       yield* equal(
         batches.map((b) => [b.diff.added.length, b.diff.removed.length]),
@@ -502,11 +509,12 @@ const effects = {
     }),
   "7b commit-at-boundary wins the tie, corrected deadlines and retractions cancel timers":
     Effect.gen(function* () {
+      // Boundaries sit seconds apart so settling ticks cannot reach the next one.
       const t = yield* Triples;
-      yield* TestClock.setTime(10);
+      yield* TestClock.setTime(10_000);
       const initial = yield* t.transact([
         op("worker"),
-        { ...op("worker", "yes", ":test/trained"), validTo: 20 },
+        { ...op("worker", "yes", ":test/trained"), validTo: 20_000 },
       ]);
       const evidence = initial.triples.find((row) => row.attribute === ":test/trained")!;
       const d = yield* Derivation.make({
@@ -525,23 +533,23 @@ const effects = {
       const h = yield* launch(d, batches);
       yield* caught(h, initial.position);
       yield* h.stop;
-      yield* TestClock.setTime(20);
+      yield* TestClock.setTime(20_000);
       const replaced = yield* t.transact([
         { op: "retract", id: evidence.id },
-        { ...op("worker", "yes", ":test/trained"), validFrom: 20, validTo: 40 },
+        { ...op("worker", "yes", ":test/trained"), validFrom: 20_000, validTo: 40_000 },
       ]);
       const recovered = yield* launch(d, batches);
       yield* caught(recovered, replaced.position);
       yield* equal(batches.length, 0, "replacement at expiry prevents transient reopen");
       // corrected deadline installed: the timer is installed once the run is acknowledged.
-      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === 40);
+      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === 40_000);
       const corrected = yield* t.transact([
         { op: "retract", id: replaced.triples[0]!.id },
-        { ...op("worker", "yes", ":test/trained"), validFrom: 20, validTo: 30 },
+        { ...op("worker", "yes", ":test/trained"), validFrom: 20_000, validTo: 30_000 },
       ]);
       yield* caught(recovered, corrected.position);
       // earlier deadline re-arms minimum timer: the timer is installed once the run is acknowledged.
-      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === 30);
+      yield* settleRunner(recovered, (s) => s.registrations[0]!.nextDeadline === 30_000);
       const retracted = yield* t.transact([{ op: "retract", id: corrected.triples[0]!.id }]);
       yield* caught(recovered, retracted.position);
       // retracted schedule cancelled: the timer is installed once the run is acknowledged.
