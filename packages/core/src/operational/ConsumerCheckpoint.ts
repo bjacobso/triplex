@@ -111,7 +111,7 @@ const readLoaded = (
   triples: TriplesService,
   consumer: string,
 ): Effect.Effect<LoadedCheckpoint | null, ReadError | CorruptConsumerCheckpointError> =>
-  triples.match({ entityId: entityId(consumer) }).pipe(
+  triples.liveFacts(entityId(consumer)).pipe(
     Effect.flatMap((rows) => {
       if (rows.length === 0) return Effect.succeed(null);
 
@@ -175,6 +175,7 @@ const assertPosition = (consumer: string, position: number): TransactOp => ({
   entityType: System.entityType,
   attribute: System.attribute.position,
   value: { type: "number", value: position },
+  validFrom: 0,
 });
 
 /**
@@ -230,6 +231,7 @@ export const advance = (
             entityType: System.entityType,
             attribute: System.attribute.consumer,
             value: { type: "string", value: request.consumer },
+            validFrom: 0,
           },
           assertPosition(request.consumer, request.nextPosition),
         ],

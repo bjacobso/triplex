@@ -38,6 +38,9 @@ work that is not complete.
 - Content-addressed Datalog derivations with explicit candidate identity, source provenance,
   immutable materialization runs, freshness positions, temporal wakeups, pure reconciliation, and
   read-only hypothetical overlays.
+- A [durable derivation runner](/runner) with acknowledged candidate snapshots, prepared batches,
+  Outbox delivery, bounded retries, poison pause/resume, checkpoints and offline temporal replay.
+  The compliance host uses runner handlers and schema-bound commands for open → satisfied → reopened.
 - Standalone demos for basic linked facts and the application-owned compliance/work boundary, plus
   a Foldkit/Tailwind browser dashboard that exercises facts, reflected entity-type tables,
   config-rendered form previews, raw Datalog, derivations, the journal, and full configuration
@@ -142,7 +145,7 @@ It remains experimental; these tests do not establish production operations or s
 - Config decision verification proves internal content integrity given a trusted decision root. It
   does not independently prove that an external actor chose the right rule or answer.
 - Constraint enforcement is opt-in and serialized through the commit-position boundary. Direct
-  adapter writes, authorization, general Datalog invariants, inbox/outbox delivery, timers, retries,
+  adapter writes, authorization, general Datalog invariants, external inbox/outbox transport,
   and application workflow lifecycle are host responsibilities. Hosts can enforce authorization and
   invariants atomically with commit validators, but Triplex ships no policy grammar. Validators run
   while the commit is serialized, and on Cloudflare they must be synchronous.

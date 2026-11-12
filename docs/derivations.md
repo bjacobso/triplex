@@ -116,19 +116,15 @@ ordinary Datalog.
 It returns the latest assertion-or-retraction commit position and the earliest recorded future
 `validFrom` or `validTo` for the fixed attribute set.
 
-Every evaluation and materialized run exposes the same conservative `nextTemporalBoundary`. A host
-scheduler should wake and rematerialize at that instant:
-
-```ts
-if (run.nextTemporalBoundary !== undefined) {
-  scheduler.wakeAt(run.nextTemporalBoundary, openTraining.id);
-}
-```
+Every evaluation and materialized run exposes the conservative `nextTemporalBoundary`, including
+empty runs suppressed by negation. The [durable runner](/runner) owns delivery, retries and
+boundary replay for registered definitions. It uses the same public dependency planner as live
+queries; it does not consume their observation stream.
 
 The schedule is attribute-conservative: an unrelated entity sharing a dependency attribute may
-cause an extra wakeup, but recorded future-effective or expiring evidence is not omitted. Dynamic
-attribute definitions use an explicit journal fallback and should not be hot-path materializers.
-Triplex owns boundary discovery, not timer delivery or retry policy.
+cause an extra wakeup, but recorded future-effective or expiring evidence is not omitted.
+Manual materialization remains available for previews and audit projections; callers using it
+without the runner own their timer delivery.
 
 ## Hypothetical overlays
 
@@ -166,7 +162,7 @@ wakeups, and pure diffs. The host remains responsible for:
 - durable workflow or requirement occurrences;
 - assignments, conversations, evidence disposition, and authorization;
 - command naming and response caching;
-- timer delivery, integrations, retries, inboxes, and outboxes; and
+- integrations, idempotent outgoing effects, inboxes, and application outboxes; and
 - interpreting candidate addition or removal as product behavior.
 
 The standalone [compliance host demo](https://github.com/bjacobso/triplex/tree/main/examples/compliance-host) composes those responsibilities

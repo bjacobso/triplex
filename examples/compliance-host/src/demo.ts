@@ -1,574 +1,254 @@
-import { Effect, Layer } from "effect";
-
-import {
-  EntityId,
-  KvTriples,
-  Triples,
-  datetime,
-  number,
-  ref,
-  string,
-  type TransactOp,
-  type Triple,
-} from "@triplex-build/triplex";
-import {
-  Attribute,
-  ConfigNode,
-  ConfigStore,
-  EntityType,
-  GraphConstraint,
-  TypeExpr,
-} from "@triplex-build/triplex/config";
+import { Clock, Effect, Layer } from "effect";
+import { TestClock } from "effect/testing";
+import { EntityId, KvTriples, Triples } from "@triplex-build/triplex";
+import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
+import * as Database from "@triplex-build/triplex/database";
 import * as Derivation from "@triplex-build/triplex/derivation";
-import { ConsumerCheckpoint } from "@triplex-build/triplex/operational";
+import * as Runner from "@triplex-build/triplex/runner";
+import { DatabaseScope } from "@triplex-build/triplex/runtime";
 
-const PLACEMENT_WORKER = ":placement/worker";
-const PLACEMENT_SITE = ":placement/site";
-const TRAINING_EVIDENCE = ":evidence/site-safety";
-
-const Requirement = {
-  entityType: "DemoRequirementOccurrence",
-  attribute: {
-    candidate: ":requirement/candidate",
-    occurrence: ":requirement/occurrence",
-    status: ":requirement/status",
-    revision: ":requirement/candidate-revision",
-    definition: ":requirement/definition",
-    configSnapshot: ":requirement/config-snapshot",
-    materializationRun: ":requirement/materialization-run",
-    sourcePosition: ":requirement/source-position",
-    openedAt: ":requirement/opened-at",
-    closedAt: ":requirement/closed-at",
-  },
-} as const;
-
-const RequirementStatus = Attribute.text(Requirement.attribute.status);
-const RequirementSchema = EntityType.make(Requirement.entityType, {
-  status: Attribute.use(RequirementStatus, { required: true }),
+const Placement = EntityType.make("Placement", {
+  worker: Attribute.text(":placement/worker").required(),
+  site: Attribute.text(":placement/site").required(),
 });
-
-interface RequirementOccurrence {
-  readonly entityId: EntityId;
-  readonly candidate: string;
-  readonly occurrence: number;
-  readonly status: string;
-  readonly revision: string;
-}
-
-function ensure(condition: unknown, message: string): asserts condition {
+const Worker = EntityType.make("Worker", {
+  training: Attribute.text(":evidence/site-safety"),
+});
+// The complete occurrence model is published, including every audit field.
+const Requirement = EntityType.make("DemoRequirementOccurrence", {
+  candidate: Attribute.text(":requirement/candidate").required(),
+  occurrence: Attribute.number(":requirement/occurrence").required(),
+  status: Attribute.text(":requirement/status").required(),
+  revision: Attribute.text(":requirement/candidate-revision").required(),
+  definition: Attribute.text(":requirement/definition").required(),
+  configSnapshot: Attribute.text(":requirement/config-snapshot").required(),
+  run: Attribute.text(":requirement/materialization-run").required(),
+  sourcePosition: Attribute.number(":requirement/source-position").required(),
+  openedAt: Attribute.instant(":requirement/opened-at").required(),
+  closedAt: Attribute.instant(":requirement/closed-at"),
+});
+const model = { types: [Placement, Worker, Requirement] } as const;
+const worker = EntityId.make("worker:maria");
+const site = "site:harbor";
+const ensure = (condition: unknown, message: string) => {
   if (!condition) throw new Error(`Demo verification failed: ${message}`);
-}
-
-const scalar = (triple: Triple | undefined): string | number | undefined => {
-  if (!triple) return undefined;
-  switch (triple.value.type) {
-    case "string":
-    case "ref":
-    case "number":
-    case "datetime":
-      return triple.value.value;
-    default:
-      return undefined;
-  }
 };
 
-const latestAt = (rows: readonly Triple[], attribute: string): Triple | undefined =>
-  rows
-    .filter((row) => row.attribute === attribute)
-    .sort(
-      (left, right) => right.recordedAt - left.recordedAt || right.id.localeCompare(left.id),
-    )[0];
-
-const groupByEntity = (rows: readonly Triple[]): ReadonlyMap<EntityId, readonly Triple[]> => {
-  const grouped = new Map<EntityId, Triple[]>();
-  for (const row of rows) {
-    const entity = grouped.get(row.entityId) ?? [];
-    entity.push(row);
-    grouped.set(row.entityId, entity);
-  }
-  return grouped;
+const occurrenceNumber = (value: unknown): number => {
+  if (typeof value !== "number") throw new Error("Occurrence number is not open numeric data");
+  return value;
 };
 
-const program = Effect.gen(function* () {
-  const triples = yield* Triples;
+const application = Effect.gen(function* () {
   const config = yield* ConfigStore.ConfigStore;
-  const placementId = EntityId.make("placement:one");
-  const workerId = EntityId.make("worker:maria");
-  const siteId = EntityId.make("site:harbor");
-
-  // The application compiler emits independently identified, typed config
-  // nodes. References express deploy impact without merging config and facts.
-  const Descriptor = TypeExpr.struct({
-    label: TypeExpr.required(TypeExpr.text),
-    version: TypeExpr.required(TypeExpr.number),
-  });
-  const node = (input: {
-    readonly kind: string;
-    readonly key: string;
-    readonly label: string;
-    readonly refs?: readonly ConfigNode.ConfigRef[];
-  }) =>
-    ConfigNode.makeTyped({
-      kind: input.kind,
-      key: input.key,
-      type: Descriptor,
-      attrs: { label: input.label, version: 1 },
-      ...(input.refs === undefined ? {} : { refs: input.refs }),
-    });
-
-  const placementWorker = yield* node({
-    kind: "attribute",
-    key: PLACEMENT_WORKER,
-    label: "Placement worker",
-  });
-  const placementSite = yield* node({
-    kind: "attribute",
-    key: PLACEMENT_SITE,
-    label: "Placement site",
-  });
-  const evidence = yield* node({
-    kind: "attribute",
-    key: TRAINING_EVIDENCE,
-    label: "Valid site-safety training",
-  });
-  const placementType = yield* node({
-    kind: "entity-type",
-    key: "Placement",
-    label: "Placement",
-    refs: [
-      { rel: "uses", kind: "attribute", key: PLACEMENT_WORKER },
-      { rel: "uses", kind: "attribute", key: PLACEMENT_SITE },
-    ],
-  });
-  const trainingForm = yield* node({
-    kind: "form",
-    key: "site-safety-training",
-    label: "Site safety training",
-    refs: [{ rel: "writes", kind: "attribute", key: TRAINING_EVIDENCE }],
-  });
-  const policy = yield* node({
-    kind: "policy",
-    key: "site-safety-required",
-    label: "Workers need current safety training for each site",
-    refs: [
-      { rel: "reads", kind: "entity-type", key: "Placement" },
-      { rel: "reads", kind: "attribute", key: TRAINING_EVIDENCE },
-      { rel: "collects", kind: "form", key: "site-safety-training" },
-    ],
-  });
-  const routine = yield* node({
-    kind: "routine",
-    key: "reconcile-site-safety",
-    label: "Reconcile site-safety work",
-    refs: [
-      { rel: "evaluates", kind: "policy", key: "site-safety-required" },
-      { rel: "opens", kind: "form", key: "site-safety-training" },
-    ],
-  });
-  const requirementNodes = yield* RequirementSchema.nodes;
-
   const release = yield* config.commit({
     label: "safety-2026.1",
-    objects: [
-      placementWorker,
-      placementSite,
-      evidence,
-      placementType,
-      trainingForm,
-      policy,
-      routine,
-      ...requirementNodes,
-    ],
+    objects: [...(yield* EntityType.nodesOf(...model.types)), ...(yield* Runner.schema)],
     ref: "live",
   });
-  const enforcement = GraphConstraint.enforcement(RequirementSchema.constraints);
-
   const definition = yield* Derivation.make({
     name: "task.site-safety-training",
     query: {
       find: ["?worker", "?site"],
       where: [
-        ["?placement", PLACEMENT_WORKER, "?worker"],
-        ["?placement", PLACEMENT_SITE, "?site"],
-        ["not", ["?worker", TRAINING_EVIDENCE, "?site"]],
+        ["?placement", Placement.worker.key, "?worker"],
+        ["?placement", Placement.site.key, "?site"],
+        ["not", ["?worker", Worker.training.key, "?site"]],
       ],
     },
     identity: ["?worker", "?site"],
     configSnapshot: release.snapshot.id,
   });
-
-  const loadOccurrences = (candidate?: string) =>
-    triples.match({ entityType: Requirement.entityType }).pipe(
-      Effect.map((rows) =>
-        [...groupByEntity(rows)].flatMap(([entityId, entityRows]) => {
-          const candidateValue = scalar(latestAt(entityRows, Requirement.attribute.candidate));
-          const occurrence = scalar(latestAt(entityRows, Requirement.attribute.occurrence));
-          const status = scalar(latestAt(entityRows, Requirement.attribute.status));
-          const revision = scalar(latestAt(entityRows, Requirement.attribute.revision));
-          if (
-            typeof candidateValue !== "string" ||
-            typeof occurrence !== "number" ||
-            typeof status !== "string" ||
-            typeof revision !== "string" ||
-            (candidate !== undefined && candidateValue !== candidate)
-          ) {
-            return [];
-          }
-          return [
+  return yield* Effect.gen(function* () {
+    const db = yield* Database.Database;
+    const triples = yield* Triples;
+    const occurrences = () => db.list(Requirement, { limit: 100 });
+    const prior = (candidate: string) =>
+      occurrences().pipe(
+        Effect.map((page) =>
+          page.entities
+            .filter((e) => e.values.candidate === candidate)
+            .sort(
+              (a, b) =>
+                occurrenceNumber(a.values.occurrence) - occurrenceNumber(b.values.occurrence),
+            ),
+        ),
+      );
+    const meta = (
+      delivery: Runner.Delivery,
+      kind: "added" | "removed" | "changed",
+      candidate: Derivation.Candidate,
+    ) => ({
+      actor: "demo/requirement-reconciler",
+      commandId: delivery.commandId(kind, candidate.id),
+      correlationId: delivery.batchId,
+    });
+    const openRequirement = (candidate: Derivation.Candidate, delivery: Runner.Delivery) =>
+      db.command(meta(delivery, "added", candidate), (tx) =>
+        Effect.gen(function* () {
+          const history = yield* prior(candidate.id);
+          for (const item of history) yield* tx.get(Requirement, item.entityId);
+          if (history.some((item) => item.values.status === "open")) return;
+          const occurrence = occurrenceNumber(history.at(-1)?.values.occurrence ?? 0) + 1;
+          yield* tx.create(
+            Requirement,
+            EntityId.make(`requirement:${candidate.id}:${occurrence}`),
             {
-              entityId,
-              candidate: candidateValue,
+              candidate: candidate.id,
               occurrence,
-              status,
-              revision,
-            } satisfies RequirementOccurrence,
-          ];
+              status: "open",
+              revision: candidate.revision,
+              definition: delivery.definitionId,
+              configSnapshot: delivery.configSnapshot,
+              run: delivery.runId,
+              sourcePosition: delivery.sourcePosition,
+              openedAt: delivery.basis.validAt,
+            },
+            { validFrom: 0 },
+          );
         }),
-      ),
-    );
-
-  const reconcile = (run: Derivation.Materialization.MaterializationRun, validAt: number) =>
-    Effect.gen(function* () {
-      for (const candidate of run.reconciliation.added) {
-        const prior = yield* loadOccurrences(candidate.id);
-        if (prior.some((occurrence) => occurrence.status === "open")) continue;
-        const occurrence = Math.max(0, ...prior.map((item) => item.occurrence)) + 1;
-        const entityId = EntityId.make(`requirement:${candidate.id}:${occurrence}`);
-        const operations: readonly TransactOp[] = [
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.candidate,
-            value: string(candidate.id),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.occurrence,
-            value: number(occurrence),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.status,
-            value: string("open"),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.revision,
-            value: string(candidate.revision),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.definition,
-            value: string(definition.id),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.configSnapshot,
-            value: string(definition.configSnapshot),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.materializationRun,
-            value: string(run.id),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.sourcePosition,
-            value: number(run.sourcePosition),
-          },
-          {
-            op: "assert",
-            entityId,
-            entityType: Requirement.entityType,
-            attribute: Requirement.attribute.openedAt,
-            value: datetime(validAt),
-          },
-        ];
-        yield* triples.transact(operations, {
-          actor: "demo/requirement-reconciler",
-          commandId: `requirement:${run.id}:open:${candidate.id}`,
-          correlationId: run.id,
-          configSnapshot: definition.configSnapshot,
-          enforce: enforcement,
-        });
-      }
-
-      for (const candidate of run.reconciliation.removed) {
-        const open = (yield* loadOccurrences(candidate.id))
-          .filter((occurrence) => occurrence.status === "open")
-          .sort((left, right) => right.occurrence - left.occurrence)[0];
-        if (!open) continue;
-        const rows = yield* triples.match({ entityId: open.entityId });
-        const status = latestAt(rows, Requirement.attribute.status);
-        if (!status) continue;
-        yield* triples.transact(
-          [
-            { op: "retract", id: status.id },
-            {
-              op: "assert",
-              entityId: open.entityId,
-              entityType: Requirement.entityType,
-              attribute: Requirement.attribute.status,
-              value: string("satisfied"),
-              // This replaces the recorded value for the same business-time
-              // interval; the journal retains the status transition.
-              validFrom: status.validFrom,
-            },
-            {
-              op: "assert",
-              entityId: open.entityId,
-              entityType: Requirement.entityType,
-              attribute: Requirement.attribute.closedAt,
-              value: datetime(validAt),
-            },
-          ],
-          {
-            actor: "demo/requirement-reconciler",
-            commandId: `requirement:${run.id}:satisfy:${candidate.id}`,
-            correlationId: run.id,
-            configSnapshot: definition.configSnapshot,
-            enforce: enforcement,
-            preconditions: [{ _tag: "TripleLive", id: status.id }],
-          },
-        );
-      }
-
-      for (const change of run.reconciliation.changed) {
-        const open = (yield* loadOccurrences(change.after.id)).find(
-          (occurrence) => occurrence.status === "open",
-        );
-        if (!open || open.revision === change.after.revision) continue;
-        const rows = yield* triples.match({ entityId: open.entityId });
-        const revision = latestAt(rows, Requirement.attribute.revision);
-        if (!revision) continue;
-        yield* triples.transact(
-          [
-            { op: "retract", id: revision.id },
-            {
-              op: "assert",
-              entityId: open.entityId,
-              entityType: Requirement.entityType,
-              attribute: Requirement.attribute.revision,
-              value: string(change.after.revision),
-              validFrom: revision.validFrom,
-            },
-          ],
-          {
-            actor: "demo/requirement-reconciler",
-            commandId: `requirement:${run.id}:revise:${change.after.id}`,
-            correlationId: run.id,
-            configSnapshot: definition.configSnapshot,
-            enforce: enforcement,
-            preconditions: [{ _tag: "TripleLive", id: revision.id }],
-          },
-        );
-      }
-    });
-
-  // Timer delivery remains host-owned. The feed cursor itself is a durable
-  // Triplex fact with optimistic concurrency.
-  const consumer = "demo/site-safety-materializer/v1";
-  const scheduled = new Map<string, number>();
-
-  const materializeAt = (validAt: number) =>
-    Effect.gen(function* () {
-      const run = yield* Derivation.Materialization.materialize(triples, definition, {
-        basis: { validAt },
-      });
-      yield* reconcile(run, validAt);
-      if (run.nextTemporalBoundary === undefined) scheduled.delete(definition.id);
-      else scheduled.set(definition.id, run.nextTemporalBoundary);
-      return run;
-    });
-
-  const consumeTransactions = (validAt: number) =>
-    Effect.gen(function* () {
-      const checkpoint = yield* ConsumerCheckpoint.get(triples, consumer);
-      const expectedPosition = checkpoint?.position ?? 0;
-      let cursor = expectedPosition;
-      let relevant = false;
-      while (true) {
-        const page = yield* triples.transactions({ after: cursor, limit: 100 });
-        relevant ||= page.transactions.some((transaction) =>
-          transaction.changes.some((change) =>
-            definition.dependencies.attributes.includes(change.attribute),
-          ),
-        );
-        if (page.next !== undefined) cursor = page.next;
-        if (page.transactions.length < 100 || page.next === undefined) break;
-      }
-      const run = relevant ? yield* materializeAt(validAt) : undefined;
-      if (cursor > expectedPosition) {
-        yield* ConsumerCheckpoint.advance(triples, {
-          consumer,
-          expectedPosition,
-          nextPosition: cursor,
-          meta: { actor: "demo/transaction-consumer" },
-        });
-      }
-      return run;
-    });
-
-  const runDueWakeups = (validAt: number) =>
-    Effect.gen(function* () {
-      const due = [...scheduled].filter(([, at]) => at <= validAt);
-      for (const [definitionId] of due) {
-        scheduled.delete(definitionId);
-        if (definitionId === definition.id) yield* materializeAt(validAt);
-      }
-      return due.length;
-    });
-
-  // 1. A source command creates a placement. The host feed consumer catches
-  // up and opens occurrence 1 from the added derivation candidate.
-  yield* triples.transact(
-    [
-      {
-        op: "assert",
-        entityId: placementId,
-        entityType: "Placement",
-        attribute: PLACEMENT_WORKER,
-        value: ref(workerId),
-        validFrom: 100,
-      },
-      {
-        op: "assert",
-        entityId: placementId,
-        entityType: "Placement",
-        attribute: PLACEMENT_SITE,
-        value: ref(siteId),
-        validFrom: 100,
-      },
-    ],
-    {
-      actor: "demo/placement-api",
-      commandId: "placement:create:one",
-      correlationId: "demo:placement-one",
-      configSnapshot: release.snapshot.id,
-      enforce: enforcement,
-    },
-  );
-  const opened = yield* consumeTransactions(110);
-  ensure(opened?.reconciliation.added.length === 1, "placement should open one requirement");
-
-  // 2. A planner previews reusable evidence without mutating facts, work, the
-  // transaction journal, or the scheduler.
-  const preview = yield* Derivation.Overlay.evaluateOverlay(triples, definition, {
-    basis: { validAt: 150 },
-    overlay: {
-      assertions: [
+      );
+    const editRequirement = (
+      candidate: Derivation.Candidate,
+      delivery: Runner.Delivery,
+      kind: "removed" | "changed",
+    ) =>
+      db.command(meta(delivery, kind, candidate), (tx) =>
+        Effect.gen(function* () {
+          const open = (yield* prior(candidate.id)).findLast(
+            (item) => item.values.status === "open",
+          );
+          if (!open) return;
+          yield* tx.get(Requirement, open.entityId);
+          const rows = yield* triples.liveFacts(open.entityId);
+          const attribute = kind === "removed" ? Requirement.status.key : Requirement.revision.key;
+          const row = rows.find((row) => row.attribute === attribute);
+          ensure(row, "open occurrence must have status and revision");
+          const fact = yield* tx.fact(Requirement, row!.id);
+          if (kind === "removed") {
+            yield* tx.correct(Requirement, fact, { status: "satisfied" });
+            yield* tx.put(
+              Requirement,
+              open.entityId,
+              { closedAt: delivery.basis.validAt },
+              { validFrom: 0 },
+            );
+          } else yield* tx.correct(Requirement, fact, { revision: candidate.revision });
+        }),
+      );
+    const delivered: Runner.Delivery[] = [];
+    const handle = yield* Runner.start(
+      [
         {
-          entityId: workerId,
-          entityType: "Worker",
-          attribute: TRAINING_EVIDENCE,
-          value: ref(siteId),
-          validFrom: 120,
-          validTo: 200,
+          key: "site-safety",
+          definition,
+          onDiff: (delivery) =>
+            Effect.gen(function* () {
+              for (const c of delivery.diff.added) yield* openRequirement(c, delivery);
+              for (const c of delivery.diff.removed) yield* editRequirement(c, delivery, "removed");
+              for (const { after } of delivery.diff.changed)
+                yield* editRequirement(after, delivery, "changed");
+              delivered.push(delivery);
+            }),
         },
       ],
-    },
-  });
-  ensure(preview.candidates.length === 0, "hypothetical evidence should satisfy the task");
-  ensure(preview.nextTemporalBoundary === 200, "preview should expose evidence expiry");
-  ensure((yield* loadOccurrences())[0]?.status === "open", "preview must not close durable work");
-
-  // 3. The real evidence command closes occurrence 1. The zero-candidate run
-  // still persists validTo=200 as its next temporal wakeup.
-  yield* triples.transact(
-    [
-      {
-        op: "assert",
-        entityId: workerId,
-        entityType: "Worker",
-        attribute: TRAINING_EVIDENCE,
-        value: ref(siteId),
-        validFrom: 120,
-        validTo: 200,
+      { scope: DatabaseScope.test("compliance"), id: "compliance", idleCheckMs: 1 },
+    );
+    // Deterministic scenario harness: the application above contains only domain handlers.
+    const waitFor = (count: number) =>
+      Effect.gen(function* () {
+        for (let i = 0; i < 1000; i++) {
+          if (
+            delivered.length >= count &&
+            (yield* handle.status).registrations[0]!.pending === null
+          )
+            return;
+          yield* Effect.raceFirst(Effect.yieldNow, handle.await);
+          yield* TestClock.adjust(1);
+        }
+        throw new Error(
+          `Runner did not deliver scenario transition ${count}: ${JSON.stringify(yield* handle.status)}`,
+        );
+      });
+    yield* db.command({ actor: "demo/placement-api", commandId: "placement:one" }, (tx) =>
+      tx.create(Placement, EntityId.make("placement:one"), { worker, site }, { validFrom: 100 }),
+    );
+    yield* waitFor(1);
+    ensure(
+      (yield* occurrences()).entities[0]?.values.status === "open",
+      "placement opens occurrence 1",
+    );
+    const preview = yield* Derivation.Overlay.evaluateOverlay(triples, definition, {
+      basis: { validAt: 150 },
+      overlay: {
+        assertions: [
+          {
+            entityId: worker,
+            entityType: "Worker",
+            attribute: Worker.training.key,
+            value: Worker.training.definition.encode(site),
+            validFrom: 120,
+            validTo: 200,
+          },
+        ],
       },
-    ],
-    {
-      actor: "demo/evidence-api",
-      commandId: "training:submit:maria:harbor",
-      causationId: "placement:create:one",
-      correlationId: "demo:placement-one",
-      configSnapshot: release.snapshot.id,
-      enforce: enforcement,
-    },
-  );
-  const satisfied = yield* consumeTransactions(150);
-  ensure(satisfied?.candidates.length === 0, "valid evidence should suppress the task");
-  ensure(scheduled.get(definition.id) === 200, "host should schedule the expiry boundary");
-  ensure((yield* loadOccurrences())[0]?.status === "satisfied", "occurrence 1 should close");
-
-  // 4. No source transaction happens at expiry. Timer delivery invokes the
-  // materializer at 200, and the host opens occurrence 2 while preserving 1.
-  ensure((yield* runDueWakeups(199)) === 0, "scheduler must not fire early");
-  ensure((yield* runDueWakeups(200)) === 1, "scheduler should fire at evidence expiry");
-  yield* consumeTransactions(200); // advance past the host's own projection writes
-
-  const occurrences = (yield* loadOccurrences()).sort(
-    (left, right) => left.occurrence - right.occurrence,
-  );
-  ensure(occurrences.length === 2, "expiry should retain occurrence 1 and open occurrence 2");
-  ensure(occurrences[0]?.status === "satisfied", "occurrence 1 history must remain satisfied");
-  ensure(occurrences[1]?.status === "open", "occurrence 2 should be open after expiry");
-  ensure(scheduled.size === 0, "there should be no boundary after the evidence has expired");
-
-  const queryableWork = yield* triples.query({
-    find: ["?requirement", "?occurrence", "?status"],
-    where: [
-      ["?requirement", Requirement.attribute.occurrence, "?occurrence"],
-      ["?requirement", Requirement.attribute.status, "?status"],
-    ],
-  });
-  ensure(queryableWork.results.length === 2, "requirement history should be queryable by Datalog");
-
-  const journal = yield* triples.transactions({ after: 0, limit: 1_000 });
-  const reconcilerTransactions = journal.transactions.filter(
-    (transaction) => transaction.actor === "demo/requirement-reconciler",
-  );
-  ensure(reconcilerTransactions.length === 3, "open, satisfy, and reopen must be auditable");
-  const consumerCheckpoint = yield* ConsumerCheckpoint.get(triples, consumer);
-  ensure(consumerCheckpoint !== null, "the transaction consumer must persist its checkpoint");
-
-  return {
-    release: release.snapshot.id,
-    definition: definition.id,
-    consumerPosition: consumerCheckpoint.position,
-    previewCandidates: preview.candidates.length,
-    occurrences,
-    reconcilerTransactions: reconcilerTransactions.map((transaction) => ({
-      position: transaction.position,
-      commandId: transaction.commandId,
-    })),
-  };
+    });
+    ensure(
+      preview.candidates.length === 0 && preview.nextTemporalBoundary === 200,
+      "read-only preview reuses expiring evidence",
+    );
+    ensure(
+      (yield* occurrences()).entities[0]?.values.status === "open",
+      "preview leaves durable work open",
+    );
+    yield* TestClock.setTime(150);
+    yield* db.command({ actor: "demo/evidence-api", commandId: "training:maria:harbor" }, (tx) =>
+      tx.put(Worker, worker, { training: site }, { validFrom: 120, validTo: 200 }),
+    );
+    yield* waitFor(2);
+    ensure(
+      (yield* occurrences()).entities[0]?.values.status === "satisfied",
+      "evidence satisfies occurrence 1",
+    );
+    ensure(
+      (yield* handle.status).registrations[0]!.nextDeadline === 200,
+      "empty evaluation retains expiry",
+    );
+    yield* TestClock.setTime(199);
+    ensure(delivered.length === 2, "expiry does not fire early");
+    yield* TestClock.setTime(200);
+    yield* waitFor(3);
+    const history = [...(yield* occurrences()).entities].sort(
+      (a, b) => occurrenceNumber(a.values.occurrence) - occurrenceNumber(b.values.occurrence),
+    );
+    ensure(
+      history.length === 2 &&
+        history[0]!.values.status === "satisfied" &&
+        history[1]!.values.status === "open",
+      "open → satisfied → reopened",
+    );
+    ensure(
+      delivered[0]!.batchId !== delivered[2]!.batchId,
+      "expiry creates a new occurrence identity",
+    );
+    const status = yield* handle.status;
+    yield* handle.stop;
+    return {
+      release: release.snapshot.id,
+      definition: definition.id,
+      consumerPosition: status.deliveredPosition,
+      previewCandidates: preview.candidates.length,
+      occurrences: history.map((e) => e.values),
+    };
+  }).pipe(Effect.provide(Database.layer({ schema: model })));
 });
-
-const HostLayer = ConfigStore.layer.pipe(Layer.provideMerge(KvTriples.layer));
-const result = await Effect.runPromise(program.pipe(Effect.provide(HostLayer)));
-
-console.log("Triplex compliance host demo");
-console.log("  config release      ", result.release);
-console.log("  derivation          ", result.definition);
-console.log("  preview candidates  ", result.previewCandidates, "(read-only evidence reuse)");
-console.log("  consumer position   ", result.consumerPosition);
-console.log(
-  "  requirement history",
-  result.occurrences.map((item) => `#${item.occurrence} ${item.status}`).join(" -> "),
+const HostLayer = ConfigStore.layer.pipe(
+  Layer.provideMerge(KvTriples.layerWithClock(Clock.currentTimeMillis)),
 );
-console.log("  reconciler audit    ", result.reconcilerTransactions);
+const result = await Effect.runPromise(
+  Effect.gen(function* () {
+    yield* TestClock.setTime(110);
+    return yield* application;
+  }).pipe(Effect.scoped, Effect.provide(HostLayer), Effect.provide(TestClock.layer())),
+);
+console.log("Triplex compliance host demo", result);
