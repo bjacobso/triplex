@@ -1,0 +1,28 @@
+
+ RUN  v5.0.4 /Users/benjacobson/Development/personal/triplex-trials/worldvm-home-client-2026-11-11
+
+(node:58549) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ test/homes.test.ts > kv > Q1 (BRIEF): own homes, isolated worlds with identical subject IDs, host authorization on reads and commands 92ms
+ ✓ test/homes.test.ts > kv > Q2 (BRIEF): atomic facts, queryable receipt and attributed intent; callback and commit failures leave none 41ms
+ ✓ test/homes.test.ts > kv > Q3 (BRIEF): duplicate IDs skip changed payload; 16 competing identical submissions have one effect and intent 44ms
+ ✓ test/homes.test.ts > kv > Q3 (BRIEF): synchronized competing updates reject stale observation; reload and same-ID retry commits once 35ms
+ ✓ test/homes.test.ts > kv > Q4 (BRIEF): saved exact position excludes same-millisecond updates and later corrections 35ms
+ ✓ test/homes.test.ts > kv > Q5 (BRIEF): sealed facts and journal, safe ordinary query, explicit open and wrong vault/retention rejection 32ms
+ ✓ test/homes.test.ts > kv > Q6 (BRIEF): new worker discovers pending intents; reads do not claim; acknowledgment remains host-owned 24ms
+ ✓ test/homes.test.ts > sqlite > Q1 (BRIEF): own homes, isolated worlds with identical subject IDs, host authorization on reads and commands 47ms
+ ✓ test/homes.test.ts > sqlite > Q2 (BRIEF): atomic facts, queryable receipt and attributed intent; callback and commit failures leave none 23ms
+ ✓ test/homes.test.ts > sqlite > Q3 (BRIEF): duplicate IDs skip changed payload; 16 competing identical submissions have one effect and intent 32ms
+ ✓ test/homes.test.ts > sqlite > Q3 (BRIEF): synchronized competing updates reject stale observation; reload and same-ID retry commits once 29ms
+ ✓ test/homes.test.ts > sqlite > Q4 (BRIEF): saved exact position excludes same-millisecond updates and later corrections 25ms
+ ✓ test/homes.test.ts > sqlite > Q5 (BRIEF): sealed facts and journal, safe ordinary query, explicit open and wrong vault/retention rejection 22ms
+ ✓ test/homes.test.ts > sqlite > Q6 (BRIEF): new worker discovers pending intents; reads do not claim; acknowledgment remains host-owned 13ms
+ ✓ test/homes.test.ts > Q5/Q6 (BRIEF), SQLite: close and reopen database; raw files lack plaintext; fresh process-lifetime worker discovers intent 25ms
+ ↓ test/homes.test.ts > Q2/Q3 (BRIEF), PostgreSQL: serializable and ambient host-row rollback UNTESTED — no configured/reachable service
+
+ Test Files  1 passed (1)
+      Tests  15 passed | 1 skipped (16)
+   Start at  16:06:45
+   Duration  941ms (tests 60%, import 27%, transform 13%)
+
+0

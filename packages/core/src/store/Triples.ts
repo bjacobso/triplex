@@ -68,6 +68,7 @@ export interface TransactionResult {
   readonly txId: TransactionId;
   readonly position: number;
   readonly instant: number;
+  /** Asserted triples in submitted assertion order; retractions are counted separately. */
   readonly triples: readonly Triple[];
   readonly retracted: number;
 }
@@ -134,6 +135,11 @@ export interface TransactionRecord {
   readonly correlationId?: string;
   readonly causationId?: string;
   readonly configSnapshot?: string;
+  /**
+   * Changes in submitted operation order, with assertions and retractions interleaved.
+   * A retract-pattern expands in ascending triple-ID order at its operation position.
+   * No-op retractions and operational entry operations contribute no fact changes.
+   */
   readonly changes: readonly TransactionChange[];
 }
 
@@ -264,6 +270,8 @@ export interface TriplesService {
   readonly get: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
   /** Fetch the retained assertion by ID, including retraction metadata. */
   readonly assertion: (id: TripleId) => Effect.Effect<Triple | null, ReadError>;
+  /** Indexed unretracted assertions across all valid time at the current recorded cut. */
+  readonly liveFacts: (entityId: EntityId) => Effect.Effect<readonly Triple[], ReadError>;
   /** Fetch all live triples for an entity. */
   readonly entity: (
     entityId: EntityId,

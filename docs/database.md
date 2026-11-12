@@ -102,8 +102,9 @@ The builder becomes invalid when the callback ends. Failed callbacks submit noth
 all successful builds submit exactly one `Triples.transact`.
 
 There is no read-your-writes overlay. `tx.get` and `tx.fact` read persisted facts,
-even after queued writes. `tx.get` observes each entity history once, retaining all
-unretracted fact IDs, including past and future intervals; different `validAt`
+even after queued writes. `tx.get` observes each entity once through the indexed
+`Triples.liveFacts` read, loading only unretracted facts, including past and future intervals;
+different `validAt`
 reads filter that observation. Its default time is the command-start Effect Clock.
 A `tx.fact` read alone adds no guard; consuming it in a retracting verb adds
 `TripleLive`. There are no builder Datalog or list methods; use
@@ -216,10 +217,92 @@ backend cursor retains the exact read cut and database scope. Malformed or
 mismatched continuations fail with `pagination.invalid-cursor`. Cursors are not
 authorization tokens. Give each world a distinct backend cursor scope.
 
+## Receipts, entity history, and operational entries
+
+`receipt(commandId)` calls `Triples.transactionByCommand` and returns the persisted
+`TransactionRecord` returned by `command`, or `null` when the ID is absent.
+
+`history(Type, id, { limit?, snapshotPosition?, beforePosition? }?)` calls
+`Triples.transactionsForEntity`. It returns `{ transactions, snapshotPosition,
+nextBeforePosition? }`, newest commit first, with a default limit of 100 and a
+maximum of 1,000. Pass both the returned `snapshotPosition` and
+`nextBeforePosition` (as `beforePosition`) to continue without including later commits.
+An entity with no journal entries returns an empty page.
+
+Each transaction retains its complete raw `changes`, including other entities and
+unknown attributes, and adds `typedChanges` for the requested entity and declared
+entity type. Each typed change has `{ alias, change, value }`: `alias` discriminates
+the declaration's TypeScript aliases, `change` retains the original journal change
+and source triple ID, and `value` is the validated declaration value. A many-valued
+alias has one scalar value per changed fact. Instants decode to epoch milliseconds.
+Sealed values decode to the same `$sealed` marker as entity reads; the original
+journal change retains its sealed envelope. Unknown attributes and legacy changes
+without entity type or value remain in raw `changes` only. Malformed known values
+fail validation. Transaction change order is backend-dependent; select by alias,
+operation and interval rather than array index. History is a commit timeline,
+so `validAt` does not filter it.
+
+`outbox.pending({ scope?, limit?, cursor? }?)` and `inbox.pending(...)` delegate to
+`Outbox.pending` and `Inbox.pending`. They return `{ entries, nextCursor? }` using
+the operational API's bounded pagination and append-position/ID ordering. These
+are live pending scans: acknowledgements can remove entries between pages.
+`outbox.get(id)` and `inbox.get(id)` delegate to the corresponding mailbox `get`,
+returning an entry (including acknowledgement metadata) or `null`. IDs of the wrong
+mailbox kind return `null`. `outbox.id(scope, key)` and `inbox.id(scope, key)` expose
+the same deterministic IDs as the operational helpers. Reading entries never
+acknowledges them; acknowledgements remain command-builder operations.
+
+```ts check
+import { Effect } from "effect";
+import { EntityId } from "@triplex-build/triplex";
+import { Attribute, EntityType } from "@triplex-build/triplex/config";
+import * as Database from "@triplex-build/triplex/database";
+
+const Person = EntityType.make("Person", {
+  name: Attribute.text(":person/name"),
+  age: Attribute.integer(":person/age"),
+});
+const person = EntityId.make("person:ada");
+const read = Effect.gen(function* () {
+  const db = yield* Database.Database;
+  const receipt = yield* db.receipt("person:ada:create");
+  const page = yield* db.history(Person, person, { limit: 10 });
+  for (const transaction of page.transactions) {
+    for (const change of transaction.typedChanges) {
+      if (change.alias === "age") {
+        const age: number | EntityType.SealedMarker = change.value;
+        void age;
+      }
+    }
+  }
+  if (page.nextBeforePosition !== undefined) {
+    yield* db.history(Person, person, {
+      limit: 10,
+      snapshotPosition: page.snapshotPosition,
+      beforePosition: page.nextBeforePosition,
+    });
+  }
+  const pending = yield* db.outbox.pending({ scope: person, limit: 10 });
+  if (pending.nextCursor !== undefined) {
+    yield* db.outbox.pending({ scope: person, limit: 10, cursor: pending.nextCursor });
+  }
+  const outgoing = yield* db.outbox.get(db.outbox.id(person, "welcome"));
+  const incoming = yield* db.inbox.pending({ scope: person });
+  const received = yield* db.inbox.get(db.inbox.id(person, "signup"));
+  if (receipt !== null) {
+    const then = yield* db.asOf({ recordedPosition: receipt.position, validAt: 0 });
+    yield* then.receipt("person:ada:create");
+    yield* then.history(Person, person);
+  }
+  return { outgoing, incoming, received };
+});
+void read;
+```
+
 ## Stable read views
 
 `yield* db.asOf(basis)` returns a read-only view with `get`, `list`, `query`, `raw`,
-`rawPage`, `basis` and `releaseId`. It captures omitted `validAt` once with Effect
+`rawPage`, `receipt`, `history`, `basis` and `releaseId`. It captures omitted `validAt` once with Effect
 Clock, and omitted recorded time once with `Triples.currentPosition`. Supply at
 most one of `recordedAt` and `recordedPosition`. Positions are safe integers from
 zero through the captured head; instants must be finite and nonnegative.
@@ -233,7 +316,12 @@ corrections.
 
 Views retain the schema selected at acquisition. They do not infer which release
 was live at a historical time. For an incompatible older model, provide a matching
-layer/ref. A view supplies its fixed basis on every read and cannot write.
+layer/ref. A view supplies its fixed basis on entity/query reads and cannot write. Receipt
+reads return `null` for commands committed after the captured recorded position.
+History fixes `snapshotPosition` to that recorded position; an explicitly different
+snapshot fails validation. Both journal reads ignore `validAt`. Inbox/outbox reads
+are available only on the live client: the operational API has no historical
+entry or acknowledgement reads, so views do not expose mailboxes.
 
 ## Errors and the primitive escape
 

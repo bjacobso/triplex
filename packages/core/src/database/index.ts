@@ -9,6 +9,13 @@ import * as ConfigNode from "../config/ConfigNode.js";
 import * as ConfigStore from "../config/ConfigStore.js";
 import * as EntityType from "../config/EntityType.js";
 import * as GraphConstraint from "../config/GraphConstraint.js";
+import * as TypeSchema from "../config/TypeSchema.js";
+import { Inbox, Outbox } from "../operational/index.js";
+import type {
+  OperationalEntry,
+  PendingEntriesRequest,
+  PendingEntriesPage,
+} from "../operational/index.js";
 import * as SchemaBound from "../config/SchemaBound.js";
 import * as ContentId from "../content/ContentId.js";
 import type { AppendEntryInput, EntryKind } from "../operational/Entry.js";
@@ -16,6 +23,9 @@ import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import {
   Triples,
   type TransactionRecord,
+  type TransactionChange,
+  type EntityTransactionPageRequest,
+  type EntityTransactionPage,
   type PagedQueryOptions,
   type PagedQueryResponse,
 } from "../store/Triples.js";
@@ -136,7 +146,37 @@ export type ReadOptions = Omit<PagedQueryOptions, "basis">;
 export type QueryPage<A> = Omit<PagedQueryResponse, "results"> & {
   readonly results: ReadonlyArray<A>;
 };
+/** One declared alias and its individual journal value (many-valued aliases stay scalar here). */
+export type TypedChange<T extends ModelType> = {
+  [K in keyof T["attributes"]]: {
+    readonly alias: K;
+    readonly change: TransactionChange;
+    readonly value:
+      | Exclude<Attribute.ValueOf<T["attributes"][K]["definition"]>, Date>
+      | EntityType.SealedMarker;
+  };
+}[keyof T["attributes"]];
+export type HistoryPage<T extends ModelType> = Omit<EntityTransactionPage, "transactions"> & {
+  readonly transactions: ReadonlyArray<
+    TransactionRecord & { readonly typedChanges: ReadonlyArray<TypedChange<T>> }
+  >;
+};
+export type HistoryOptions = EntityTransactionPageRequest;
+/** Live operational reads; the underlying mailbox API has no historical basis. */
+export interface MailboxReads {
+  readonly id: (scope: EntityId, idempotencyKey: string) => ContentId.ContentId;
+  readonly get: (id: ContentId.ContentId) => Effect.Effect<OperationalEntry | null, DatabaseError>;
+  readonly pending: (
+    options?: PendingEntriesRequest,
+  ) => Effect.Effect<PendingEntriesPage, DatabaseError>;
+}
 export interface Reads {
+  readonly receipt: (commandId: string) => Effect.Effect<TransactionRecord | null, DatabaseError>;
+  readonly history: <T extends ModelType>(
+    type: T,
+    id: EntityId,
+    options?: HistoryOptions,
+  ) => Effect.Effect<HistoryPage<T>, DatabaseError>;
   readonly get: <T extends ModelType>(
     type: T,
     id: EntityId,
@@ -170,6 +210,8 @@ export interface View extends Reads {
   readonly releaseId: string;
 }
 export interface DatabaseService extends Reads {
+  readonly inbox: MailboxReads;
+  readonly outbox: MailboxReads;
   readonly command: <E, R>(
     meta: CommandMeta,
     build: (tx: Command) => Effect.Effect<void, E, R>,
@@ -344,7 +386,7 @@ export const layer = (
         });
       const reads = (fixed?: {
         readonly release: ConfigStore.ConfigSnapshot;
-        readonly basis: TemporalBasis;
+        readonly basis: TemporalBasis & { readonly recordedPosition: number };
       }): Reads => {
         const select = (kind: string, cursor?: string) =>
           Effect.gen(function* () {
@@ -400,6 +442,67 @@ export const layer = (
             );
           });
         return {
+          receipt: (commandId) =>
+            Effect.gen(function* () {
+              if (!fixed) yield* resolve();
+              const receipt = yield* triples.transactionByCommand(commandId);
+              return receipt && (!fixed || receipt.position <= fixed.basis.recordedPosition)
+                ? receipt
+                : null;
+            }),
+          history: (type, id, opts = {}) =>
+            Effect.gen(function* () {
+              yield* typeCheck(type);
+              if (!fixed) yield* resolve();
+              if (
+                fixed &&
+                opts.snapshotPosition !== undefined &&
+                opts.snapshotPosition !== fixed.basis.recordedPosition
+              )
+                return yield* invalid("history.snapshotPosition");
+              const page = yield* triples.transactionsForEntity(id, {
+                ...opts,
+                ...(fixed ? { snapshotPosition: fixed.basis.recordedPosition } : {}),
+              });
+              const transactions = yield* Effect.forEach(page.transactions, (record) =>
+                Effect.gen(function* () {
+                  const typedChanges = [];
+                  for (const change of record.changes) {
+                    if (
+                      change.entityId !== id ||
+                      change.entityType !== type.entityType ||
+                      change.value === undefined
+                    )
+                      continue;
+                    for (const [alias, handle] of Object.entries(type.attributes)) {
+                      if (handle.key !== change.attribute) continue;
+                      const stored = change.value;
+                      if (
+                        (stored.type === "sealed" ? stored.valueType : stored.type) !==
+                        handle.definition.valueType
+                      )
+                        return yield* invalid("history.changes.value");
+                      if (stored.type !== "sealed" && handle.definition.sensitive)
+                        return yield* invalid("history.changes.value");
+                      const value =
+                        stored.type === "sealed"
+                          ? { $sealed: { valueType: stored.valueType, keyId: stored.keyId } }
+                          : yield* Schema.decodeUnknownEffect(
+                              TypeSchema.compile(handle.definition.type),
+                            )(stored.value).pipe(
+                              Effect.mapError((cause) => invalid("history.changes.value", cause)),
+                            );
+                      typedChanges.push({ alias, change, value });
+                    }
+                  }
+                  // Each value was validated against the definition for its alias above.
+                  return { ...record, typedChanges } as TransactionRecord & {
+                    readonly typedChanges: ReadonlyArray<TypedChange<typeof type>>;
+                  };
+                }),
+              );
+              return { ...page, transactions };
+            }),
           get: (type, id) =>
             Effect.gen(function* () {
               yield* typeCheck(type);
@@ -560,9 +663,7 @@ export const layer = (
                   yield* instant(validAt, "command.get.validAt");
                   let facts = observed.get(id);
                   if (!facts) {
-                    facts = (yield* triples.history(id)).filter((f) =>
-                      Option.isNone(f.retractedAt),
-                    );
+                    facts = yield* triples.liveFacts(id);
                     observed.set(id, facts);
                     add(
                       [],
@@ -616,9 +717,24 @@ export const layer = (
           const combined = Change.combine(...changes);
           return { combined, release, pinned, started } as const;
         });
+      const mailbox = (api: typeof Inbox): MailboxReads => ({
+        id: api.id,
+        get: (id) =>
+          Effect.gen(function* () {
+            yield* resolve();
+            return yield* api.get(triples, id);
+          }),
+        pending: (opts) =>
+          Effect.gen(function* () {
+            yield* resolve();
+            return yield* api.pending(triples, opts);
+          }),
+      });
       yield* resolve();
       return {
         ...reads(),
+        inbox: mailbox(Inbox),
+        outbox: mailbox(Outbox),
         asOf: (basis) =>
           Effect.gen(function* () {
             if (basis.recordedAt !== undefined && basis.recordedPosition !== undefined)

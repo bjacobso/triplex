@@ -183,13 +183,13 @@ export const readTypes = Effect.gen(function* () {
 });
 
 // Every modifier retains the literal flag; broad options keep it unknown.
-export const requiredFlag: true = Attribute.text(":read/a").required().required;
-export const optionalFlag: false = Attribute.use(Attribute.text(":read/b")).required;
-export const manyRequiredFlag: true = Attribute.text(":read/c").many({ required: true }).required;
+export const requiredFlag: true = Attribute.text(":read/a").required().isRequired;
+export const optionalFlag: false = Attribute.use(Attribute.text(":read/b")).isRequired;
+export const manyRequiredFlag: true = Attribute.text(":read/c").many({ required: true }).isRequired;
 export const uniqueRequiredFlag: true = Attribute.text(":read/d").unique({
   required: true,
-}).required;
-export const broadFlag: boolean = Attribute.use(Attribute.text(":read/e"), options).required;
+}).isRequired;
+export const broadFlag: boolean = Attribute.use(Attribute.text(":read/e"), options).isRequired;
 
 // The Database front door retains each declaration's write and decoded read types.
 import * as Database from "../../src/database/index.js";
@@ -214,3 +214,62 @@ tx.put(Worker, maria, { active: "yes" });
 tx.correct(Worker, fact, { trainedFor: [harbor] });
 // @ts-expect-error command metadata requires an actor
 client.command({ commandId: "id" }, () => Effect.void);
+
+// Every pair and every permutation keeps exact cardinality and requiredness.
+const chained = Attribute.text(":chain/value");
+type Chained<C extends Attribute.Cardinality, R extends boolean> = Attribute.Use<
+  typeof chained,
+  C,
+  R
+>;
+export const requiredUnique: Chained<"one", true> = chained.required().unique();
+export const uniqueRequired: Chained<"one", true> = chained.unique().required();
+export const requiredThenMany: Chained<"many", true> = chained.required().many();
+export const manyThenRequired: Chained<"many", true> = chained.many().required();
+export const uniqueMany: Chained<"many", false> = chained.unique().many();
+export const manyUnique: Chained<"many", false> = chained.many().unique();
+export const allChainOrders: ReadonlyArray<Chained<"many", true>> = [
+  chained.required().many().unique(),
+  chained.required().unique().many(),
+  chained.many().required().unique(),
+  chained.many().unique().required(),
+  chained.unique().required().many(),
+  chained.unique().many().required(),
+];
+export const repeated: Chained<"many", true> = chained
+  .required()
+  .required()
+  .many()
+  .many()
+  .unique()
+  .unique();
+export const optionsThenChain: Chained<"many", true> = Attribute.use(chained, {
+  cardinality: "many",
+})
+  .unique()
+  .required();
+export const broadThenUnique: Attribute.Use<typeof chained, Attribute.Cardinality, boolean> =
+  Attribute.use(chained, options).unique();
+// @ts-expect-error unknown requiredness cannot become literal merely through unique()
+export const broadRequired: Chained<Attribute.Cardinality, true> = Attribute.use(
+  chained,
+  options,
+).unique();
+// @ts-expect-error many() never returns a cardinality-one use
+export const chainOne: Chained<"one", true> = chained.unique().required().many();
+// @ts-expect-error uniqueness does not imply requiredness
+export const chainRequired: Chained<"many", true> = chained.unique().many();
+
+const ChainModel = EntityType.make("ChainModel", {
+  scalar: chained.required().unique(),
+  list: Attribute.text(":chain/list").unique().many().required(),
+});
+export const chainWrites = ChainModel.assert(maria, { scalar: "x", list: ["y"] });
+// @ts-expect-error chained many fields still require arrays
+ChainModel.assert(maria, { list: "y" });
+export const chainReads = Effect.gen(function* () {
+  const value = yield* ChainModel.decode([]);
+  const scalar: string | EntityType.SealedMarker = value.scalar;
+  const list: ReadonlyArray<string | EntityType.SealedMarker> = value.list;
+  return { scalar, list };
+});

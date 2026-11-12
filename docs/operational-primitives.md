@@ -52,16 +52,15 @@ assertion, retraction, or replacement by another writer since your read) fails t
 transaction with `TransactionConflictError`; nothing commits. Unlike `TripleLive`, it needs no
 matching `retract` operation, so it also guards an "assert only when nothing changed" write.
 
-Observe the set from `history(entityId)`, which includes every valid time, keeping the facts whose
-`retractedAt` is `None`. `entity(entityId)` applies a valid-time basis and would omit future or
+Observe the set from `liveFacts(entityId)`, an indexed read of unretracted assertions across every
+valid time at the current recorded cut. Its cost follows live state rather than retained history.
+`entity(entityId)` applies a valid-time basis and would omit future or
 expired facts, so its IDs can differ from the set the precondition compares.
 
 ```ts
 const activate = Effect.gen(function* () {
   const triples = yield* Triples;
-  const observed = (yield* triples.history(vendor)).filter((fact) =>
-    Option.isNone(fact.retractedAt),
-  );
+  const observed = yield* triples.liveFacts(vendor);
   // Decide from `observed` (and any Datalog check) whether the command is allowed, then:
   yield* triples.transact(operations, {
     actor,
@@ -199,6 +198,19 @@ identity within one Triplex database. Concurrent attempts acquire a backend-loca
 same transaction as the facts and envelope; exactly one commits. A loser receives
 `CommandAlreadyCommittedError` with the original transaction ID, and
 `Triples.transactionByCommand(commandId)` loads that durable receipt.
+
+Receipt and journal ordering is backend-independent. `TransactionResult.triples` contains only
+assertions, in the order their operations were submitted to `transact`, including assertions with
+`validTo`. `TransactionRecord.changes` follows the submitted operation order with retractions and
+assertions interleaved. This applies to `transaction`, `transactionByCommand`, `transactions`, and
+`transactionsForEntity`, as well as the resolved changes passed to commit validators.
+A `retract-pattern` expands at its operation position in ascending triple-ID order. Retractions
+that change no fact and inbox/outbox operations contribute no fact changes. The receipt's
+`retracted` field counts successful retractions; it does not add retracted facts to `triples`.
+
+New `:_tx/change` JSON facts store an internal `changeIndex` so journal reads do not depend on
+storage scan order. Existing journals remain readable using metadata fact IDs as the ordering
+fallback; their original submitted order cannot be recovered if an older writer reordered changes.
 
 `Triples.transactionsForEntity(entityId, request)` uses the changed-entity references to read a
 bounded newest-first audit page without replaying or decoding the global journal. It deduplicates

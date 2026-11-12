@@ -82,6 +82,47 @@ export interface ConformanceCase {
  * The behavioral cases every `Triples` backend must pass.
  */
 export const triplesConformanceCases: readonly ConformanceCase[] = [
+  {
+    name: "liveFacts includes expired and future assertions but excludes retracted history",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const entityId = eid("conf:live-facts");
+      const expired = yield* t.assert({
+        entityId,
+        attribute: ":live/value",
+        value: string("expired"),
+        validFrom: 0,
+        validTo: 1,
+      });
+      const future = yield* t.assert({
+        entityId,
+        attribute: ":live/value",
+        value: string("future"),
+        validFrom: Date.now() + 1000000,
+      });
+      const removed = yield* t.assert({
+        entityId,
+        attribute: ":live/value",
+        value: string("removed"),
+      });
+      yield* t.retract(removed.id);
+      yield* t.assert({
+        entityId: eid("conf:live-facts:other"),
+        attribute: ":live/value",
+        value: string("other"),
+      });
+      const facts = yield* t.liveFacts(entityId);
+      yield* check(
+        JSON.stringify(facts.map((f) => f.id).sort()) ===
+          JSON.stringify([expired.id, future.id].sort()),
+        "live facts must span all valid time and exclude history and other entities",
+      );
+      yield* check(
+        (yield* t.liveFacts(eid("conf:live-facts:missing"))).length === 0,
+        "missing entity has no live facts",
+      );
+    }),
+  },
   ...commitValidatorConformanceCases,
   ...datalogTimeConformanceCases,
   {
@@ -2267,6 +2308,87 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
       yield* check(
         attributes.has(":_tx/actor"),
         "transact should write a :_tx/actor provenance datom when an actor is given",
+      );
+    }),
+  },
+  {
+    name: "receipts and journals preserve mixed operation order",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const subject = eid("conf:ordered-changes");
+      const input = (value: string) => ({
+        entityId: subject,
+        attribute: ":status",
+        value: string(value),
+      });
+      const old = yield* t.assertBatch([input("old-first"), input("old-second")]);
+      const result = yield* t.transact(
+        [
+          { op: "retract", id: old[0]!.id },
+          { op: "assert", ...input("bounded"), validFrom: 0, validTo: 10 },
+          { op: "assert", ...input("open") },
+          { op: "retract", id: old[1]!.id },
+          { op: "assert", ...input("last") },
+        ],
+        { commandId: "conf:ordered-changes" },
+      );
+      yield* check(
+        JSON.stringify(result.triples.map((triple) => triple.value)) ===
+          JSON.stringify([string("bounded"), string("open"), string("last")]),
+        "receipt triples must follow assertion operation order, including bounded assertions",
+      );
+      const expected = [
+        ["retract", old[0]!.id],
+        ["assert", result.triples[0]!.id],
+        ["assert", result.triples[1]!.id],
+        ["retract", old[1]!.id],
+        ["assert", result.triples[2]!.id],
+      ];
+      const direct = yield* t.transaction(result.txId);
+      const command = yield* t.transactionByCommand("conf:ordered-changes");
+      const history = yield* t.transactionsForEntity(subject);
+      const feed = yield* t.transactions({ after: result.position - 1 });
+      for (const record of [direct, command, history.transactions[0], feed.transactions[0]]) {
+        yield* check(
+          record?.txId === result.txId &&
+            JSON.stringify(record.changes.map((change) => [change.op, change.tripleId])) ===
+              JSON.stringify(expected),
+          "every journal read must preserve interleaved assertion and retraction order",
+        );
+        yield* check(
+          record?.changes[1]?.validFrom === 0 && record.changes[1]?.validTo === 10,
+          "the bounded assertion must retain its interval at its submitted position",
+        );
+      }
+    }),
+  },
+  {
+    name: "pattern retractions expand in triple ID order at their operation position",
+    run: Effect.gen(function* () {
+      const t = yield* Triples;
+      const subject = eid("conf:ordered-pattern");
+      const old = yield* t.assertBatch(
+        ["z", "a", "m"].map((value) => ({
+          entityId: subject,
+          attribute: ":status",
+          value: string(value),
+        })),
+      );
+      const result = yield* t.transact([
+        { op: "retract-pattern", pattern: { entityId: subject } },
+        { op: "assert", entityId: subject, attribute: ":status", value: string("new") },
+      ]);
+      const record = yield* t.transaction(result.txId);
+      yield* check(
+        JSON.stringify(record?.changes.map((change) => [change.op, change.tripleId])) ===
+          JSON.stringify([
+            ...old
+              .map((triple) => triple.id)
+              .sort()
+              .map((id) => ["retract", id]),
+            ["assert", result.triples[0]!.id],
+          ]),
+        "pattern matches must have a backend-independent order within their operation",
       );
     }),
   },

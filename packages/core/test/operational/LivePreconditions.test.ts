@@ -38,6 +38,47 @@ const layer = (kv: KvBackendService) =>
   );
 
 describe("KV live precondition index", () => {
+  it("reads only two live facts despite 1,000 retracted assertions", async () => {
+    const kv = makeTestKvBackend();
+    const store = createKvTripleStore(kv);
+    let yielded = 0;
+    const measured: KvBackendService = {
+      ...kv,
+      getRange: (range) =>
+        kv.getRange(range).pipe(
+          Stream.tap(() =>
+            Effect.sync(() => {
+              yielded++;
+            }),
+          ),
+        ),
+    };
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        for (let i = 0; i < 1000; i++) {
+          yield* store.assert(datom(i));
+          yield* store.retract(datom(i).tripleId, 1001, "ret", 1001);
+        }
+        yield* store.assertBatch([
+          { ...datom(1000), txId: "_tx/00000000000000000000000001", validFrom: 0, validTo: 1 },
+          {
+            ...datom(1001),
+            txId: "_tx/00000000000000000000000001",
+            validFrom: Date.now() + 1000000,
+          },
+        ]);
+        yield* kv.set(LIVE_FACT_READY_KEY, new Uint8Array([1]));
+        const t = yield* Triples;
+        expect((yield* t.liveFacts(entityId)).map((f) => f.id).sort()).toEqual([
+          datom(1000).tripleId,
+          datom(1001).tripleId,
+        ]);
+        expect(yielded).toBe(2);
+      }).pipe(Effect.provide(layer(measured))),
+    );
+    // Seeds 1,000 retracted assertions; leave room for slow CI runners.
+  }, 60_000);
+
   it("resumes a bounded legacy backfill while upgraded writers maintain the index", async () => {
     const kv = makeTestKvBackend();
     const store = createKvTripleStore(kv);

@@ -398,10 +398,13 @@ export const sensitiveConformanceCases: readonly SensitiveConformanceCase[] = [
       const record = yield* triples.transactionByCommand("sc-seed");
       const page = yield* triples.transactionsForEntity(eid("sc:ee:1"));
       const history = yield* triples.history(eid("sc:ee:1"));
+      const live = yield* triples.liveFacts(eid("sc:ee:1"));
+      yield* check(valueOf(live, ":sc-employee/ssn")?.type === "sealed", "live facts stay sealed");
       for (const [label, value] of [
         ["transaction", record],
         ["entity journal", page],
         ["history", history],
+        ["live facts", live],
       ] as const) {
         yield* check(
           !JSON.stringify(value).includes(PLANTED_PLAINTEXT),

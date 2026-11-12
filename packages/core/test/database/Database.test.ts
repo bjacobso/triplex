@@ -8,6 +8,8 @@ import * as GraphConstraint from "../../src/config/GraphConstraint.js";
 import { KvTriples } from "../../src/kv/layers/KvTriplesLive.js";
 import { EntityId } from "../../src/Branded.js";
 import { Triples } from "../../src/store/Triples.js";
+import { Sensitive, ValueCodec, KeyProvider } from "../../src/sensitive/index.js";
+import { Inbox, Outbox } from "../../src/operational/index.js";
 import { diagnose } from "../../src/errors/diagnostic.js";
 
 const Person = EntityType.make("Person", {
@@ -30,6 +32,217 @@ const publish = Effect.gen(function* () {
 });
 
 describe("Database compilation", () => {
+  it("compiles receipts, typed history and mailbox reads to public operations", async () => {
+    await run(
+      Effect.gen(function* () {
+        yield* publish;
+        const triples = yield* Triples;
+        yield* Effect.gen(function* () {
+          const db = yield* Database.Database;
+          expect(yield* db.receipt("missing")).toBeNull();
+          const receipt = yield* db.command({ actor: "a", commandId: "readable" }, (tx) =>
+            Effect.gen(function* () {
+              yield* tx.put(Person, id, { name: "Ada", tags: ["a", "b"] }, { validFrom: 0 });
+              yield* tx.outbox.append({ scope: id, idempotencyKey: "send", payload: { ok: true } });
+              yield* tx.inbox.append({ scope: id, idempotencyKey: "receive", payload: null });
+            }),
+          );
+          const lookup = vi.spyOn(triples, "transactionByCommand");
+          expect(yield* db.receipt("readable")).toEqual(receipt);
+          expect(lookup).toHaveBeenLastCalledWith("readable");
+          const history = vi.spyOn(triples, "transactionsForEntity");
+          const view = yield* db.asOf({ recordedPosition: receipt.position, validAt: 999 });
+          const first = yield* db.history(Person, id, { limit: 1 });
+          expect(history).toHaveBeenLastCalledWith(id, { limit: 1 });
+          expect(first.transactions[0]).toMatchObject({
+            ...receipt,
+            typedChanges: expect.arrayContaining([
+              {
+                alias: "name",
+                change: expect.objectContaining({ attribute: ":person/name" }),
+                value: "Ada",
+              },
+            ]),
+          });
+          const out = db.outbox.id(id, "send");
+          expect(out).toBe(Outbox.id(id, "send"));
+          expect(db.inbox.id(id, "receive")).toBe(Inbox.id(id, "receive"));
+          const get = vi.spyOn(triples, "operationalEntry");
+          expect(yield* db.outbox.get(out)).toEqual(yield* Outbox.get(triples, out));
+          expect(get).toHaveBeenLastCalledWith(out);
+          expect(yield* db.inbox.get(out)).toBeNull();
+          const pending = vi.spyOn(triples, "pendingOperationalEntries");
+          const pendingOptions = { scope: id, limit: 1 };
+          expect(yield* db.outbox.pending(pendingOptions)).toEqual(
+            yield* Outbox.pending(triples, pendingOptions),
+          );
+          expect(pending).toHaveBeenLastCalledWith("outbox", pendingOptions);
+          expect((yield* db.inbox.pending()).entries).toHaveLength(1);
+          expect(pending).toHaveBeenLastCalledWith("inbox", {});
+          const later = yield* db.command({ actor: "b", commandId: "later" }, (tx) =>
+            Effect.gen(function* () {
+              yield* tx.put(Person, id, { tags: ["c"] });
+              yield* tx.outbox.acknowledge(out);
+            }),
+          );
+          expect((yield* db.outbox.pending()).entries).toHaveLength(0);
+          expect((yield* db.outbox.get(out))?.acknowledgedPosition).toBe(later.position);
+          expect(yield* view.receipt("later")).toBeNull();
+          expect(yield* view.receipt("readable")).toEqual(receipt);
+          const past = yield* view.history(Person, id, { limit: 1 });
+          expect(history).toHaveBeenLastCalledWith(id, {
+            limit: 1,
+            snapshotPosition: receipt.position,
+          });
+          expect(past.transactions.map((t) => t.txId)).toEqual([receipt.txId]);
+          const newest = yield* db.history(Person, id, { limit: 1 });
+          expect(newest.transactions[0]?.txId).toBe(later.txId);
+          const older = yield* db.history(Person, id, {
+            limit: 1,
+            snapshotPosition: newest.snapshotPosition,
+            beforePosition: newest.nextBeforePosition!,
+          });
+          expect(older.transactions[0]?.txId).toBe(receipt.txId);
+          expect(
+            yield* Effect.flip(view.history(Person, id, { snapshotPosition: later.position })),
+          ).toMatchObject({ field: "history.snapshotPosition" });
+        }).pipe(Effect.provide(client));
+      }),
+    );
+  });
+
+  it("keeps sealed history and receipts sealed and preserves unrelated changes in the envelope", async () => {
+    const Secret = EntityType.make("Secret", {
+      text: Attribute.sensitive(Attribute.text(":secret/text")),
+    });
+    const sensitive = Sensitive.layer({ database: "history", attributes: [Secret] }).pipe(
+      Layer.provide(ValueCodec.aesGcm.pipe(Layer.provide(KeyProvider.test({ seed: "history" })))),
+      Layer.provide(KvTriples.layer),
+    );
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const config = yield* ConfigStore.ConfigStore;
+        yield* config.commit({
+          label: "secret",
+          ref: "live",
+          objects: [...(yield* Secret.nodes), ...(yield* Person.nodes)],
+        });
+        const triples = yield* Triples;
+        yield* Effect.gen(function* () {
+          const db = yield* Database.Database;
+          const receipt = yield* db.command({ actor: "a", commandId: "secret" }, (tx) =>
+            Effect.gen(function* () {
+              yield* tx.put(Secret, id, { text: "PRIVATE" }, { validFrom: 0 });
+              yield* tx.put(Person, EntityId.make("person:other"), { name: "Elsewhere" });
+            }),
+          );
+          const history = yield* db.history(Secret, id);
+          expect(history.transactions[0]?.changes).toEqual(receipt.changes);
+          expect(history.transactions[0]?.typedChanges).toEqual([
+            {
+              alias: "text",
+              change: expect.objectContaining({
+                value: expect.objectContaining({
+                  type: "sealed",
+                  valueType: "string",
+                  keyId: expect.any(String),
+                  ciphertext: expect.any(String),
+                }),
+              }),
+              value: { $sealed: { valueType: "string", keyId: expect.any(String) } },
+            },
+          ]);
+          expect(JSON.stringify(history)).not.toContain("PRIVATE");
+          expect(JSON.stringify(yield* db.receipt("secret"))).not.toContain("PRIVATE");
+          const spy = vi.spyOn(triples, "transactionsForEntity");
+          spy.mockImplementationOnce(() =>
+            Effect.succeed({
+              snapshotPosition: receipt.position,
+              transactions: [
+                {
+                  ...receipt,
+                  changes: [
+                    ...receipt.changes,
+                    {
+                      ...receipt.changes[0]!,
+                      entityId: id,
+                      entityType: "Secret",
+                      attribute: ":unknown/field",
+                    },
+                    { ...receipt.changes[0]!, entityId: id, entityType: "Other" },
+                  ],
+                },
+              ],
+            }),
+          );
+          expect((yield* db.history(Secret, id)).transactions[0]?.typedChanges).toHaveLength(1);
+          spy.mockImplementationOnce(() =>
+            Effect.succeed({
+              snapshotPosition: receipt.position,
+              transactions: [
+                {
+                  ...receipt,
+                  changes: [
+                    {
+                      ...receipt.changes.find((c) => c.entityType === "Secret")!,
+                      value: { type: "string", value: "PRIVATE" },
+                    },
+                  ],
+                },
+              ],
+            }),
+          );
+          expect(yield* Effect.flip(db.history(Secret, id))).toMatchObject({
+            field: "history.changes.value",
+          });
+        }).pipe(Effect.provide(Database.layer({ schema: { types: [Secret, Person] } })));
+      }).pipe(Effect.provide(ConfigStore.layer.pipe(Layer.provideMerge(sensitive)))),
+    );
+  });
+
+  it("tx.get loads two live assertions rather than 1,000 retracted assertions", async () => {
+    await run(
+      Effect.gen(function* () {
+        yield* publish;
+        const triples = yield* Triples;
+        const input = {
+          entityId: id,
+          entityType: "Person",
+          attribute: ":person/name",
+          value: { type: "string" as const, value: "Ada" },
+        };
+        const history = yield* triples.assertBatch(Array.from({ length: 1000 }, () => input));
+        yield* triples.transact(history.map((f) => ({ op: "retract" as const, id: f.id })));
+        const live = yield* triples.assertBatch([
+          { ...input, validFrom: 0, validTo: 1 },
+          { ...input, validFrom: Date.now() + 1000000 },
+        ]);
+        const historySpy = vi.spyOn(triples, "history");
+        const liveSpy = vi.spyOn(triples, "liveFacts");
+        const transactSpy = vi.spyOn(triples, "transact");
+        yield* Effect.gen(function* () {
+          const db = yield* Database.Database;
+          yield* db.command({ actor: "reader", commandId: "read-history" }, (tx) =>
+            Effect.gen(function* () {
+              expect(yield* tx.get(Person, id, { validAt: 2 })).toBeNull();
+            }),
+          );
+        }).pipe(Effect.provide(client));
+        expect(historySpy).not.toHaveBeenCalled();
+        expect(liveSpy).toHaveBeenCalledExactlyOnceWith(id);
+        expect(yield* liveSpy.mock.results[0]!.value).toHaveLength(2);
+        expect(transactSpy.mock.calls[0]?.[1]?.preconditions).toEqual([
+          {
+            _tag: "EntityState",
+            entityId: id,
+            tripleIds: expect.arrayContaining(live.map((f) => f.id)),
+          },
+        ]);
+      }),
+    );
+    // Seeds 1,000 retracted assertions; leave room for slow CI runners.
+  }, 60_000);
+
   it("checks the local reference-target closure even when only the referring type is supplied", async () => {
     const Site = EntityType.make("Site", { name: Attribute.text(":site/name").required() });
     const Placement = EntityType.make("Placement", {
@@ -136,6 +349,7 @@ describe("Database compilation", () => {
           const facts = history.filter((f) => f.attribute === Person.tags.key);
           const name = history.find((f) => f.attribute === Person.name.key)!;
           const historySpy = vi.spyOn(triples, "history");
+          const liveFactsSpy = vi.spyOn(triples, "liveFacts");
           const getSpy = vi.spyOn(triples, "get");
           const assertion = (fact: typeof name) => ({
             op: "assert" as const,
@@ -180,7 +394,8 @@ describe("Database compilation", () => {
               yield* tx.correct(Person, facts[1]!, { tags: "c" });
             }),
           );
-          expect(historySpy).toHaveBeenCalledTimes(1);
+          expect(historySpy).not.toHaveBeenCalled();
+          expect(liveFactsSpy).toHaveBeenCalledExactlyOnceWith(id);
           expect(getSpy).toHaveBeenCalledWith(name.id);
           expect(transact.mock.calls[1]).toStrictEqual([
             edits.flatMap((e) => e.ops),

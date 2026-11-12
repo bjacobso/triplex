@@ -225,31 +225,31 @@ export function make(
     }
     const valueType =
       attributeUse.cardinality === "many" ? TypeExpr.list(attribute.type) : attribute.type;
-    fields[attribute.key] = attributeUse.required
+    fields[attribute.key] = attributeUse.isRequired
       ? TypeExpr.required(valueType)
       : TypeExpr.optional(valueType);
     usage[property] = {
       attribute: attribute.key,
-      required: attributeUse.required,
+      required: attributeUse.isRequired,
       cardinality: attributeUse.cardinality,
-      unique: attributeUse.unique,
+      unique: attributeUse.isUnique,
     };
     definitions.set(attribute.key, attribute);
     handles[property] = {
       key: attribute.key,
       type: attribute.type,
-      required: attributeUse.required,
+      required: attributeUse.isRequired,
       cardinality: attributeUse.cardinality,
-      unique: attributeUse.unique,
+      unique: attributeUse.isUnique,
       sensitive: attribute.sensitive,
       definition: attribute,
       assertion: (value, options) => Attribute.assertion(attribute, value, options),
     };
-    if (attributeUse.required) constraints.push(GraphConstraint.required(name, attribute.key));
+    if (attributeUse.isRequired) constraints.push(GraphConstraint.required(name, attribute.key));
     if (attributeUse.cardinality === "one") {
       constraints.push(GraphConstraint.cardinality(name, attribute.key, 1));
     }
-    if (attributeUse.unique) constraints.push(GraphConstraint.unique(name, attribute.key));
+    if (attributeUse.isUnique) constraints.push(GraphConstraint.unique(name, attribute.key));
     if (attribute.type._tag === "Ref") {
       constraints.push(GraphConstraint.referenceTarget(name, attribute.key, attribute.type.kind));
     }

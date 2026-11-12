@@ -35,6 +35,70 @@ const Employment = EntityType.make("Employment", {
 });
 
 describe("ontology DSL", () => {
+  it.effect("chains modifiers in every order with the options form's content IDs", () =>
+    Effect.gen(function* () {
+      const name = Attribute.text(":chain/name");
+      const orders = [
+        name.required().unique(),
+        name.unique().required(),
+        name.required().many(),
+        name.many().required(),
+        name.unique().many(),
+        name.many().unique(),
+        name.required().many().unique(),
+        name.required().unique().many(),
+        name.many().required().unique(),
+        name.many().unique().required(),
+        name.unique().required().many(),
+        name.unique().many().required(),
+      ];
+      const combinations = [
+        { required: true, unique: true },
+        { required: true, unique: true },
+        { required: true, cardinality: "many" },
+        { required: true, cardinality: "many" },
+        { unique: true, cardinality: "many" },
+        { unique: true, cardinality: "many" },
+        ...Array.from({ length: 6 }, () => ({ required: true, unique: true, cardinality: "many" })),
+      ] as const;
+      for (const [index, chain] of orders.entries()) {
+        const expected = EntityType.make("Chain", {
+          name: Attribute.use(name, combinations[index] as Attribute.UseOptions),
+        });
+        const actual = EntityType.make("Chain", { name: chain });
+        expect((yield* actual.node).cid).toBe((yield* expected.node).cid);
+        expect((yield* actual.nodes).map(({ cid }) => cid)).toEqual(
+          (yield* expected.nodes).map(({ cid }) => cid),
+        );
+      }
+      const base = name.required();
+      base.many().unique();
+      expect(EntityType.make("Chain", { name: base }).name.cardinality).toBe("one");
+      expect(EntityType.make("Chain", { name: base }).name.unique).toBe(false);
+    }),
+  );
+
+  it.effect("keeps sensitive nodes through chained uses", () =>
+    Effect.gen(function* () {
+      const secret = Attribute.sensitive(Attribute.text(":chain/secret"));
+      const expected = yield* secret.node;
+      for (const chain of [
+        secret.required().many().unique(),
+        secret.required().unique().many(),
+        secret.many().required().unique(),
+        secret.many().unique().required(),
+        secret.unique().required().many(),
+        secret.unique().many().required(),
+      ]) {
+        expect(chain.attribute).toBe(secret);
+        const type = EntityType.make("Secret", { secret: chain });
+        const nodes = yield* type.nodes;
+        expect(nodes.find(({ key }) => key === secret.key)?.cid).toBe(expected.cid);
+        expect(type.secret.sensitive).toBe(true);
+      }
+    }),
+  );
+
   it.effect("keeps the sensitive node through every attribute modifier", () =>
     Effect.gen(function* () {
       const secret = Attribute.sensitive(Attribute.text(":worker/ssn"));
