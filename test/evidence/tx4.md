@@ -70,7 +70,7 @@ and temporal fact cuts retain their existing meanings.
 The first portable test was written and run before implementation:
 
 ```sh
-pnpm --filter @triplex-build/triplex-testkit exec vitest run test/fixtures.test.ts -t 'inbox/outbox'
+pnpm --filter @triplex-build/triplex/testkit exec vitest run test/fixtures.test.ts -t 'inbox/outbox'
 ```
 
 It failed at `Outbox.append` because the API was absent. The portable suite now
@@ -109,8 +109,8 @@ PostgreSQL reads use `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`; acknowledgement 
 non-mutating `EXPLAIN (FORMAT JSON)`. SQLite uses `EXPLAIN QUERY PLAN`.
 
 ```sh
-TRIPLEX_OPERATIONAL_PLANS=/tmp/tx4-sqlite-plans.json pnpm --filter @triplex-build/triplex-sqlite exec vitest run test/operational-entry-index.test.ts
-TRIPLEX_OPERATIONAL_PLANS=/tmp/tx4-postgres-plans.json pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'inbox/outbox operations indexed'
+TRIPLEX_OPERATIONAL_PLANS=/tmp/tx4-sqlite-plans.json pnpm --filter @triplex-build/triplex/sqlite exec vitest run test/operational-entry-index.test.ts
+TRIPLEX_OPERATIONAL_PLANS=/tmp/tx4-postgres-plans.json pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'inbox/outbox operations indexed'
 ```
 
 Raw plans: [SQLite](tx4-sqlite-plans.json) and

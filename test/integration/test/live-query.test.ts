@@ -9,11 +9,11 @@ import {
   makeTestKvBackend,
   KvBackend,
 } from "@triplex-build/triplex/internal";
-import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex-sqlite";
-import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
+import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex/sqlite";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex/sql";
 import { DatabaseScope } from "@triplex-build/triplex/runtime";
 import { LiveQuery } from "@triplex-build/triplex/live-query";
-import { liveQueryCases } from "@triplex-build/triplex-testkit";
+import { liveQueryCases } from "@triplex-build/triplex/testkit";
 for (const backend of ["kv", "sqlite"] as const) {
   for (const [name, program] of Object.entries(liveQueryCases)) {
     it(`${backend}: ${name}`, async () => {

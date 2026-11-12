@@ -7,10 +7,10 @@ import {
   Triples,
   WrappedQuery,
   diagnose,
-} from "@triplex-build/triplex";
+} from "@triplex-internal/core";
 import { WhyInput, execute, type ExecuteOptions } from "@triplex-build/triplex-cli";
-import { ContentId } from "@triplex-build/triplex/content";
-import { ConfigStore } from "@triplex-build/triplex/config";
+import { ContentId } from "@triplex-internal/core/content";
+import { ConfigStore } from "@triplex-internal/core/config";
 import { Effect, Layer, Schema } from "effect";
 import { McpServer, Tool, Toolkit } from "effect/ai";
 

@@ -233,7 +233,7 @@ Only retry a retryable conflict after reloading facts. Add `--debug` to include 
 `cause` string; see [Error diagnostics](/errors). Writes require `meta.actor` and `meta.commandId`.
 
 ```sh
-npm install --global @triplex-build/triplex-cli
+npm install --global @triplex-build/triplex/cli
 triplex --sqlite ./app.db describe                  # capabilities and live release schema
 triplex --sqlite ./app.db entity types
 triplex --sqlite ./app.db entity facts worker:maria

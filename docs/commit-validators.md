@@ -254,7 +254,7 @@ rolls back the host rows. Tests for both backends cover this. KV backends have n
 | Cloudflare   | Same (experimental). Validators **must be synchronous**: the Durable Object `transactionSync` boundary runs the transaction with `Effect.runSyncExit`. |
 | FoundationDB | Same code path as KV (experimental). Validator reads add read-conflict ranges, and their time counts toward FoundationDB's 5-second transaction limit. |
 
-The shared `@triplex-build/triplex-testkit` conformance cases cover validators. They run on KV,
+The shared `@triplex-build/triplex/testkit` conformance cases cover validators. They run on KV,
 SQLite, PostgreSQL, and both Cloudflare harnesses.
 
 ### Performance

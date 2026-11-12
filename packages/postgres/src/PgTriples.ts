@@ -16,7 +16,7 @@ import {
   TriplesLive,
   CurrentDialect,
   makeTripleStoreRuntimeLayer,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 import { PostgresqlAdapterLive, PostgresqlAdapterUnmigrated } from "./PostgresqlAdapter.js";
 import { PostgresqlDialect } from "./dialect.js";
@@ -25,7 +25,7 @@ import {
   makePostgresqlLayerFromUrl,
   type PostgresqlConfig,
 } from "./PostgresqlLayer.js";
-import type { DatabaseId } from "@triplex-build/triplex";
+import type { DatabaseId } from "@triplex-internal/core";
 import {
   makePostgresqlDatabaseSqlLayer,
   makePostgresqlDatabaseSqlLayerMigrated,

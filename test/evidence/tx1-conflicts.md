@@ -76,11 +76,11 @@ SQLite busy/lock timeouts or FoundationDB native errors have been normalized.
 
 ## Test-first evidence and checks
 
-- `pnpm --filter @triplex-build/triplex-postgres exec vitest run test/transaction-conflict.test.ts`:
+- `pnpm --filter @triplex-build/triplex/postgres exec vitest run test/transaction-conflict.test.ts`:
   failed before the normalizer existed, then passed. Cases cover structured
   serialization/deadlock reasons through 12 wrappers, unrelated errors, cycles,
   and existing precondition conflicts.
-- `pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'surfaces SQL transaction conflicts'`:
+- `pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'surfaces SQL transaction conflicts'`:
   failed with `WriteError` before conversion. A trigger raises each native SQLSTATE
   at the real allocator statement, through the real driver. After conversion it
   passes with complete rollback and typed errors on every convenience method and

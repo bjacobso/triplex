@@ -18,9 +18,9 @@ import {
   type InMemoryConfigStore,
 } from "@triplex-build/triplex/config";
 import * as Derivation from "@triplex-build/triplex/derivation";
-import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
-import { PgTriples } from "@triplex-build/triplex-postgres";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex/http";
+import { PgTriples } from "@triplex-build/triplex/postgres";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 
 export const MAR_2 = Date.UTC(2026, 2, 2);
 export const maria = EntityId.make("worker:maria");

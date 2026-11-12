@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { Effect } from "effect";
 import { EntityId, Triples } from "@triplex-build/triplex";
 import { Attribute, EntityType } from "@triplex-build/triplex/config";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 
 it("decodes SQLite entity reads and uses source facts for typed temporal replacement", async () => {
   const Worker = EntityType.make("Worker", {

@@ -1,6 +1,6 @@
-# @triplex-build/triplex-http
+# @triplex-build/triplex/http
 
-> **Pre-1.0:** install `@triplex-build/triplex-http` from npm with `effect@4.1.1`;
+> **Pre-1.0:** install `@triplex-build/triplex/http` from npm with `effect@4.1.1`;
 > Effect 3 is not compatible.
 
 Configuration-derived REST and OpenAPI contracts for Triplex. The package is backend-neutral and
@@ -8,7 +8,7 @@ uses Effect services: hosts provide `Triples`, `ConfigStore`, and an authorizati
 mount `EntityHttp.layer` into their chosen HTTP server.
 
 ```ts
-import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
+import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex/http";
 import { Layer } from "effect";
 
 const routes = EntityHttp.layer({

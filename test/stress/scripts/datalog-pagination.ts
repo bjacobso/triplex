@@ -7,9 +7,9 @@ import {
   CurrentDialect,
   makeTripleStoreRuntimeLayer,
 } from "@triplex-build/triplex/internal";
-import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex-sqlite";
-import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
-import { PgTriples, makePostgresqlLayerFromUrl } from "@triplex-build/triplex-postgres";
+import { SqliteAdapterLive, SqliteDialect, SqliteTestLayer } from "@triplex-build/triplex/sqlite";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex/sql";
+import { PgTriples, makePostgresqlLayerFromUrl } from "@triplex-build/triplex/postgres";
 
 const size = Number(process.env["DATALOG_BENCH_ENTITIES"] ?? 10_000);
 if (!Number.isSafeInteger(size) || size < 100 || size > 1_000_000)

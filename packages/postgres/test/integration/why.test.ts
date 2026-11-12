@@ -5,7 +5,7 @@ import {
   TripleStoreRuntime,
   CurrentDialect,
   DeterministicTripleStoreRuntimeLive,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import { PostgresqlAdapterLive, PostgresqlDialect } from "@triplex-build/triplex-postgres";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 import {

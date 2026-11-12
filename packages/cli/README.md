@@ -5,14 +5,21 @@ Effect v4 `Command`, `Flag`, and `Argument` modules and emits stable JSON envelo
 terminal-oriented tables.
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex-cli...
-triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
+pnpm turbo run build --filter=@triplex-build/triplex
+triplex() { node --disable-warning=ExperimentalWarning packages/triplex/dist/bin.js "$@"; }
 triplex --sqlite ./app.db describe
 triplex --sqlite ./app.db status
 triplex --sqlite ./app.db entity types
 ```
 
-Install `@triplex-build/triplex-cli` from npm to use the `triplex` binary. The repository command
+Install the single package and the SQLite/Node optional peers to use the `triplex` binary:
+
+```sh
+npm install @triplex-build/triplex effect @effect/sql-sqlite-node \
+  @effect/platform-node @effect/platform-node-shared
+```
+
+Use `triplex mcp` for stdio MCP and `triplex dashboard --sqlite ./app.db` for the bundled explorer. The repository command
 above runs the same CLI from a source checkout. The unscoped
 `triplex` package name on npm belongs to an unrelated project.
 

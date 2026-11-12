@@ -107,7 +107,7 @@ lock window alone is not evidence of eliminating snapshot conflicts.
 Exact diagnostic command:
 
 ```sh
-pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'final-statement counter'
+pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'final-statement counter'
 ```
 
 It passes both isolation cases on Postgres 17.8 in the existing testcontainer

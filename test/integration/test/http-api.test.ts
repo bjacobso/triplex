@@ -14,8 +14,8 @@ import {
   HttpAuthorization,
   HttpAuthorizationAllowAll,
   UnauthorizedError,
-} from "@triplex-build/triplex-http";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+} from "@triplex-build/triplex/http";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/http";
 import { describe, expect, it } from "vitest";

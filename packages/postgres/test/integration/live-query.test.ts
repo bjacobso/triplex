@@ -1,17 +1,17 @@
 import { expect, it } from "vitest";
 import { Clock, Effect, Layer } from "effect";
 import { TestClock } from "effect/testing";
-import { Triples } from "@triplex-build/triplex";
+import { Triples } from "@triplex-internal/core";
 import {
   CurrentDialect,
   DeterministicTripleStoreRuntimeLive,
   TriplesLive,
   TripleStoreRuntime,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import { PostgresqlAdapterLive, PostgresqlDialect } from "@triplex-build/triplex-postgres";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
-import { DatabaseScope } from "@triplex-build/triplex/runtime";
-import { LiveQuery } from "@triplex-build/triplex/live-query";
+import { DatabaseScope } from "@triplex-internal/core/runtime";
+import { LiveQuery } from "@triplex-internal/core/live-query";
 import { liveQueryCases } from "@triplex-build/triplex-testkit";
 import { postgresSchemaLayer } from "@triplex-build/triplex-testkit/postgres";
 import {

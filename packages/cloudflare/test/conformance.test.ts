@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Cause, Effect, Exit } from "effect";
-import { Triples } from "@triplex-build/triplex";
+import { Triples } from "@triplex-internal/core";
 import { Layer } from "effect";
 import {
   findPlaintext,

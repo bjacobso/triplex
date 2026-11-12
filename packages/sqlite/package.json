@@ -1,6 +1,7 @@
 {
   "name": "@triplex-build/triplex-sqlite",
   "version": "0.1.1",
+  "private": true,
   "description": "SQLite backend for Triplex",
   "keywords": [
     "database",
@@ -35,9 +36,6 @@
       "default": "./dist/index.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsdown && tsc --declaration --emitDeclarationOnly --rootDir src --outDir dist",
     "dev": "tsdown --watch",
@@ -46,8 +44,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^",
-    "@triplex-build/triplex-sql": "workspace:^"
+    "@triplex-build/triplex-sql": "workspace:^",
+    "@triplex-internal/core": "workspace:^"
   },
   "devDependencies": {
     "@effect/sql-sqlite-node": "catalog:",

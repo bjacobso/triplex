@@ -1,6 +1,6 @@
-import { attributesOf, checkAttributes } from "@triplex-build/triplex/datalog";
-import { extractDependencies } from "@triplex-build/triplex/subscriptions";
-import * as Derivation from "@triplex-build/triplex/derivation";
+import { attributesOf, checkAttributes } from "@triplex-internal/core/datalog";
+import { extractDependencies } from "@triplex-internal/core/subscriptions";
+import * as Derivation from "@triplex-internal/core/derivation";
 /** Approved Datalog time contract. Shared unchanged by KV, SQLite and PostgreSQL. */
 import { Effect } from "effect";
 import {
@@ -10,7 +10,7 @@ import {
   string,
   EntityId,
   type DatalogQuery,
-} from "@triplex-build/triplex";
+} from "@triplex-internal/core";
 import type { ConformanceCase } from "./index.js";
 
 const J = Date.UTC(2026, 0, 1),

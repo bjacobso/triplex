@@ -4,8 +4,8 @@ import {
   WriteError,
   createParamCollector,
   type SqlDialect,
-} from "@triplex-build/triplex/internal";
-import type { StorageAdapterService, OperationalEntryRecord } from "@triplex-build/triplex/runtime";
+} from "@triplex-internal/core/internal";
+import type { StorageAdapterService, OperationalEntryRecord } from "@triplex-internal/core/runtime";
 import type { SqlStatementRunner } from "./SqlQueryExecutor.js";
 
 type EntryStorage = Pick<

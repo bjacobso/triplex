@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { EntityId, Triples } from "@triplex-build/triplex";
 import { Capabilities, DatabaseScope, Runtime } from "@triplex-build/triplex/runtime";
-import { makeFdbKvBackend } from "@triplex-build/triplex-foundationdb";
+import { makeFdbKvBackend } from "@triplex-build/triplex/foundationdb";
 
 const FoundationDbRuntime = Runtime.fromKv({
   name: "foundationdb",

@@ -6,10 +6,10 @@ import {
   ReadError,
   string,
   type TriplesService,
-} from "@triplex-build/triplex";
-import * as Derivation from "@triplex-build/triplex/derivation";
-import { ConfigStore } from "@triplex-build/triplex/config";
-import { Why, type WhySubject, type WhyOptions } from "@triplex-build/triplex/why";
+} from "@triplex-internal/core";
+import * as Derivation from "@triplex-internal/core/derivation";
+import { ConfigStore } from "@triplex-internal/core/config";
+import { Why, type WhySubject, type WhyOptions } from "@triplex-internal/core/why";
 
 /** Fault injection uses public service decorators, shared across backend runtimes. */
 export const whyReadBoundaryConformance = Effect.gen(function* () {

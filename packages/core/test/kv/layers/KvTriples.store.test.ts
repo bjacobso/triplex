@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { Effect, Layer, Option, Stream } from "effect";
 import { Triples } from "../../../src/store/Triples.js";
-import type { TripleId, EntityId } from "@triplex-build/triplex";
+import type { TripleId, EntityId } from "@triplex-internal/core";
 import { KvTriplesLive } from "../../../src/kv/layers/KvTriplesLive.js";
 import { KvBackend } from "../../../src/kv/kv/KvBackend.js";
 import { makeTestKvBackend } from "../../../src/kv/kv/InMemoryKvBackend.js";

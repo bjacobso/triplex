@@ -1,8 +1,8 @@
 /** Shared CLI/MCP wire schema for stored and derivation subjects. */
-import { DatalogQuery, EntityId, TripleId } from "@triplex-build/triplex";
-import { TypeExpr } from "@triplex-build/triplex/config";
-import { ContentId } from "@triplex-build/triplex/content";
-import type { WhySubject as Subject } from "@triplex-build/triplex/why";
+import { DatalogQuery, EntityId, TripleId } from "@triplex-internal/core";
+import { TypeExpr } from "@triplex-internal/core/config";
+import { ContentId } from "@triplex-internal/core/content";
+import type { WhySubject as Subject } from "@triplex-internal/core/why";
 import { Schema } from "effect";
 
 const Definition = Schema.Struct({

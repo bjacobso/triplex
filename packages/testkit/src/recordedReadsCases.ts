@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { EntityId, Triples, string } from "@triplex-build/triplex";
+import { EntityId, Triples, string } from "@triplex-internal/core";
 
 /** Run with a fresh store whose injected runtime clock is controlled by setTime. */
 export const recordedReadsConformance = (setTime: (instant: number) => void) =>

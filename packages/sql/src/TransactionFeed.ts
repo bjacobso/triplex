@@ -5,8 +5,8 @@ import {
   transactionPrefixBounds,
   TxAttributes,
   type SqlDialect,
-} from "@triplex-build/triplex/internal";
-import type { StorageAdapterService } from "@triplex-build/triplex/runtime";
+} from "@triplex-internal/core/internal";
+import type { StorageAdapterService } from "@triplex-internal/core/runtime";
 import type { SqlStatementRunner } from "./SqlQueryExecutor.js";
 
 /** Candidate discovery for the shipped SQLite/PostgreSQL adapters. */

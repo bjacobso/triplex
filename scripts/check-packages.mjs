@@ -1,460 +1,265 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import semver from "semver";
+import { createServer } from "node:net";
 
 const root = resolve(import.meta.dirname, "..");
-const packageNames = [
-  "@triplex-build/triplex",
-  "@triplex-build/triplex-sql",
-  "@triplex-build/triplex-sqlite",
-  "@triplex-build/triplex-postgres",
-  "@triplex-build/triplex-cloudflare",
-  "@triplex-build/triplex-host",
-  "@triplex-build/triplex-foundationdb",
-  "@triplex-build/triplex-testkit",
-  "@triplex-build/triplex-cli",
-  "@triplex-build/triplex-http",
-];
-// The private dashboard ships a Vite app rather than the library file layout below.
-const manifestOnlyPackageNames = ["@triplex-build/triplex-dashboard"];
-const isRuntimePeer = (name) =>
-  name === "effect" ||
-  name === "foldkit" ||
-  name.startsWith("@effect/") ||
-  name.startsWith("@foldkit/");
-
-const checkRuntimePeers = (manifest) => {
-  for (const name of Object.keys(manifest.dependencies ?? {})) {
-    if (isRuntimePeer(name)) {
-      throw new Error(`${manifest.name} must declare ${name} as a peer dependency`);
-    }
-  }
-  for (const [name, range] of Object.entries(manifest.peerDependencies ?? {})) {
-    if (!isRuntimePeer(name)) continue;
-    const testedVersion = manifest.devDependencies?.[name];
-    if (!testedVersion || !semver.valid(testedVersion)) {
-      throw new Error(`${manifest.name} must pin a development version of ${name}`);
-    }
-    const normalizedRange = semver.validRange(range);
-    if (!normalizedRange || semver.valid(normalizedRange)) {
-      throw new Error(`${manifest.name} must declare a range for peer ${name}, received ${range}`);
-    }
-    if (!semver.satisfies(testedVersion, range)) {
-      throw new Error(`${manifest.name} peer ${name}@${range} excludes tested ${testedVersion}`);
-    }
-  }
-};
-const publishPackageNames = new Set([
-  "@triplex-build/triplex",
-  "@triplex-build/triplex-sql",
-  "@triplex-build/triplex-sqlite",
-  "@triplex-build/triplex-postgres",
-  "@triplex-build/triplex-testkit",
-  "@triplex-build/triplex-cli",
-  "@triplex-build/triplex-http",
-]);
-const heldPackageNames = new Set([
-  "@triplex-build/triplex-cloudflare",
-  "@triplex-build/triplex-host",
-  "@triplex-build/triplex-foundationdb",
-]);
-
-const workDir = mkdtempSync(join(tmpdir(), "triplex-pack-"));
-const tarDir = join(workDir, "tarballs");
-const consumerDir = join(workDir, "consumer");
-const packedManifests = [];
+const work = mkdtempSync(join(tmpdir(), "triplex-pack-"));
+const tarDir = join(work, "tarballs");
+const consumer = join(work, "consumer");
 mkdirSync(tarDir);
-mkdirSync(consumerDir);
-
-const run = (command, args, cwd = root) =>
-  execFileSync(command, args, { cwd, encoding: "utf8", stdio: "pipe" });
-
-try {
-  for (const packageName of [...packageNames, ...manifestOnlyPackageNames]) {
-    run("pnpm", ["--filter", packageName, "pack", "--pack-destination", tarDir]);
-  }
-
-  const tarballs = readdirSync(tarDir)
-    .filter((file) => file.endsWith(".tgz"))
-    .map((file) => join(tarDir, file));
-
-  const expectedTarballs = packageNames.length + manifestOnlyPackageNames.length;
-  if (tarballs.length !== expectedTarballs) {
-    throw new Error(`Expected ${expectedTarballs} tarballs, found ${tarballs.length}`);
-  }
-
-  for (const tarball of tarballs) {
-    const manifest = JSON.parse(run("tar", ["-xOzf", tarball, "package/package.json"]));
-    checkRuntimePeers(manifest);
-    if (manifest.peerDependencies?.effect === undefined) {
-      throw new Error(`${manifest.name} must declare Effect as a peer dependency`);
-    }
-    if (manifestOnlyPackageNames.includes(manifest.name)) continue;
-    const entries = run("tar", ["-tzf", tarball]).trim().split("\n").filter(Boolean);
-
-    for (const required of [
-      "package/package.json",
-      "package/README.md",
-      "package/LICENSE",
-      "package/dist/index.js",
-      "package/dist/index.d.ts",
-    ]) {
-      if (!entries.includes(required)) {
-        throw new Error(`${tarball} is missing ${required}`);
-      }
-    }
-
-    const unexpected = entries.filter(
-      (entry) =>
-        entry !== "package/package.json" &&
-        entry !== "package/README.md" &&
-        entry !== "package/LICENSE" &&
-        !entry.startsWith("package/dist/"),
-    );
-    if (unexpected.length > 0) {
-      throw new Error(`${tarball} contains unexpected files:\n${unexpected.join("\n")}`);
-    }
-
-    packedManifests.push(manifest);
-    if (publishPackageNames.has(manifest.name)) {
-      if (manifest.private === true) {
-        throw new Error(`${manifest.name} is part of the release set but is private`);
-      }
-      if (manifest.publishConfig?.access !== "public") {
-        throw new Error(`${manifest.name} must publish with public access`);
-      }
-    }
-    if (heldPackageNames.has(manifest.name) && manifest.private !== true) {
-      throw new Error(`${manifest.name} must remain private until its backend is promoted`);
-    }
-    if (publishPackageNames.has(manifest.name)) {
-      for (const dependencyName of Object.keys({
-        ...manifest.dependencies,
-        ...manifest.optionalDependencies,
-        ...manifest.peerDependencies,
-      })) {
-        if (heldPackageNames.has(dependencyName)) {
-          throw new Error(`${manifest.name} must not depend on held package ${dependencyName}`);
-        }
-      }
-    }
-  }
-
-  const dependencies = Object.fromEntries(
-    packageNames.map((name) => {
-      const manifest = packedManifests.find((candidate) => candidate.name === name);
-      if (!manifest) throw new Error(`Could not locate packed manifest for ${name}`);
-      const prefix = `${name.replace(/^@/, "").replaceAll("/", "-")}-${manifest.version}.tgz`;
-      const tarball = tarballs.find((file) => file.endsWith(prefix));
-      if (!tarball) throw new Error(`Could not locate tarball for ${name}`);
-      return [name, `file:${tarball}`];
-    }),
-  );
-  const runtimePeerVersions = Object.fromEntries(
-    packedManifests.flatMap((manifest) =>
-      Object.keys(manifest.peerDependencies)
-        .filter(isRuntimePeer)
-        .map((name) => [name, manifest.devDependencies[name]]),
-    ),
-  );
-  const effectPeerVersions = new Set(
-    packedManifests.map((manifest) => manifest.peerDependencies.effect),
-  );
-  if (effectPeerVersions.size !== 1) {
-    throw new Error(`Effect peer versions are not aligned: ${[...effectPeerVersions].join(", ")}`);
-  }
-
-  writeFileSync(
-    join(consumerDir, "package.json"),
-    JSON.stringify(
-      {
-        name: "triplex-package-consumer",
-        private: true,
-        type: "module",
-        dependencies: {
-          ...dependencies,
-          ...runtimePeerVersions,
-          typescript: "6.0.2",
-        },
-      },
-      null,
-      2,
-    ),
-  );
-
-  writeFileSync(
-    join(consumerDir, "consumer.ts"),
-    `import { DatabaseId, DatalogValidationError, EntityId, KvTriples, TransactionId, TripleId, type TripleInput, type TriplesService } from "@triplex-build/triplex";
-import { validateDatalogQuery, type DatalogQuery } from "@triplex-build/triplex/datalog";
-import { Attribute, ConfigRuntime, ConfigStore, EntityType, EntityValidation, Evaluate, GraphConstraint, TypeExpr } from "@triplex-build/triplex/config";
-import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
-import * as Derivation from "@triplex-build/triplex/derivation";
-import { LiveQuery } from "@triplex-build/triplex/live-query";
-void LiveQuery;
-import { Why } from "@triplex-build/triplex/why";
-import * as Database from "@triplex-build/triplex/database";
-import { Inbox, Outbox, OperationalEntryConflictError } from "@triplex-build/triplex/operational";
-import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
-import * as Cloudflare from "@triplex-build/triplex-cloudflare";
-import * as FoundationDb from "@triplex-build/triplex-foundationdb";
-import * as Host from "@triplex-build/triplex-host";
-import * as Postgres from "@triplex-build/triplex-postgres";
-import { PgTriples } from "@triplex-build/triplex-postgres";
-import * as Sql from "@triplex-build/triplex-sql";
-import { makeSqliteLayer } from "@triplex-build/triplex-sqlite";
-import * as Testkit from "@triplex-build/triplex-testkit";
-import { postgresSchemaLayer } from "@triplex-build/triplex-testkit/postgres";
-import { EntityHttp, HttpAuthorizationAllowAll } from "@triplex-build/triplex-http";
-
-const triple: TripleInput = {
-  entityId: EntityId.make("person:alice"),
-  attribute: ":person/name",
-  value: { type: "string", value: "Alice" },
-};
-const transactionId = TransactionId.make("_tx/00000000000000000000000000");
-const tripleId = TripleId.make("00000000000000000000000000");
-const transactionEntity: EntityId = transactionId;
-declare const triplesService: TriplesService;
-const filteredFeed = triplesService.transactions({entityIdPrefix: "home:", after: 0, limit: 10});
-const explainedLayer = Why.layer;
-const retainedAssertion = triplesService.assertion(tripleId);
-const timeline = triplesService.transactionsForEntity(triple.entityId, { limit: 20 });
-const historicalEntity = triplesService.entity(triple.entityId, { recordedPosition: 0 });
-const hostTransaction = PgTriples.withTransaction(triplesService.transact([]));
-const intent = Outbox.append({scope: triple.entityId, idempotencyKey: "command:1", payload: {intent: true}});
-const incoming = Inbox.append({scope: triple.entityId, idempotencyKey: "message:1", payload: null});
-const entryTransaction = triplesService.transact([intent, incoming, Outbox.acknowledge(Outbox.id(triple.entityId, "command:1"))]);
-const pendingEntries = Outbox.pending(triplesService, {scope: triple.entityId, limit: 10});
-const guardedWrite = triplesService.transact([], {preconditions: [
-  {_tag: "AttributeValue", entityId: triple.entityId, attribute: triple.attribute, value: triple.value},
-  {_tag: "AttributeAbsent", entityId: triple.entityId, attribute: ":missing"},
-  {_tag: "EntityAbsent", entityId: EntityId.make("new:entity")},
-]});
-const kvLiveBackfill = KvTriples.migrateLiveFacts({batchSize: 500});
-const entryHistory = Outbox.get(triplesService, Outbox.id(triple.entityId, "command:1"));
-const operationalConflict = new OperationalEntryConflictError({entryId: Outbox.id(triple.entityId, "command:1"), kind: "outbox", scope: triple.entityId, idempotencyKey: "command:1", message: "conflicting payload"});
-
-const historicalQuery = triplesService.queryAll({ find: ["?value"], where: [[triple.entityId, ":person/name", "?value"]] }, { basis: { recordedPosition: 0, validAt: 1 } });
-const ambientPostgres = PgTriples.layerFromSqlClient({ scope: "host/database" });
-const postgresFixture = postgresSchemaLayer({
-  url: "postgresql://localhost/test",
-  triples: PgTriples.layerFromSqlClient,
-});
-const schemaError = new Postgres.SchemaVersionError({ expectedVersion: 3, actualVersion: 2 });
-const scopedPostgres = PgTriples.layerForDatabase(
-  { database: "application" },
-  DatabaseId.make("tenant-a"),
-);
-const query: DatalogQuery = {
-  find: ["?name"],
-  where: [["?person", ":person/name", "?name"]],
-};
-const EmployerName = Attribute.text(":employer/name");
-const Employer = EntityType.make("Employer", {
-  name: Attribute.use(EmployerName, { required: true }),
-});
-const nameAssertion = Employer.attributes.name.assertion("Acme");
-const databaseLayer = Database.layer({schema: {types: [Employer]}});
-void databaseLayer;
-const sensitiveLayer = Sensitive.layer({
-  database: "tenant-a",
-  attributes: [Attribute.sensitive(Attribute.text(":employee/ssn"))],
-});
-void triple;
-void sensitiveLayer;
-void ValueCodec.aesGcm;
-void KeyProvider.test;
-void transactionId;
-void tripleId;
-void transactionEntity;
-void timeline;
-void historicalEntity;
-void hostTransaction;
-void historicalQuery;
-void ambientPostgres;
-void postgresFixture;
-void schemaError;
-void scopedPostgres;
-void query;
-void validateDatalogQuery;
-void DatalogValidationError;
-void nameAssertion;
-void ConfigStore;
-void ConfigRuntime;
-void Runtime;
-void DatabaseScope;
-void Capabilities;
-void EntityValidation;
-void Evaluate;
-void GraphConstraint;
-void TypeExpr;
-void Derivation;
-void Derivation.Materialization;
-void Derivation.Overlay;
-void makeSqliteLayer;
-void Cloudflare;
-void FoundationDb;
-void Host;
-void Postgres;
-void Sql;
-void Testkit;
-void EntityHttp;
-void HttpAuthorizationAllowAll;
-`,
-  );
-
-  writeFileSync(
-    join(consumerDir, "tsconfig.json"),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: "ES2022",
-          module: "ESNext",
-          moduleResolution: "bundler",
-          strict: true,
-          noEmit: true,
-          skipLibCheck: true,
-        },
-        include: ["consumer.ts"],
-      },
-      null,
-      2,
-    ),
-  );
-
-  writeFileSync(
-    join(consumerDir, "smoke.mjs"),
-    `import { Effect } from "effect";
-import { CanonicalJson } from "@triplex-build/triplex/content";
-
-if (CanonicalJson.encodeOrThrow({ z: -0, a: [undefined, 1] }) !== JSON.stringify({ a: [null, 1], z: 0 })) {
-  throw new Error("Public canonical JSON encoding is unavailable or inconsistent");
-}
-import { EntityId, Triples, string } from "@triplex-build/triplex";
-import { Runtime, DatabaseScope } from "@triplex-build/triplex/runtime";
-import * as Derivation from "@triplex-build/triplex/derivation";
-import { LiveQuery } from "@triplex-build/triplex/live-query";
-void LiveQuery;
-import { Why } from "@triplex-build/triplex/why";
-import * as Database from "@triplex-build/triplex/database";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
-
-if (typeof Database.layer !== "function" || typeof Database.Database !== "function") {
-  throw new Error("Public database entry point is unavailable");
-}
-
-if (typeof Runtime.define !== "function" || typeof DatabaseScope.test("packed") !== "string") {
-  throw new Error("Public runtime entry point is unavailable");
-}
-
-const result = await Effect.runPromise(
-  Effect.gen(function* () {
-    const triples = yield* Triples;
-    const alice = EntityId.make("person:alice");
-    const bob = EntityId.make("person:bob");
-    yield* triples.assert({
-      entityId: alice,
-      attribute: ":person/name",
-      value: string("Alice"),
-      validFrom: 0,
-      validTo: 5,
-    });
-    const query = {
-      find: ["?name"],
-      where: [["?person", ":person/name", "?name"]],
-    };
-    const definition = yield* Derivation.make({
-      name: "person.names",
-      query,
-      identity: ["?name"],
-      configSnapshot: "config:consumer-smoke",
-    });
-    yield* Derivation.Materialization.materialize(triples, definition, {
-      basis: { validAt: 1 },
-    });
-    const preview = yield* Derivation.Overlay.evaluateOverlay(triples, definition, {
-      basis: { validAt: 1 },
-      overlay: {
-        assertions: [{
-          entityId: bob,
-          attribute: ":person/name",
-          value: string("Bob"),
-        }],
-      },
-    });
-    return {
-      query: yield* triples.query(query, { basis: { validAt: 1 } }),
-      preview,
-      materialization: yield* Derivation.Materialization.current(triples, definition, {
-        basis: { validAt: 1 },
-      }),
-    };
-  }).pipe(Effect.provide(SqliteTriples.layerMemory)),
-);
-
-if (
-  result.query.results.length !== 1 ||
-  result.query.results[0]?.["?name"] !== "Alice" ||
-  result.preview.candidates.length !== 2 ||
-  result.preview.nextTemporalBoundary !== 5 ||
-  !result.preview.candidates.some((candidate) =>
-    candidate.sources.some((source) => source.hypothetical === true)
-  ) ||
-  result.materialization.status !== "current" ||
-  result.materialization.nextTemporalBoundary !== 5 ||
-  result.materialization.candidates.length !== 1
-) {
-  throw new Error("Unexpected packaged SQLite/Datalog result: " + JSON.stringify(result));
-}
-`,
-  );
-
-  // Skip FoundationDB's native addon install so the type-level check is portable.
-  // Effect 4 stable's SQLite driver uses node:sqlite for the runtime smoke test.
+mkdirSync(consumer);
+const run = (cmd, args, cwd = root) =>
+  execFileSync(cmd, args, { cwd, encoding: "utf8", stdio: "pipe" });
+const write = (file, body) => writeFileSync(join(consumer, file), body);
+const install = () =>
   run(
     "npm",
-    ["install", "--strict-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund"],
-    consumerDir,
+    ["install", "--omit=optional", "--ignore-scripts", "--no-audit", "--no-fund"],
+    consumer,
   );
-  const effectInstallPaths = run("npm", ["ls", "effect", "--all", "--parseable"], consumerDir)
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-  if (effectInstallPaths.length !== 1) {
-    throw new Error(`Expected one shared Effect installation, found ${effectInstallPaths.length}`);
-  }
-  run("npx", ["tsc", "--project", "tsconfig.json"], consumerDir);
-  run("node", ["smoke.mjs"], consumerDir);
+const optionalDrivers = [
+  "@effect/sql-sqlite-node",
+  "@effect/sql-pg",
+  "foundationdb",
+  "@effect/platform-node",
+  "@effect/platform-node-shared",
+];
+const children = [];
+const start = (cli, args) => {
+  const child = spawn(cli, args, { cwd: consumer, stdio: ["pipe", "pipe", "pipe"] });
+  children.push(child);
+  return child;
+};
+const stop = async (child) => {
+  if (child.exitCode !== null) return;
+  const exited = new Promise((done) => child.once("exit", done));
+  child.kill();
+  await exited;
+};
 
-  const cliManifest = packedManifests.find(
-    (manifest) => manifest.name === "@triplex-build/triplex-cli",
-  );
-  if (!cliManifest) throw new Error("Could not locate the packed CLI manifest");
-  if (cliManifest.bin?.triplex !== "./dist/cli.js") {
-    throw new Error("The packed CLI must expose dist/cli.js as the triplex executable");
+try {
+  run("node", ["--test", "scripts/check-single-package.test.mjs"]);
+  run("pnpm", ["pack", "--pack-destination", tarDir]);
+  const tarballs = readdirSync(tarDir).filter((file) => file.endsWith(".tgz"));
+  assert.equal(tarballs.length, 1);
+  const tarball = join(tarDir, tarballs[0]);
+  const manifest = JSON.parse(run("tar", ["-xOzf", tarball, "package/package.json"]));
+  const entries = run("tar", ["-tzf", tarball]).trim().split("\n");
+  assert.equal(manifest.name, "@triplex-build/triplex");
+  assert.ok(!manifest.private);
+  assert.deepEqual(Object.keys(manifest.dependencies), ["ulidx"]);
+  for (const [name, version] of Object.entries({
+    ...manifest.dependencies,
+    ...manifest.peerDependencies,
+  })) {
+    assert.ok(!name.startsWith("@triplex-") && !version.startsWith("workspace:"), name);
   }
-  const cli = join(consumerDir, "node_modules", ".bin", "triplex");
-  run(cli, ["--help"], consumerDir);
-  const version = run(cli, ["--version"], consumerDir);
-  if (!version.includes(cliManifest.version)) {
-    throw new Error(
-      `Packed CLI version mismatch: expected ${cliManifest.version}, received ${version.trim()}`,
+  for (const section of [
+    manifest.dependencies,
+    manifest.devDependencies,
+    manifest.peerDependencies,
+  ]) {
+    for (const range of Object.values(section ?? {}))
+      assert.ok(!range.startsWith("workspace:"), range);
+  }
+  for (const name of optionalDrivers)
+    assert.equal(manifest.peerDependenciesMeta[name].optional, true);
+  for (const file of entries) {
+    assert.ok(
+      ["package/package.json", "package/README.md", "package/LICENSE"].includes(file) ||
+        file.startsWith("package/dist/"),
+      file,
     );
   }
-  const described = JSON.parse(
-    run(cli, ["--sqlite", join(consumerDir, "agent.sqlite"), "describe"], consumerDir),
-  );
-  if (described.ok !== true || described.command !== "describe") {
-    throw new Error(`Unexpected packed CLI description: ${JSON.stringify(described)}`);
+  assert.ok(entries.includes("package/dist/dashboard/index.html"));
+  for (const entry of Object.values(manifest.exports)) {
+    for (const target of [entry.types, entry.import])
+      assert.ok(entries.includes(`package/${target.slice(2)}`), target);
   }
-
-  process.stdout.write(
-    `Verified ${tarballs.length} package tarballs and a clean consumer install.\n`,
+  const dependencies = { "@triplex-build/triplex": `file:${tarball}`, effect: "4.1.1" };
+  write("package.json", JSON.stringify({ private: true, type: "module", dependencies }));
+  install();
+  write(
+    "isolation.mjs",
+    `import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+for (const name of ${JSON.stringify(optionalDrivers)}) assert.throws(() => require.resolve(name));
+for (const name of ${JSON.stringify(Object.keys(manifest.exports).filter((key) => !["./sqlite", "./postgres", "./foundationdb", "./testkit/postgres"].includes(key)))}) {
+  await import('@triplex-build/triplex' + (name === '.' ? '' : name.slice(1)));
+}
+`,
   );
-  rmSync(workDir, { recursive: true, force: true });
+  run("node", ["isolation.mjs"], consumer);
+  console.log("PASS: root and every driver-free subpath import with no drivers installed.");
+  // Browser-safe core entrypoints must never reach Node or backend imports.
+  const visited = new Set();
+  const visit = (file) => {
+    if (visited.has(file)) return;
+    visited.add(file);
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(/(?:from\s*|import\s*\(|import\s*)["']([^"']+)["']/g)) {
+      const spec = match[1];
+      assert.ok(
+        !spec.startsWith("node:") &&
+          !spec.startsWith("@effect/platform-node") &&
+          !spec.startsWith("@effect/sql-"),
+        `${file}: ${spec}`,
+      );
+      if (spec.startsWith(".")) {
+        const target = resolve(file, "..", spec);
+        assert.ok(target.includes("/dist/core/"), target);
+        visit(target);
+      }
+    }
+  };
+  for (const entry of Object.values(manifest.exports)) {
+    if (entry.import.startsWith("./dist/core/"))
+      visit(join(consumer, "node_modules/@triplex-build/triplex", entry.import));
+  }
+  console.log("PASS: browser-safe core module graph contains no Node or backend imports.");
+  const cli = join(consumer, "node_modules/.bin/triplex");
+  assert.ok(run(cli, ["--help"], consumer).includes("mcp"));
+  assert.equal(run(cli, ["--version"], consumer).trim(), manifest.version);
+  // Node services are optional peers used only for executable database commands.
+  dependencies["@effect/platform-node"] = "4.1.1";
+  dependencies["@effect/platform-node-shared"] = "4.1.1";
+  dependencies["@effect/sql-sqlite-node"] = "4.1.1";
+  dependencies.typescript = "6.0.2";
+  write("package.json", JSON.stringify({ private: true, type: "module", dependencies }));
+  install();
+  assert.ok(run(cli, ["--help"], consumer).includes("mcp"));
+  assert.equal(run(cli, ["--version"], consumer).trim(), manifest.version);
+  write(
+    "consumer.ts",
+    readFileSync(join(root, "scripts/fixtures/package-consumer.ts"), "utf8") +
+      "\n" +
+      Object.keys(manifest.exports)
+        .map(
+          (key, i) =>
+            `import * as m${i} from '@triplex-build/triplex${key === "." ? "" : key.slice(1)}'; void m${i};`,
+        )
+        .join("\n"),
+  );
+  run(
+    join(consumer, "node_modules/.bin/tsc"),
+    [
+      "--noEmit",
+      "--strict",
+      "--skipLibCheck",
+      "--module",
+      "nodenext",
+      "--target",
+      "esnext",
+      "consumer.ts",
+    ],
+    consumer,
+  );
+  write("smoke.mjs", readFileSync(join(root, "scripts/fixtures/package-smoke.mjs"), "utf8"));
+  run("node", ["smoke.mjs"], consumer);
+  console.log("PASS: all subpath declarations and packaged SQLite/Datalog/derivation behavior.");
+  const described = JSON.parse(
+    run(cli, ["--sqlite", join(consumer, "smoke.sqlite"), "describe"], consumer),
+  );
+  assert.equal(described.ok, true);
+  const mcp = start(cli, ["mcp", "--sqlite", join(consumer, "mcp.sqlite")]);
+  let stderr = "";
+  mcp.stderr.on("data", (data) => {
+    stderr += data;
+  });
+  const initialized = new Promise((done, reject) => {
+    let output = "";
+    const timeout = setTimeout(
+      () => reject(new Error(`MCP initialize timed out: ${output}\n${stderr}`)),
+      20000,
+    );
+    mcp.once("exit", (code) => {
+      clearTimeout(timeout);
+      reject(new Error(`MCP exited ${code}: ${stderr}`));
+    });
+    mcp.stdout.on("data", (data) => {
+      output += data;
+      const lines = output.split("\n");
+      output = lines.pop();
+      try {
+        for (const line of lines) {
+          const message = JSON.parse(line);
+          if (message.id === 1) {
+            clearTimeout(timeout);
+            assert.ok(message.result?.serverInfo, JSON.stringify(message));
+            done();
+          }
+        }
+      } catch (error) {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    });
+  });
+  mcp.stdin.write(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "pack-check", version: "1" },
+      },
+    }) + "\n",
+  );
+  await initialized;
+  await stop(mcp);
+  console.log("PASS: triplex --help, --version, SQLite describe, and mcp initialize.");
+  const port = await new Promise((done) => {
+    const server = createServer();
+    server.listen(0, "127.0.0.1", () => {
+      const port = server.address().port;
+      server.close(() => done(port));
+    });
+  });
+  const dashboard = start(cli, [
+    "dashboard",
+    "--sqlite",
+    join(consumer, "dashboard.sqlite"),
+    "--port",
+    String(port),
+  ]);
+  let dashboardError = "";
+  dashboard.stderr.on("data", (data) => {
+    dashboardError += data;
+  });
+  let response;
+  for (let i = 0; i < 100; i++) {
+    if (dashboard.exitCode !== null) throw new Error(`Dashboard exited: ${dashboardError}`);
+    try {
+      response = await fetch(`http://127.0.0.1:${port}/`);
+      break;
+    } catch {
+      await new Promise((done) => setTimeout(done, 100));
+    }
+  }
+  assert.equal(response?.status, 200, dashboardError);
+  const html = await response.text();
+  const assets = [...html.matchAll(/(?:src|href)="([^"#]+\.(?:js|css))"/g)].map(
+    (match) => match[1],
+  );
+  assert.ok(assets.length > 0);
+  for (const asset of assets)
+    assert.equal((await fetch(new URL(asset, `http://127.0.0.1:${port}`))).status, 200);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/api/health`)).status, 200);
+  await stop(dashboard);
+  console.log("PASS: triplex dashboard serves its HTML, JavaScript, CSS and health endpoint.");
+  console.log("Verified one package tarball and a clean consumer install.");
+  rmSync(work, { recursive: true, force: true });
 } catch (error) {
-  process.stderr.write(`Package verification artifacts retained at ${workDir}\n`);
+  console.error(`Package verification artifacts retained at ${work}`);
+  if (error.stdout) console.error(error.stdout.toString());
+  if (error.stderr) console.error(error.stderr.toString());
   throw error;
+} finally {
+  for (const child of children) await stop(child);
 }

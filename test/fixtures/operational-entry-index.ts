@@ -6,7 +6,7 @@ import { SqlClient } from "effect/sql";
 import { EntityId, Triples } from "@triplex-build/triplex";
 import { Outbox } from "@triplex-build/triplex/operational";
 import type { ContentId } from "@triplex-build/triplex/content";
-import { makeSqlOperationalEntryStorage, SqliteDialect } from "@triplex-build/triplex-sql";
+import { makeSqlOperationalEntryStorage, SqliteDialect } from "@triplex-build/triplex/sql";
 import { expect } from "vitest";
 
 /** Synthetic acknowledged history; actual public append/read/ack around each size. */

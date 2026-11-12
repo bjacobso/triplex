@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
 import { KvTriples } from "@triplex-build/triplex";
-import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
+import { makeTriplesConformanceSuite } from "@triplex-build/triplex/testkit";
 
 describe("in-memory KV Triples conformance", () => {
   it(

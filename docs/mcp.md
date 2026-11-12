@@ -1,11 +1,11 @@
 # MCP server
 
-`@triplex-build/triplex-mcp` is a **private, experimental** workspace package. It exposes one
+`@triplex-build/triplex/mcp` is a **private, experimental** workspace package. It exposes one
 Triplex database per process through MCP over stdio, using Effect's MCP server. Build it from a
 source checkout; it is not published to npm:
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex-mcp...
+pnpm turbo run build --filter=@triplex-build/triplex/mcp...
 node packages/mcp/dist/bin.js --sqlite /absolute/path/to/app.db
 ```
 

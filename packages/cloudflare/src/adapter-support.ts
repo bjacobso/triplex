@@ -1,11 +1,11 @@
-import { encodeSealedEnvelope, type TripleValue, type ValueType } from "@triplex-build/triplex";
+import { encodeSealedEnvelope, type TripleValue, type ValueType } from "@triplex-internal/core";
 import {
   MigrationError,
   ReadError,
   StorageAdapter,
   type StorageAdapterService,
   WriteError,
-} from "@triplex-build/triplex/runtime";
+} from "@triplex-internal/core/runtime";
 
 export { StorageAdapter, type StorageAdapterService, MigrationError, ReadError, WriteError };
 export type { SqlStorageAdapterService } from "@triplex-build/triplex-sql";

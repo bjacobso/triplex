@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { Sha256 } from "@triplex-build/triplex/content";
+import { Sha256 } from "@triplex-internal/core/content";
 
 const OpaqueId = Schema.String.pipe(
   Schema.check(Schema.isMinLength(1)),
