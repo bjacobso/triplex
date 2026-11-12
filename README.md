@@ -388,7 +388,7 @@ while `@foldkit/ui` supplies accessible controls and Tailwind supplies styling.
 
 ## Configuration-derived HTTP API
 
-`@triplex-build/triplex-http` compiles persisted entity configuration into validated REST handlers and
+`@triplex-build/triplex/http` compiles persisted entity configuration into validated REST handlers and
 OpenAPI 3.1 without retaining the TypeScript DSL declarations. Hosts provide `Triples`,
 `ConfigStore`, an authorization layer, and their chosen HTTP server; KV and SQLite share the same
 Fetch-level integration suite. Wire objects use full global keywords, writes are atomic and pinned
@@ -398,12 +398,12 @@ See the [HTTP API guide](docs/http-api.md) and [standalone host](examples/http-a
 
 ## Agent CLI
 
-`@triplex-build/triplex-cli` exposes the same database and configuration services through Effect v4's
+`@triplex-build/triplex/cli` exposes the same database and configuration services through Effect v4's
 typed CLI modules. It is JSON-first, non-interactive, schema-validates external input, and supports
 SQLite, PostgreSQL, and database-scoped PostgreSQL:
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex-cli...
+pnpm turbo run build --filter=@triplex-build/triplex/cli...
 triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
 triplex --sqlite ./app.db describe
 triplex --sqlite ./app.db entity types
@@ -467,21 +467,21 @@ pagination, projection, and host/runtime boundaries.
 | Package                               | Surface                             | Status                                                        |
 | ------------------------------------- | ----------------------------------- | ------------------------------------------------------------- |
 | `@triplex-build/triplex`              | `KvTriples.layer`                   | Supported in-memory baseline                                  |
-| `@triplex-build/triplex-sqlite`       | `SqliteTriples.layer({ filename })` | Supported durable baseline                                    |
-| `@triplex-build/triplex-postgres`     | `PgTriples.layer(config)`           | Candidate; shared integration/conformance is currently opt-in |
-| `@triplex-build/triplex-cloudflare`   | `CloudflareTriples.layer(...)`      | Experimental                                                  |
-| `@triplex-build/triplex-foundationdb` | `FdbTriples.layer(config)`          | Experimental                                                  |
+| `@triplex-build/triplex/sqlite`       | `SqliteTriples.layer({ filename })` | Supported durable baseline                                    |
+| `@triplex-build/triplex/postgres`     | `PgTriples.layer(config)`           | Candidate; shared integration/conformance is currently opt-in |
+| `@triplex-build/triplex/cloudflare`   | `CloudflareTriples.layer(...)`      | Experimental                                                  |
+| `@triplex-build/triplex/foundationdb` | `FdbTriples.layer(config)`          | Experimental                                                  |
 
-`@triplex-build/triplex-sql` contains shared migrations and SQL query execution rather than a database.
-`@triplex-build/triplex-testkit` contains the behavioral conformance corpus used by adapters.
-`@triplex-build/triplex-host` is a private experimental package for portable tenant identity,
+`@triplex-build/triplex/sql` contains shared migrations and SQL query execution rather than a database.
+`@triplex-build/triplex/testkit` contains the behavioral conformance corpus used by adapters.
+`@triplex-build/triplex/host` is a private experimental package for portable tenant identity,
 authorization, lifecycle, and protocol contracts. The deployable reference wiring is in
 [`examples/tenant-host-cloudflare`](examples/tenant-host-cloudflare).
 
 Switching the supported quick start to SQLite changes only the provided layer:
 
 ```ts
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 
 const SqliteLive = SqliteTriples.layer({ filename: "app.db" });
 ```
@@ -491,7 +491,7 @@ const SqliteLive = SqliteTriples.layer({ filename: "app.db" });
 The standalone layer owns its pool and applies Triplex migrations as a convenience:
 
 ```ts
-import { PgTriples } from "@triplex-build/triplex-postgres";
+import { PgTriples } from "@triplex-build/triplex/postgres";
 
 const TriplexLive = PgTriples.layerFromUrl(process.env.DATABASE_URL!);
 ```
@@ -503,7 +503,7 @@ This path creates no pool and runs no migration:
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { EntityId, Triples, string } from "@triplex-build/triplex";
-import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
+import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex/postgres";
 
 const HostSql = makePostgresqlLayerUnmigratedFromUrl(process.env.DATABASE_URL!);
 const AppDatabase = PgTriples.layerFromSqlClient({ scope: "app/main" }).pipe(
@@ -544,7 +544,7 @@ in that pool starts in the deterministic Triplex schema, and its scope is embedd
 cursors. The schema and v1 migration must already exist; `layerForDatabaseMigrated` is the explicit
 provisioning convenience for setup tools and tests.
 
-Triplex exports the ordered `migrations` and `runMigrations` from `@triplex-build/triplex-sql`.
+Triplex exports the ordered `migrations` and `runMigrations` from `@triplex-build/triplex/sql`.
 Production hosts should run them from their own deployment process against the same database or
 schema before constructing an unmigrated runtime. Triplex uses `triplex_schema_migrations`, not the
 host application's migration table.

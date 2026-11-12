@@ -44,7 +44,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@triplex-build/triplex": "workspace:^"
+    "@triplex-internal/core": "workspace:^"
   },
   "devDependencies": {
     "@triplex-build/triplex-sqlite": "workspace:^",

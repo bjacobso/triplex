@@ -14,7 +14,7 @@ and Effect services.
 
 ## Availability
 
-Install `@triplex-build/triplex` from npm with Node.js 22+ and its `effect@4.1.1` peer
+Install `@triplex-build/triplex` from npm with Node.js 22.19.0+ and its `effect` peer
 dependency. See the [quickstart](../../docs/getting-started.md). Do not use the superseded
 `@bjacobso` canaries for new work.
 
@@ -43,7 +43,7 @@ const program = Effect.gen(function* () {
 Effect.runPromise(program.pipe(Effect.provide(KvTriples.layer)));
 ```
 
-SQL implementations live in `@triplex-build/triplex-sql` and the backend-specific packages.
+SQL implementations live in `@triplex-build/triplex/sql` and the backend-specific packages.
 
 ## Custom runtimes
 

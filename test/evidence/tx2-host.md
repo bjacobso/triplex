@@ -50,7 +50,7 @@ follow-up adds no migration; adopt prior stack migrations separately. Changeset
 Tests were written and run first:
 
 ```sh
-pnpm --filter @triplex-build/triplex-host exec vitest run test/host.test.ts -t 'preserves position cuts'
+pnpm --filter @triplex-build/triplex/host exec vitest run test/host.test.ts -t 'preserves position cuts'
 ```
 
 Both real KV and SQLite boundary cases failed, returning Alicia and Carol at the

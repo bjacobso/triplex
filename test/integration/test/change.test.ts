@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { Effect, Layer, Option } from "effect";
 import { Change, EntityId, Triples, string } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 import { Attribute, EntityType } from "@triplex-build/triplex/config";
 import { KeyProvider, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
 

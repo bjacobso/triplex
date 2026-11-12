@@ -14,11 +14,11 @@ After following [Getting started](/getting-started), build the CLI and its works
 then define a short shell function for the built binary:
 
 ```sh
-pnpm turbo run build --filter=@triplex-build/triplex-cli...
+pnpm turbo run build --filter=@triplex-build/triplex/cli...
 triplex() { node --disable-warning=ExperimentalWarning packages/cli/dist/cli.js "$@"; }
 ```
 
-The examples below use the repository command. Install `@triplex-build/triplex-cli` from npm to
+The examples below use the repository command. Install `@triplex-build/triplex/cli` from npm to
 use the same `triplex` binary in an application:
 
 ```sh

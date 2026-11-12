@@ -15,7 +15,7 @@ import {
   DatabaseAlreadyExists,
   InternalError,
   RuntimeClock,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import { StorageBackend } from "./StorageBackend.js";
 
 // =============================================================================

@@ -1,7 +1,7 @@
 /** Complete `Triples` composition for one Durable Object SQLite database. */
 
 import { Effect } from "effect";
-import { Runtime, DatabaseScope, Capabilities } from "@triplex-build/triplex/runtime";
+import { Runtime, DatabaseScope, Capabilities } from "@triplex-internal/core/runtime";
 import {
   makeSqlQueryExecutorLayer,
   SqliteDialect,

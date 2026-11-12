@@ -22,7 +22,7 @@ for package in core sqlite; do
 done
 mkdir -p "$TRIAL/node_modules/@triplex-build" "$TRIAL/node_modules/@types" "$TRIAL/src" "$TRIAL/test"
 ln -s "$ROOT/packages/core" "$TRIAL/node_modules/@triplex-build/triplex"
-ln -s "$ROOT/packages/sqlite" "$TRIAL/node_modules/@triplex-build/triplex-sqlite"
+ln -s "$ROOT/packages/sqlite" "$TRIAL/node_modules/@triplex-build/triplex/sqlite"
 # One Effect copy, shared with core, to preserve service identity.
 ln -s "$ROOT/packages/core/node_modules/effect" "$TRIAL/node_modules/effect"
 ln -s "$ROOT/node_modules/vitest" "$TRIAL/node_modules/vitest"

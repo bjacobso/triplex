@@ -2,8 +2,8 @@
 import { Layer } from "effect";
 import type { SqlClient } from "effect/sql";
 import { DatabaseId, KvTriples, Triples } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
-import { PgTriples } from "@triplex-build/triplex-postgres";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
+import { PgTriples } from "@triplex-build/triplex/postgres";
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;

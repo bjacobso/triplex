@@ -22,7 +22,7 @@ import {
   ReadError,
   MigrationError,
   isPatternVariable,
-} from "@triplex-build/triplex/internal";
+} from "@triplex-internal/core/internal";
 import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,

@@ -8,14 +8,14 @@ GitHub Actions; routine releases should not depend on a maintainer's local npm c
 The public release set contains:
 
 - `@triplex-build/triplex`
-- `@triplex-build/triplex-sql`
-- `@triplex-build/triplex-sqlite`
-- `@triplex-build/triplex-postgres`
-- `@triplex-build/triplex-testkit`
-- `@triplex-build/triplex-cli`
-- `@triplex-build/triplex-http`
+- `@triplex-build/triplex/sql`
+- `@triplex-build/triplex/sqlite`
+- `@triplex-build/triplex/postgres`
+- `@triplex-build/triplex/testkit`
+- `@triplex-build/triplex/cli`
+- `@triplex-build/triplex/http`
 
-`@triplex-build/triplex-cloudflare` and `@triplex-build/triplex-foundationdb` remain private workspace
+`@triplex-build/triplex/cloudflare` and `@triplex-build/triplex/foundationdb` remain private workspace
 packages until they pass the supported backend conformance contract. The dashboard and examples
 are also private.
 
@@ -116,8 +116,8 @@ Install from the registry in a clean directory outside this monorepo:
 pnpm init
 pnpm add effect@4.1.1 \
   @triplex-build/triplex@next \
-  @triplex-build/triplex-sqlite@next \
-  @triplex-build/triplex-cli@next
+  @triplex-build/triplex/sqlite@next \
+  @triplex-build/triplex/cli@next
 pnpm exec triplex --help
 pnpm exec triplex --sqlite ./canary.sqlite describe
 ```

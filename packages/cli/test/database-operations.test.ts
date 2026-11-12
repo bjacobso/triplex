@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
-import { DatabaseManager } from "@triplex-build/triplex";
-import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@triplex-build/triplex/internal";
+import { DatabaseManager } from "@triplex-internal/core";
+import { RuntimeServicesLive, TripleStoreRuntimeLayer } from "@triplex-internal/core/internal";
 import { DatabaseManagerLive, DatabaseRegistryLive } from "@triplex-build/triplex-sql";
 import { makeSqliteBackend } from "@triplex-build/triplex-sqlite";
 import { Effect, Layer } from "effect";

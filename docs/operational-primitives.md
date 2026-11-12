@@ -564,7 +564,7 @@ ambient host-owned `SqlClient`, creates no pool, and runs no DDL; both host stat
 `layerForDatabase` creates a pool whose every connection is bound at startup to the schema derived
 from a validated, server-resolved `DatabaseId`, and provides both that scoped client and `Triples`.
 The `*Migrated` variants are explicit provisioning conveniences. Production migration execution
-remains host-controlled through the ordered exports in `@triplex-build/triplex-sql`.
+remains host-controlled through the ordered exports in `@triplex-build/triplex/sql`.
 
 Subscriptions remain conservative invalidation hints rather than an automatic live-query runtime.
 Entity snapshots, validation observations, and derivation runs remain checkpointed projections;

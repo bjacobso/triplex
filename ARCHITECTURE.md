@@ -137,27 +137,27 @@ hosts typed configuration as a modular layer over the same core.
   is reported to the caller but cannot roll back the already-committed source transaction. They do
   not maintain a second transaction log: causal audit reads belong to the authoritative `Triples`
   journal APIs.
-- `@triplex-build/triplex-sql` is now migrations and `SqlQueryExecutor` (the SQL implementation of the
+- `@triplex-build/triplex/sql` is now migrations and `SqlQueryExecutor` (the SQL implementation of the
   `QueryExecutor` SPI) shared by SQLite and PostgreSQL. Datalog SQL projections retain hidden
   canonical scalar-family columns until result decoding, and
   scalar-family joins and typed keyset ordering compare values consistently with the KV executor.
   A shared KV/SQLite/PostgreSQL conformance corpus is the regression boundary for this contract.
 - Backend packages construct the storage adapters and runtime layers for their platforms.
-- `@triplex-build/triplex-cloudflare` composes its synchronous Durable Object SQLite adapter with the
+- `@triplex-build/triplex/cloudflare` composes its synchronous Durable Object SQLite adapter with the
   shared SQL compiler/row decoder through the narrow `SqlStatementRunner` contract. Its public
   `CloudflareTriples.layer({ state, scope })` binds migrations, Datalog, writes, journal positions,
   command receipts, and opaque cursors to the same object-owned storage handle. It remains private
   and experimental. The shared backend corpus runs in workerd against SQLite-backed Durable Object
   storage by default; credentialed provider and operational testing is still incomplete.
-- `@triplex-build/triplex-host` is the portable layer above public core APIs. It owns immutable
+- `@triplex-build/triplex/host` is the portable layer above public core APIs. It owns immutable
   environment/tenant/database/generation identity, provider-safe keys, lifecycle and CAS registry
   contracts, authorization, the versioned data protocol, and target-side route fencing. It does
   not import a backend. Concrete gateway, registry, and provisioner wiring depends on both host and
   backend packages and initially lives in examples.
-- `@triplex-build/triplex-cli` is an application package over the public core, config, SQLite, and
+- `@triplex-build/triplex/cli` is an application package over the public core, config, SQLite, and
   PostgreSQL surfaces. It uses Effect v4's CLI modules for typed parsing and service composition;
   it does not expose or depend on backend adapters or `@triplex-build/triplex/internal`.
-- `@triplex-build/triplex-http` is an optional application-facing package over public core and config
+- `@triplex-build/triplex/http` is an optional application-facing package over public core and config
   exports. It compiles immutable releases into runtime schemas, Effect `HttpApi` contracts,
   OpenAPI, and backend-neutral handlers. Hosts own database selection, authorization, and server
   allocation; core and backend packages never import HTTP.
@@ -175,7 +175,7 @@ hosts typed configuration as a modular layer over the same core.
   default check; FoundationDB's native suite also runs in CI and remains opt-in locally.
   Triplex is greenfield before 1.0: breaking public API changes are allowed when they make the
   API right; update callers and record breaks in Changesets instead of keeping compatibility shims.
-- `@triplex-build/triplex-testkit` is the public home for reusable backend conformance helpers.
+- `@triplex-build/triplex/testkit` is the public home for reusable backend conformance helpers.
 - `examples/tenant-host-cloudflare` is the first concrete isolated host: a singleton registry
   Durable Object plus one SQLite Durable Object and scoped Effect runtime per database. Its
   Alchemy v2 stack is separate from the documentation stack and retains the Worker/namespace on
@@ -186,7 +186,7 @@ hosts typed configuration as a modular layer over the same core.
 - `test/stress` owns opt-in performance and scale tests.
 
 The core package may not depend on a backend package. SQL and backend packages may depend on core,
-and concrete SQL backends may depend on `@triplex-build/triplex-sql`. This one-way graph keeps the core
+and concrete SQL backends may depend on `@triplex-build/triplex/sql`. This one-way graph keeps the core
 usable in browsers and edge runtimes.
 
 The core package must not use `node:crypto` or another Node-only hashing API. Canonical encoding

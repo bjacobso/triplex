@@ -26,16 +26,16 @@ import {
   type SealedValue,
   type Triple,
   type TripleValue,
-} from "@triplex-build/triplex";
-import { Attribute, EntityType, GraphConstraint } from "@triplex-build/triplex/config";
-import * as Derivation from "@triplex-build/triplex/derivation";
+} from "@triplex-internal/core";
+import { Attribute, EntityType, GraphConstraint } from "@triplex-internal/core/config";
+import * as Derivation from "@triplex-internal/core/derivation";
 import {
   KeyProvider,
   Sensitive,
   Sensitivity,
   ValueCodec,
   type SensitiveValueError,
-} from "@triplex-build/triplex/sensitive";
+} from "@triplex-internal/core/sensitive";
 
 const eid = EntityId.make;
 

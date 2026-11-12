@@ -80,7 +80,7 @@ bounded Datalog contract; it does not make that broader claim.
 The benchmark lives in `test/stress/scripts/datalog-pagination.ts` and is opt-in:
 
 ```sh
-pnpm exec turbo run build --filter=@triplex-build/triplex-sqlite --filter=@triplex-build/triplex-postgres
+pnpm exec turbo run build --filter=@triplex-build/triplex/sqlite --filter=@triplex-build/triplex/postgres
 pnpm --filter triplex-stress benchmark:datalog
 PG_BENCH_URL=postgresql://localhost/triplex_bench pnpm --filter triplex-stress benchmark:datalog
 ```
@@ -156,8 +156,8 @@ To inspect the plans, run these tests with `TRIPLEX_EXPLAIN=1` (add `--disableCo
 if the test reporter suppresses output):
 
 ```sh
-TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex-sqlite exec vitest run test/numeric-index.test.ts
-PG_TEST_URL=postgresql://localhost/disposable_test TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'expression range' --disableConsoleIntercept
+TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex/sqlite exec vitest run test/numeric-index.test.ts
+PG_TEST_URL=postgresql://localhost/disposable_test TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'expression range' --disableConsoleIntercept
 ```
 
 ### Scope of consumer indexing

@@ -5,6 +5,10 @@
   "description": "The database that remembers why: an embedded, bitemporal fact database for TypeScript back-office systems, built on Effect.",
   "author": "Ben Jacobson",
   "type": "module",
+  "publishConfig": {
+    "directory": "packages/triplex/publish",
+    "linkDirectory": false
+  },
   "scripts": {
     "build": "turbo run build && pnpm docs:build",
     "changeset": "changeset",
@@ -39,7 +43,8 @@
     "test:foundationdb:integration": "pnpm --filter @triplex-build/triplex-foundationdb test:integration",
     "test:postgres:integration": "pnpm --filter @triplex-build/triplex-postgres test:integration",
     "test:watch": "turbo watch test",
-    "typecheck": "tsc --noEmit -p tsconfig.alchemy.json && turbo run typecheck"
+    "typecheck": "tsc --noEmit -p tsconfig.alchemy.json && turbo run typecheck",
+    "prepack": "turbo run build --filter=@triplex-build/triplex"
   },
   "devDependencies": {
     "@alchemy.run/cloudflare": "catalog:",
@@ -50,6 +55,7 @@
     "@fontsource/ibm-plex-mono": "catalog:",
     "@playwright/test": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
     "@types/node": "catalog:",
     "alchemy": "catalog:",
     "effect": "catalog:",

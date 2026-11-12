@@ -9,11 +9,11 @@ import {
   type TransactRequest,
   type Triple,
   type WrappedQuery as WrappedQueryType,
-} from "@triplex-build/triplex";
-import { ConfigStore, InMemoryConfigStore } from "@triplex-build/triplex/config";
-import type { ContentId } from "@triplex-build/triplex/content";
-import { Why, type WhyOptions, type WhySubject } from "@triplex-build/triplex/why";
-import { previewTransaction } from "@triplex-build/triplex/database";
+} from "@triplex-internal/core";
+import { ConfigStore, InMemoryConfigStore } from "@triplex-internal/core/config";
+import type { ContentId } from "@triplex-internal/core/content";
+import { Why, type WhyOptions, type WhySubject } from "@triplex-internal/core/why";
+import { previewTransaction } from "@triplex-internal/core/database";
 import { Effect, Option } from "effect";
 
 import { describeRelease, manifest } from "./describe.js";

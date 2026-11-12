@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
-import { EntityId, Triples, number } from "@triplex-build/triplex";
+import { EntityId, Triples, number } from "@triplex-internal/core";
 import {
   Capabilities,
   DatabaseScope,
@@ -10,7 +10,7 @@ import {
   changeEmission,
   entitySnapshots,
   type ChangeEvent,
-} from "@triplex-build/triplex/runtime";
+} from "@triplex-internal/core/runtime";
 import { SqlSnapshotsLive } from "@triplex-build/triplex-sql";
 import { runtimeConformance } from "@triplex-build/triplex-testkit";
 import { makeCloudflareRuntime, makeCloudflareAdapter, migrations } from "../src/index.js";

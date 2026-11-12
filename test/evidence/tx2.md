@@ -94,7 +94,7 @@ Observed failing tests before their corresponding fixes:
 
 - `pnpm --filter @triplex-build/triplex exec vitest run test/Temporal.test.ts test/Pagination.test.ts`:
   position was discarded, ambiguous/invalid inputs accepted, and pages used the head.
-- `pnpm --filter @triplex-build/triplex-testkit exec vitest run test/fixtures.test.ts -t 'commit-position cuts'`:
+- `pnpm --filter @triplex-build/triplex/testkit exec vitest run test/fixtures.test.ts -t 'commit-position cuts'`:
   replay differed from the captured cut.
 - `pnpm --filter @triplex-build/triplex exec vitest run test/derivation/Derivation.e2e.test.ts -t 'round-trips a materialized commit-position'`:
   dropping the saved position caused content verification to fail.
@@ -105,8 +105,8 @@ Query-plan commands (failed the index-selection assertion before the migration;
 pass afterward):
 
 ```sh
-TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex-sqlite exec vitest run test/position-index.test.ts --disableConsoleIntercept
-TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex-postgres exec vitest run test/integration/postgresql.test.ts -t 'entity-position index' --disableConsoleIntercept
+TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex/sqlite exec vitest run test/position-index.test.ts --disableConsoleIntercept
+TRIPLEX_EXPLAIN=1 pnpm --filter @triplex-build/triplex/postgres exec vitest run test/integration/postgresql.test.ts -t 'entity-position index' --disableConsoleIntercept
 ```
 
 Final checks are recorded below as they finish; no unexecuted checks count as passes.
@@ -126,7 +126,7 @@ Final checks are recorded below as they finish; no unexecuted checks count as pa
 - Focused core temporal/pagination/derivation tests: 29 passed.
 - Generated-history KV case: passed after comparison was strengthened to full facts.
 - `pnpm test:foundationdb:integration`: skipped its only file, no native tests run.
-  `pnpm --filter @triplex-build/triplex-foundationdb exec node -e 'try { require("foundationdb"); } catch (error) { console.error(error.message); process.exitCode = 1; }'`
+  `pnpm --filter @triplex-build/triplex/foundationdb exec node -e 'try { require("foundationdb"); } catch (error) { console.error(error.message); process.exitCode = 1; }'`
   confirms the missing native library.
 - Browser screenshots were not rerun for TX2's non-UI changes; TX8 established
   four unchanged visual-baseline failures on both the feature branch and main.

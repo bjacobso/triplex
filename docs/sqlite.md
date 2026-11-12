@@ -27,7 +27,7 @@ default shared conformance suite. Triplex remains pre-1.0; see [current state](/
 Install the SQLite adapter with the compatible Effect version on Node.js 22 or newer:
 
 ```sh
-npm install @triplex-build/triplex @triplex-build/triplex-sqlite effect@4.1.1
+npm install @triplex-build/triplex @triplex-build/triplex/sqlite effect@4.1.1
 ```
 
 This writes a training fact and reads it through the same `Triples` service used by other backends:
@@ -35,7 +35,7 @@ This writes a training fact and reads it through the same `Triples` service used
 ```ts check
 import { Effect } from "effect";
 import { EntityId, Triples, string } from "@triplex-build/triplex";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 
 const DatabaseLive = SqliteTriples.layer({ filename: "training.db" });
 const maria = EntityId.make("worker:maria");
@@ -115,7 +115,7 @@ Follow these modules in order:
    [migrations](https://github.com/bjacobso/triplex/blob/main/packages/sql/src/migrations.ts)
 4. [Triples composition](https://github.com/bjacobso/triplex/blob/main/packages/sqlite/src/SqliteTriples.ts)
 
-Run `pnpm --filter @triplex-build/triplex-sqlite test` from a repository checkout for the adapter's
+Run `pnpm --filter @triplex-build/triplex/sqlite test` from a repository checkout for the adapter's
 tests; `pnpm --filter triplex-integration-tests test` runs the shared backend corpus. Conformance is a
 behavioral boundary, not a promise about every workload or storage failure. Backup, restore,
 deployment migrations, and process lifecycle belong to your application.

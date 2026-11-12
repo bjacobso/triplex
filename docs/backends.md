@@ -79,7 +79,7 @@ original results even after the correction.
    cursor identity; physical partitioning and authorization are separate host responsibilities.
 2. Implement the base storage and query contract with `Capabilities.none`. Establish rollback,
    duplicate-command behavior, typed values, history, and pinned pages before adding projections.
-3. Run `runtimeConformance` from `@triplex-build/triplex-testkit` against a fresh isolated database.
+3. Run `runtimeConformance` from `@triplex-build/triplex/testkit` against a fresh isolated database.
    Add backend-specific concurrency, interruption, crash, and migration exercises.
 4. Add durable snapshot or change-emission providers explicitly if your deployment needs them.
    Measure their failure behavior separately from source transaction correctness.

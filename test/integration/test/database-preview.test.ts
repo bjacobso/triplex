@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { EntityId, Triples } from "@triplex-build/triplex";
 import { Attribute, ConfigStore, EntityType } from "@triplex-build/triplex/config";
 import * as Database from "@triplex-build/triplex/database";
-import { SqliteTriples } from "@triplex-build/triplex-sqlite";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
 
 it("SQLite previews guarded temporal changes and commits the same semantic change set", async () => {
   const Person = EntityType.make("PreviewPerson", {

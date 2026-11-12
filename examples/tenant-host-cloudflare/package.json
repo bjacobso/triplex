@@ -15,8 +15,6 @@
   },
   "dependencies": {
     "@triplex-build/triplex": "workspace:^",
-    "@triplex-build/triplex-cloudflare": "workspace:^",
-    "@triplex-build/triplex-host": "workspace:^",
     "effect": "catalog:"
   },
   "devDependencies": {

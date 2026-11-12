@@ -6,7 +6,7 @@ import {
   SensitiveValueError,
   TransactionConflictError,
   WriteError,
-} from "@triplex-build/triplex";
+} from "@triplex-internal/core";
 import { Cause, Effect, Option, Result } from "effect";
 import { Base64Url } from "effect/encoding";
 import type { HttpServerRequest } from "effect/http/HttpServerRequest";

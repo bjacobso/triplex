@@ -1,12 +1,12 @@
-# @triplex-build/triplex-postgres
+# @triplex-build/triplex/postgres
 
 The PostgreSQL backend for Triplex, built on `@effect/sql-pg`.
 
-Install `@triplex-build/triplex-postgres` from npm. It requires Node.js 22 or newer and a
+Install `@triplex-build/triplex/postgres` from npm. It requires Node.js 22 or newer and a
 PostgreSQL connection URL.
 
 ```ts
-import { PgTriples } from "@triplex-build/triplex-postgres";
+import { PgTriples } from "@triplex-build/triplex/postgres";
 
 const TriplesLive = PgTriples.layerFromUrl(process.env.DATABASE_URL!);
 ```
@@ -19,7 +19,7 @@ internal adapter SPI:
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { Triples } from "@triplex-build/triplex";
-import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex-postgres";
+import { PgTriples, makePostgresqlLayerUnmigratedFromUrl } from "@triplex-build/triplex/postgres";
 
 const HostSql = makePostgresqlLayerUnmigratedFromUrl(process.env.DATABASE_URL!);
 const DatabaseLive = PgTriples.layerFromSqlClient({ scope: "host/main" }).pipe(
@@ -65,7 +65,7 @@ For a server-owned database mapping, use a validated `DatabaseId`:
 
 ```ts
 import { DatabaseId } from "@triplex-build/triplex";
-import { PgTriples } from "@triplex-build/triplex-postgres";
+import { PgTriples } from "@triplex-build/triplex/postgres";
 
 const DatabaseLive = PgTriples.layerForDatabase(postgresConfig, DatabaseId.make("customer-a"));
 ```
@@ -78,7 +78,7 @@ must resolve `DatabaseId` from authenticated server-owned state, not raw request
 generic core `DatabaseManager` remains available for Triples-only dynamic databases, while this
 package-level API is the boundary for hosts that also need the scoped `SqlClient`.
 
-Ordered migration definitions and `runMigrations` are exported by `@triplex-build/triplex-sql` for
+Ordered migration definitions and `runMigrations` are exported by `@triplex-build/triplex/sql` for
 host deployment tooling. Triplex uses its own `triplex_schema_migrations` table.
 
 PostgreSQL passes the shared conformance and multi-connection isolation integration suite in CI.
