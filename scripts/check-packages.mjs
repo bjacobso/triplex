@@ -124,6 +124,13 @@ for (const name of ${JSON.stringify(Object.keys(manifest.exports).filter((key) =
   const cli = join(consumer, "node_modules/.bin/triplex");
   assert.ok(run(cli, ["--help"], consumer).includes("mcp"));
   assert.equal(run(cli, ["--version"], consumer).trim(), manifest.version);
+  // Library consumers need only Effect and the selected backend driver.
+  dependencies["@effect/sql-sqlite-node"] = "4.1.1";
+  write("package.json", JSON.stringify({ private: true, type: "module", dependencies }));
+  install();
+  write("smoke.mjs", readFileSync(join(root, "scripts/fixtures/package-smoke.mjs"), "utf8"));
+  run("node", ["smoke.mjs"], consumer);
+  console.log("PASS: SQLite/Datalog/derivation behavior with only Effect and the SQLite driver.");
   // Node services are optional peers used only for executable database commands.
   dependencies["@effect/platform-node"] = "4.1.1";
   dependencies["@effect/platform-node-shared"] = "4.1.1";
@@ -158,9 +165,7 @@ for (const name of ${JSON.stringify(Object.keys(manifest.exports).filter((key) =
     ],
     consumer,
   );
-  write("smoke.mjs", readFileSync(join(root, "scripts/fixtures/package-smoke.mjs"), "utf8"));
-  run("node", ["smoke.mjs"], consumer);
-  console.log("PASS: all subpath declarations and packaged SQLite/Datalog/derivation behavior.");
+  console.log("PASS: all subpath declarations compile in the clean consumer.");
   const described = JSON.parse(
     run(cli, ["--sqlite", join(consumer, "smoke.sqlite"), "describe"], consumer),
   );
