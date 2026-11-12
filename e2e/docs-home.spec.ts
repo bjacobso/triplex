@@ -28,20 +28,16 @@ for (const colorScheme of ["light", "dark"] as const) {
       page.getByRole("heading", { name: "Reading this as a coding agent?" }),
     ).toBeVisible();
 
-    // The stack map, journal table, and every step are rendered from verified scenario outputs.
-    const stack = page.locator(".stack-map");
-    await expect(stack.getByRole("link")).toHaveCount(6);
-    await expect(stack).toContainText(/\d+ lines from schema to REST API/);
-    const timeline = page.locator(".th-journal table");
-    await expect(timeline.locator("tbody tr")).toHaveCount(6);
-    await expect(timeline).toContainText("create:placement:maria-harbor");
+    // The six client steps render every region of the checked homepage program.
+    await expect(content).toContainText("npm install @triplex-build/triplex effect");
+    await expect(page.locator(".th-steps .th-step")).toHaveCount(6);
     const examples = page.locator('.th-steps .th-window div[class*="language-"]');
-    await expect(examples).toHaveCount(11);
+    await expect(examples).toHaveCount(7);
     for (const example of await examples.all()) {
       await expect(example).toBeVisible();
     }
-    await expect(content).toContainText('"trainedAsKnownThen": true');
-    await expect(content).toContainText('"governedBy": "hr-2026.1"');
+    await expect(content).toContainText("db.command");
+    await expect(content).toContainText("db.asOf");
     await expect(page.getByRole("tab")).toHaveCount(0);
 
     await expect(page).toHaveScreenshot(`home-${colorScheme}.png`, {
@@ -55,7 +51,7 @@ test("home examples remain visible on mobile without page overflow", async ({ pa
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   const examples = page.locator('.th-steps .th-window div[class*="language-"]');
-  await expect(examples).toHaveCount(11);
+  await expect(examples).toHaveCount(7);
   for (const example of await examples.all()) {
     await expect(example).toBeVisible();
   }
