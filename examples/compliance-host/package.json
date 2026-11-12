@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/demo.ts",
-    "test": "tsx src/demo.ts --verify",
+    "start": "node --import tsx src/demo.ts",
+    "test": "node --import tsx src/demo.ts --verify",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
