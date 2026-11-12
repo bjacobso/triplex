@@ -3628,3 +3628,11 @@ export { liveQueryCases } from "./liveQueryCases.js";
 export { whyConformance, whyTestLayer } from "./whyCases.js";
 export { assertionConformance } from "./assertionCases.js";
 export { whyReadBoundaryConformance } from "./whyReadBoundaryCases.js";
+
+export {
+  runnerWorldsCase,
+  runnerCases,
+  runnerConformance,
+  runnerPersistenceCase,
+  settleRunner,
+} from "./runnerCases.js";

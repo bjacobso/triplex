@@ -159,8 +159,8 @@ shims, deprecations or opt-in flags for old shapes.
   negation.
 - Structural derivations expose the earliest recorded future `validFrom` or `validTo` across their
   dependency attributes. Immutable materialization runs persist and content-bind that schedule,
-  including zero-candidate runs suppressed by negated evidence. A host scheduler can therefore
-  reopen expiry-driven projections without a daily full scan. Fixed attribute sets use backend
+  including zero-candidate runs suppressed by negated evidence. The [durable runner](/runner)
+  delivers diffs, retries handlers and replays expiry-driven transitions without a daily full scan. Fixed attribute sets use backend
   dependency indexes; dynamic-attribute definitions retain an explicit journal fallback.
 
 ## 4. Integrated Full-Text Search (FTS)

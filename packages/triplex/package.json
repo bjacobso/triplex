@@ -149,6 +149,11 @@
       "types": "./dist/testkit/postgres.d.ts",
       "import": "./dist/testkit/postgres.js",
       "default": "./dist/testkit/postgres.js"
+    },
+    "./runner": {
+      "types": "./dist/core/runner/index.d.ts",
+      "import": "./dist/core/runner/index.js",
+      "default": "./dist/core/runner/index.js"
     }
   },
   "publishConfig": {
