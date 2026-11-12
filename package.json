@@ -17,7 +17,7 @@
     "dev": "turbo watch build",
     "docs:build": "vitepress build docs && node scripts/check-llms.mjs",
     "docs:check": "node scripts/check-markdown-code.mjs && tsc --noEmit -p docs/snippets/tsconfig.json && vitest run docs/snippets/blog && pnpm docs:outputs --check",
-    "docs:outputs": "tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/home/site-safety/run.ts",
+    "docs:outputs": "node scripts/docs-outputs.mjs",
     "docs:deploy": "alchemy deploy --stage prod",
     "docs:dev": "vitepress dev docs",
     "docs:plan": "alchemy plan --stage prod",

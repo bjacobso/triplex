@@ -1,0 +1,107 @@
+{
+  "release": {
+    "label": "workers-v1",
+    "id": "sha256-501d1b0b"
+  },
+  "commands": [
+    {
+      "position": 2,
+      "actor": "user:dana",
+      "commandId": "hire:maria",
+      "changes": [
+        {
+          "op": "assert",
+          "fact": "f1",
+          "attribute": ":worker/name",
+          "value": "Maria",
+          "validFrom": "2026-03-02",
+          "validTo": null
+        },
+        {
+          "op": "assert",
+          "fact": "f2",
+          "attribute": ":worker/site",
+          "value": "harbor",
+          "validFrom": "2026-03-02",
+          "validTo": null
+        }
+      ]
+    },
+    {
+      "position": 3,
+      "actor": "user:dana",
+      "commandId": "move:maria",
+      "changes": [
+        {
+          "op": "retract",
+          "fact": "f2",
+          "attribute": ":worker/site",
+          "value": "harbor",
+          "validFrom": "2026-03-02",
+          "validTo": null
+        },
+        {
+          "op": "assert",
+          "fact": "f3",
+          "attribute": ":worker/site",
+          "value": "harbor",
+          "validFrom": "2026-03-02",
+          "validTo": "2026-06-01"
+        },
+        {
+          "op": "assert",
+          "fact": "f4",
+          "attribute": ":worker/site",
+          "value": "pier",
+          "validFrom": "2026-06-01",
+          "validTo": null
+        }
+      ]
+    },
+    {
+      "position": 4,
+      "actor": "user:sam",
+      "commandId": "fix:maria",
+      "changes": [
+        {
+          "op": "retract",
+          "fact": "f1",
+          "attribute": ":worker/name",
+          "value": "Maria",
+          "validFrom": "2026-03-02",
+          "validTo": null
+        },
+        {
+          "op": "assert",
+          "fact": "f5",
+          "attribute": ":worker/name",
+          "value": "Maria Rivera",
+          "validFrom": "2026-03-02",
+          "validTo": null
+        }
+      ]
+    }
+  ],
+  "knownThen": {
+    "name": "Maria",
+    "site": "harbor"
+  },
+  "now": {
+    "name": "Maria Rivera",
+    "site": "pier"
+  },
+  "why": [
+    {
+      "position": 3,
+      "actor": "user:dana",
+      "commandId": "move:maria",
+      "release": "workers-v1"
+    },
+    {
+      "position": 4,
+      "actor": "user:sam",
+      "commandId": "fix:maria",
+      "release": "workers-v1"
+    }
+  ]
+}

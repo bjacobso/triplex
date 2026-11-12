@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 for (const colorScheme of ["light", "dark"] as const) {
   test(`home page in ${colorScheme} theme`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme });
+    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
     await page.goto("/");
     await page.evaluate(() => document.fonts.ready);
 
@@ -58,23 +58,31 @@ test("home examples remain visible on mobile without page overflow", async ({ pa
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test("decision receipt preserves its rules while switching recorded knowledge", async ({
-  page,
-}) => {
+test("hero replays the checked program from model to time travel", async ({ page }) => {
   await page.goto("/");
-  const receipt = page.locator(".decision-trace");
-  const original = receipt.getByRole("button", { name: "At the decision", exact: true });
-  const corrected = receipt.getByRole("button", { name: "After the correction", exact: true });
-  await expect(original).toHaveAttribute("aria-pressed", "true");
-  await expect(receipt.locator(".decision-trace__result strong")).toHaveText("true");
-  await corrected.click();
-  await expect(corrected).toHaveAttribute("aria-pressed", "true");
-  await expect(original).toHaveAttribute("aria-pressed", "false");
-  await expect(receipt.locator(".decision-trace__result strong")).toHaveText("false");
-  await expect(receipt).toContainText("The corrected certificate starts March 5.");
-  await expect(receipt.locator(".decision-trace__fields")).toContainText("hr-2026.1");
-  await original.click();
-  await expect(receipt.locator(".decision-trace__result strong")).toHaveText("true");
+  const hero = page.locator(".hero-replay");
+  const step = (name: string) =>
+    hero.getByRole("group", { name: "Walkthrough steps" }).getByRole("button", { name });
+  // Autoplay starts at the model; the step buttons jump anywhere.
+  await expect(step("1 Model")).toHaveAttribute("aria-pressed", "true");
+  await expect(hero).toContainText(":worker/name");
+  await step("3 Move").click();
+  await expect(hero.locator("tbody tr")).toHaveCount(4);
+  await expect(hero).toContainText("Mar 2 – Jun 1");
+  await step("4 Correct").click();
+  await expect(hero.locator("tbody tr.is-retracted")).toHaveCount(2);
+  await expect(hero).toContainText("Maria Rivera");
+  await step("5 Ask").click();
+  await expect(hero).toContainText("what Dana knew");
+  await expect(hero).toContainText("site ← tx 3 · user:dana · workers-v1");
+});
+
+test("hero shows the full story without motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const hero = page.locator(".hero-replay");
+  await expect(hero.getByRole("button", { name: "5 Ask" })).toHaveAttribute("aria-pressed", "true");
+  await expect(hero.getByRole("button", { name: "Play the walkthrough" })).toBeVisible();
 });
 
 test("agent-readable documentation is served as plain text", async ({ request }) => {

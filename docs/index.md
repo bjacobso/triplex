@@ -28,7 +28,7 @@ pageClass: triplex-index
 <p class="th-hero__note">Effect 4 required · MIT licensed · In-memory and SQLite supported · PostgreSQL is a production candidate · <a href="/current-state">Current state</a></p>
 </div>
 <div class="th-hero__side">
-<DecisionTrace />
+<HeroReplay />
 </div>
 </header>
 

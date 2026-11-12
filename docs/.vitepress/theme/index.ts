@@ -8,7 +8,7 @@ import "./home.css";
 import "./blueprint.css";
 import Playground from "./Playground.vue";
 import TriplexExplorer from "./TriplexExplorer.vue";
-import DecisionTrace from "./DecisionTrace.vue";
+import HeroReplay from "./HeroReplay.vue";
 import StackMap from "./StackMap.vue";
 
 export default {
@@ -30,7 +30,7 @@ export default {
     },
   }),
   enhanceApp({ app }) {
-    app.component("DecisionTrace", DecisionTrace);
+    app.component("HeroReplay", HeroReplay);
     app.component("StackMap", StackMap);
     app.component("TriplexPlayground", Playground);
     app.component("TriplexExplorer", TriplexExplorer);

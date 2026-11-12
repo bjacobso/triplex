@@ -2,7 +2,15 @@
   "overrides": [
     {
       "files": ["docs/snippets/blog/remembers-why/0[2-5]/*.ts"],
-      "options": { "printWidth": 68 }
+      "options": {
+        "printWidth": 68
+      }
+    },
+    {
+      "files": ["docs/snippets/home/hero.ts"],
+      "options": {
+        "printWidth": 64
+      }
     }
   ]
 }
