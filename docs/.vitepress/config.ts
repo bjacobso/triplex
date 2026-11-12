@@ -1,9 +1,12 @@
+import { writeFile } from "node:fs/promises";
+
 import { resolve } from "node:path";
 
 import tailwindcss from "@tailwindcss/vite";
-import { type DefaultTheme, defineConfig } from "vitepress";
+import { type DefaultTheme, createContentLoader, defineConfig } from "vitepress";
 
 import { workspaceAliases } from "../../vitest.workspace-aliases.js";
+import { publishedPosts, renderFeed } from "./publishing.js";
 import { llmsDevServer, writeLlmsFiles } from "./llms.js";
 
 const srcDir = resolve(import.meta.dirname, "..");
@@ -101,10 +104,36 @@ export default defineConfig({
     "The database that remembers why: an embedded fact database for TypeScript back-office systems, built on Effect.",
   cleanUrls: true,
   // Snippet outputs are included into pages, never published as pages themselves.
-  srcExclude: ["snippets/**"],
+  srcExclude: ["snippets/**", "rfcs/**"],
+  sitemap: { hostname: "https://triplex.build" },
   lastUpdated: true,
   outDir: resolve(import.meta.dirname, "../../dist"),
-  buildEnd: (site) => writeLlmsFiles(srcDir, site.outDir, sidebar),
+  buildEnd: async (site) => {
+    await writeLlmsFiles(srcDir, site.outDir, sidebar);
+    const posts = publishedPosts(await createContentLoader("blog/**/*.md").load());
+    await writeFile(resolve(site.outDir, "feed.xml"), renderFeed(posts));
+    await writeFile(
+      resolve(site.outDir, "robots.txt"),
+      "User-agent: *\nAllow: /\nSitemap: https://triplex.build/sitemap.xml\n",
+    );
+  },
+  transformHead: ({ pageData }) => [
+    [
+      "meta",
+      { property: "og:title", content: pageData.title ? `${pageData.title} · Triplex` : "Triplex" },
+    ],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          pageData.description ||
+          "The database that remembers why: an embedded fact database for TypeScript back-office systems, built on Effect.",
+      },
+    ],
+    ["meta", { property: "og:image", content: "https://triplex.build/share.png" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+  ],
   vite: {
     plugins: [tailwindcss(), llmsDevServer(srcDir, sidebar)],
     resolve: { alias: workspaceAliases() },
@@ -114,6 +143,10 @@ export default defineConfig({
     ["meta", { name: "theme-color", content: "#faf8f3" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:site_name", content: "Triplex" }],
+    [
+      "link",
+      { rel: "alternate", type: "application/atom+xml", href: "/feed.xml", title: "Triplex blog" },
+    ],
     // Machine-readable entry points for coding agents: https://llmstxt.org
     ["link", { rel: "alternate", type: "text/plain", href: "/llms.txt", title: "llms.txt" }],
     [
@@ -129,6 +162,7 @@ export default defineConfig({
     logo: { light: "/triplex-mark.svg", dark: "/triplex-mark-dark.svg", alt: "Triplex" },
     siteTitle: "triplex",
     nav: [
+      { text: "Database client", link: "/database" },
       {
         text: "Learn",
         items: [

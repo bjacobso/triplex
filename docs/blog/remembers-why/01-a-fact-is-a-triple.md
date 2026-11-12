@@ -1,4 +1,6 @@
 ---
+date: "2026-11-08"
+series: remembers-why
 title: A fact is a triple
 description: Part 1 of The Database That Remembers Why. Build a Map-backed fact store with Effect, query by pattern, and watch an update destroy evidence.
 prev:
@@ -11,7 +13,7 @@ next:
 
 # A fact is a triple
 
-Part 01 of [The Database That Remembers Why](./) · Act I, Facts · November 8, 2026
+Part 01 of [The Database That Remembers Why](./) · Act I, Facts
 
 <<< @/snippets/blog/remembers-why/01/story.ts#first-fact
 

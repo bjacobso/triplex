@@ -1,4 +1,6 @@
 ---
+date: "2026-11-08"
+series: remembers-why
 title: Two clocks, two questions
 description: Part 3 of The Database That Remembers Why. Ask whether Maria was trained on March 2, as known then and as known now, with independent valid and recorded times.
 prev:
@@ -11,7 +13,7 @@ next:
 
 # Two clocks, two questions
 
-Part 03 of [The Database That Remembers Why](./) · Act I, Facts · November 8, 2026
+Part 03 of [The Database That Remembers Why](./) · Act I, Facts
 
 <<< @/snippets/blog/remembers-why/03/run.ts#run
 

@@ -142,7 +142,11 @@ const firstParagraph = (markdown: string) => {
 const loadPages = async (srcDir: string): Promise<Page[]> => {
   const files = (await readdir(srcDir, { recursive: true }))
     .filter(
-      (file) => file.endsWith(".md") && !file.startsWith("snippets/") && !file.startsWith("."),
+      (file) =>
+        file.endsWith(".md") &&
+        !file.startsWith("snippets/") &&
+        !file.startsWith("rfcs/") &&
+        !file.startsWith("."),
     )
     .sort();
   return Promise.all(

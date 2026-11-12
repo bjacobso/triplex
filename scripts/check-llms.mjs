@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,3 +47,54 @@ for (const [, href] of index.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
 }
 assert.ok(localLinks > 0, "llms.txt must link to local documentation");
 console.log(`Verified llms.txt structure and ${localLinks} local documentation links.`);
+
+// Verify actual generated artifacts, rather than accepting a host's HTML fallback.
+const feed = await readFile(resolve(outDir, "feed.xml"), "utf8");
+assert.match(feed, /<feed xmlns="http:\/\/www.w3.org\/2005\/Atom">/);
+const sourcePosts = (await readdir(resolve(outDir, "blog"), { recursive: true })).filter(
+  (file) => file.endsWith(".html") && !file.endsWith("index.html"),
+);
+assert.equal((feed.match(/<entry>/g) ?? []).length, sourcePosts.length, "Feed needs every post");
+assert.ok(sourcePosts.length > 0, "Feed must not be empty");
+for (const file of sourcePosts) {
+  const html = await readFile(resolve(outDir, "blog", file), "utf8");
+  assert.match(
+    html,
+    /<time\b[^>]*datetime="\d{4}-\d{2}-\d{2}"/,
+    `${file}: visible publication date`,
+  );
+}
+for (const file of ["blog/index.html", "blog/remembers-why/index.html"]) {
+  const html = await readFile(resolve(outDir, file), "utf8");
+  assert.match(html, /class="blog-posts"/, `${file}: server-rendered post list`);
+  assert.match(html, /<time\b[^>]*datetime="\d{4}-\d{2}-\d{2}"/, `${file}: generated dates`);
+}
+
+assert.doesNotMatch(feed, /href="\//, "Feed URLs must be absolute");
+const sitemap = await readFile(resolve(outDir, "sitemap.xml"), "utf8");
+assert.match(sitemap, /<urlset\b/);
+assert.match(sitemap, /<loc>https:\/\/triplex.build\//);
+assert.doesNotMatch(sitemap, /\/rfcs\//);
+const robots = await readFile(resolve(outDir, "robots.txt"), "utf8");
+assert.match(robots, /^Sitemap: https:\/\/triplex.build\/sitemap.xml$/m);
+const png = await readFile(resolve(outDir, "share.png"));
+assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", "Share image must be PNG");
+assert.equal(png.readUInt32BE(16), 1200);
+assert.equal(png.readUInt32BE(20), 630);
+const files = await readdir(outDir, { recursive: true });
+assert.ok(!files.some((file) => file.startsWith("rfcs/")), "RFCs must not be published");
+assert.doesNotMatch(index, /https:\/\/triplex.build\/rfcs\//);
+const full = await readFile(resolve(outDir, "llms-full.txt"), "utf8");
+assert.doesNotMatch(full, /<!-- Source: https:\/\/triplex.build\/rfcs\//);
+for (const file of files.filter((file) => file.endsWith(".html"))) {
+  const html = await readFile(resolve(outDir, file), "utf8");
+  for (const property of ["og:title", "og:description", "og:image"]) {
+    assert.match(
+      html,
+      new RegExp(`<meta property="${property}" content="[^"]+"`),
+      `${file}: ${property}`,
+    );
+  }
+  assert.match(html, /<meta name="twitter:card" content="summary_large_image"/, file);
+}
+console.log("Verified feed, sitemap, robots, share image, social metadata and RFC exclusion.");

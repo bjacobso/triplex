@@ -1,4 +1,6 @@
 ---
+date: "2026-11-08"
+series: remembers-why
 title: A shape is not an invariant
 description: Part 5 of The Database That Remembers Why. Decode facts with Effect Schema, then check entity shape, uniqueness, and temporal boundaries before a transaction commits.
 prev:
@@ -9,7 +11,7 @@ next: false
 
 # A shape is not an invariant
 
-Part 05 of [The Database That Remembers Why](./) · Act II, Rules · November 8, 2026
+Part 05 of [The Database That Remembers Why](./) · Act II, Rules
 
 <<< @/snippets/blog/remembers-why/05/run.ts#run
 

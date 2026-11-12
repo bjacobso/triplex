@@ -6,6 +6,7 @@ import { defineComponent, h } from "vue";
 import "./custom.css";
 import "./home.css";
 import "./blueprint.css";
+import BlogPosts from "./BlogPosts.vue";
 import Playground from "./Playground.vue";
 import TriplexExplorer from "./TriplexExplorer.vue";
 import DecisionTrace from "./DecisionTrace.vue";
@@ -18,6 +19,12 @@ export default {
       const { frontmatter } = useData();
       return () =>
         h(DefaultTheme.Layout, null, {
+          "doc-before": () =>
+            frontmatter.value.date
+              ? h("p", { class: "post-date" }, [
+                  h("time", { datetime: frontmatter.value.date }, frontmatter.value.date),
+                ])
+              : null,
           "layout-top": () =>
             frontmatter.value.pageClass === "triplex-index"
               ? h("p", { class: "worldvm-banner" }, [
@@ -30,6 +37,7 @@ export default {
     },
   }),
   enhanceApp({ app }) {
+    app.component("BlogPosts", BlogPosts);
     app.component("DecisionTrace", DecisionTrace);
     app.component("StackMap", StackMap);
     app.component("TriplexPlayground", Playground);

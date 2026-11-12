@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#faf8f3"/>
+  <path d="M72 72H1128M72 558H1128" stroke="#e4dfd2" stroke-width="2"/>
+  <g fill="#1f5fd1">
+    <circle cx="84" cy="122" r="10"/>
+    <circle cx="116" cy="122" r="10"/>
+    <circle cx="148" cy="122" r="10"/>
+  </g>
+  <g font-family="sans-serif" fill="#1d2621">
+    <text x="72" y="240" font-size="32" letter-spacing="4">TRIPLEX</text>
+    <text x="72" y="335" font-size="64" font-weight="700">The database that</text>
+    <text x="72" y="412" font-size="64" font-weight="700">remembers why.</text>
+    <text x="72" y="510" font-size="26" fill="#4d5750">Facts change. Rules change. Your record of what happened shouldn't.</text>
+  </g>
+</svg>

@@ -18,7 +18,7 @@ Facts change. Rules change. The record of what happened shouldn't.
 
 This twelve-part build-in-public series starts with a Map and ends with a
 small compliance host. Each installment adds one missing piece, then asks a
-question that version cannot answer. Parts 1–5 are published; Parts 6–12
+question that version cannot answer. The published installments appear below; the remaining parts
 are coming. [Start with a fact](./01-a-fact-is-a-triple), or continue with
 [Part 5](./05-a-shape-is-not-an-invariant).
 
@@ -38,43 +38,11 @@ The bet here is that history, time, and rule identity belong in the data
 model—not in a retrospective logging project. We will earn that design one
 failure at a time, rather than begin with a finished database's vocabulary.
 
-## Act I · Facts
+## Published installments
 
-Give a statement an identity, a history, two clocks, and an author.
+<BlogPosts series="remembers-why" />
 
-### 01 · [A fact is a triple](./01-a-fact-is-a-triple)
-
-**Published.** Entity, attribute, value. Store facts in a Map, query by
-pattern, and watch a correction erase the evidence it replaced.
-
-### 02 · [Nothing is overwritten](./02-nothing-is-overwritten)
-
-**Published.** Assertions, retractions, and an atomic transaction log. Preserve
-the earlier statement without pretending it is still the current answer.
-
-### 03 · [Two clocks, two questions](./03-two-clocks-two-questions)
-
-**Published.** Valid time and recorded time. Ask “was Maria trained on March 2?”
-as known then and as known now. A late correction changes one answer, not
-the record of the earlier belief.
-
-### 04 · [Someone did this](./04-someone-did-this)
-
-**Published.** Commands, actors, idempotent command IDs, receipts, and the
-journal. Record who acted and the rule context supplied with the command;
-Part 6 will give those rules immutable release identities. A retry must not
-become a second business event. Attribution records a claim about an actor;
-authentication stays with the host.
-
-## Act II · Rules
-
-Give facts a checked shape, give rules an identity, and make work queryable.
-
-### 05 · [A shape is not an invariant](./05-a-shape-is-not-an-invariant)
-
-**Published.** Attributes and entity types described with Effect Schema.
-Decode values at the boundary; enforce cross-fact constraints inside the
-transaction, where a concurrent writer cannot invalidate the check.
+## Coming next
 
 ### 06 · Rules are releases
 
@@ -121,7 +89,7 @@ are incomplete instead of manufacturing certainty.
 [compliance host](https://github.com/bjacobso/triplex/tree/main/examples/compliance-host).
 Show the real Triplex implementation alongside the teaching model, and
 where [WorldVM](https://worldvm.com/) and
-[Forma](https://github.com/bjacobso/forma) pick up execution and policy-language
+[Forma](https://forma-lang.com) pick up execution and policy-language
 concerns. They are related projects, not hidden prerequisites.
 
 ## How this relates to Triplex

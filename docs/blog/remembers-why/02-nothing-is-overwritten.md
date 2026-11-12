@@ -1,4 +1,6 @@
 ---
+date: "2026-11-08"
+series: remembers-why
 title: Nothing is overwritten
 description: Part 2 of The Database That Remembers Why. Correct a fact without deleting the evidence, using assertions, retractions, and an atomic transaction log.
 prev:
@@ -11,7 +13,7 @@ next:
 
 # Nothing is overwritten
 
-Part 02 of [The Database That Remembers Why](./) · Act I, Facts · November 8, 2026
+Part 02 of [The Database That Remembers Why](./) · Act I, Facts
 
 <<< @/snippets/blog/remembers-why/02/run.ts#run
 

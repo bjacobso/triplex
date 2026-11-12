@@ -1,4 +1,6 @@
 ---
+date: "2026-11-08"
+series: remembers-why
 title: Someone did this
 description: Part 4 of The Database That Remembers Why. Commit a command, actor, rule context, facts, and receipt together so a retry cannot become another business event.
 prev:
@@ -11,7 +13,7 @@ next:
 
 # Someone did this
 
-Part 04 of [The Database That Remembers Why](./) · Act I, Facts · November 8, 2026
+Part 04 of [The Database That Remembers Why](./) · Act I, Facts
 
 <<< @/snippets/blog/remembers-why/04/run.ts#run
 
