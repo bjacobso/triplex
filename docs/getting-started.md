@@ -4,8 +4,8 @@ Start with the [Database client](/database) from `@triplex-build/triplex/databas
 declares entity types, publishes a release, opens the client, and runs one command, a typed read,
 a Schema-projected query and a historical read.
 
-::: warning Pre-1.0 packages
-The `@triplex-build` packages are available from npm and require `effect@4.1.1`.
+::: warning Pre-1.0 package
+The `@triplex-build/triplex` package is available from npm and requires `effect@4.1.1`.
 Effect 3 is incompatible. Do not use the superseded `@bjacobso` package names for new work.
 :::
 
@@ -64,6 +64,10 @@ It prints:
 6. `db.asOf` captures a stable read-only view. The receipt's exact position selects what was
    known at that command; `validAt` selects business time.
 
+Use the [`Why` service](/why) at the same basis to explain actors, commands, and pinned
+releases. The [homepage example](https://github.com/bjacobso/triplex/blob/main/docs/snippets/home/client.ts)
+demonstrates a correction followed by a historical read and its explanation.
+
 `Effect.gen` sequences Effects with generator syntax. `Effect.provide` supplies services and
 `Effect.runPromise` runs the fully provided program. Publishing precedes client acquisition and
 both share one `Store`. Real hosts generally publish during deployment.
@@ -106,33 +110,29 @@ the explicit composition in [Host integration](/host-integration).
 
 ## Use Triplex from a source checkout
 
-To try unreleased changes from a checkout in a project outside the repository workspace, build the
-packages and link their built output. Package exports point to generated `dist` files, so an
-unbuilt checkout cannot be imported. Build the packages you need and their dependencies:
+To try unreleased changes in an outside project, build and pack the single public package from
+`main`. Its exports point to generated files, so build before packing:
 
 ```sh
 cd triplex
 pnpm install --frozen-lockfile
 pnpm turbo run build --filter=@triplex-build/triplex
+pnpm --dir packages/triplex pack --pack-destination /tmp
 ```
 
-Then link them into your project. Link Effect from the copy core resolves too, so your code and
-Triplex share one Effect instance; two copies make service tags disagree:
+Install the resulting tarball in your project alongside Effect (and the SQLite driver if needed):
 
 ```sh
 cd ../my-project
-mkdir -p node_modules/@triplex-build
-ln -sfn "$PWD/../triplex/packages/core" node_modules/@triplex-build/triplex
-ln -sfn "$PWD/../triplex/packages/sqlite" node_modules/@triplex-build/triplex/sqlite
-ln -sfn "$PWD/../triplex/packages/core/node_modules/effect" node_modules/effect
+npm install /tmp/triplex-build-triplex-*.tgz effect @effect/sql-sqlite-node
 ```
 
-Rebuild after changing the checkout. For a copy that installs like the published packages, run
-`pnpm pack` in each package directory and install the tarballs with `effect@4.1.1` instead.
+Rebuild and pack again after changing the checkout. One tarball contains all public subpaths;
+there are no separate backend packages to link or install.
 
-Don't use `docs/snippets/tsconfig.json` for an outside project. It maps the package names to
-`packages/*/src` so the documentation can type-check against unbuilt sources, which bypasses the
-public exports your application will use.
+Don't use `docs/snippets/tsconfig.json` for an outside project. It maps package names to source
+so repository examples can type-check unbuilt changes, bypassing the public exports your
+application will use.
 
 ## Next steps
 

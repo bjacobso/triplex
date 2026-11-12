@@ -8,7 +8,7 @@
 # Triplex
 
 > [!WARNING]
-> Triplex is pre-1.0. The published `@triplex-build` packages require `effect@4.1.1`;
+> Triplex is pre-1.0. The published `@triplex-build/triplex` package requires `effect@4.1.1`;
 > Effect 3 is not compatible. KV
 > and SQLite are the supported baseline, PostgreSQL is a production candidate, and Cloudflare and
 > FoundationDB are experimental. See [Current state](docs/current-state.md) for the exact maturity
@@ -29,6 +29,24 @@ Triplex stores what is true, what was true, which versioned rules governed each 
 work the data implies. One store answers "what does this record look like today", "what did we
 believe last Tuesday", "who changed it and under which policy", and "what tasks should exist right
 now", without stitching together a database, an audit log, a config service, and a job queue.
+
+## Start here
+
+Use the [Database client](https://triplex.build/database) for application commands and typed
+reads. Declare your schema, publish a release, then use `db.command` with an actor and stable
+command ID. It pins and enforces the release and returns a persisted receipt; retries return the
+same receipt. Read with `db.get` and `db.query`, capture historical views with `db.asOf`, and
+explain their facts with [`why`](https://triplex.build/why).
+
+```sh
+npm install @triplex-build/triplex effect
+```
+
+For SQLite, add `@effect/sql-sqlite-node` and import the backend from
+`@triplex-build/triplex/sqlite`. Start with the
+[checked client quickstart](https://triplex.build/getting-started), then follow the
+[modeling guide](https://triplex.build/agents) to map your domain to commands, temporal changes,
+and derived work. The [documentation](https://triplex.build) covers the complete API.
 
 ## Why Triplex?
 
@@ -72,7 +90,7 @@ and never ask about history or provenance. Triplex is a system of record, not a 
 
 ## Installation and evaluation
 
-Install the core package and its Effect peer dependency from npm:
+Install the single package and its Effect peer dependency from npm:
 
 ```sh
 npm install @triplex-build/triplex effect
@@ -85,7 +103,7 @@ git clone https://github.com/bjacobso/triplex.git
 cd triplex
 corepack enable
 pnpm install --frozen-lockfile
-pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/getting-started.ts
+pnpm exec tsx --tsconfig docs/snippets/tsconfig.json docs/snippets/client-getting-started.ts
 ```
 
 Do not use the superseded `@bjacobso` canaries for new work. Triplex is ESM-only, targets Node.js
@@ -96,8 +114,9 @@ in [Releasing Triplex](docs/releasing.md).
 
 ## Quick start
 
-`Triples` is the primary service. The core package includes an in-memory ordered-KV layer, so the
-same program can write facts, read patterns, and run Datalog without another package:
+`Triples` is the primitive service beneath the Database client, useful for host infrastructure
+and migrations. The package includes an in-memory ordered-KV layer, so this lower-level program
+can write facts, read patterns, and run Datalog:
 
 ```ts check
 import { Effect } from "effect";

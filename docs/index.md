@@ -15,16 +15,14 @@ pageClass: triplex-index
 <p class="th-eyebrow">Triplex <span>· embedded fact database · pre-1.0</span></p>
 <h1 id="hero-title">The database that remembers why.</h1>
 <p class="th-sub">Facts change. Rules change. Your record of what happened shouldn’t.</p>
-<p class="th-lead">Triplex keeps facts, time, and versioned rules together in your TypeScript process. Every write records <strong>who acted</strong>, <strong>which rules applied</strong>, and <strong>when it was true</strong>. Audit questions and open work become queries instead of investigations.</p>
+<p class="th-lead">Triplex is a bitemporal fact database that keeps facts, time, and versioned rules together in your TypeScript process. Every write records <strong>who acted</strong>, <strong>which rules applied</strong>, and <strong>when it was true</strong>. Audit questions and open work become queries instead of investigations.</p>
 <div class="th-actions">
 <a class="th-button th-button--primary" href="/getting-started">Get started</a>
 <a class="th-button" href="#one-scenario">See the whole stack ↓</a>
 </div>
 <div class="th-install">
 
-```sh
-npm install @triplex-build/triplex effect
-```
+<div class="language-sh vp-adaptive-theme"><pre><code>npm install @triplex-build/triplex effect</code></pre></div>
 
 </div>
 <p class="th-hero__note">Effect 4 required · MIT licensed · In-memory and SQLite supported · PostgreSQL is a production candidate · <a href="/current-state">Current state</a></p>
@@ -67,7 +65,7 @@ npm install @triplex-build/triplex effect
 <dl class="th-primitives">
 <div><dt>t₁ / t₂</dt><dd><a href="#what-did-we-know">Two clocks.</a> What was true, and what you knew when.</dd></div>
 <div><dt>#</dt><dd><a href="#which-rules">Pinned rules.</a> The release behind every decision.</dd></div>
-<div><dt>=&gt;</dt><dd><a href="#what-happens-next">Derived work.</a> What should happen next.</dd></div>
+<div><dt>=&gt;</dt><dd><a href="#work-is-a-query">Derived work.</a> What should happen next.</dd></div>
 </dl>
 </div>
 </section>
@@ -75,16 +73,12 @@ npm install @triplex-build/triplex effect
 <section class="th-row" aria-labelledby="one-scenario">
 <div class="th-row__head">
 <p class="th-row__num">02</p>
-<h2 id="one-scenario">From schema to REST API in one file.</h2>
+<h2 id="one-scenario">From schema to an answer you can explain.</h2>
 </div>
 <div class="th-row__body">
-<p>Model, versioned rules, a command, an audit, open work, storage, and HTTP. Each step below is the next region of the <a href="https://github.com/bjacobso/triplex/blob/main/docs/snippets/home/site-safety/app.ts">same file</a>, in order. Every block is type-checked, and CI runs the file to produce every output on this page.</p>
-<p class="th-story"><strong>The story.</strong> Maria is trained for Harbor from March 1 to June 1 and placed there on March 2 under release <code>hr-2026.1</code>. The rules then change: <code>hr-2026.2</code> requires a supervisor. Later, an auditor finds that the certificate actually began on March 5.</p>
-</div>
-<div class="th-row__wide">
-
-<StackMap />
-
+<p>Start with the <a href="/database">Database client</a>: declare a schema, publish it, and handle each action as one command. Every TypeScript block below comes from the <a href="https://github.com/bjacobso/triplex/blob/main/docs/snippets/home/client.ts">same checked, executable file</a>. CI runs it to verify receipts, typed reads, historical state, and attribution.</p>
+<p class="th-story"><strong>The story.</strong> Dana records Maria under release <code>workers-v1</code>. An auditor later corrects her name. Today’s read shows the correction; a view at Dana’s receipt still shows what Dana recorded, with the actor and rules that explain it.</p>
+<p>For durable SQLite, add <code>@effect/sql-sqlite-node</code> to the install line. Follow <a href="/getting-started">Getting started</a> for a complete first program.</p>
 </div>
 </section>
 
@@ -94,14 +88,13 @@ npm install @triplex-build/triplex effect
 <div class="th-step__head">
 <p class="th-step__num">Step 01 <span>· Model</span></p>
 <h3 id="model">Declare the domain once.</h3>
-<p>Attributes are global, typed facts. Entity types say how each one is used: required, cardinality, and references.</p>
-<p>Changing the rules means a new version of the type, not a migration. Old facts stay valid under the release that accepted them.</p>
+<p>Attributes own global keys and value types. Entity types declare aliases, required fields, cardinality, and reference targets. The same declarations drive command inputs and typed reads.</p>
 <a class="th-more" href="/configuration#ontology-dsl">Typed configuration →</a>
 </div>
 <div class="th-window">
-<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>app.ts</span><span>model</span></div>
+<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>client.ts</span><span>model</span></div>
 
-<<< @/snippets/home/site-safety/app.ts#model
+<<< @/snippets/home/client.ts#model
 
 </div>
 </article>
@@ -110,13 +103,13 @@ npm install @triplex-build/triplex effect
 <div class="th-step__head">
 <p class="th-step__num">Step 02 <span>· Rules</span></p>
 <h3 id="which-rules">Publish the rules as a release.</h3>
-<p>A release is immutable and content-addressed. The story publishes <code>hr-2026.1</code> with <code>Placement</code>, then <code>hr-2026.2</code> with <code>PlacementV2</code>. Each time, <code>live</code> moves and every earlier release stays exactly as it was.</p>
+<p>The host publishes an immutable, content-addressed release before acquiring the client. <code>Database.layer</code> checks the model against <code>live</code>; every new command pins and enforces the release it admits.</p>
 <a class="th-more" href="/configuration-versioning">Releases, refs, and rollback →</a>
 </div>
 <div class="th-window">
-<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>app.ts</span><span>release</span></div>
+<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>client.ts</span><span>release</span></div>
 
-<<< @/snippets/home/site-safety/app.ts#release
+<<< @/snippets/home/client.ts#release
 
 </div>
 </article>
@@ -125,95 +118,62 @@ npm install @triplex-build/triplex effect
 <div class="th-step__head">
 <p class="th-step__num">Step 03 <span>· Command</span></p>
 <h3 id="record-a-command">One command, one atomic transaction.</h3>
-<p><code>Placement.assert</code> turns typed attribute values into facts. Dana’s placement records who acted, a command ID that makes retries safe, and, through <code>GraphConstraint.pinned</code>, the release whose constraints were checked in the same transaction.</p>
-<p>Under <code>hr-2026.2</code>, the same command is rejected. It writes no facts, no receipt, and no journal entry.</p>
-<a class="th-more" href="/operational-primitives">Transactions and the journal →</a>
+<p><code>db.command</code> returns a persisted receipt with actor, command ID, release, and commit position. The builder’s <code>tx.create</code> encodes typed values and checks that the entity is new. Retrying the same command ID returns the original receipt.</p>
+<a class="th-more" href="/database#build-one-command">Commands and receipts →</a>
 </div>
 <div class="th-window">
-<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>app.ts</span><span>command</span></div>
+<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>client.ts</span><span>command</span></div>
 
-<<< @/snippets/home/site-safety/app.ts#command
-
-<div class="th-window__bar th-window__bar--run"><span>The same command under <code>hr-2026.2</code></span><span>rejected</span></div>
-
-<<< @/snippets/home/site-safety/output/rejected.json
+<<< @/snippets/home/client.ts#command
 
 </div>
 </article>
 
-<div class="th-journal">
+<article class="th-step" aria-labelledby="read">
 <div class="th-step__head">
-<p class="th-step__num">Journal</p>
-<h3 id="journal">After the whole story, the journal reads:</h3>
+<p class="th-step__num">Step 04 <span>· Read</span></p>
+<h3 id="read">Read through your schema.</h3>
+<p><code>db.get</code> returns alias-keyed values or <code>null</code>. <code>db.list</code> returns a bounded page and a cursor. For joins, <code>db.query</code> checks attributes against the release and decodes each binding with an Effect Schema projection.</p>
+<a class="th-more" href="/database#typed-reads-and-bounded-queries">Typed reads and queries →</a>
 </div>
-<div class="th-table th-table--mono">
+<div class="th-window">
+<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>client.ts</span><span>read</span></div>
 
-<!--@include: ./snippets/home/site-safety/output/timeline.md-->
+<<< @/snippets/home/client.ts#read
 
 </div>
-<p>Nothing is overwritten. The auditor’s correction at position 6 retracts the old belief and asserts the new one, and the journal keeps both. The rest of the story is in <a href="https://github.com/bjacobso/triplex/blob/main/docs/snippets/home/site-safety/story.ts">story.ts</a>.</p>
-</div>
+</article>
 
 <article class="th-step" aria-labelledby="what-did-we-know">
 <div class="th-step__head">
-<p class="th-step__num">Step 04 <span>· Audit</span></p>
-<h3 id="what-did-we-know">Ask what you knew, and under which rules.</h3>
-<p><code>validAt</code> is the day in question. <code>recordedAt</code> is the instant of Dana’s receipt. At that instant, the record said Maria was trained. After the correction, it says she was not.</p>
-<p>Both answers can be proven, and the receipt still points at <code>hr-2026.1</code> even though <code>live</code> has moved.</p>
+<p class="th-step__num">Step 05 <span>· Audit</span></p>
+<h3 id="what-did-we-know">Keep the correction and the original belief.</h3>
+<p><code>tx.correct</code> replaces a fact over its original valid interval and keeps the recorded history. <code>db.asOf</code> at the receipt’s exact position returns a stable, read-only view: what was known then, for the business date in question.</p>
 <a class="th-more" href="/concepts#recorded-time-and-valid-time">Recorded time and valid time →</a>
 </div>
 <div class="th-window">
-<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>app.ts</span><span>ask</span></div>
+<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>client.ts</span><span>audit</span></div>
 
-<<< @/snippets/home/site-safety/app.ts#ask
-
-<div class="th-window__bar th-window__bar--run"><span>Output</span><span>audit.json</span></div>
-
-<<< @/snippets/home/site-safety/output/audit.json
-
-</div>
-</article>
-
-<article class="th-step" aria-labelledby="what-happens-next">
-<div class="th-step__head">
-<p class="th-step__num">Step 05 <span>· Open work</span></p>
-<h3 id="what-happens-next">Derive what needs to happen.</h3>
-<p>The obligation is a Datalog query, not a queue. On March 3, the corrected record exposes a gap. On April 1, nothing is open. On June 1, the training expires and the task reopens, even though nobody wrote anything.</p>
-<p><code>recheckAt</code> comes from <code>nextTemporalBoundary</code>. Schedule a wake-up for it instead of polling.</p>
-<a class="th-more" href="/derivations">Derivations and reconciliation →</a>
-</div>
-<div class="th-window">
-<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>app.ts</span><span>derive</span></div>
-
-<<< @/snippets/home/site-safety/app.ts#derive
-
-<div class="th-window__bar th-window__bar--run"><span>Evaluated on March 3, April 1, and June 1</span><span>open-work.json</span></div>
-
-<<< @/snippets/home/site-safety/output/open-work.json
+<<< @/snippets/home/client.ts#audit
 
 </div>
 </article>
 
 <article class="th-step" aria-labelledby="runtime">
 <div class="th-step__head">
-<p class="th-step__num">Step 06 <span>· Storage + HTTP</span></p>
-<h3 id="runtime">Pick a store. Get an API.</h3>
-<p>Storage is a layer. The same program runs in memory for tests and the browser, on SQLite, or on PostgreSQL.</p>
-<p><code>EntityHttp</code> serves the <code>live</code> release as REST routes with OpenAPI docs. Every read accepts both clocks, so the audit question works over HTTP too.</p>
-<a class="th-more" href="/http-api">Configuration-derived HTTP API →</a>
+<p class="th-step__num">Step 06 <span>· Explain + run</span></p>
+<h3 id="runtime">Ask why, at the same cut.</h3>
+<p>The <code>Why</code> service explains the visible facts, their asserting transactions, actors, and pinned releases. Pass the historical view’s basis so the explanation and typed read agree. Compose the client and explanation services over one shared store.</p>
+<a class="th-more" href="/why">Explain a fact with why →</a>
 </div>
 <div class="th-window">
-<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>app.ts</span><span>run</span></div>
+<div class="th-window__bar"><span class="th-window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>client.ts</span><span>why</span></div>
 
-<<< @/snippets/home/site-safety/app.ts#run
+<<< @/snippets/home/client.ts#why
 
-<div class="th-window__bar th-window__bar--run"><span>Launch it</span><span>serve.ts</span></div>
+<div class="th-window__bar th-window__bar--run"><span>One store for the application lifetime</span><span>run</span></div>
 
-<<< @/snippets/home/site-safety/serve.ts
-
-<div class="th-window__bar th-window__bar--run"><span><code>GET /api/rest/latest/workers/worker:maria?validAt=…</code>, with and without <code>recordedAt</code></span><span>http.json</span></div>
-
-<<< @/snippets/home/site-safety/output/http.json
+<<< @/snippets/home/client.ts#run
 
 </div>
 </article>
@@ -253,7 +213,7 @@ npm install @triplex-build/triplex effect
 <section class="th-row" aria-labelledby="modeling">
 <div class="th-row__head">
 <p class="th-row__num">04</p>
-<h2 id="modeling">From a back-office domain to Triplex primitives.</h2>
+<h2 id="modeling">From a back-office domain to client commands.</h2>
 </div>
 <div class="th-row__body">
 <p>Most back-office systems are built from the same parts. This is where each part goes, and where it shows up in Maria’s story.</p>
@@ -262,17 +222,18 @@ npm install @triplex-build/triplex effect
 <div class="th-row__wide">
 <div class="th-table">
 
-| In your domain                          | In Triplex                                                             | In the scenario                  |
-| --------------------------------------- | ---------------------------------------------------------------------- | -------------------------------- |
-| Things: workers, sites, cases, accounts | Stable `EntityId`s and an `EntityType` per kind                        | `worker:maria`, `Worker`         |
-| Properties and relationships            | Global `Attribute` keys, with `Attribute.ref` for relationships        | `:placement/site`                |
-| Schemas, policies, forms                | Config nodes committed as an immutable release, pointed to by `live`   | `hr-2026.1`, `hr-2026.2`         |
-| User and system actions                 | One `transact` per command with `actor`, `commandId`, `configSnapshot` | `create:placement:maria-harbor`  |
-| Evidence that starts or expires         | `validFrom` and `validTo` on the assertion                             | Training valid March 1 to June 1 |
-| Corrections                             | Retract and assert in one transaction; history is kept                 | The auditor’s fix                |
-| Obligations and to-dos                  | A `Derivation` whose candidates you reconcile                          | `task.site-safety-training`      |
-| Tickets, notifications, SLAs            | Your code, driven by reconciliation diffs and wake-up boundaries       | Host-owned                       |
-| Audit questions                         | A temporal basis, command receipts, and the journal                    | Step 04, Audit                   |
+| In your domain                          | In Triplex                                                      | In the example or guide                                       |
+| --------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- |
+| Things: workers, sites, cases, accounts | Declare an `EntityType`; create with `tx.create`                | `Worker`, `worker:maria`                                      |
+| Properties and relationships            | Typed `Attribute` keys and `Attribute.ref`                      | `:worker/name`                                                |
+| Schemas, policies, forms                | Publish a release; acquire `Database.layer`                     | `workers-v1`                                                  |
+| User and system actions                 | One `db.command` per action, with actor and stable command ID   | Dana’s create command and receipt                             |
+| Evidence that starts or expires         | `validFrom` and `validTo` on builder writes                     | Maria’s facts start on March 2                                |
+| Corrections and changes from a date     | `tx.correct`, `tx.replace`, or `tx.end` inside a command        | The auditor’s name correction                                 |
+| Current state and lists                 | `db.get`, `db.list`, and Schema-projected `db.query`            | Step 04, Read                                                 |
+| Audit questions                         | `db.asOf`, `db.receipt`, `db.history`, and `why.why`            | Steps 05–06                                                   |
+| Obligations and to-dos                  | A `Derivation` over `Triples`, with an explicit release         | [Modeling guide](/agents#_4-model-obligations-as-derivations) |
+| Tickets, notifications, SLAs            | Host code driven by reconciliation diffs and wake-up boundaries | [Host integration](/host-integration)                         |
 
 </div>
 </div>
@@ -290,8 +251,8 @@ npm install @triplex-build/triplex effect
 <li><span><strong>In-memory KV</strong><small><code>@triplex-build/triplex</code> · tests, browser, edge</small></span><em class="is-supported">Supported</em></li>
 <li><span><strong>SQLite</strong><small><code>@triplex-build/triplex/sqlite</code> · durable baseline</small></span><em class="is-supported">Supported</em></li>
 <li><span><strong>PostgreSQL</strong><small><code>@triplex-build/triplex/postgres</code></small></span><em class="is-candidate">Pre-1.0 production candidate</em></li>
-<li class="is-experimental"><span><strong>Cloudflare Durable Objects</strong><small>Private workspace package</small></span><em>Experimental</em></li>
-<li class="is-experimental"><span><strong>FoundationDB</strong><small>Private workspace package</small></span><em>Experimental</em></li>
+<li class="is-experimental"><span><strong>Cloudflare Durable Objects</strong><small><code>@triplex-build/triplex/cloudflare</code></small></span><em>Experimental</em></li>
+<li class="is-experimental"><span><strong>FoundationDB</strong><small><code>@triplex-build/triplex/foundationdb</code></small></span><em>Experimental</em></li>
 </ul>
 <p>Want to build on another storage engine? Explore the <a href="/backends">backend blueprints</a>: working SQLite, experimental FoundationDB, and proposed Datomic and XTDB adapters. Each maps storage primitives to the Triplex contract and identifies what still needs to be built.</p>
 <p>Also in the box: a JSON-first <a href="/tools">CLI</a> for agents, a browser <a href="/explorer">data explorer</a>, a <a href="/http-api">configuration-derived HTTP API</a> with OpenAPI, and an in-browser <a href="/playground">playground</a>.</p>
@@ -328,6 +289,7 @@ npm install @triplex-build/triplex effect
 <div class="th-facts">
 <article><h3><a href="/datomic">Datomic</a></h3><p>Facts, Datalog, and historical database views.</p></article>
 <article><h3><a href="/xtdb">Current XTDB</a></h3><p>Bitemporal data through SQL and XTQL.</p></article>
+<article><h3><a href="https://worldvm.com/">WorldVM</a></h3><p>WorldVM keeps each world’s subject records in Triplex. Its runtime uses recorded state and bases to explain what it knows.</p></article>
 <article><h3>Event sourcing</h3><p>Gives you history, but you hand-write every projection.</p></article>
 <article><h3>Workflow engines</h3><p>Run durable code. Triplex decides what work should exist, and the two compose.</p></article>
 </div>
