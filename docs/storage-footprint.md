@@ -113,13 +113,13 @@ costs about as much as the facts.
 
 **What each candidate would save** (replay, against keeping everything):
 
-| Change                                                                         | Write time saved |
-| ------------------------------------------------------------------------------ | ---------------: |
-| Drop `idx_entity`, `idx_attribute`, `idx_recorded_position`                    |           10–18% |
-| Remove the journal's change copies entirely (an upper bound for slimming them) |              21% |
-| Keep journal rows only in the six indexes journal reads use                    |           32–37% |
-| Move journal rows to their own table with three indexes                        |           36–40% |
-| Drop the three indexes and move the journal rows                               |           40–50% |
+| Change                                                                                 | Write time saved |
+| -------------------------------------------------------------------------------------- | ---------------: |
+| Drop `idx_entity`, `idx_attribute`, `idx_recorded_position` (v13 dropped the last two) |           10–18% |
+| Remove the journal's change copies entirely (an upper bound for slimming them)         |              21% |
+| Keep journal rows only in the six indexes journal reads use                            |           32–37% |
+| Move journal rows to their own table with three indexes                                |           36–40% |
+| Drop the three indexes and move the journal rows                                       |           40–50% |
 
 The change copies cost write time through their index entries, not their bytes: slimming each copy
 to a reference would save most of their 486 bytes per triple but keep one indexed row per change. So
@@ -131,9 +131,11 @@ shape of the 26% slowdown reported against 0.3.0.
 
 ## What could be smaller
 
-Nothing on this page has been dropped. These are the parts that look avoidable, with what dropping
-each would cost. Each needs its own change, with the index-plan fixtures (`test/fixtures/*-index.ts`)
-run before and after.
+The numbers above were measured before SQL migration v13. Migration v13 dropped items 3 and 4
+below, which brought the totals to 2,023 bytes per asserted triple on SQLite and 2,424 on PostgreSQL.
+The other items look avoidable but are not done; each needs its own change, checked with the plan
+fixtures (`test/fixtures/*-index.ts`) and the plan diff
+(`pnpm --filter triplex-stress index-plan-diff`) before and after.
 
 1. **Journal change copies (about 490 to 520 bytes per triple, the largest single part; up to 21%
    of write time).** See the [design note](rfcs/journal-change-references.md). Each
@@ -144,20 +146,22 @@ run before and after.
    join on the primary key, and the journal is no longer self-contained, so a fact must never be
    deleted while its journal entry exists. Saving: most of the 490 to 520 bytes, about a fifth of the
    total.
-2. **`idx_entity` (89 / 50 bytes).** It has the same predicate as `idx_entity_attr` and is its
-   leading column, so the larger index can serve the same lookups. Likely avoidable with no plan
-   change; confirm with the plan fixtures.
-3. **`idx_attribute` (63 / 23 bytes).** It is the leading column of `idx_attribute_temporal` with the
-   same predicate. Likely avoidable the same way.
-4. **`idx_recorded_position` (33 / 25 bytes).** It is a prefix of `idx_dependency_all`. Likely
-   avoidable the same way.
+2. **`idx_entity` (89 / 50 bytes): kept.** It is the leading column of `idx_entity_attr` with the
+   same predicate, but the plan diff shows that without it SQLite moves 14 entity reads to
+   `idx_entity_recorded_position`, which also holds retracted rows, so entities with long histories
+   would read more.
+3. **`idx_attribute` (63 / 23 bytes): dropped in migration v13.** No SQLite plan used it.
+   PostgreSQL used it occasionally, and `idx_attribute_history` and `idx_attribute_temporal` share its
+   leading column.
+4. **`idx_recorded_position` (33 / 25 bytes): dropped in migration v13.** It is a prefix of
+   `idx_dependency_all`, which takes over its two SQLite plans and its PostgreSQL scans.
 5. **`idx_temporal` and `idx_entity_recorded_position` (231 / 116 bytes together).** Both serve
    entity history, one by time and one by position. Reads by recorded time already resolve to a
    position, so one index may be enough. Cost: changing the entity history read path, so it needs a
    design check, not just a plan check.
 
-Items 1 to 4 together are about 670 bytes per triple on SQLite (about 30% of the total) and 620 on
-PostgreSQL (about 25%). The remaining indexes each serve a read the plan fixtures pin, and the facts,
+Items 1 to 4 together were about 670 bytes per triple on SQLite (about 30% of the total) and 620 on
+PostgreSQL (about 25%); items 3 and 4, now dropped, were 96 and 48. The remaining indexes each serve a read the plan fixtures pin, and the facts,
 the journal metadata and the primary key are the history itself.
 
 ## Notes
