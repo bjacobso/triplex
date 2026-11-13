@@ -39,10 +39,10 @@ describe("host-owned SQLite migrations", () => {
 
     expect(result.before).toHaveLength(0);
     expect(migrations.map(({ version }) => version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     ]);
     expect(result.applied.map(({ version }) => version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     ]);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
@@ -74,6 +74,9 @@ describe("host-owned SQLite migrations", () => {
         "idx_tx_id",
       ]),
     );
+    // v13 drops two indexes that were prefixes of others.
+    expect(result.indexes.map(({ name }) => name)).not.toContain("idx_attribute");
+    expect(result.indexes.map(({ name }) => name)).not.toContain("idx_recorded_position");
   });
 
   it("upgrades an existing v1 database once and preserves its data", async () => {

@@ -94,7 +94,8 @@ export const COMMAND_RECEIPTS_TABLE_DDL = `
 // =============================================================================
 
 /**
- * Frozen v1 index definitions for the triples table.
+ * Frozen v1 index definitions for the triples table. Migration v13 drops
+ * idx_attribute and idx_recorded_position again (see DROPPED_INDEX_NAMES).
  *
  * These indexes optimize common query patterns:
  * - Entity lookups (idx_entity)
@@ -157,9 +158,25 @@ export const PUBLIC_READ_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_journal_instant_position ON triples(recorded_at, recorded_position, attribute, entity_type) WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'",
 ] as const;
 
+/**
+ * Indexes the current schema no longer has. Each was a prefix of another index
+ * that serves the same reads: idx_attribute of idx_attribute_temporal (no query
+ * planned through it), idx_recorded_position of idx_dependency_all.
+ */
+export const DROPPED_INDEX_NAMES = ["idx_attribute", "idx_recorded_position"] as const;
+
+/** Migration v13. */
+export const DROP_PREFIX_INDEX_DDLS: ReadonlyArray<string> = DROPPED_INDEX_NAMES.map(
+  (name) => `DROP INDEX IF EXISTS ${name}`,
+);
+
+const isCurrentIndex = (ddl: string) =>
+  !DROPPED_INDEX_NAMES.some((name) => ddl.includes(` ${name} ON `));
+
+/** The current schema's `triples` indexes. */
 export const INDEX_DDLS = [
   ...PUBLIC_READ_INDEX_DDLS,
-  ...BASELINE_INDEX_DDLS,
+  ...BASELINE_INDEX_DDLS.filter(isCurrentIndex),
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
@@ -173,7 +190,6 @@ export const INDEX_NAMES = [
   "idx_dependency_all",
   "idx_journal_instant_position",
   "idx_entity",
-  "idx_attribute",
   "idx_attribute_history",
   "idx_attribute_temporal",
   "idx_type",
@@ -183,7 +199,6 @@ export const INDEX_NAMES = [
   "idx_attr_blind",
   "idx_ref_target",
   "idx_temporal",
-  "idx_recorded_position",
   "idx_entity_recorded_position",
   "idx_entity_attr",
   "idx_tx_id",
