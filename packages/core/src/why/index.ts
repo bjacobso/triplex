@@ -6,7 +6,7 @@ import * as ConfigStore from "../config/ConfigStore.js";
 import * as Derivation from "../derivation/Derivation.js";
 import { Sensitivity } from "../sensitive/Sensitive.js";
 import type { Triple } from "../Triple.js";
-import type { TripleValue } from "../Value.js";
+import { withoutBlind, type TripleValue } from "../Value.js";
 import { Triples, type TransactionRecord } from "../store/Triples.js";
 import {
   WhyInvalidRequest,
@@ -250,8 +250,9 @@ export class Why extends Context.Service<Why, WhyService>()("triplex/Why") {
               )
                 return false;
               if (change.value !== undefined) {
+                // Journal copies of sealed values carry no blind token.
                 const stored = yield* CanonicalJson.encode(
-                  fact.value as CanonicalJson.CanonicalValue,
+                  withoutBlind(fact.value) as CanonicalJson.CanonicalValue,
                 );
                 const journal = yield* CanonicalJson.encode(
                   change.value as CanonicalJson.CanonicalValue,

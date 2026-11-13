@@ -90,6 +90,17 @@ export type PlainValue = Exclude<TripleValue, SealedValue>;
 
 export const isSealed = (value: TripleValue): value is SealedValue => value.type === "sealed";
 
+/**
+ * A value as it may be copied out of the fact it belongs to: a sealed value
+ * keeps its envelope but drops its blind token. Blind tokens live only on the
+ * fact (and its index), so erasing a subject scrubs them in one place.
+ */
+export const withoutBlind = <V extends TripleValue>(value: V): V => {
+  if (value.type !== "sealed" || value.blind === undefined) return value;
+  const { blind: _blind, ...rest } = value;
+  return rest as V;
+};
+
 export const string = (value: string): StringValue => ({ type: "string", value });
 export const number = (value: number): NumberValue => ({ type: "number", value });
 export const boolean = (value: boolean): BooleanValue => ({ type: "boolean", value });
