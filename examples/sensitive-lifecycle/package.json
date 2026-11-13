@@ -1,0 +1,21 @@
+{
+  "name": "triplex-sensitive-lifecycle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/main.ts",
+    "test": "node --import tsx src/main.ts --verify",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/sql-sqlite-node": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

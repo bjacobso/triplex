@@ -1,9 +1,11 @@
 # RFC: host-sealed values and erasure
 
-Status: proposed; owner decision required before implementation. This document
-recommends an explicit trusted-host import contract. It does not change the
-sensitive decorator's rejection of caller-supplied envelopes or promise erasure
-that Triplex has not implemented.
+Status: **not adopted** (decision 2026-11-13, ask 0014). Hosts supply keys through
+`KeyProvider` and `KeyCustody` instead, and Triplex always seals; see
+[Host keys, not host-sealed values](../sensitive-values.md#host-keys-not-host-sealed-values).
+The rest of this document is kept as the record of the proposal. Its trusted-host
+import contract was not built; key classes, key IDs bound into the envelope, erasure
+with a blind-token scrub and rotation were built for the `KeyProvider` route.
 
 ## Consumer and existing behavior
 
