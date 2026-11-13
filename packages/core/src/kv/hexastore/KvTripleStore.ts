@@ -16,7 +16,12 @@ import type { QueryTemporalBasis } from "../../datalog/temporal.js";
  */
 
 import { Effect, Stream } from "effect";
-import { decodeSealedEnvelope, encodeSealedEnvelope, type TripleValue } from "../../Value.js";
+import {
+  decodeSealedEnvelope,
+  encodeSealedEnvelope,
+  withoutBlind,
+  type TripleValue,
+} from "../../Value.js";
 import type { KvBackendService } from "../kv/KvBackend.js";
 import type { ResolvedTemporalBasis } from "../../Temporal.js";
 import { ReadError, MigrationError } from "../../errors/index.js";
@@ -856,6 +861,37 @@ export class KvTripleStore {
       yield* this.kv.delete(liveFactKey(datom.entity, datom.attribute, datom.tripleId));
       // Update cache
       this.datomCache.set(tripleId, updated);
+      return true;
+    });
+  }
+
+  /**
+   * Remove a sealed datom's blind token from META and from every index key
+   * that carries it (EAVT, AEVT, AVET). Other keys hold no value.
+   */
+  scrubBlind(datom: Datom): Effect.Effect<boolean> {
+    if (datom.value.type !== "sealed" || datom.value.blind === undefined) {
+      return Effect.succeed(false);
+    }
+    const updated: Datom = { ...datom, value: withoutBlind(datom.value) };
+    const entityPart = tString(datom.entity);
+    const attrPart = tString(datom.attribute);
+    const txPart = tString(datom.txId);
+    const idPart = tString(datom.tripleId);
+    const before = valueToTuplePart(datom.value);
+    const after = valueToTuplePart(updated.value);
+    const tripleIdValue = textEncoder.encode(datom.tripleId);
+    return Effect.gen({ self: this }, function* () {
+      yield* this.kv.delete(eavtKey(entityPart, attrPart, before, txPart, idPart));
+      yield* this.kv.delete(aevtKey(attrPart, entityPart, before, txPart, idPart));
+      yield* this.kv.delete(avetKey(attrPart, before, entityPart, txPart, idPart));
+      yield* this.kv.setAll([
+        [eavtKey(entityPart, attrPart, after, txPart, idPart), tripleIdValue],
+        [aevtKey(attrPart, entityPart, after, txPart, idPart), tripleIdValue],
+        [avetKey(attrPart, after, entityPart, txPart, idPart), tripleIdValue],
+        [metaKey(datom.tripleId), serializeDatom(updated)],
+      ]);
+      this.datomCache.set(datom.tripleId, updated);
       return true;
     });
   }

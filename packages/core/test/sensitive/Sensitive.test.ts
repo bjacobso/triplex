@@ -958,6 +958,29 @@ describe("codecs, erasure, and rotation", () => {
     expect(cause.reason).toBe("key-destroyed");
   });
 
+  it("refuses to erase on a backend that cannot remove blind tokens", async () => {
+    const keys = KeyProvider.testKeys({ seed: "no-scrub" });
+    const withoutScrub = Layer.effect(
+      Triples,
+      Effect.gen(function* () {
+        const { scrubBlindTokens: _scrub, ...rest } = yield* Triples;
+        return rest;
+      }),
+    ).pipe(Layer.provide(kvLayer(makeTestKvBackend())));
+    const exit = await Effect.runPromiseExit(
+      Sensitive.erase({ subject: "ee:1", actor: "dpo", commandId: "erase-1" }).pipe(
+        Effect.provide(
+          Sensitive.layer({ database: DATABASE, attributes: [Employee] }).pipe(
+            Layer.provide(ValueCodec.aesGcm.pipe(Layer.provide(keys.layer))),
+            Layer.provideMerge(keys.layer),
+            Layer.provide(withoutScrub),
+          ),
+        ),
+      ),
+    );
+    expect((failureOf(exit) as Sensitive.ErasureError).reason).toBe("unsupported");
+  });
+
   it("seals new values under a rotated key and still opens old ones", async () => {
     const keys = KeyProvider.testKeys({ seed: "rotation" });
     const codec = ValueCodec.aesGcm.pipe(Layer.provide(keys.layer));

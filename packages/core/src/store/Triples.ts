@@ -345,6 +345,15 @@ export interface TriplesService {
   readonly explain: (query: DatalogQuery) => Effect.Effect<ExplainResult, DatalogQueryError>;
   /** Explain a wrapped Datalog query without executing it. */
   readonly explainPage: (query: WrappedQuery) => Effect.Effect<ExplainResult, DatalogQueryError>;
+  /**
+   * Erasure maintenance: remove the blind token of every fact, current or
+   * retracted, sealed under one of these key IDs. Unjournaled; the fact keeps
+   * its envelope, identity, times and position. Idempotent. Returns how many
+   * facts lost a token. Absent on backends that do not support erasure
+   * (Cloudflare and FoundationDB). Use `Sensitive.erase` rather than calling
+   * it directly.
+   */
+  readonly scrubBlindTokens?: (keyIds: ReadonlyArray<string>) => Effect.Effect<number, WriteError>;
 }
 
 /**

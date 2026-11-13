@@ -22,7 +22,7 @@ import {
   type QueryOptions,
   type PagedQueryOptions,
 } from "./Triples.js";
-import { StorageAdapter } from "../storage/StorageAdapter.js";
+import { StorageAdapter, isSqlStorageAdapter } from "../storage/StorageAdapter.js";
 import { QueryExecutor } from "../storage/QueryExecutor.js";
 import type {
   Triple,
@@ -871,7 +871,47 @@ export const TriplesLive = Layer.effect(
         Effect.withSpan("triples.explainPage"),
       );
 
+    /**
+     * Clear the blind token of every fact sealed under one of `keyIds`. The
+     * stored envelope is compact JSON with a fixed key order, so its key ID is
+     * found with an escaped LIKE on `value_sealed`. Erasure is rare; this scans
+     * the sealed facts that still carry a token.
+     */
+    const scrubBlindTokens = isSqlStorageAdapter(adapter)
+      ? (keyIds: ReadonlyArray<string>): Effect.Effect<number, WriteError> =>
+          Effect.gen(function* () {
+            let scrubbed = 0;
+            for (let start = 0; start < keyIds.length; start += 100) {
+              const chunk = keyIds.slice(start, start + 100);
+              const patterns = chunk.map(
+                (keyId) =>
+                  `%${`"keyId":${JSON.stringify(keyId)},"ciphertext"`.replace(/[\\%_]/g, "\\$&")}%`,
+              );
+              const rows = yield* adapter.rawQuery<{ id: string }>(
+                `SELECT id FROM triples
+                 WHERE value_type = 'sealed' AND value_blind IS NOT NULL
+                   AND (${patterns.map(() => "value_sealed LIKE ? ESCAPE '\\'").join(" OR ")})`,
+                patterns,
+              );
+              for (let at = 0; at < rows.length; at += 500) {
+                const ids = rows.slice(at, at + 500).map((row) => row.id);
+                yield* adapter.rawQuery(
+                  `UPDATE triples SET value_blind = NULL WHERE id IN (${ids.map(() => "?").join(", ")})`,
+                  ids,
+                );
+              }
+              scrubbed += rows.length;
+            }
+            return scrubbed;
+          }).pipe(
+            Effect.mapError(
+              (cause) => new WriteError({ message: "Failed to scrub blind tokens", cause }),
+            ),
+          )
+      : undefined;
+
     return {
+      ...(scrubBlindTokens === undefined ? {} : { scrubBlindTokens }),
       operationalEntry: (id) =>
         Effect.gen(function* () {
           if (!isContentId(id))
