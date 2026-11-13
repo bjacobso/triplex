@@ -442,6 +442,28 @@ const makeKvTriplesService = Effect.gen(function* () {
   let transactService: TriplesService["transact"];
 
   const service: TriplesService = {
+    scrubBlindTokens: (keyIds) => {
+      const wanted = new Set(keyIds);
+      return kvBackend
+        .transact((tx) => {
+          const store = createKvTripleStore(transactionBackend(tx));
+          return Effect.gen(function* () {
+            const datoms = yield* Stream.runCollect(store.scan({}, { includeRetracted: true }));
+            let scrubbed = 0;
+            for (const datom of datoms) {
+              if (datom.value.type !== "sealed" || !wanted.has(datom.value.keyId)) continue;
+              if (yield* store.scrubBlind(datom)) scrubbed += 1;
+            }
+            return scrubbed;
+          });
+        })
+        .pipe(
+          Effect.ensuring(Effect.sync(() => hexaStore.clearCache())),
+          Effect.mapError(
+            (cause) => new WriteError({ message: "Failed to scrub blind tokens", cause }),
+          ),
+        );
+    },
     operationalEntry: (id) =>
       Effect.gen(function* () {
         if (!ContentIds.isContentId(id))

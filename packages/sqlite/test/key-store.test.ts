@@ -9,6 +9,9 @@ import { Attribute } from "@triplex-internal/core/config";
 import { KeyProvider, RootKey, Sensitive, ValueCodec } from "@triplex-internal/core/sensitive";
 import { SqlKeyStore } from "@triplex-build/triplex-sql";
 import {
+  ERASURE_CONFORMANCE_DATABASE,
+  erasureConformanceLayer,
+  makeErasureSuite,
   KEY_STORE_CONFORMANCE_DATABASE,
   SENSITIVE_CONFORMANCE_DATABASE,
   makeKeyStoreSuite,
@@ -75,6 +78,57 @@ const openSsn = Effect.gen(function* () {
   return yield* Sensitive.open(fact!);
 });
 
+describe("SQLite erasure", () => {
+  it("passes the erasure contract with test keys", async () => {
+    await run(
+      makeErasureSuite().pipe(
+        Effect.provide(erasureConformanceLayer(Layer.fresh(SqliteTriples.layerMemory))),
+      ),
+    );
+  });
+
+  it("passes the erasure contract with stored keys and leaves no token in any table", async () => {
+    const tokens = await run(
+      Effect.gen(function* () {
+        // Build the store once so Triples, the key store and the scan share one database.
+        const store = Layer.succeedContext(
+          yield* Layer.build(SqliteTriples.layerMemoryWithSqlClient),
+        );
+        return yield* Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const triples = yield* Triples;
+          yield* triples.assert({
+            entityId: EntityId.make("er:ada"),
+            attribute: ":er-person/ssn",
+            value: { type: "string", value: "999-99-9999" },
+          });
+          const before = yield* sql<{ value_blind: string }>`
+          SELECT value_blind FROM triples WHERE entity_id = 'er:ada' AND value_blind IS NOT NULL
+        `;
+          yield* makeErasureSuite();
+          const tables = yield* sql<{ name: string }>`
+          SELECT name FROM sqlite_master WHERE type = 'table'
+        `;
+          let dump = "";
+          for (const { name } of tables) {
+            dump += JSON.stringify(yield* sql.unsafe(`SELECT * FROM "${name}"`));
+          }
+          const blindKeyPart = (token: string) => token.slice(token.indexOf(":") + 1);
+          return before.map(({ value_blind }) => dump.includes(blindKeyPart(value_blind)));
+        }).pipe(
+          Effect.provide(
+            erasureConformanceLayer(
+              store,
+              keyStore(ERASURE_CONFORMANCE_DATABASE).pipe(Layer.provide(store)),
+            ).pipe(Layer.provideMerge(store)),
+          ),
+        );
+      }),
+    );
+    expect(tokens).toEqual([false]);
+  });
+});
+
 describe("SQLite key store", () => {
   it("passes the key store contract", async () => {
     await run(
@@ -89,16 +143,28 @@ describe("SQLite key store", () => {
   });
 
   it("passes the sensitive decorator contract with stored keys", async () => {
-    const store = Layer.fresh(SqliteTriples.layerMemoryWithSqlClient);
     await run(
-      makeSensitiveConformanceSuite().pipe(
-        Effect.provide(
-          sensitiveConformanceLayer(
-            store,
-            ValueCodec.aesGcm.pipe(Layer.provide(keyStore(SENSITIVE_CONFORMANCE_DATABASE))),
-          ).pipe(Layer.provide(store)),
-        ),
-      ),
+      Effect.gen(function* () {
+        const store = Layer.succeedContext(
+          yield* Layer.build(SqliteTriples.layerMemoryWithSqlClient),
+        );
+        const sql = yield* SqlClient.SqlClient.pipe(Effect.provide(store));
+        yield* makeSensitiveConformanceSuite().pipe(
+          Effect.provide(
+            sensitiveConformanceLayer(
+              store,
+              ValueCodec.aesGcm.pipe(
+                Layer.provide(keyStore(SENSITIVE_CONFORMANCE_DATABASE).pipe(Layer.provide(store))),
+              ),
+            ),
+          ),
+        );
+        // The keys were stored in the same database as the facts.
+        const [keys] = yield* sql<{
+          count: number;
+        }>`SELECT count(*) AS count FROM triplex_data_keys`;
+        expect(keys!.count).toBeGreaterThan(0);
+      }),
     );
   });
 

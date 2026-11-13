@@ -7,6 +7,9 @@ import { RootKey, Sensitive, ValueCodec } from "@triplex-internal/core/sensitive
 import { SqlKeyStore } from "@triplex-build/triplex-sql";
 import { PgTriples } from "@triplex-build/triplex-postgres";
 import {
+  ERASURE_CONFORMANCE_DATABASE,
+  erasureConformanceLayer,
+  makeErasureSuite,
   KEY_STORE_CONFORMANCE_DATABASE,
   SENSITIVE_CONFORMANCE_DATABASE,
   makeKeyStoreSuite,
@@ -51,6 +54,58 @@ const keyStore = (database: string, sql: SqlClient.SqlClient) =>
     Layer.provide(rootKey),
     Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
   );
+
+describe("PostgreSQL erasure", () => {
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "passes the erasure contract with test keys",
+    { timeout: 120_000 },
+    async () => {
+      await withFreshDatabase(({ triples }) =>
+        makeErasureSuite().pipe(Effect.provide(erasureConformanceLayer(triples))),
+      );
+    },
+  );
+
+  it.skipIf(!DOCKER_AVAILABLE)(
+    "passes the erasure contract with stored keys and leaves no token in any table",
+    { timeout: 120_000 },
+    async () => {
+      const leaked = await withFreshDatabase(({ triples, sql }) =>
+        Effect.gen(function* () {
+          const t = yield* Triples;
+          yield* t.assert({
+            entityId: EntityId.make("er:ada"),
+            attribute: ":er-person/ssn",
+            value: { type: "string", value: "999-99-9999" },
+          });
+          const before = yield* sql<{ value_blind: string }>`
+            SELECT value_blind FROM triples WHERE entity_id = 'er:ada' AND value_blind IS NOT NULL
+          `;
+          yield* makeErasureSuite();
+          const tables = yield* sql<{ table_name: string }>`
+            SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()
+          `;
+          let dump = "";
+          for (const { table_name } of tables) {
+            dump += JSON.stringify(
+              yield* sql.unsafe(`SELECT * FROM "${table_name.replaceAll('"', '""')}"`),
+              (_key, field: unknown) => (typeof field === "bigint" ? field.toString() : field),
+            );
+          }
+          expect(before).toHaveLength(1);
+          return before.filter(({ value_blind }) =>
+            dump.includes(value_blind.slice(value_blind.indexOf(":") + 1)),
+          );
+        }).pipe(
+          Effect.provide(
+            erasureConformanceLayer(triples, keyStore(ERASURE_CONFORMANCE_DATABASE, sql)),
+          ),
+        ),
+      );
+      expect(leaked).toEqual([]);
+    },
+  );
+});
 
 describe("PostgreSQL key store", () => {
   it.skipIf(!DOCKER_AVAILABLE)("passes the key store contract", { timeout: 120_000 }, async () => {
