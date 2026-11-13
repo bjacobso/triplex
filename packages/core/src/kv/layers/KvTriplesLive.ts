@@ -464,6 +464,47 @@ const makeKvTriplesService = Effect.gen(function* () {
           ),
         );
     },
+    sealedFacts: () =>
+      Stream.runCollect(hexaStore.scan({}, { includeRetracted: true })).pipe(
+        Effect.map((datoms) =>
+          Array.from(datoms)
+            .filter((datom) => datom.value.type === "sealed")
+            .map(datomToTriple),
+        ),
+      ),
+    rewriteValues: (updates) =>
+      kvBackend
+        .transact((tx) => {
+          const store = createKvTripleStore(transactionBackend(tx));
+          return Effect.gen(function* () {
+            for (const update of updates) {
+              const datom = yield* store.getById(update.id);
+              if (datom === null) {
+                return yield* new WriteError({ message: `No fact ${update.id} to rewrite` });
+              }
+              const allowed =
+                (datom.value.type === "sealed" && update.value.type === "sealed") ||
+                (datom.attribute === TxAttributes.CHANGE &&
+                  datom.value.type === "json" &&
+                  update.value.type === "json");
+              if (!allowed) {
+                return yield* new WriteError({
+                  message: `Fact ${update.id} is not a sealed value or journal change`,
+                });
+              }
+              yield* store.rewriteValue(datom, update.value);
+            }
+            return updates.length;
+          });
+        })
+        .pipe(
+          Effect.ensuring(Effect.sync(() => hexaStore.clearCache())),
+          Effect.mapError((cause) =>
+            cause instanceof WriteError
+              ? cause
+              : new WriteError({ message: "Failed to rewrite values", cause }),
+          ),
+        ),
     operationalEntry: (id) =>
       Effect.gen(function* () {
         if (!ContentIds.isContentId(id))

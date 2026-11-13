@@ -437,3 +437,15 @@ export const SNAPSHOT_BLIND_SCRUB_DDLS: ReadonlyArray<string> = [
    )`,
   `DELETE FROM entity_blobs WHERE data LIKE '%"type":"sealed"%' AND data LIKE '%"blind":%'`,
 ];
+
+// =============================================================================
+// Staged blind keys — migration v12
+// =============================================================================
+
+/**
+ * Blind-key rotation stages the next version, computes every token under it,
+ * then activates it. A staged version is never current.
+ */
+export const BLIND_KEY_STAGING_DDLS: ReadonlyArray<string> = [
+  "ALTER TABLE triplex_blind_keys ADD COLUMN staged INTEGER NOT NULL DEFAULT 0",
+];
