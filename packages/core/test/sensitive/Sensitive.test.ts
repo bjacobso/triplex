@@ -284,15 +284,47 @@ describe("sensitive attribute marking", () => {
     ).toThrow(/cannot be sensitive/);
     const nodes = await Effect.runPromise(Employee.nodes);
     expect([...Sensitive.attributesFromNodes(nodes)]).toEqual([
-      [":employee/birth-date", "string"],
-      [":employee/salary", "number"],
-      [":employee/ssn", "string"],
+      [":employee/birth-date", { valueType: "string" }],
+      [":employee/salary", { valueType: "number" }],
+      [":employee/ssn", { valueType: "string" }],
     ]);
     expect([...Sensitive.attributesOf([Employee, Name])].map(([key]) => key).sort()).toEqual([
       ":employee/birth-date",
       ":employee/salary",
       ":employee/ssn",
     ]);
+  });
+
+  it("records a key class on the attribute node and in the policy", async () => {
+    const plain = Attribute.sensitive(Attribute.text(":person/passport"));
+    const classed = Attribute.sensitive(Attribute.text(":person/passport"), {
+      keyClass: "retention-1y",
+    });
+    const [plainNode, classedNode] = await Effect.runPromise(
+      Effect.all([plain.node, classed.node]),
+    );
+    expect(classed.keyClass).toBe("retention-1y");
+    expect(classedNode.attrs).toMatchObject({ sensitive: true, keyClass: "retention-1y" });
+    expect(plainNode.attrs).not.toHaveProperty("keyClass");
+    expect(classedNode.cid).not.toBe(plainNode.cid);
+    expect(Sensitive.attributesFromNodes([classedNode]).get(":person/passport")).toEqual({
+      valueType: "string",
+      keyClass: "retention-1y",
+    });
+    expect(Sensitive.attributesOf([classed]).get(":person/passport")).toEqual({
+      valueType: "string",
+      keyClass: "retention-1y",
+    });
+    expect(() =>
+      Attribute.sensitive(Attribute.text(":person/passport"), { keyClass: "Retention 1y" }),
+    ).toThrow(/short lowercase label/);
+    expect(() =>
+      Attribute.sensitive(Attribute.text(":person/passport"), { keyClass: "default" }),
+    ).toThrow(/omit keyClass/);
+    expect(() => Attribute.sensitive(classed, { keyClass: "retention-7y" })).toThrow(
+      /already sensitive/,
+    );
+    expect(() => Sensitive.attributesOf([plain, classed])).toThrow(/key classes/);
   });
 });
 
@@ -307,6 +339,7 @@ describe("AES-GCM codec", () => {
     entityId: "ee:1",
     attribute: ":employee/ssn",
     valueType: "string" as const,
+    keyClass: KeyProvider.DEFAULT_KEY_CLASS,
   };
 
   it("round-trips, uses fresh nonces, and blinds deterministically", async () => {
@@ -328,7 +361,7 @@ describe("AES-GCM codec", () => {
     expect(result.first.ciphertext).not.toBe(result.second.ciphertext);
     expect(result.first.blind).toBe(result.second.blind);
     expect(result.first.blind).toBe(result.blind);
-    expect(result.first.keyId).toBe("test:v1");
+    expect(result.first.keyId).toMatch(/^test:[0-9a-f]{16}:v1$/);
     expect(result.opened).toEqual({ type: "string", value: PLANTED });
     for (const form of plaintextForms(PLANTED)) {
       expect(result.first.ciphertext).not.toContain(form);
@@ -336,19 +369,37 @@ describe("AES-GCM codec", () => {
     }
   });
 
-  it("binds the ciphertext to its entity and attribute", async () => {
-    const exit = await Effect.runPromiseExit(
+  it("binds the ciphertext to its entity, attribute, key class and key ID", async () => {
+    const keys = KeyProvider.testKeys({ seed: "binding" });
+    const reasons = await Effect.runPromise(
       Effect.gen(function* () {
-        const service = yield* codec;
-        const sealed = yield* service.seal(context, { type: "string", value: PLANTED });
-        return yield* service.open(
-          { ...context, entityId: "ee:2" },
-          { type: "sealed", valueType: "string", ...sealed },
-        );
-      }),
+        const service = yield* ValueCodec.ValueCodec;
+        const first = yield* service.seal(context, { type: "string", value: PLANTED });
+        yield* keys.custody.rotate({ database: DATABASE });
+        const second = yield* service.seal(context, { type: "string", value: PLANTED });
+        const sealed: SealedValue = { type: "sealed", valueType: "string", ...first };
+        const attempt = (ctx: ValueCodec.SensitiveContext, value: SealedValue) =>
+          service
+            .open(ctx, value)
+            .pipe(Effect.match({ onFailure: (error) => error.reason, onSuccess: () => "opened" }));
+        return {
+          entity: yield* attempt({ ...context, entityId: "ee:2" }, sealed),
+          attribute: yield* attempt({ ...context, attribute: ":employee/tax-id" }, sealed),
+          keyClass: yield* attempt({ ...context, keyClass: "retention-1y" }, sealed),
+          relabelled: yield* attempt(context, { ...sealed, keyId: second.keyId }),
+          original: yield* attempt(context, sealed),
+        };
+      }).pipe(Effect.provide(ValueCodec.aesGcm.pipe(Layer.provide(keys.layer)))),
     );
-    const error = failureOf(exit) as SensitiveValueError;
-    expect(error.reason).toBe("integrity");
+    // Another subject or key class resolves no key; the same key under another
+    // attribute or key ID fails authentication.
+    expect(reasons).toEqual({
+      entity: "key-unavailable",
+      attribute: "integrity",
+      keyClass: "key-unavailable",
+      relabelled: "integrity",
+      original: "opened",
+    });
   });
 });
 
@@ -818,7 +869,8 @@ describe("codecs, erasure, and rotation", () => {
       Effect.gen(function* () {
         const triples = yield* Triples;
         yield* seed;
-        keys.destroy({ database: DATABASE, subject: "ee:1" });
+        const destroyed = yield* keys.custody.destroy({ database: DATABASE, subject: "ee:1" });
+        expect(destroyed).toHaveLength(1);
         const history = yield* triples.history(id("ee:1"));
         const failed = yield* Effect.exit(Sensitive.open(history));
         const kept = yield* Sensitive.open(history, { erased: "keep-sealed" });
@@ -846,6 +898,66 @@ describe("codecs, erasure, and rotation", () => {
     expect(result.presence.length).toBe(2);
   });
 
+  it("destroys one key class of a subject and keeps its others", async () => {
+    const keys = KeyProvider.testKeys({ seed: "key-classes" });
+    const Passport = Attribute.sensitive(Attribute.text(":person/passport"), {
+      keyClass: "retention-1y",
+    });
+    const TaxId = Attribute.sensitive(Attribute.text(":person/tax-id"));
+    const layer = Sensitive.layer({ database: DATABASE, attributes: [Passport, TaxId] }).pipe(
+      Layer.provide(ValueCodec.aesGcm.pipe(Layer.provide(keys.layer))),
+      Layer.provide(kvLayer(makeTestKvBackend())),
+    );
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const { triples: written } = yield* triples.transact([
+          {
+            op: "assert",
+            entityId: id("person:1"),
+            attribute: ":person/passport",
+            value: { type: "string", value: "P1234567" },
+          },
+          {
+            op: "assert",
+            entityId: id("person:1"),
+            attribute: ":person/tax-id",
+            value: { type: "string", value: PLANTED },
+          },
+        ]);
+        const [passport, taxId] = written.map((t) => (t.value as SealedValue).keyId);
+        const destroyed = yield* keys.custody.destroy({
+          database: DATABASE,
+          subject: "person:1",
+          keyClass: "retention-1y",
+        });
+        const opened = yield* Sensitive.open(yield* triples.entity(id("person:1")), {
+          erased: "keep-sealed",
+        });
+        const refused = yield* Effect.exit(
+          triples.assert({
+            entityId: id("person:1"),
+            attribute: ":person/passport",
+            value: { type: "string", value: "P7654321" },
+          }),
+        );
+        return { passport, taxId, destroyed, opened, refused };
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(result.passport).not.toBe(result.taxId);
+    expect(result.destroyed).toEqual([result.passport]);
+    expect(result.opened.find((t) => t.attribute === ":person/passport")?.value.type).toBe(
+      "sealed",
+    );
+    expect(result.opened.find((t) => t.attribute === ":person/tax-id")?.value).toEqual({
+      type: "string",
+      value: PLANTED,
+    });
+    // A destroyed key class seals nothing new for that subject.
+    const cause = (failureOf(result.refused) as WriteError).cause as SensitiveValueError;
+    expect(cause.reason).toBe("key-destroyed");
+  });
+
   it("seals new values under a rotated key and still opens old ones", async () => {
     const keys = KeyProvider.testKeys({ seed: "rotation" });
     const codec = ValueCodec.aesGcm.pipe(Layer.provide(keys.layer));
@@ -857,7 +969,7 @@ describe("codecs, erasure, and rotation", () => {
           attribute: ":employee/ssn",
           value: { type: "string", value: "111-22-3333" },
         });
-        keys.rotate();
+        yield* keys.custody.rotate({ database: DATABASE });
         const after = yield* triples.assert({
           entityId: id("ee:8"),
           attribute: ":employee/ssn",
@@ -880,8 +992,8 @@ describe("codecs, erasure, and rotation", () => {
       makeTestKvBackend(),
       codec,
     );
-    expect((result.before.value as SealedValue).keyId).toBe("test:v1");
-    expect((result.after.value as SealedValue).keyId).toBe("test:v2");
+    expect((result.before.value as SealedValue).keyId).toMatch(/:v1$/);
+    expect((result.after.value as SealedValue).keyId).toMatch(/:v2$/);
     expect(result.opened.map((t) => (t.value as { value: string }).value)).toEqual([
       "111-22-3333",
       "111-22-3333",

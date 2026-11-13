@@ -3,7 +3,8 @@
  *
  * Every sensitive value crosses this service exactly once on its way into
  * storage, and plaintext leaves storage only through `open`. The codec sees
- * the database, entity, attribute and declared value type of every value.
+ * the database, entity, attribute, declared value type and key class of every
+ * value.
  */
 
 import { Context, Effect, Layer } from "effect";
@@ -12,7 +13,12 @@ import * as CanonicalJson from "../content/CanonicalJson.js";
 import * as Sha256 from "../content/Sha256.js";
 import { SensitiveValueError } from "../errors/index.js";
 import type { PlainValue, SealableValueType, SealedValue } from "../Value.js";
-import { KeyProvider, type KeyError, type KeyProviderService } from "./KeyProvider.js";
+import {
+  KeyProvider,
+  type KeyContext,
+  type KeyError,
+  type KeyProviderService,
+} from "./KeyProvider.js";
 import { bufferSource, fromBase64Url, fromUtf8, toBase64Url, utf8 } from "./encoding.js";
 
 /** Everything a codec is told about the value it seals or opens. */
@@ -22,6 +28,8 @@ export interface SensitiveContext {
   readonly entityId: string;
   readonly attribute: string;
   readonly valueType: SealableValueType;
+  /** The attribute's key class, `KeyProvider.DEFAULT_KEY_CLASS` when it declares none. */
+  readonly keyClass: string;
 }
 
 /** A codec's output for one value. */
@@ -208,7 +216,7 @@ export const identity: Layer.Layer<ValueCodec> = Layer.succeed(ValueCodec, ident
 // AES-GCM reference codec
 // =============================================================================
 
-const ENVELOPE_VERSION = 1;
+const ENVELOPE_VERSION = 2;
 const NONCE_BYTES = 12;
 
 export interface AesGcmOptions {
@@ -243,16 +251,29 @@ const codecFailure = (context: SensitiveContext, message: string, cause: unknown
     cause,
   });
 
-const additionalData = (context: SensitiveContext): Uint8Array =>
+/**
+ * Authenticated data: the value's place (database, entity, attribute, type),
+ * its key class and the key ID that sealed it. A ciphertext moved to another
+ * fact, or relabelled with another key ID, fails authentication.
+ */
+const additionalData = (context: SensitiveContext, keyId: string): Uint8Array =>
   utf8(
     JSON.stringify([
-      "triplex-sealed-v1",
+      "triplex-sealed-v2",
       context.database,
       context.entityId,
       context.attribute,
       context.valueType,
+      context.keyClass,
+      keyId,
     ]),
   );
+
+const keyContext = (context: SensitiveContext, subject: string): KeyContext => ({
+  database: context.database,
+  subject,
+  keyClass: context.keyClass,
+});
 
 const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCodecService => {
   const subjectOf = options.subjectOf ?? ((context: SensitiveContext) => context.entityId);
@@ -281,13 +302,17 @@ const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCode
       Effect.gen(function* () {
         const canonical = yield* canonicalPlaintext(context, value);
         const { keyId, key } = yield* keys
-          .sealingKey({ database: context.database, subject: subjectOf(context) })
+          .sealingKey(keyContext(context, subjectOf(context)))
           .pipe(Effect.mapError((error) => keyFailure(context, error)));
         const nonce = globalThis.crypto.getRandomValues(new Uint8Array(NONCE_BYTES));
         const encrypted = yield* Effect.tryPromise({
           try: () =>
             globalThis.crypto.subtle.encrypt(
-              { name: "AES-GCM", iv: nonce, additionalData: bufferSource(additionalData(context)) },
+              {
+                name: "AES-GCM",
+                iv: nonce,
+                additionalData: bufferSource(additionalData(context, keyId)),
+              },
               key,
               bufferSource(utf8(canonical)),
             ),
@@ -317,7 +342,7 @@ const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCode
               });
             }
             const key = yield* keys
-              .openingKey({ database: context.database, subject: subjectOf(context) }, sealed.keyId)
+              .openingKey(keyContext(context, subjectOf(context)), sealed.keyId)
               .pipe(Effect.mapError((error) => keyFailure(context, error)));
             const plaintext = yield* Effect.tryPromise({
               try: () =>
@@ -325,7 +350,7 @@ const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCode
                   {
                     name: "AES-GCM",
                     iv: bufferSource(envelope.subarray(1, 1 + NONCE_BYTES)),
-                    additionalData: bufferSource(additionalData(context)),
+                    additionalData: bufferSource(additionalData(context, sealed.keyId)),
                   },
                   key,
                   bufferSource(envelope.subarray(1 + NONCE_BYTES)),
@@ -350,8 +375,8 @@ const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCode
 
 /**
  * Reference AES-256-GCM codec over WebCrypto. Each value gets a fresh 96-bit
- * nonce; the additional authenticated data binds database, entity, attribute
- * and declared type. Blind tokens are HMAC-SHA-256 under the database blind
+ * nonce; the additional authenticated data binds database, entity, attribute,
+ * declared type, key class and key ID. Blind tokens are HMAC-SHA-256 under the database blind
  * key. Requires a `KeyProvider`.
  */
 export const aesGcmWith = (
