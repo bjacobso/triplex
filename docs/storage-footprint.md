@@ -66,13 +66,77 @@ The largest indexes, each about 50 to 175 bytes per asserted triple:
 
 The full per-index list, including the small ones, is in the script's output.
 
+## Write cost
+
+Measured by a second script on the same machine and SQLite build:
+
+```sh
+pnpm --filter triplex-stress write-cost
+# Options: WRITE_COST_TRANSACTIONS (1000), WRITE_COST_ATTRIBUTES (10), WRITE_COST_ROUNDS (5)
+```
+
+It commits 1,000 transactions of 10 string attributes each (after 50 warm-up transactions) through
+`SqliteTriples.layer` on a file in WAL mode with `synchronous = NORMAL`, and times every SQLite
+statement. It then replays the exact rows Triplex wrote into fresh tables with plain `node:sqlite`,
+one transaction per Triplex transaction, in variants with and without the indexes and the journal,
+interleaved five times and reported as medians. A CPU profile of a second live run attributes the
+time spent outside SQLite. The figures below are from several runs on a shared 12-core laptop; the
+ranges are the spread between runs, and replay figures come from the runs that report medians.
+
+**Per transaction of 10 asserted triples:**
+
+| Measure                                                          | Time                                                                                                                                   |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Wall time, mean                                                  | 2.3–2.8 ms (230–285 µs per triple)                                                                                                     |
+| Wall time, median                                                | 1.5–1.8 ms                                                                                                                             |
+| Inside SQLite statements                                         | 85% (1.9–2.3 ms)                                                                                                                       |
+| JavaScript outside SQLite (Effect runtime, encoding, validation) | 15% (0.34–0.49 ms)                                                                                                                     |
+| SQL statements                                                   | 22 (16 `INSERT INTO triples` statements for 25 rows, plus `BEGIN`, a savepoint, the commit position, the command receipt and `COMMIT`) |
+
+Most of the SQLite time is reported under `COMMIT` (1.6–2.4 ms), because that is when the pages
+dirtied by the inserts, mostly index pages, are written to the WAL. The CPU profile agrees: 78–82% of
+self time is in SQLite's native statements, 11–14% in the Effect runtime, and 2–4% in Triplex's own
+code, which includes validation and encoding. Statement count and validation are therefore not where
+the time goes.
+
+**What the rows cost** (replay, µs per transaction):
+
+| Rows inserted                     | Table and primary key only | With all 19 indexes |
+| --------------------------------- | -------------------------: | ------------------: |
+| The 10 facts only                 |                     80–141 |             743–976 |
+| The facts and the 15 journal rows |                    163–196 |         1,716–2,185 |
+
+Each transaction writes 25 rows: the 10 facts and 15 journal rows (10 `:_tx/change` copies and five
+metadata facts). Every row is maintained by every index on `triples` whose predicate it meets, which
+is why index maintenance is about 90% of the replay time, and why the journal, at 60% of the rows,
+costs about as much as the facts.
+
+**What each candidate would save** (replay, against keeping everything):
+
+| Change                                                                         | Write time saved |
+| ------------------------------------------------------------------------------ | ---------------: |
+| Drop `idx_entity`, `idx_attribute`, `idx_recorded_position`                    |           10–18% |
+| Remove the journal's change copies entirely (an upper bound for slimming them) |              21% |
+| Keep journal rows only in the six indexes journal reads use                    |           32–37% |
+| Move journal rows to their own table with three indexes                        |           36–40% |
+| Drop the three indexes and move the journal rows                               |           40–50% |
+
+The change copies cost write time through their index entries, not their bytes: slimming each copy
+to a reference would save most of their 486 bytes per triple but keep one indexed row per change. So
+the larger write-time lever is which indexes journal rows enter, not how big they are.
+
+A consumer that moves from one JSON value per fact to one triple per attribute multiplies its rows by
+the number of attributes, and each new row brings a journal copy and its index entries; that is the
+shape of the 26% slowdown reported against 0.3.0.
+
 ## What could be smaller
 
 Nothing on this page has been dropped. These are the parts that look avoidable, with what dropping
 each would cost. Each needs its own change, with the index-plan fixtures (`test/fixtures/*-index.ts`)
 run before and after.
 
-1. **Journal change copies (about 490 to 520 bytes per triple, the largest single part).** Each
+1. **Journal change copies (about 490 to 520 bytes per triple, the largest single part; up to 21%
+   of write time).** See the [design note](rfcs/journal-change-references.md). Each
    `:_tx/change` fact repeats the changed fact's ID, entity, attribute, value, valid and recorded
    times and transaction IDs as JSON. All of it except the operation and its order is already on the
    fact row, which is immutable apart from its retraction fields. A journal entry could keep only
