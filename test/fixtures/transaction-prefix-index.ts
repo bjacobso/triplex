@@ -16,6 +16,84 @@ const fixtureId = (value: number): string => {
   return encoded.padStart(26, "0");
 };
 
+/**
+ * Replace earlier synthetic rows with `count` complete one-change commands at
+ * positions `base + 1 .. base + count`, then advance the commit head.
+ */
+export const insertSyntheticTransactions = (base: number, count: number) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const row = (
+      id: string,
+      entity: string,
+      attribute: string,
+      type: string,
+      position: number,
+      tx: string,
+      entityType: string,
+      value: { text?: string; numeric?: number; datetime?: number; json?: string },
+    ) => ({
+      id,
+      entity_id: entity,
+      attribute,
+      value_type: type,
+      value_string: value.text ?? null,
+      value_number: value.numeric ?? null,
+      value_datetime: value.datetime ?? null,
+      value_json: value.json ?? null,
+      recorded_at: 0,
+      recorded_position: position,
+      valid_from: 0,
+      tx_id: tx,
+      entity_type: entityType,
+    });
+    yield* sql`DELETE FROM triples WHERE id LIKE '00000000000000000000%'`;
+    for (let offset = 0; offset < count; offset += 100) {
+      const rows = Array.from({ length: Math.min(100, count - offset) }, (_, index) => {
+        const i = offset + index;
+        const tx = `_tx/${fixtureId(100001 + i)}`,
+          entity = `noise:${i}`,
+          id = fixtureId(i * 5 + 1),
+          position = base + i + 1;
+        const change = {
+          op: "assert",
+          tripleId: id,
+          entityId: entity,
+          entityType: "Noise",
+          attribute: ":noise/value",
+          value: { type: "number", value: i },
+          validFrom: 0,
+          recordedAt: 0,
+          assertionTxId: tx,
+        };
+        return [
+          row(id, entity, ":noise/value", "number", position, tx, "Noise", { numeric: i }),
+          row(fixtureId(i * 5 + 2), tx, ":_tx/position", "number", position, tx, "_Transaction", {
+            numeric: position,
+          }),
+          row(fixtureId(i * 5 + 3), tx, ":_tx/instant", "datetime", position, tx, "_Transaction", {
+            datetime: 0,
+          }),
+          row(
+            fixtureId(i * 5 + 4),
+            tx,
+            ":_tx/changed-entity",
+            "ref",
+            position,
+            tx,
+            "_Transaction",
+            { text: entity },
+          ),
+          row(fixtureId(i * 5 + 5), tx, ":_tx/change", "json", position, tx, "_Transaction", {
+            json: JSON.stringify(change),
+          }),
+        ];
+      }).flat();
+      yield* sql`INSERT INTO triples ${sql.insert(rows)}`;
+    }
+    yield* sql`UPDATE triplex_commit_position SET position = ${base + count} WHERE singleton = 1`;
+  });
+
 /** Complete synthetic unrelated commands plus actual related commands. */
 export const transactionPrefixIndexPlan = (backend: "sqlite" | "postgres") =>
   Effect.gen(function* () {
@@ -53,83 +131,8 @@ export const transactionPrefixIndexPlan = (backend: "sqlite" | "postgres") =>
       );
     const base = wanted.at(-1)!.position;
     const evidence = [];
-    const row = (
-      id: string,
-      entity: string,
-      attribute: string,
-      type: string,
-      position: number,
-      tx: string,
-      entityType: string,
-      value: { text?: string; numeric?: number; datetime?: number; json?: string },
-    ) => ({
-      id,
-      entity_id: entity,
-      attribute,
-      value_type: type,
-      value_string: value.text ?? null,
-      value_number: value.numeric ?? null,
-      value_datetime: value.datetime ?? null,
-      value_json: value.json ?? null,
-      recorded_at: 0,
-      recorded_position: position,
-      valid_from: 0,
-      tx_id: tx,
-      entity_type: entityType,
-    });
     for (const count of [10, 10000]) {
-      yield* sql`DELETE FROM triples WHERE id LIKE '00000000000000000000%'`;
-      for (let offset = 0; offset < count; offset += 100) {
-        const rows = Array.from({ length: Math.min(100, count - offset) }, (_, index) => {
-          const i = offset + index;
-          const tx = `_tx/${fixtureId(100001 + i)}`,
-            entity = `noise:${i}`,
-            id = fixtureId(i * 5 + 1),
-            position = base + i + 1;
-          const change = {
-            op: "assert",
-            tripleId: id,
-            entityId: entity,
-            entityType: "Noise",
-            attribute: ":noise/value",
-            value: { type: "number", value: i },
-            validFrom: 0,
-            recordedAt: 0,
-            assertionTxId: tx,
-          };
-          return [
-            row(id, entity, ":noise/value", "number", position, tx, "Noise", { numeric: i }),
-            row(fixtureId(i * 5 + 2), tx, ":_tx/position", "number", position, tx, "_Transaction", {
-              numeric: position,
-            }),
-            row(
-              fixtureId(i * 5 + 3),
-              tx,
-              ":_tx/instant",
-              "datetime",
-              position,
-              tx,
-              "_Transaction",
-              { datetime: 0 },
-            ),
-            row(
-              fixtureId(i * 5 + 4),
-              tx,
-              ":_tx/changed-entity",
-              "ref",
-              position,
-              tx,
-              "_Transaction",
-              { text: entity },
-            ),
-            row(fixtureId(i * 5 + 5), tx, ":_tx/change", "json", position, tx, "_Transaction", {
-              json: JSON.stringify(change),
-            }),
-          ];
-        }).flat();
-        yield* sql`INSERT INTO triples ${sql.insert(rows)}`;
-      }
-      yield* sql`UPDATE triplex_commit_position SET position = ${base + count} WHERE singleton = 1`;
+      yield* insertSyntheticTransactions(base, count);
       const noiseReceipt = yield* t.transaction(TransactionId.make(`_tx/${fixtureId(100001)}`));
       expect(noiseReceipt).toMatchObject({
         position: base + 1,

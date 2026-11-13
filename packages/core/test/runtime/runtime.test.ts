@@ -232,6 +232,7 @@ describe("public runtime composition", () => {
           livePreconditionFacts: unused,
           liveFacts: unused,
           transactionIdsForEntityPrefix: unused,
+          transactionIdsAfter: unused,
           getOperationalEntry: unused,
           pendingOperationalEntries: unused,
           insertOperationalEntry: unused,

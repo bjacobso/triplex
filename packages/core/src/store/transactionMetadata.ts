@@ -2,7 +2,7 @@ import type { Triple, TripleInput } from "../Triple.js";
 import { TxAttributes } from "../utils/id.js";
 import type { TransactionChange, TransactionMeta, TransactionRecord } from "./Triples.js";
 import { Option } from "effect";
-import { EntityId, TransactionId, TripleId, unsafe } from "../Branded.js";
+import { EntityId, TransactionId, TripleId } from "../Branded.js";
 import { withoutBlind } from "../Value.js";
 
 const text = (value: string) => ({ type: "string" as const, value });
@@ -167,24 +167,6 @@ export const transactionRecordFromTriples = (
       : {}),
     changes,
   };
-};
-
-export const transactionRecordsFromTriples = (
-  triples: readonly Triple[],
-): readonly TransactionRecord[] => {
-  const grouped = new Map<TransactionId, Triple[]>();
-  for (const triple of triples) {
-    const txId = unsafe.transactionId(triple.entityId);
-    const group = grouped.get(txId) ?? [];
-    group.push(triple);
-    grouped.set(txId, group);
-  }
-  return [...grouped.entries()]
-    .flatMap(([txId, txTriples]) => {
-      const record = transactionRecordFromTriples(txId, txTriples);
-      return record === null ? [] : [record];
-    })
-    .sort((left, right) => left.position - right.position);
 };
 
 export const livePreconditionIds = (meta?: TransactionMeta): ReadonlySet<string> =>

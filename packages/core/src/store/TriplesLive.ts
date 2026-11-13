@@ -60,7 +60,6 @@ import {
   livePreconditionIds,
   metadataInputs,
   transactionRecordFromTriples,
-  transactionRecordsFromTriples,
   transactionChangeFromTriple,
   validatePreconditions,
 } from "./transactionMetadata.js";
@@ -740,46 +739,34 @@ export const TriplesLive = Layer.effect(
           new ReadError({ message: "Transaction page limit must be between 1 and 1000" }),
         );
       }
-      if (prefix !== undefined) {
-        if (typeof prefix !== "string")
-          return Effect.fail(
-            new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+      if (prefix !== undefined && typeof prefix !== "string")
+        return Effect.fail(
+          new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+        );
+      // Both paths seek from `after` and hydrate only the selected page's envelopes.
+      return Effect.gen(function* () {
+        const candidates =
+          prefix === undefined
+            ? yield* adapter.transactionIdsAfter(after, limit)
+            : yield* adapter.transactionIdsForEntityPrefix(prefix, after, limit);
+        const grouped = yield* adapter.getByEntities(candidates.map((candidate) => candidate.txId));
+        const page = [];
+        for (const candidate of candidates) {
+          const record = transactionRecordFromTriples(
+            unsafe.transactionId(candidate.txId),
+            (grouped.get(candidate.txId) ?? [])
+              .filter((row) => row.entity_type === "_Transaction")
+              .map(rowToTriple),
           );
-        return Effect.gen(function* () {
-          const candidates = yield* adapter.transactionIdsForEntityPrefix(prefix, after, limit);
-          const grouped = yield* adapter.getByEntities(
-            candidates.map((candidate) => candidate.txId),
-          );
-          const page = [];
-          for (const candidate of candidates) {
-            const record = transactionRecordFromTriples(
-              unsafe.transactionId(candidate.txId),
-              (grouped.get(candidate.txId) ?? [])
-                .filter((row) => row.entity_type === "_Transaction")
-                .map(rowToTriple),
-            );
-            if (record === null || record.position !== candidate.position)
-              return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
-            page.push(record);
-          }
-          return {
-            transactions: page,
-            ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
-          };
-        });
-      }
-      return adapter.query({ entityType: "_Transaction" }).pipe(
-        Effect.map((rows) => {
-          const page = transactionRecordsFromTriples(rows.map(rowToTriple))
-            .filter((record) => record.position > after)
-            .slice(0, limit);
-          const last = page.at(-1);
-          return {
-            transactions: page,
-            ...(last ? { next: last.position } : {}),
-          };
-        }),
-      );
+          if (record === null || record.position !== candidate.position)
+            return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
+          page.push(record);
+        }
+        return {
+          transactions: page,
+          ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
+        };
+      });
     };
 
     const entityTransactions: TriplesService["transactionsForEntity"] = (entityId, request) =>

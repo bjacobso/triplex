@@ -272,6 +272,14 @@ existing AVET changed-entity prefix, pins the committed head for the scan, and
 retains a bounded candidate set before reading complete envelopes. No KV feed
 backfill is needed. Custom storage adapters implement `transactionIdsForEntityPrefix`.
 
+Without `entityIdPrefix`, a page seeks straight to `after` in the journal and reads
+only the requested transactions, so polling "what changed since position N" costs
+the same at any history length. SQL backends seek the existing
+`idx_attribute_history` index over each command's `:_tx/position` fact (no
+migration); KV seeks its AVET `:_tx/position` range up to the pinned committed
+head. Custom storage adapters implement `transactionIdsAfter` with the same
+contract: candidates after `after`, ordered by global position, at most `limit`.
+
 The filter avoids unrelated transaction metadata. Work can still grow with the
 matching prefix's history: KV scans those references and SQL can visit matching
 index candidates before sorting/deduplicating. The page limit bounds returned

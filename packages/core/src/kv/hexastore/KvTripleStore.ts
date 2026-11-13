@@ -54,7 +54,7 @@ import {
   metaKeyStr,
   typeKeyStr,
 } from "./indexes.js";
-import { tString, tRef, encodeTuple, encodeStringStr } from "./tuple.js";
+import { tNumber, tString, tRef, encodeTuple, encodeStringStr } from "./tuple.js";
 import { valueToTuplePart, type ScanPattern, patternToScan, valueToPartStr } from "./scan.js";
 
 // ─── Datom: The fundamental unit of data ───────────────────────────────────
@@ -560,6 +560,44 @@ export class KvTripleStore {
         (cause) => new ReadError({ message: "Failed to initialize KV read indexes", cause }),
       ),
     );
+  }
+
+  /**
+   * Journal page by global position: seek AVET `:_tx/position` to `(after, head]`
+   * and read at most `limit` index entries, never the whole journal.
+   */
+  transactionIdsAfter(
+    after: number,
+    limit: number,
+    snapshotPosition: number,
+  ): Effect.Effect<{ txId: string; position: number }[], ReadError> {
+    if (snapshotPosition <= after) return Effect.succeed([]);
+    const at = (position: number) =>
+      concat(AVET_PREFIX, encodeTuple(tString(TxAttributes.POSITION), tNumber(position)));
+    return Effect.gen({ self: this }, function* () {
+      const entries = yield* Stream.runCollect(
+        this.kv.getRange({
+          start: increment(at(after)),
+          end: increment(at(snapshotPosition)),
+          limit,
+        }),
+      );
+      const candidates: { txId: string; position: number }[] = [];
+      for (const [, value] of entries) {
+        const datom = yield* this.getById(textDecoder.decode(value));
+        if (datom === null)
+          return yield* new ReadError({ message: "Missing transaction position index target" });
+        if (
+          datom.entityType !== "_Transaction" ||
+          datom.retractedAt !== null ||
+          datom.value.type !== "number" ||
+          datom.value.value !== datom.recordedPosition
+        )
+          return yield* new ReadError({ message: "Invalid transaction position index target" });
+        candidates.push({ txId: datom.entity, position: datom.recordedPosition });
+      }
+      return candidates;
+    });
   }
 
   /** Prefix-only candidate scan; retain a bounded earliest-position set, never hydrate unrelated journals. */
