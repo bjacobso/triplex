@@ -1,5 +1,69 @@
 # @triplex-build/triplex
 
+## 0.4.0
+
+### Minor Changes
+
+- 25afad2: Blind tokens of sealed values now live only on the fact and its blind index. Journal `:_tx/change`
+  payloads, transaction records and entity snapshots carry a sealed value's key ID and ciphertext without its
+  blind token, so erasure can remove a subject's tokens in one place. **Existing SQLite and PostgreSQL databases
+  must run SQL migration v11** (`runMigrations`, or the layers that migrate on start): it removes blind tokens
+  from stored journal payloads and drops entity snapshots that committed to one; `SnapshotWriter.backfill` and the
+  next write recreate them. Entity snapshot content IDs of entities with sealed values change. Frozen Cloudflare
+  and FoundationDB storage keeps any earlier copies.
+- 25afad2: Add `Sensitive.erase`, which completes an erasure: it destroys a subject's data keys through `KeyCustody` (one
+  key class or all), removes the blind token of every fact sealed under them, current or retracted, and records one
+  journaled erasure transaction with its actor and command ID that names the subject and key class but no
+  attribute or value. Afterwards opening fails with `key-destroyed`, presence still matches, and equality, joins
+  and uniqueness no longer do. Repeating the command ID resumes an interrupted erasure. `Triples` gains the optional
+  `scrubBlindTokens` maintenance operation, implemented by the in-memory KV, SQLite and PostgreSQL stores; on
+  Cloudflare and FoundationDB `Sensitive.erase` fails with `SensitiveErasureError` (`unsupported`). The testkit adds
+  `makeErasureSuite`, `erasureCases` and `erasureConformanceLayer`.
+- 79ae594: Sensitive values gain key classes and a key custody contract. `Attribute.sensitive(definition, { keyClass })`
+  names the key class of an attribute (such as `retention-7y`), recorded on its attribute node; a subject's
+  values in different key classes are sealed under different data keys, so one class can be erased while
+  another is kept. `KeyContext` and `SensitiveContext` now carry `keyClass` (`default` when none is declared).
+  The new `KeyCustody` service destroys a subject's data keys, for one key class or all, returning the
+  destroyed key IDs, and rotates data keys for a database, subject or key class. `KeyProvider.testKeys`
+  now returns `{ provider, custody, layer }` instead of `destroy` and `rotate` functions, and its key IDs name
+  their scope. The AES-GCM envelope is now version 2: its authenticated data also binds the key class and the
+  key ID, so a ciphertext cannot be relabelled with another key. Version 1 envelopes no longer open; they were
+  only ever sealed with test keys.
+- 25afad2: Add key rotation for sensitive values. `SqlKeyStore.rewrapRoot` rewraps stored keys under a new root key so the
+  old one can be destroyed. `Sensitive.rewrap` reseals stored values, current and retracted, and their journal copies
+  under each scope's current data key after `KeyCustody.rotate`; `KeyCustody.retire` then destroys the replaced
+  versions. `Sensitive.rotateBlindKey` stages a new blind key, recomputes every token under it, activates it and
+  recomputes tokens written meanwhile; equality may miss values between the rewrite and the activation, so run it
+  when writes are quiet. `KeyCustody` gains `retire`, `stageBlindKey` and `activateBlindKey`; `ValueCodec` gains the
+  optional `reseal` and `blindWith`; `Triples` gains the optional `sealedFacts` and `rewriteValues` maintenance
+  operations on in-memory KV, SQLite and PostgreSQL. SQL migration v12 adds a `staged` flag to blind keys. The
+  testkit adds `makeRotationSuite` and `rotationCases`.
+- c752531: Add `SqlKeyStore`, an opt-in reference `KeyProvider` and `KeyCustody` for SQLite and PostgreSQL that keeps
+  data keys and blind keys in the database's own SQL storage, wrapped under a `RootKey` the host supplies.
+  The root key is never written to the database. SQL migration v10 adds `triplex_data_keys`,
+  `triplex_blind_keys` and `triplex_key_erasures`. `RootKey.fromBytes` wraps with AES-256-GCM and accepts
+  previous root keys for rotation. `SqliteTriples.layerWithSqlClient` and `layerMemoryWithSqlClient` also output
+  the SQLite client so the key store can share the database. The testkit adds `makeKeyStoreSuite` and
+  `keyStoreCases` for any key provider with custody. The test provider's blind key ID is now `test-blind.v1`.
+- a984274: Add `SqliteTriples.layerReadOnly({ filename })`: `Triples` over an existing SQLite file opened read-only, with no
+  migration and every write refused with `WriteError`. Acquisition fails with `SchemaVersionError` when the file is not
+  at this release's schema version (`actualVersion` is zero without a Triplex schema). `SchemaVersionError` moves to
+  `@triplex-build/triplex/sql` and is still exported from `/postgres`.
+
+### Patch Changes
+
+- 5683438: `Triples.transactions({ after })` without `entityIdPrefix` no longer reads the whole transaction
+  journal. It used to load and decode every transaction on each call and then drop the ones at or
+  before `after`, so polling "what changed since position N" slowed down as history grew. A page now
+  seeks straight to `after` and reads only the transactions it returns, on SQLite, PostgreSQL,
+  Cloudflare and KV. SQL backends use an existing index, so no migration is needed. Custom storage
+  adapters must implement the new `transactionIdsAfter(after, limit)`, which returns transaction IDs
+  and positions after `after` in position order.
+- d722499: Document sensitive values as complete: key classes, the key store, erasure and rotation are built, and the
+  remaining deferred items are listed. Record the decision that hosts supply keys through `KeyProvider` and
+  `KeyCustody` rather than importing host-sealed values; the host-sealed values RFC is marked not adopted. Add the
+  `sensitive-lifecycle` example.
+
 ## 0.3.0
 
 ### Minor Changes
