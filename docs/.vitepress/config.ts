@@ -41,6 +41,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Commit validators", link: "/commit-validators" },
       { text: "Configuration HTTP API", link: "/http-api" },
       { text: "Performance", link: "/performance" },
+      { text: "Storage footprint", link: "/storage-footprint" },
       {
         text: "Architecture",
         link: "https://github.com/bjacobso/triplex/blob/main/ARCHITECTURE.md",
@@ -155,6 +156,7 @@ export default defineConfig({
           { text: "Commit validators", link: "/commit-validators" },
           { text: "HTTP API", link: "/http-api" },
           { text: "Performance", link: "/performance" },
+          { text: "Storage footprint", link: "/storage-footprint" },
         ],
       },
       { text: "Operate", link: "/tools" },
