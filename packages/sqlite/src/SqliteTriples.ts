@@ -14,7 +14,7 @@
  */
 
 import { Layer } from "effect";
-import type { SqlClient } from "effect/sql";
+import { SqlClient } from "effect/sql";
 import {
   TriplesLive,
   CurrentDialect,
@@ -37,6 +37,19 @@ const make = <E, R>(clientLayer: Layer.Layer<SqlClient.SqlClient, E, R>, scope: 
     Layer.provide(makeTripleStoreRuntimeLayer(scope)),
   );
 
+/** `make`, also outputting the exact client so other services share the database. */
+const makeWithSqlClient = <E, R>(
+  clientLayer: Layer.Layer<SqlClient.SqlClient, E, R>,
+  scope: string,
+) =>
+  TriplesLive.pipe(
+    Layer.provide(SqlQueryExecutorLive),
+    Layer.provide(SqliteAdapterLive),
+    Layer.provide(dialectLayer),
+    Layer.provide(makeTripleStoreRuntimeLayer(scope)),
+    Layer.provideMerge(clientLayer),
+  );
+
 export const SqliteTriples = {
   /** File-backed `Triples` (WAL mode, migrations applied). */
   layer: (config: { filename: string }) =>
@@ -44,6 +57,16 @@ export const SqliteTriples = {
 
   /** In-memory `Triples` — ideal for tests and ephemeral workloads. */
   layerMemory: make(SqliteTestLayer, "sqlite::memory:"),
+
+  /**
+   * File-backed `Triples` that also outputs its `SqlClient`, so services that
+   * keep their own tables in the same database (such as `SqlKeyStore`) share it.
+   */
+  layerWithSqlClient: (config: { filename: string }) =>
+    makeWithSqlClient(makeSqliteLayer(config.filename), `sqlite:${config.filename}`),
+
+  /** In-memory `Triples` that also outputs its `SqlClient`. */
+  layerMemoryWithSqlClient: makeWithSqlClient(SqliteTestLayer, "sqlite::memory:"),
 
   /** Named in-memory store whose opaque cursors cannot cross another scope. */
   layerMemoryWithScope: (scope: string) => make(SqliteTestLayer, `sqlite::memory:${scope}`),

@@ -340,3 +340,66 @@ export const OPERATIONAL_ENTRY_INDEX_DDLS = [
 /** Expression statistics cover only live rows, avoiding historical attribute skew. */
 export const LIVE_PRECONDITION_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_live_precondition_key
   ON triples ((length(entity_id)::text || ':' || entity_id || attribute)) WHERE retracted_at IS NULL`;
+
+/**
+ * Data keys of the SQL key store (`SqlKeyStore`), one row per subject, key
+ * class and version. The key is stored only wrapped under the host's root key
+ * (`root_key_id` names it; the root key itself is never stored). Destroying a
+ * key clears `wrapped_key` and sets `destroyed_at`; the row stays so the key ID
+ * still resolves to "destroyed" rather than "unknown".
+ */
+export const DATA_KEYS_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_data_keys (
+    key_id TEXT PRIMARY KEY,
+    database_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    key_class TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    root_key_id TEXT,
+    wrapped_key TEXT,
+    created_at BIGINT NOT NULL,
+    destroyed_at BIGINT,
+    UNIQUE (database_id, subject, key_class, version),
+    CHECK ((destroyed_at IS NULL) = (wrapped_key IS NOT NULL)),
+    CHECK ((wrapped_key IS NULL) = (root_key_id IS NULL))
+  )
+`;
+
+/** Rewrapping under a new root key finds the keys still wrapped under an old one. */
+export const DATA_KEYS_ROOT_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_data_keys_root ON triplex_data_keys(root_key_id) WHERE root_key_id IS NOT NULL";
+
+/**
+ * Erased key scopes. `key_class` is `*` when every key class of the subject was
+ * erased. New seals for an erased scope fail, so a key is never recreated for it.
+ */
+export const KEY_ERASURES_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_key_erasures (
+    database_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    key_class TEXT NOT NULL,
+    erased_at BIGINT NOT NULL,
+    PRIMARY KEY (database_id, subject, key_class)
+  )
+`;
+
+/** Blind-index HMAC keys, one current version per database, wrapped like data keys. */
+export const BLIND_KEYS_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_blind_keys (
+    key_id TEXT PRIMARY KEY,
+    database_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    root_key_id TEXT NOT NULL,
+    wrapped_key TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    retired_at BIGINT,
+    UNIQUE (database_id, version)
+  )
+`;
+
+export const KEY_STORE_DDLS: ReadonlyArray<string> = [
+  DATA_KEYS_TABLE_DDL,
+  DATA_KEYS_ROOT_INDEX_DDL,
+  KEY_ERASURES_TABLE_DDL,
+  BLIND_KEYS_TABLE_DDL,
+];

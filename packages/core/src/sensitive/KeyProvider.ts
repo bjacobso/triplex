@@ -163,6 +163,8 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
   // Every scope that has sealed a value, so whole-subject scopes can be expanded.
   const known = new Map<string, KeyContext>();
   const destroyed = new Set<string>();
+  // Versions actually issued per scope; only these open and are reported destroyed.
+  const issued = new Map<string, Set<number>>();
   const cache = new Map<string, CryptoKey>();
 
   const versionOf = (context: KeyContext): number =>
@@ -207,15 +209,23 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
   const provider: KeyProviderService = {
     sealingKey: (context) =>
       Effect.suspend(() => {
-        known.set(scopeKey(context), context);
+        const key = scopeKey(context);
+        known.set(key, context);
         const version = versionOf(context);
+        if (!destroyed.has(key)) {
+          const versions = issued.get(key) ?? new Set<number>();
+          versions.add(version);
+          issued.set(key, versions);
+        }
         return dataKey(context, version).pipe(
           Effect.map((key) => ({ keyId: `test:${scopeDigest(context)}:v${version}`, key })),
         );
       }),
     openingKey: (context, keyId) => {
       const match = TEST_KEY_ID.exec(keyId);
-      return match && match[1] === scopeDigest(context)
+      return match &&
+        match[1] === scopeDigest(context) &&
+        issued.get(scopeKey(context))?.has(Number(match[2])) === true
         ? dataKey(context, Number(match[2]))
         : Effect.fail(
             new KeyError({ reason: "unavailable", message: "Unknown test key ID for this value" }),
@@ -223,7 +233,7 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
     },
     blindKey: (database) =>
       cached(`blind\u0000${database}`, () => derive(options.seed, "blind", database), "hmac").pipe(
-        Effect.map((key) => ({ keyId: "test-blind:v1", key })),
+        Effect.map((key) => ({ keyId: "test-blind.v1", key })),
       ),
   };
 
@@ -233,10 +243,9 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
         matching(scope).flatMap((context) => {
           destroyed.add(scopeKey(context));
           const digest = scopeDigest(context);
-          return Array.from(
-            { length: versionOf(context) },
-            (_, index) => `test:${digest}:v${index + 1}`,
-          );
+          return [...(issued.get(scopeKey(context)) ?? [])]
+            .sort((a, b) => a - b)
+            .map((version) => `test:${digest}:v${version}`);
         }),
       ),
     rotate: (scope) =>
