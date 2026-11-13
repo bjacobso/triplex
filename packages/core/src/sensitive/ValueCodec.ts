@@ -15,6 +15,7 @@ import { SensitiveValueError } from "../errors/index.js";
 import type { PlainValue, SealableValueType, SealedValue } from "../Value.js";
 import {
   KeyProvider,
+  type DataKey,
   type KeyContext,
   type KeyError,
   type KeyProviderService,
@@ -62,6 +63,24 @@ export interface ValueCodecService {
     context: SensitiveContext,
     value: PlainValue,
   ) => Effect.Effect<string | undefined, SensitiveValueError>;
+  /**
+   * Rotation: reseal a stored value under its scope's current data key, or
+   * succeed with `undefined` when it is already sealed under it. Codecs
+   * without keys omit it.
+   */
+  readonly reseal?: (
+    context: SensitiveContext,
+    sealed: SealedValue,
+  ) => Effect.Effect<Sealed | undefined, SensitiveValueError>;
+  /**
+   * Rotation: the blind token of a plaintext under a given blind key, such as
+   * a staged key that is not current yet. Codecs without keys omit it.
+   */
+  readonly blindWith?: (
+    context: SensitiveContext,
+    value: PlainValue,
+    key: DataKey,
+  ) => Effect.Effect<string, SensitiveValueError>;
 }
 
 export class ValueCodec extends Context.Service<ValueCodec, ValueCodecService>()(
@@ -279,23 +298,24 @@ const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCode
   const subjectOf = options.subjectOf ?? ((context: SensitiveContext) => context.entityId);
   const scope = options.blindScope ?? "database";
 
+  const blindUnder = (context: SensitiveContext, canonical: string, { keyId, key }: DataKey) =>
+    Effect.tryPromise({
+      try: () =>
+        globalThis.crypto.subtle.sign(
+          "HMAC",
+          key,
+          bufferSource(utf8(blindInput(context, canonical, scope))),
+        ),
+      catch: (cause) => codecFailure(context, "blind-index computation failed", cause),
+    }).pipe(Effect.map((mac) => `${keyId}:${toBase64Url(new Uint8Array(mac))}`));
+
   const blindCanonical = (context: SensitiveContext, canonical: string) =>
     keys.blindKey(context.database).pipe(
       Effect.mapError((error) => keyFailure(context, error)),
-      Effect.flatMap(({ keyId, key }) =>
-        Effect.tryPromise({
-          try: () =>
-            globalThis.crypto.subtle.sign(
-              "HMAC",
-              key,
-              bufferSource(utf8(blindInput(context, canonical, scope))),
-            ),
-          catch: (cause) => codecFailure(context, "blind-index computation failed", cause),
-        }).pipe(Effect.map((mac) => `${keyId}:${toBase64Url(new Uint8Array(mac))}`)),
-      ),
+      Effect.flatMap((blindKey) => blindUnder(context, canonical, blindKey)),
     );
 
-  return {
+  const service: ValueCodecService = {
     name: "aes-256-gcm",
     blindScope: scope,
     seal: (context, value) =>
@@ -369,6 +389,23 @@ const makeAesGcm = (keys: KeyProviderService, options: AesGcmOptions): ValueCode
     blind: (context, value) =>
       canonicalPlaintext(context, value).pipe(
         Effect.flatMap((canonical) => blindCanonical(context, canonical)),
+      ),
+  };
+
+  return {
+    ...service,
+    reseal: (context, sealed) =>
+      Effect.gen(function* () {
+        const { keyId } = yield* keys
+          .sealingKey(keyContext(context, subjectOf(context)))
+          .pipe(Effect.mapError((error) => keyFailure(context, error)));
+        if (keyId === sealed.keyId) return undefined;
+        const plain = yield* service.open(context, sealed);
+        return yield* service.seal(context, plain);
+      }),
+    blindWith: (context, value, key) =>
+      canonicalPlaintext(context, value).pipe(
+        Effect.flatMap((canonical) => blindUnder(context, canonical, key)),
       ),
   };
 };

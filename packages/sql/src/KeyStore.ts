@@ -202,12 +202,12 @@ const make = (options: SqlKeyStoreOptions) =>
     const currentBlind = sql<BlindKeyRow>`
       SELECT key_id, version, root_key_id, wrapped_key
       FROM triplex_blind_keys
-      WHERE database_id = ${database} AND retired_at IS NULL
+      WHERE database_id = ${database} AND retired_at IS NULL AND staged = 0
       ORDER BY version DESC
       LIMIT 1
     `.pipe(Effect.map((rows) => rows[0]));
 
-    const insertBlindKey = (version: number) =>
+    const insertBlindKey = (version: number, staged = false) =>
       Effect.gen(function* () {
         const keyId = randomId("b1.");
         const raw = globalThis.crypto.getRandomValues(new Uint8Array(32));
@@ -215,8 +215,9 @@ const make = (options: SqlKeyStoreOptions) =>
         const now = yield* Clock.currentTimeMillis;
         yield* sql`
           INSERT INTO triplex_blind_keys
-            (key_id, database_id, version, root_key_id, wrapped_key, created_at)
-          VALUES (${keyId}, ${database}, ${version}, ${wrapped.rootKeyId}, ${wrapped.wrapped}, ${now})
+            (key_id, database_id, version, root_key_id, wrapped_key, created_at, staged)
+          VALUES (${keyId}, ${database}, ${version}, ${wrapped.rootKeyId}, ${wrapped.wrapped}, ${now},
+                  ${staged ? 1 : 0})
           ON CONFLICT DO NOTHING
         `;
       });
@@ -302,9 +303,97 @@ const make = (options: SqlKeyStoreOptions) =>
         }),
       );
 
+    const retire = (requested: string, keyIds: ReadonlyArray<string>) =>
+      run(
+        Effect.gen(function* () {
+          yield* checkDatabase(requested);
+          if (keyIds.length === 0) return;
+          yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const rows = yield* sql<DataKeyRow>`
+                SELECT key_id, subject, key_class, version, root_key_id, wrapped_key
+                FROM triplex_data_keys
+                WHERE database_id = ${database} AND ${sql.in("key_id", keyIds)}
+              `;
+              for (const row of rows) {
+                const current = yield* latest({
+                  database,
+                  subject: row.subject,
+                  keyClass: row.key_class,
+                });
+                if (current?.key_id === row.key_id) {
+                  return yield* unavailable("A current data key cannot be retired");
+                }
+              }
+              const now = yield* Clock.currentTimeMillis;
+              yield* sql`
+                UPDATE triplex_data_keys
+                SET wrapped_key = NULL, root_key_id = NULL, destroyed_at = ${now}
+                WHERE database_id = ${database} AND destroyed_at IS NULL
+                  AND ${sql.in("key_id", keyIds)}
+              `;
+              for (const keyId of keyIds) unwrapped.delete(keyId);
+            }),
+          );
+        }),
+      );
+
+    const stagedBlind = sql<BlindKeyRow>`
+      SELECT key_id, version, root_key_id, wrapped_key
+      FROM triplex_blind_keys
+      WHERE database_id = ${database} AND staged = 1
+      ORDER BY version DESC
+      LIMIT 1
+    `.pipe(Effect.map((rows) => rows[0]));
+
+    const stageBlindKey = (requested: string) =>
+      run(
+        Effect.gen(function* () {
+          yield* checkDatabase(requested);
+          let row = yield* stagedBlind;
+          if (row === undefined) {
+            const [top] = yield* sql<{ version: number | null }>`
+              SELECT MAX(version) AS version FROM triplex_blind_keys WHERE database_id = ${database}
+            `;
+            yield* insertBlindKey(Number(top?.version ?? 0) + 1, true);
+            row = yield* stagedBlind;
+          }
+          if (row === undefined) return yield* unavailable("No blind key could be staged");
+          const key = yield* unwrap(row.key_id, row.root_key_id, row.wrapped_key, "hmac");
+          return { keyId: row.key_id, key };
+        }),
+      );
+
+    const activateBlindKey = (requested: string, keyId: string) =>
+      run(
+        Effect.gen(function* () {
+          yield* checkDatabase(requested);
+          yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const staged = yield* stagedBlind;
+              if (staged === undefined || staged.key_id !== keyId) {
+                return yield* unavailable("That blind key is not staged");
+              }
+              const now = yield* Clock.currentTimeMillis;
+              yield* sql`
+                UPDATE triplex_blind_keys SET retired_at = ${now}
+                WHERE database_id = ${database} AND retired_at IS NULL AND staged = 0
+              `;
+              yield* sql`UPDATE triplex_blind_keys SET staged = 0 WHERE key_id = ${keyId}`;
+            }),
+          );
+        }),
+      );
+
     return {
       provider: { sealingKey, openingKey, blindKey } satisfies KeyProvider.KeyProviderService,
-      custody: { destroy, rotate } satisfies KeyProvider.KeyCustodyService,
+      custody: {
+        destroy,
+        rotate,
+        retire,
+        stageBlindKey,
+        activateBlindKey,
+      } satisfies KeyProvider.KeyCustodyService,
     };
   });
 
@@ -319,7 +408,61 @@ const make = (options: SqlKeyStoreOptions) =>
  * )
  * ```
  */
+/**
+ * Rewrap every stored key under the root key's current version, for example
+ * after adding a new root key with the old one in `previous`. Rewrites no
+ * facts. Resumable: each key is rewrapped on its own. Once it reports zero
+ * remaining, remove the old root key from `previous` and destroy it; backups
+ * taken before then still hold keys wrapped under it.
+ */
+const rewrapRoot = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const root = yield* RootKey.RootKey;
+  const rewrap = (table: "triplex_data_keys" | "triplex_blind_keys") =>
+    Effect.gen(function* () {
+      const rows = yield* sql<{
+        key_id: string;
+        database_id: string;
+        root_key_id: string;
+        wrapped_key: string;
+      }>`
+        SELECT key_id, database_id, root_key_id, wrapped_key FROM ${sql(table)}
+        WHERE wrapped_key IS NOT NULL AND root_key_id <> ${root.currentId}
+      `;
+      for (const row of rows) {
+        const label = labelOf(row.database_id, row.key_id);
+        const raw = yield* root.unwrap(
+          { rootKeyId: row.root_key_id, wrapped: row.wrapped_key },
+          label,
+        );
+        const wrapped = yield* root.wrap(raw, label);
+        yield* sql`
+          UPDATE ${sql(table)}
+          SET root_key_id = ${wrapped.rootKeyId}, wrapped_key = ${wrapped.wrapped}
+          WHERE key_id = ${row.key_id} AND root_key_id = ${row.root_key_id}
+        `;
+      }
+      return rows.length;
+    });
+  const dataKeys = yield* rewrap("triplex_data_keys");
+  const blindKeys = yield* rewrap("triplex_blind_keys");
+  const [left] = yield* sql<{ count: number }>`
+    SELECT
+      (SELECT COUNT(*) FROM triplex_data_keys WHERE wrapped_key IS NOT NULL AND root_key_id <> ${root.currentId})
+      + (SELECT COUNT(*) FROM triplex_blind_keys WHERE root_key_id <> ${root.currentId}) AS count
+  `;
+  return { dataKeys, blindKeys, remaining: Number(left?.count ?? 0) };
+}).pipe(
+  Effect.mapError((cause) => (cause instanceof KeyProvider.KeyError ? cause : sqlFailure(cause))),
+);
+
 export const SqlKeyStore = {
+  /** Rewrap stored keys under the current root key. See `rewrapRoot`. */
+  rewrapRoot: rewrapRoot as Effect.Effect<
+    { readonly dataKeys: number; readonly blindKeys: number; readonly remaining: number },
+    KeyError,
+    SqlClient.SqlClient | RootKey.RootKey
+  >,
   layer: (
     options: SqlKeyStoreOptions,
   ): Layer.Layer<

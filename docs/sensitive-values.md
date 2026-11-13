@@ -549,24 +549,46 @@ not notified by the scrub; re-run them, or they update with the next change to t
 
 ## Key rotation
 
-Design, partially built:
+Three rotations, each a maintenance operation that rewrites no history: facts keep their identity,
+valid times, recorded times, transaction and position, and nothing is journaled.
 
-- **Data keys.** Each envelope records its key ID. `KeyProvider.sealingKey` returns the current key
-  for new seals and `KeyProvider.openingKey(context, keyId)` resolves historical keys, so rotation
-  needs no data change. The test provider's `rotate()` demonstrates this and is covered by tests.
-  Re-encryption under a new key (_rewrap_) rewrites `value_sealed` for an existing fact ID in place.
-  The fact's meaning, valid time, transaction and position do not change, so transaction history
-  is untouched. Rewrap is an unjournaled maintenance operation with a durable checkpoint, so it
-  resumes after interruption. Journal `:_tx/change` payloads hold their own copy of the sealed
-  value. Rewrap either rewrites them too or keeps old key IDs available for opening; the reference
-  provider does the latter.
-- **Blind key.** Rotating the blind key changes every token. Tokens already carry the blind key ID
-  as a prefix. During rotation the decorator would expand each equality constant to both key
-  versions and compare joins within one version. A background rewrap recomputes tokens, which
-  requires opening every value. Uniqueness enforcement compares both versions until the rewrap
-  completes.
-- Not built: the rewrap maintenance operation (the same adapter extension as the blind scrub) and
-  dual-version blind lookups.
+**Root key** (with `SqlKeyStore`). Configure the new root key as `current` and the old one in
+`previous`, then run `SqlKeyStore.rewrapRoot`. It rewraps every stored data and blind key under the
+current root key and rewrites no facts. It is resumable and reports how many keys are still wrapped
+under an older root key; at zero, remove the old root key from `previous` and destroy it. This is
+also what makes an erasure reach backups: a backup taken before the rewrap holds keys wrapped under
+the old root key, which no longer exists.
+
+```ts
+const rewrapAll = Effect.gen(function* () {
+  return yield* SqlKeyStore.rewrapRoot; // { dataKeys, blindKeys, remaining }
+});
+```
+
+**Data keys.** `KeyCustody.rotate({ database, subject?, keyClass? })` makes a new data key version
+current, so new seals use it while older values still open under the key ID they record. To move
+existing values too, run `Sensitive.rewrap`. It reseals every stored value whose key is not its
+scope's current key, current and retracted facts alike, and rewrites each fact's journal
+`:_tx/change` copies with it. It skips erased values and values whose attribute the policy no longer
+lists, and it is resumable: a value already under its current key is left alone. Its report lists
+the replaced key IDs; pass them to `KeyCustody.retire(database, keyIds)` to destroy those versions.
+`retire` refuses a key that is still current.
+
+**Blind key.** `Sensitive.rotateBlindKey` stages the next blind key version
+(`KeyCustody.stageBlindKey`), recomputes every stored token under it in one rewrite, activates it
+(`KeyCustody.activateBlindKey`, which retires the previous version) and then recomputes any token
+written under the old key meanwhile. Recomputing a token opens its value, so tokens of erased values
+are removed rather than recomputed. Tokens carry their blind key ID as a prefix, so a token's version
+is visible.
+
+The design called for dual-version lookups during blind-key rotation, so it could run online. This
+release ships the simpler version above instead: between the token rewrite and the activation,
+equality, joins and uniqueness may miss values, so run it when writes are quiet. Dual-version
+lookups are deferred until a database is too large to rotate this way.
+
+Rotation needs the same maintenance operations as erasure (`sealedFacts`, `rewriteValues`), so it
+runs on in-memory KV, SQLite and PostgreSQL and fails with `SensitiveRotationError` (`unsupported`)
+on Cloudflare and FoundationDB.
 
 ## Backends
 
@@ -619,5 +641,5 @@ planning, blind equality in the KV and SQL engines, storage migrations for SQLit
 Cloudflare, constraint and validation support, derivation and overlay support, surface defaults,
 shared conformance corpora, and raw-storage scan tests.
 
-Designed but not built: rewrap, blind-key rotation,
-and opening sealed values in `ConfigRuntime`.
+Designed but not built: dual-version blind lookups during an online blind-key rotation, and opening
+sealed values in `ConfigRuntime`.

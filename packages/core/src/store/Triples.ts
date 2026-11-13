@@ -354,6 +354,27 @@ export interface TriplesService {
    * it directly.
    */
   readonly scrubBlindTokens?: (keyIds: ReadonlyArray<string>) => Effect.Effect<number, WriteError>;
+  /**
+   * Rotation maintenance: every sealed fact, current and retracted. Absent
+   * where `scrubBlindTokens` is. Use `Sensitive.rewrap` and
+   * `Sensitive.rotateBlindKey` rather than calling it directly.
+   */
+  readonly sealedFacts?: () => Effect.Effect<readonly Triple[], ReadError>;
+  /**
+   * Rotation maintenance: replace stored values in place, keeping each fact's
+   * identity, times and position. Unjournaled. Only a sealed value may replace
+   * a sealed value, and only a journal `:_tx/change` payload may replace one;
+   * otherwise nothing is written and the call fails.
+   */
+  readonly rewriteValues?: (
+    updates: ReadonlyArray<ValueRewrite>,
+  ) => Effect.Effect<number, WriteError>;
+}
+
+/** One in-place value replacement for `Triples.rewriteValues`. */
+export interface ValueRewrite {
+  readonly id: TripleId;
+  readonly value: TripleValue;
 }
 
 /**

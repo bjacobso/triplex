@@ -12,6 +12,7 @@ import {
   ERASURE_CONFORMANCE_DATABASE,
   erasureConformanceLayer,
   makeErasureSuite,
+  makeRotationSuite,
   KEY_STORE_CONFORMANCE_DATABASE,
   SENSITIVE_CONFORMANCE_DATABASE,
   makeKeyStoreSuite,
@@ -82,6 +83,7 @@ describe("SQLite erasure", () => {
   it("passes the erasure contract with test keys", async () => {
     await run(
       makeErasureSuite().pipe(
+        Effect.andThen(makeRotationSuite()),
         Effect.provide(erasureConformanceLayer(Layer.fresh(SqliteTriples.layerMemory))),
       ),
     );
@@ -106,6 +108,7 @@ describe("SQLite erasure", () => {
           SELECT value_blind FROM triples WHERE entity_id = 'er:ada' AND value_blind IS NOT NULL
         `;
           yield* makeErasureSuite();
+          yield* makeRotationSuite();
           const tables = yield* sql<{ name: string }>`
           SELECT name FROM sqlite_master WHERE type = 'table'
         `;
@@ -192,6 +195,38 @@ describe("SQLite key store", () => {
       ),
     );
     expect(JSON.stringify(wrongRoot)).toContain("key-unavailable");
+  });
+
+  it("rewraps stored keys under a new root key so the old one can be dropped", async () => {
+    const { filename } = await tempFile();
+    await run(writeSsn.pipe(Effect.provide(fileStore(filename))));
+    const rotated = { current: root("root-2", 9), previous: [root("root-1", 7)] };
+    const report = await run(
+      SqlKeyStore.rewrapRoot.pipe(
+        Effect.provide(
+          Layer.merge(rootLayer(rotated), SqliteTriples.layerWithSqlClient({ filename })),
+        ),
+      ),
+    );
+    expect(report).toEqual({ dataKeys: 1, blindKeys: 1, remaining: 0 });
+    const again = await run(
+      SqlKeyStore.rewrapRoot.pipe(
+        Effect.provide(
+          Layer.merge(rootLayer(rotated), SqliteTriples.layerWithSqlClient({ filename })),
+        ),
+      ),
+    );
+    expect(again).toEqual({ dataKeys: 0, blindKeys: 0, remaining: 0 });
+    const opened = await run(
+      openSsn.pipe(Effect.provide(fileStore(filename, { current: root("root-2", 9) }))),
+    );
+    expect(opened.value).toEqual({ type: "string", value: "917-55-4321" });
+    const oldOnly = await run(
+      Effect.exit(openSsn).pipe(
+        Effect.provide(fileStore(filename, { current: root("root-1", 7) })),
+      ),
+    );
+    expect(JSON.stringify(oldOnly)).toContain("key-unavailable");
   });
 
   it("opens by key ID even when the host maps values to subjects differently", async () => {
