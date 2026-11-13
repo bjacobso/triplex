@@ -21,9 +21,9 @@ import {
   makeTripleStoreRuntimeLayer,
 } from "@triplex-internal/core/internal";
 import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
-import { SqliteAdapterLive } from "./SqliteAdapter.js";
+import { SqliteAdapterLive, SqliteAdapterUnmigrated } from "./SqliteAdapter.js";
 import { SqliteDialect } from "./dialect.js";
-import { makeSqliteLayer, SqliteTestLayer } from "./SqliteLayer.js";
+import { makeSqliteLayer, makeSqliteLayerReadOnly, SqliteTestLayer } from "./SqliteLayer.js";
 
 const dialectLayer = Layer.succeed(CurrentDialect, SqliteDialect);
 
@@ -50,10 +50,29 @@ const makeWithSqlClient = <E, R>(
     Layer.provideMerge(clientLayer),
   );
 
+/** `Triples` over a read-only client: no migration, no write succeeds. */
+const makeReadOnly = (filename: string) =>
+  TriplesLive.pipe(
+    Layer.provide(SqlQueryExecutorLive),
+    Layer.provide(SqliteAdapterUnmigrated),
+    Layer.provide(dialectLayer),
+    Layer.provide(makeSqliteLayerReadOnly(filename)),
+    Layer.provide(makeTripleStoreRuntimeLayer(`sqlite:${filename}`)),
+  );
+
 export const SqliteTriples = {
   /** File-backed `Triples` (WAL mode, migrations applied). */
   layer: (config: { filename: string }) =>
     make(makeSqliteLayer(config.filename), `sqlite:${config.filename}`),
+
+  /**
+   * Read-only `Triples` over an existing file. The file is opened read-only,
+   * no migration runs, and every write fails with `WriteError`. Acquisition
+   * fails with `SchemaVersionError` if the file is not at this release's schema
+   * version (zero when it has no Triplex schema); migrate it with
+   * `SqliteTriples.layer` or `runMigrations` first.
+   */
+  layerReadOnly: (config: { filename: string }) => makeReadOnly(config.filename),
 
   /** In-memory `Triples` — ideal for tests and ephemeral workloads. */
   layerMemory: make(SqliteTestLayer, "sqlite::memory:"),

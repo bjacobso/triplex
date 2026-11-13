@@ -34,6 +34,7 @@ export {
 } from "./schema.js";
 export { packValue } from "./queries.js";
 export { type Migration, migrations, runMigrations } from "./migrations.js";
+export { SchemaVersionError } from "./SchemaVersion.js";
 
 // SQL-based query executors
 export {
