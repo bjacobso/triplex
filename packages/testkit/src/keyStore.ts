@@ -182,6 +182,59 @@ export const keyStoreCases: readonly KeyStoreCase[] = [
     }),
   },
   {
+    name: "retires old versions but never a current key",
+    run: Effect.gen(function* () {
+      const keys = yield* KeyProvider.KeyProvider;
+      const custody = yield* KeyProvider.KeyCustody;
+      const subject = "subject:retire";
+      const old = yield* keys.sealingKey(context(subject));
+      yield* custody.rotate({ database: KEY_STORE_CONFORMANCE_DATABASE, subject });
+      const current = yield* keys.sealingKey(context(subject));
+      yield* check(
+        (yield* reason(custody.retire(KEY_STORE_CONFORMANCE_DATABASE, [current.keyId]))) ===
+          "unavailable",
+        "a current key cannot be retired",
+      );
+      yield* custody.retire(KEY_STORE_CONFORMANCE_DATABASE, [old.keyId]);
+      yield* check(
+        (yield* reason(keys.openingKey(context(subject), old.keyId))) === "destroyed",
+        "a retired key no longer opens",
+      );
+      yield* check(
+        (yield* keys.sealingKey(context(subject))).keyId === current.keyId,
+        "the scope still seals under its current key",
+      );
+    }),
+  },
+  {
+    name: "stages a blind key without making it current until activated",
+    run: Effect.gen(function* () {
+      const keys = yield* KeyProvider.KeyProvider;
+      const custody = yield* KeyProvider.KeyCustody;
+      const database = KEY_STORE_CONFORMANCE_DATABASE;
+      const before = yield* keys.blindKey(database);
+      const staged = yield* custody.stageBlindKey(database);
+      yield* check(staged.keyId !== before.keyId, "the staged key is new");
+      yield* check(
+        (yield* custody.stageBlindKey(database)).keyId === staged.keyId,
+        "staging again returns the same key",
+      );
+      yield* check(
+        (yield* keys.blindKey(database)).keyId === before.keyId,
+        "the staged key is not current",
+      );
+      yield* check(
+        (yield* reason(custody.activateBlindKey(database, before.keyId))) === "unavailable",
+        "only the staged key can be activated",
+      );
+      yield* custody.activateBlindKey(database, staged.keyId);
+      yield* check(
+        (yield* keys.blindKey(database)).keyId === staged.keyId,
+        "the activated key is current",
+      );
+    }),
+  },
+  {
     name: "one stable blind key per database",
     run: Effect.gen(function* () {
       const keys = yield* KeyProvider.KeyProvider;

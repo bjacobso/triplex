@@ -34,7 +34,6 @@ export type SnapshotValue =
       valueType: string;
       keyId: string;
       ciphertext: string;
-      blind?: string;
     };
 
 export type SnapshotAttributeMap = Record<string, SnapshotValue | SnapshotValue[]>;
@@ -98,13 +97,13 @@ export const tripleValueToSnapshotValue = (tv: TripleValue): SnapshotValue => {
       // Blobs are stored by their content hash in the triple store
       return { type: "string", value: tv.value };
     case "sealed":
-      // Snapshots commit to the sealed envelope, never to plaintext.
+      // Snapshots commit to the sealed envelope, never to plaintext, and carry
+      // no blind token, so erasure scrubs tokens from facts alone.
       return {
         type: "sealed",
         valueType: tv.valueType,
         keyId: tv.keyId,
         ciphertext: tv.ciphertext,
-        ...(tv.blind === undefined ? {} : { blind: tv.blind }),
       };
   }
 };
@@ -150,7 +149,7 @@ const canonicalValueSortKey = (sv: SnapshotValue): string => {
   // Sort by type first, then by a stringified value representation
   const valuePart =
     sv.type === "sealed"
-      ? (sv.blind ?? sv.ciphertext)
+      ? sv.ciphertext
       : sv.type === "json"
         ? JSON.stringify(sv.value)
         : String(sv.value);

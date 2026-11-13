@@ -345,9 +345,17 @@ the operations so a concurrent retraction fails with `TransactionConflictError`.
 
 `get`, `entity`, `entities`, `entityPage`, `match`, `history`, `transaction`, `transactions`,
 `transactionByCommand` and `transactionsForEntity` return stored sealed values unchanged. The
-journal's `:_tx/change` payload embeds the same sealed value, so history and "what changed" reads
-show that a sensitive fact changed, by whom and when, without its plaintext. Entity snapshots
-commit to the sealed envelope.
+journal's `:_tx/change` payload embeds the sealed value without its blind token, so history and
+"what changed" reads show that a sensitive fact changed, by whom and when, without its plaintext.
+Entity snapshots commit to the sealed envelope, also without the blind token.
+
+**Blind tokens live only on the fact.** A sealed value's blind token is stored on the fact and in
+its blind index (`value_blind` in SQL, the AVET entries in KV) and nowhere else: journal
+payloads, transaction records and entity snapshots carry the key ID and ciphertext only. Erasure
+can therefore remove a subject's tokens in one place. SQL migration v11 removes the copies that
+earlier versions wrote into journal payloads, and drops entity snapshots that committed to a token;
+`SnapshotWriter.backfill` and the next write recreate them. Existing SQLite and PostgreSQL databases
+must run it. Cloudflare and FoundationDB storage is frozen and keeps any earlier copies.
 
 `match` with a value on a sensitive attribute is rewritten to a blind-token lookup, so "which
 person has this SSN?" is an indexed equality read. A value of a type that can never equal the
@@ -481,54 +489,106 @@ positive control that finds a non-sensitive plaintext value.
 
 ## Erasure (crypto-shredding)
 
-Design, partially built:
+`Sensitive.erase` erases a subject, or one key class of it, and records that it did:
 
-- Data keys belong to a **subject** and a **key class**. `ValueCodec.aesGcmWith({ subjectOf })` maps
-  a value to its subject, which defaults to the entity ID. A host may map related entities, such as
-  a person's documents, to the person. The key class comes from the attribute declaration.
-- Erasing a subject destroys its data keys through `KeyCustody.destroy`, for every key class or
-  for one. New seals for a destroyed scope fail with `key-destroyed`. Facts, positions, journal entries
-  and sealed envelopes remain, so history stays complete and audit queries keep working. The
-  ciphertext can no longer be opened.
-- Reads after erasure return the same sealed values. `Sensitive.open` fails with
-  `SensitiveValueError` (`key-destroyed`). `Sensitive.open(facts, { erased: "keep-sealed" })`
-  leaves erased values sealed instead, so a UI can render "erased" without failing the read.
-- **Blind tokens must be scrubbed too.** A blind token keyed per database survives a destroyed data
-  key, so someone holding a candidate value could still confirm it. Erasure therefore also clears
-  the subject's blind tokens (`value_blind`, and the KV blind index entries) through an unjournaled
-  maintenance operation, like checkpoint maintenance. It also records one journaled erasure fact
-  that names the subject and the time but no attribute or value. After scrubbing, Datalog presence
-  still matches erased facts, while equality, joins and uniqueness no longer do, so a unique value
-  whose holder was erased becomes reusable.
+```ts
+const erasePerson = (personId: string, request: { readonly id: string }) =>
+  Sensitive.erase({
+    subject: personId, // the entity ID, unless `subjectOf` maps values to another subject
+    keyClass: "retention-1y", // optional: omit to erase every key class of the subject
+    actor: "dpo@acme.example",
+    commandId: request.id, // repeating it resumes an interrupted erasure
+  });
+// succeeds with { subject, keyClass, keyIds, scrubbed, transaction }
+```
+
+It requires `Triples`, `Sensitivity` and `KeyCustody`, and runs three steps:
+
+1. **Destroy the keys.** `KeyCustody.destroy` destroys every data key of the scope and returns their
+   key IDs. From then on, new seals for the scope fail with `key-destroyed`.
+2. **Remove the blind tokens.** A blind token is keyed per database, so it survives a destroyed data
+   key: anyone holding a candidate value could still confirm it. The store's `scrubBlindTokens`
+   maintenance operation clears the token of every fact, current or retracted, sealed under the
+   destroyed key IDs. Tokens live only on facts (`value_blind`, and the KV index entries), so this is
+   the only place they need removing. The operation is unjournaled: facts keep their envelope,
+   identity, valid times, recorded times and positions.
+3. **Record the erasure.** One journaled transaction, with the request's actor and command ID, asserts
+   `:triplex/erasure-subject`, `:triplex/erasure-key-class` (`*` for every class) and
+   `:triplex/erasure-keys` (how many keys were destroyed) on a reserved `_triplex/erasure/<commandId>`
+   entity. It names no attribute and no value.
+
+The tokens are removed again after the record commits, so a write that sealed under the key just
+before it was destroyed cannot keep a token. Every step is idempotent; repeating the same
+`commandId` resumes an interrupted erasure and records it once.
+
+After erasure:
+
+- Reads return the same sealed values, and history and the journal stay complete. `Sensitive.open`
+  fails with `SensitiveValueError` (`key-destroyed`); `Sensitive.open(facts, { erased: "keep-sealed" })`
+  leaves erased values sealed, so a UI can render "erased" without failing the read.
+- Datalog presence still matches erased facts. Equality, joins and uniqueness no longer do, so a
+  unique value whose holder was erased becomes reusable.
+- Other subjects, and other key classes of the same subject, are untouched.
 - Derivations over erased subjects keep their committed provenance. Re-evaluation sees presence but
   no equality matches, which is the correct post-erasure answer.
 
-Built: per-subject and per-key-class keys, the `KeyCustody` contract, key destruction in the test
-provider, typed `key-destroyed` opening and
-the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure fact. Both need a
-new optional `StorageAdapter` maintenance method on the in-memory KV, SQLite and PostgreSQL
-backends; Cloudflare and FoundationDB are frozen and need not implement it.
+Data keys belong to a **subject** and a **key class**. `ValueCodec.aesGcmWith({ subjectOf })` maps a
+value to its subject, which defaults to the entity ID; a host may map related entities, such as a
+person's documents, to the person. The key class comes from the attribute declaration.
+
+Backends: in-memory KV, SQLite and PostgreSQL implement `scrubBlindTokens`. On SQL it finds the
+facts by key ID with a scan of the sealed facts that still carry a token; erasure is rare, so there
+is no dedicated index. Cloudflare and FoundationDB are frozen and do not implement it, so
+`Sensitive.erase` fails there with `SensitiveErasureError` (`unsupported`) after nothing has changed.
+With an external key service, the keys are destroyed first; if a later step fails, repeat the call.
+
+Outside Triplex's reach: values already copied out, such as host outbox payloads, exports and
+opened plaintext held by the host; and, with `SqlKeyStore`, older backups until the root key is
+rotated (see [the SQL key store](#the-sql-key-store)). Live queries that compared an erased value are
+not notified by the scrub; re-run them, or they update with the next change to that attribute.
 
 ## Key rotation
 
-Design, partially built:
+Three rotations, each a maintenance operation that rewrites no history: facts keep their identity,
+valid times, recorded times, transaction and position, and nothing is journaled.
 
-- **Data keys.** Each envelope records its key ID. `KeyProvider.sealingKey` returns the current key
-  for new seals and `KeyProvider.openingKey(context, keyId)` resolves historical keys, so rotation
-  needs no data change. The test provider's `rotate()` demonstrates this and is covered by tests.
-  Re-encryption under a new key (_rewrap_) rewrites `value_sealed` for an existing fact ID in place.
-  The fact's meaning, valid time, transaction and position do not change, so transaction history
-  is untouched. Rewrap is an unjournaled maintenance operation with a durable checkpoint, so it
-  resumes after interruption. Journal `:_tx/change` payloads hold their own copy of the sealed
-  value. Rewrap either rewrites them too or keeps old key IDs available for opening; the reference
-  provider does the latter.
-- **Blind key.** Rotating the blind key changes every token. Tokens already carry the blind key ID
-  as a prefix. During rotation the decorator would expand each equality constant to both key
-  versions and compare joins within one version. A background rewrap recomputes tokens, which
-  requires opening every value. Uniqueness enforcement compares both versions until the rewrap
-  completes.
-- Not built: the rewrap maintenance operation (the same adapter extension as the blind scrub) and
-  dual-version blind lookups.
+**Root key** (with `SqlKeyStore`). Configure the new root key as `current` and the old one in
+`previous`, then run `SqlKeyStore.rewrapRoot`. It rewraps every stored data and blind key under the
+current root key and rewrites no facts. It is resumable and reports how many keys are still wrapped
+under an older root key; at zero, remove the old root key from `previous` and destroy it. This is
+also what makes an erasure reach backups: a backup taken before the rewrap holds keys wrapped under
+the old root key, which no longer exists.
+
+```ts
+const rewrapAll = Effect.gen(function* () {
+  return yield* SqlKeyStore.rewrapRoot; // { dataKeys, blindKeys, remaining }
+});
+```
+
+**Data keys.** `KeyCustody.rotate({ database, subject?, keyClass? })` makes a new data key version
+current, so new seals use it while older values still open under the key ID they record. To move
+existing values too, run `Sensitive.rewrap`. It reseals every stored value whose key is not its
+scope's current key, current and retracted facts alike, and rewrites each fact's journal
+`:_tx/change` copies with it. It skips erased values and values whose attribute the policy no longer
+lists, and it is resumable: a value already under its current key is left alone. Its report lists
+the replaced key IDs; pass them to `KeyCustody.retire(database, keyIds)` to destroy those versions.
+`retire` refuses a key that is still current.
+
+**Blind key.** `Sensitive.rotateBlindKey` stages the next blind key version
+(`KeyCustody.stageBlindKey`), recomputes every stored token under it in one rewrite, activates it
+(`KeyCustody.activateBlindKey`, which retires the previous version) and then recomputes any token
+written under the old key meanwhile. Recomputing a token opens its value, so tokens of erased values
+are removed rather than recomputed. Tokens carry their blind key ID as a prefix, so a token's version
+is visible.
+
+The design called for dual-version lookups during blind-key rotation, so it could run online. This
+release ships the simpler version above instead: between the token rewrite and the activation,
+equality, joins and uniqueness may miss values, so run it when writes are quiet. Dual-version
+lookups are deferred until a database is too large to rotate this way.
+
+Rotation needs the same maintenance operations as erasure (`sealedFacts`, `rewriteValues`), so it
+runs on in-memory KV, SQLite and PostgreSQL and fails with `SensitiveRotationError` (`unsupported`)
+on Cloudflare and FoundationDB.
 
 ## Backends
 
@@ -581,5 +641,5 @@ planning, blind equality in the KV and SQL engines, storage migrations for SQLit
 Cloudflare, constraint and validation support, derivation and overlay support, surface defaults,
 shared conformance corpora, and raw-storage scan tests.
 
-Designed but not built: blind-token scrubbing and the erasure fact, rewrap, blind-key rotation,
-and opening sealed values in `ConfigRuntime`.
+Designed but not built: dual-version blind lookups during an online blind-key rotation, and opening
+sealed values in `ConfigRuntime`.

@@ -21,8 +21,9 @@ import {
   type TransactionMeta,
   type QueryOptions,
   type PagedQueryOptions,
+  type ValueRewrite,
 } from "./Triples.js";
-import { StorageAdapter } from "../storage/StorageAdapter.js";
+import { StorageAdapter, isSqlStorageAdapter } from "../storage/StorageAdapter.js";
 import { QueryExecutor } from "../storage/QueryExecutor.js";
 import type {
   Triple,
@@ -34,7 +35,7 @@ import type {
   TransactOp,
 } from "../Triple.js";
 import { queryToPattern, validateTransactionIntervals } from "../Triple.js";
-import { decodeSealedEnvelope } from "../Value.js";
+import { decodeSealedEnvelope, encodeSealedEnvelope } from "../Value.js";
 import type { DatalogQuery, WrappedQuery } from "../datalog/types.js";
 import { validateDatalogQuery, validateWrappedQuery } from "../datalog/validation.js";
 import {
@@ -871,7 +872,108 @@ export const TriplesLive = Layer.effect(
         Effect.withSpan("triples.explainPage"),
       );
 
+    /**
+     * Clear the blind token of every fact sealed under one of `keyIds`. The
+     * stored envelope is compact JSON with a fixed key order, so its key ID is
+     * found with an escaped LIKE on `value_sealed`. Erasure is rare; this scans
+     * the sealed facts that still carry a token.
+     */
+    const scrubBlindTokens = isSqlStorageAdapter(adapter)
+      ? (keyIds: ReadonlyArray<string>): Effect.Effect<number, WriteError> =>
+          Effect.gen(function* () {
+            let scrubbed = 0;
+            for (let start = 0; start < keyIds.length; start += 100) {
+              const chunk = keyIds.slice(start, start + 100);
+              const patterns = chunk.map(
+                (keyId) =>
+                  `%${`"keyId":${JSON.stringify(keyId)},"ciphertext"`.replace(/[\\%_]/g, "\\$&")}%`,
+              );
+              const rows = yield* adapter.rawQuery<{ id: string }>(
+                `SELECT id FROM triples
+                 WHERE value_type = 'sealed' AND value_blind IS NOT NULL
+                   AND (${patterns.map(() => "value_sealed LIKE ? ESCAPE '\\'").join(" OR ")})`,
+                patterns,
+              );
+              for (let at = 0; at < rows.length; at += 500) {
+                const ids = rows.slice(at, at + 500).map((row) => row.id);
+                yield* adapter.rawQuery(
+                  `UPDATE triples SET value_blind = NULL WHERE id IN (${ids.map(() => "?").join(", ")})`,
+                  ids,
+                );
+              }
+              scrubbed += rows.length;
+            }
+            return scrubbed;
+          }).pipe(
+            Effect.mapError(
+              (cause) => new WriteError({ message: "Failed to scrub blind tokens", cause }),
+            ),
+          )
+      : undefined;
+
+    const sql = isSqlStorageAdapter(adapter) ? adapter : undefined;
+
+    const sealedFacts =
+      sql === undefined
+        ? undefined
+        : (): Effect.Effect<readonly Triple[], ReadError> =>
+            sql
+              .rawQuery<TripleRow>(
+                "SELECT * FROM triples WHERE value_type = 'sealed' ORDER BY recorded_position, id",
+                [],
+              )
+              .pipe(Effect.map((rows) => rows.map(rowToTriple)));
+
+    const rewriteValues =
+      sql === undefined
+        ? undefined
+        : (updates: ReadonlyArray<ValueRewrite>): Effect.Effect<number, WriteError> =>
+            adapter
+              .withTransaction(
+                Effect.gen(function* () {
+                  for (const update of updates) {
+                    const [row] = yield* sql.rawQuery<{ attribute: string; value_type: string }>(
+                      "SELECT attribute, value_type FROM triples WHERE id = ?",
+                      [update.id],
+                    );
+                    if (row === undefined) {
+                      return yield* new WriteError({ message: `No fact ${update.id} to rewrite` });
+                    }
+                    if (row.value_type === "sealed" && update.value.type === "sealed") {
+                      yield* sql.rawQuery(
+                        "UPDATE triples SET value_sealed = ?, value_blind = ? WHERE id = ?",
+                        [encodeSealedEnvelope(update.value), update.value.blind ?? null, update.id],
+                      );
+                    } else if (
+                      row.attribute === TxAttributes.CHANGE &&
+                      row.value_type === "json" &&
+                      update.value.type === "json"
+                    ) {
+                      yield* sql.rawQuery("UPDATE triples SET value_json = ? WHERE id = ?", [
+                        JSON.stringify(update.value.value),
+                        update.id,
+                      ]);
+                    } else {
+                      return yield* new WriteError({
+                        message: `Fact ${update.id} is not a sealed value or journal change`,
+                      });
+                    }
+                  }
+                  return updates.length;
+                }),
+              )
+              .pipe(
+                Effect.mapError((cause) =>
+                  cause instanceof WriteError
+                    ? cause
+                    : new WriteError({ message: "Failed to rewrite values", cause }),
+                ),
+              );
+
     return {
+      ...(scrubBlindTokens === undefined ? {} : { scrubBlindTokens }),
+      ...(sealedFacts === undefined ? {} : { sealedFacts }),
+      ...(rewriteValues === undefined ? {} : { rewriteValues }),
       operationalEntry: (id) =>
         Effect.gen(function* () {
           if (!isContentId(id))

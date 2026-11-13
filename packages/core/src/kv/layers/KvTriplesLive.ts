@@ -442,6 +442,69 @@ const makeKvTriplesService = Effect.gen(function* () {
   let transactService: TriplesService["transact"];
 
   const service: TriplesService = {
+    scrubBlindTokens: (keyIds) => {
+      const wanted = new Set(keyIds);
+      return kvBackend
+        .transact((tx) => {
+          const store = createKvTripleStore(transactionBackend(tx));
+          return Effect.gen(function* () {
+            const datoms = yield* Stream.runCollect(store.scan({}, { includeRetracted: true }));
+            let scrubbed = 0;
+            for (const datom of datoms) {
+              if (datom.value.type !== "sealed" || !wanted.has(datom.value.keyId)) continue;
+              if (yield* store.scrubBlind(datom)) scrubbed += 1;
+            }
+            return scrubbed;
+          });
+        })
+        .pipe(
+          Effect.ensuring(Effect.sync(() => hexaStore.clearCache())),
+          Effect.mapError(
+            (cause) => new WriteError({ message: "Failed to scrub blind tokens", cause }),
+          ),
+        );
+    },
+    sealedFacts: () =>
+      Stream.runCollect(hexaStore.scan({}, { includeRetracted: true })).pipe(
+        Effect.map((datoms) =>
+          Array.from(datoms)
+            .filter((datom) => datom.value.type === "sealed")
+            .map(datomToTriple),
+        ),
+      ),
+    rewriteValues: (updates) =>
+      kvBackend
+        .transact((tx) => {
+          const store = createKvTripleStore(transactionBackend(tx));
+          return Effect.gen(function* () {
+            for (const update of updates) {
+              const datom = yield* store.getById(update.id);
+              if (datom === null) {
+                return yield* new WriteError({ message: `No fact ${update.id} to rewrite` });
+              }
+              const allowed =
+                (datom.value.type === "sealed" && update.value.type === "sealed") ||
+                (datom.attribute === TxAttributes.CHANGE &&
+                  datom.value.type === "json" &&
+                  update.value.type === "json");
+              if (!allowed) {
+                return yield* new WriteError({
+                  message: `Fact ${update.id} is not a sealed value or journal change`,
+                });
+              }
+              yield* store.rewriteValue(datom, update.value);
+            }
+            return updates.length;
+          });
+        })
+        .pipe(
+          Effect.ensuring(Effect.sync(() => hexaStore.clearCache())),
+          Effect.mapError((cause) =>
+            cause instanceof WriteError
+              ? cause
+              : new WriteError({ message: "Failed to rewrite values", cause }),
+          ),
+        ),
     operationalEntry: (id) =>
       Effect.gen(function* () {
         if (!ContentIds.isContentId(id))

@@ -416,6 +416,22 @@ export const sensitiveConformanceCases: readonly SensitiveConformanceCase[] = [
           candidate.attribute === ":sc-employee/ssn" && candidate.entityId === "sc:ee:1",
       );
       yield* check(change?.value?.type === "sealed", "journal change is sealed");
+      // Blind tokens live only on the fact, so erasure scrubs them in one place.
+      const fact = valueOf(live, ":sc-employee/ssn") as SealedValue | undefined;
+      yield* check(fact?.blind !== undefined, "the fact keeps its blind token");
+      for (const [label, value] of [
+        ["transaction", record],
+        ["entity journal", page],
+      ] as const) {
+        yield* check(
+          !JSON.stringify(value).includes(fact!.blind!),
+          `${label} carries no copy of the blind token`,
+        );
+      }
+      yield* check(
+        !("blind" in (change!.value as SealedValue)),
+        "the journal's sealed value has no blind token",
+      );
       const opened = yield* Sensitive.open(record!);
       yield* same(
         opened.changes.find(

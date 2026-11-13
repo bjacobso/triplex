@@ -3637,3 +3637,5 @@ export {
   settleRunner,
 } from "./runnerCases.js";
 export * from "./keyStore.js";
+export * from "./erasure.js";
+export * from "./rotation.js";
