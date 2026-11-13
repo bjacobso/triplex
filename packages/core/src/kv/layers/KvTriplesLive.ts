@@ -60,7 +60,6 @@ import {
   livePreconditionIds,
   metadataInputs,
   transactionRecordFromTriples,
-  transactionRecordsFromTriples,
   transactionChangeFromTriple,
   validatePreconditions,
 } from "../../store/transactionMetadata.js";
@@ -1057,51 +1056,36 @@ const makeKvTriplesService = Effect.gen(function* () {
           new ReadError({ message: "Transaction page limit must be between 1 and 1000" }),
         );
       }
-      if (prefix !== undefined) {
-        if (typeof prefix !== "string")
-          return Effect.fail(
-            new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+      if (prefix !== undefined && typeof prefix !== "string")
+        return Effect.fail(
+          new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
+        );
+      // Both paths seek from `after` at a pinned head and hydrate only the selected page.
+      return Effect.gen(function* () {
+        const head = yield* currentKvCommitPosition(kvBackend);
+        const candidates =
+          prefix === undefined
+            ? yield* hexaStore.transactionIdsAfter(after, limit, head)
+            : yield* hexaStore.transactionIdsForEntityPrefix(prefix, after, limit, head);
+        const page = [];
+        for (const candidate of candidates) {
+          // Global KV journal reads use TYPE order (journal fact ID), unlike EAVT's value order.
+          const datoms = (yield* hexaStore.scanCollectAsync({ entity: candidate.txId }))
+            .filter((datom) => datom.entityType === "_Transaction")
+            .sort((a, b) => (a.tripleId < b.tripleId ? -1 : a.tripleId > b.tripleId ? 1 : 0));
+          const record = transactionRecordFromTriples(
+            unsafe.transactionId(candidate.txId),
+            datoms.map(datomToTriple),
           );
-        return Effect.gen(function* () {
-          const head = yield* currentKvCommitPosition(kvBackend);
-          const candidates = yield* hexaStore.transactionIdsForEntityPrefix(
-            prefix,
-            after,
-            limit,
-            head,
-          );
-          const page = [];
-          for (const candidate of candidates) {
-            // Global KV journal reads use TYPE order (journal fact ID), unlike EAVT's value order.
-            const datoms = (yield* hexaStore.scanCollectAsync({ entity: candidate.txId }))
-              .filter((datom) => datom.entityType === "_Transaction")
-              .sort((a, b) => (a.tripleId < b.tripleId ? -1 : a.tripleId > b.tripleId ? 1 : 0));
-            const record = transactionRecordFromTriples(
-              unsafe.transactionId(candidate.txId),
-              datoms.map(datomToTriple),
-            );
-            if (record === null || record.position !== candidate.position)
-              return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
-            page.push(record);
-          }
-          return {
-            transactions: page,
-            ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
-          };
-        });
-      }
-      return match({ entityType: "_Transaction" }).pipe(
-        Effect.map((triples) => {
-          const page = transactionRecordsFromTriples(triples)
-            .filter((record) => record.position > after)
-            .slice(0, limit);
-          const last = page.at(-1);
-          return {
-            transactions: page,
-            ...(last ? { next: last.position } : {}),
-          };
-        }),
-      );
+          if (record === null || record.position !== candidate.position)
+            return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
+          page.push(record);
+        }
+        return {
+          transactions: page,
+          ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
+        };
+      });
     },
 
     transactionsForEntity: (entityId, request) =>

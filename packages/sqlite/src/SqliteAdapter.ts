@@ -27,6 +27,7 @@ import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
   makeSqlLiveFactsLookup,
+  makeSqlTransactionJournalLookup,
   makeSqlTransactionPrefixLookup,
   SqliteDialect,
   packValue,
@@ -750,6 +751,10 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
       return {
         ...entries,
         transactionIdsForEntityPrefix: makeSqlTransactionPrefixLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          SqliteDialect,
+        ),
+        transactionIdsAfter: makeSqlTransactionJournalLookup(
           { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
           SqliteDialect,
         ),

@@ -62,7 +62,10 @@ export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";
 
 export { makeSqlLivePreconditionLookup, makeSqlLiveFactsLookup } from "./LivePreconditions.js";
 
-export { makeSqlTransactionPrefixLookup } from "./TransactionFeed.js";
+export {
+  makeSqlTransactionJournalLookup,
+  makeSqlTransactionPrefixLookup,
+} from "./TransactionFeed.js";
 
 // Reference key store: wrapped data and blind keys in the database's own SQL storage
 export { SqlKeyStore, type SqlKeyStoreOptions } from "./KeyStore.js";

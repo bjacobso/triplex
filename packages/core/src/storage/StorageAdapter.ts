@@ -32,6 +32,14 @@ export interface StorageAdapterService {
     after: number,
     limit: number,
   ) => Effect.Effect<readonly { readonly txId: string; readonly position: number }[], ReadError>;
+  /**
+   * Indexed journal page: transactions committed after `after`, ordered by global
+   * position, at most `limit`. Must seek, not scan the whole journal.
+   */
+  readonly transactionIdsAfter: (
+    after: number,
+    limit: number,
+  ) => Effect.Effect<readonly { readonly txId: string; readonly position: number }[], ReadError>;
   /** Bounded live (unretracted, across all valid time) lookup using a live index. */
   readonly livePreconditionFacts: (
     entityId: string,

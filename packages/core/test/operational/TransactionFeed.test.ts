@@ -131,3 +131,82 @@ it(
       );
   },
 );
+
+it(
+  "seeks an unfiltered journal page from `after` with 10 or 1000 earlier commands",
+  { timeout: 30000 },
+  async () => {
+    const measurements = [];
+    for (const earlierCount of [10, 1000]) {
+      const kv = makeTestKvBackend();
+      let reads = 0;
+      const measured: KvBackendService = {
+        ...kv,
+        get: (key) => {
+          reads++;
+          return kv.get(key);
+        },
+        getMany: (keys) => {
+          reads += keys.length;
+          return kv.getMany(keys);
+        },
+        getRange: (range) =>
+          kv.getRange(range).pipe(
+            Stream.tap(() =>
+              Effect.sync(() => {
+                reads++;
+              }),
+            ),
+          ),
+        // Count the in-memory synchronous fast paths too, so no read escapes the meter.
+        getSync: (key) => {
+          reads++;
+          return kv.getSync!(key);
+        },
+        getRangeSync: (range) => {
+          const entries = kv.getRangeSync!(range);
+          reads += entries.length;
+          return entries;
+        },
+      };
+      const backendLayer = KvTriples.layerBackend.pipe(
+        Layer.provide(Layer.succeed(KvBackend, measured)),
+        Layer.provide(TripleStoreRuntimeLayer),
+      );
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const t = yield* Triples;
+          const results = [];
+          for (let i = 0; i < earlierCount + 3; i++)
+            results.push(
+              yield* t.transact([
+                {
+                  op: "assert",
+                  entityId: EntityId.make(`journal:${i}`),
+                  attribute: ":journal/value",
+                  value: number(i),
+                },
+              ]),
+            );
+          const first = yield* t.transactions({ limit: 2 });
+          expect(first.transactions.map((record) => record.txId)).toEqual(
+            results.slice(0, 2).map((result) => result.txId),
+          );
+          reads = 0;
+          const page = yield* t.transactions({ after: results[earlierCount]!.position, limit: 2 });
+          measurements.push({ earlierCommands: earlierCount, reads });
+          expect(page.transactions.map((record) => record.txId)).toEqual(
+            results.slice(earlierCount + 1).map((result) => result.txId),
+          );
+          expect(page.transactions.map((record) => record.changes[0]?.entityId)).toEqual([
+            `journal:${earlierCount + 1}`,
+            `journal:${earlierCount + 2}`,
+          ]);
+          expect(page.next).toBe(results.at(-1)!.position);
+          expect((yield* t.transactions({ after: page.next! })).transactions).toEqual([]);
+        }).pipe(Effect.provide(backendLayer)),
+      );
+    }
+    expect(measurements[0]!.reads).toBe(measurements[1]!.reads);
+  },
+);
