@@ -3,7 +3,7 @@
  * single explicit way to open sealed values.
  */
 
-import { Context, Effect, Layer, Option } from "effect";
+import { Context, Data, Effect, Layer, Option } from "effect";
 
 import type * as Attribute from "../config/Attribute.js";
 import type * as ConfigNode from "../config/ConfigNode.js";
@@ -28,7 +28,9 @@ import {
   prepareWrappedQuery,
   type AnalysisPolicy,
 } from "./analysis.js";
-import { DEFAULT_KEY_CLASS } from "./KeyProvider.js";
+import { unsafe } from "../Branded.js";
+import { transactSystem } from "../store/systemNamespace.js";
+import { DEFAULT_KEY_CLASS, KeyCustody } from "./KeyProvider.js";
 import { ValueCodec, type SensitiveContext, type ValueCodecService } from "./ValueCodec.js";
 
 // =============================================================================
@@ -620,3 +622,139 @@ export const open: {
 /** The `Sensitivity` service when this runtime has one. */
 export const current: Effect.Effect<Option.Option<SensitivityService>> =
   Effect.serviceOption(Sensitivity);
+
+// =============================================================================
+// Erasure
+// =============================================================================
+
+export interface EraseRequest {
+  /** The subject whose data keys are destroyed: the entity ID unless `subjectOf` maps it. */
+  readonly subject: string;
+  /** One key class to erase; omit to erase every key class of the subject. */
+  readonly keyClass?: string;
+  /** Who erased the subject, recorded on the erasure transaction. */
+  readonly actor: string;
+  /** Stable request ID. Repeating it resumes an interrupted erasure and records it once. */
+  readonly commandId: string;
+  readonly correlationId?: string;
+  readonly causationId?: string;
+}
+
+export interface ErasureReceipt {
+  readonly subject: string;
+  /** The erased key class, or `*` for every key class. */
+  readonly keyClass: string;
+  /** The destroyed data key IDs. */
+  readonly keyIds: ReadonlyArray<string>;
+  /** Facts whose blind token was removed by this call (zero when resuming a finished erasure). */
+  readonly scrubbed: number;
+  /** The journaled erasure transaction. */
+  readonly transaction: TransactionRecord;
+}
+
+export class ErasureError extends Data.TaggedError("SensitiveErasureError")<{
+  readonly reason: "unsupported" | "keys" | "storage";
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
+
+/** Reserved attributes of the journaled erasure record. They name no attribute or value. */
+export const ErasureAttributes = {
+  SUBJECT: ":triplex/erasure-subject",
+  KEY_CLASS: ":triplex/erasure-key-class",
+  KEYS: ":triplex/erasure-keys",
+} as const;
+
+export const ERASURE_ENTITY_TYPE = "triplex.Erasure";
+
+const storageFailure = (message: string) => (cause: unknown) =>
+  new ErasureError({ reason: "storage", message, cause });
+
+/**
+ * Erase a subject: destroy its data keys (one key class, or all of them),
+ * remove the blind tokens of every fact sealed under those keys, and record
+ * one journaled erasure transaction naming the subject, key class, actor and
+ * time, with no attribute or value.
+ *
+ * Facts, history and envelopes stay. Afterwards `open` fails with
+ * `key-destroyed` (or keeps the value sealed with `erased: "keep-sealed"`),
+ * presence still matches, and equality, joins and uniqueness no longer do.
+ * New seals for the erased scope fail, and the tokens are scrubbed again after
+ * the record commits so a write that raced the destruction cannot keep one.
+ * Repeating the same `commandId` resumes an interrupted erasure.
+ */
+export const erase = (
+  request: EraseRequest,
+): Effect.Effect<ErasureReceipt, ErasureError, Triples | Sensitivity | KeyCustody> =>
+  Effect.gen(function* () {
+    const sensitivity = yield* Sensitivity;
+    const custody = yield* KeyCustody;
+    const triples = yield* Triples;
+    const scrub = triples.scrubBlindTokens;
+    if (scrub === undefined) {
+      return yield* new ErasureError({
+        reason: "unsupported",
+        message: "This backend cannot remove blind tokens, so it cannot complete an erasure",
+      });
+    }
+    const keyIds = yield* custody
+      .destroy({
+        database: sensitivity.database,
+        subject: request.subject,
+        ...(request.keyClass === undefined ? {} : { keyClass: request.keyClass }),
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new ErasureError({
+              reason: "keys",
+              message: "The subject's data keys could not be destroyed",
+              cause,
+            }),
+        ),
+      );
+    const scrubTokens = scrub(keyIds).pipe(
+      Effect.mapError(storageFailure("Blind tokens could not be removed")),
+    );
+    let scrubbed = yield* scrubTokens;
+    const keyClass = request.keyClass ?? "*";
+    const recorded = Effect.gen(function* () {
+      const existing = yield* triples.transactionByCommand(request.commandId);
+      if (existing !== null) return existing;
+      const entityId = unsafe.entityId(`_triplex/erasure/${request.commandId}`);
+      const field = (attribute: string, value: TripleValue): TransactOp => ({
+        op: "assert",
+        entityId,
+        attribute,
+        value,
+        entityType: ERASURE_ENTITY_TYPE,
+      });
+      const result = yield* transactSystem(
+        triples,
+        [
+          field(ErasureAttributes.SUBJECT, { type: "string", value: request.subject }),
+          field(ErasureAttributes.KEY_CLASS, { type: "string", value: keyClass }),
+          field(ErasureAttributes.KEYS, { type: "number", value: keyIds.length }),
+        ],
+        {
+          actor: request.actor,
+          commandId: request.commandId,
+          ...(request.correlationId === undefined ? {} : { correlationId: request.correlationId }),
+          ...(request.causationId === undefined ? {} : { causationId: request.causationId }),
+        },
+      ).pipe(
+        Effect.map((result) => result.txId),
+        Effect.catchTag("CommandAlreadyCommittedError", (error) =>
+          Effect.succeed(error.transactionId),
+        ),
+      );
+      const record = yield* triples.transaction(result);
+      if (record === null) return yield* Effect.fail("missing erasure transaction");
+      return record;
+    }).pipe(Effect.mapError(storageFailure("The erasure could not be recorded")));
+    const transaction = yield* recorded;
+    // A write that sealed under the key just before it was destroyed may have
+    // committed since the first scrub; remove its token too.
+    scrubbed += yield* scrubTokens;
+    return { subject: request.subject, keyClass, keyIds, scrubbed, transaction };
+  });

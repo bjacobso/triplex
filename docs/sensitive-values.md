@@ -489,34 +489,63 @@ positive control that finds a non-sensitive plaintext value.
 
 ## Erasure (crypto-shredding)
 
-Design, partially built:
+`Sensitive.erase` erases a subject, or one key class of it, and records that it did:
 
-- Data keys belong to a **subject** and a **key class**. `ValueCodec.aesGcmWith({ subjectOf })` maps
-  a value to its subject, which defaults to the entity ID. A host may map related entities, such as
-  a person's documents, to the person. The key class comes from the attribute declaration.
-- Erasing a subject destroys its data keys through `KeyCustody.destroy`, for every key class or
-  for one. New seals for a destroyed scope fail with `key-destroyed`. Facts, positions, journal entries
-  and sealed envelopes remain, so history stays complete and audit queries keep working. The
-  ciphertext can no longer be opened.
-- Reads after erasure return the same sealed values. `Sensitive.open` fails with
-  `SensitiveValueError` (`key-destroyed`). `Sensitive.open(facts, { erased: "keep-sealed" })`
-  leaves erased values sealed instead, so a UI can render "erased" without failing the read.
-- **Blind tokens must be scrubbed too.** A blind token keyed per database survives a destroyed data
-  key, so someone holding a candidate value could still confirm it. Erasure therefore also clears
-  the subject's blind tokens (`value_blind`, and the KV blind index entries, which are the only
-  copies) through an unjournaled
-  maintenance operation, like checkpoint maintenance. It also records one journaled erasure fact
-  that names the subject and the time but no attribute or value. After scrubbing, Datalog presence
-  still matches erased facts, while equality, joins and uniqueness no longer do, so a unique value
-  whose holder was erased becomes reusable.
+```ts
+const erasePerson = (personId: string, request: { readonly id: string }) =>
+  Sensitive.erase({
+    subject: personId, // the entity ID, unless `subjectOf` maps values to another subject
+    keyClass: "retention-1y", // optional: omit to erase every key class of the subject
+    actor: "dpo@acme.example",
+    commandId: request.id, // repeating it resumes an interrupted erasure
+  });
+// succeeds with { subject, keyClass, keyIds, scrubbed, transaction }
+```
+
+It requires `Triples`, `Sensitivity` and `KeyCustody`, and runs three steps:
+
+1. **Destroy the keys.** `KeyCustody.destroy` destroys every data key of the scope and returns their
+   key IDs. From then on, new seals for the scope fail with `key-destroyed`.
+2. **Remove the blind tokens.** A blind token is keyed per database, so it survives a destroyed data
+   key: anyone holding a candidate value could still confirm it. The store's `scrubBlindTokens`
+   maintenance operation clears the token of every fact, current or retracted, sealed under the
+   destroyed key IDs. Tokens live only on facts (`value_blind`, and the KV index entries), so this is
+   the only place they need removing. The operation is unjournaled: facts keep their envelope,
+   identity, valid times, recorded times and positions.
+3. **Record the erasure.** One journaled transaction, with the request's actor and command ID, asserts
+   `:triplex/erasure-subject`, `:triplex/erasure-key-class` (`*` for every class) and
+   `:triplex/erasure-keys` (how many keys were destroyed) on a reserved `_triplex/erasure/<commandId>`
+   entity. It names no attribute and no value.
+
+The tokens are removed again after the record commits, so a write that sealed under the key just
+before it was destroyed cannot keep a token. Every step is idempotent; repeating the same
+`commandId` resumes an interrupted erasure and records it once.
+
+After erasure:
+
+- Reads return the same sealed values, and history and the journal stay complete. `Sensitive.open`
+  fails with `SensitiveValueError` (`key-destroyed`); `Sensitive.open(facts, { erased: "keep-sealed" })`
+  leaves erased values sealed, so a UI can render "erased" without failing the read.
+- Datalog presence still matches erased facts. Equality, joins and uniqueness no longer do, so a
+  unique value whose holder was erased becomes reusable.
+- Other subjects, and other key classes of the same subject, are untouched.
 - Derivations over erased subjects keep their committed provenance. Re-evaluation sees presence but
   no equality matches, which is the correct post-erasure answer.
 
-Built: per-subject and per-key-class keys, the `KeyCustody` contract, key destruction in the test
-provider, typed `key-destroyed` opening and
-the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure fact. Both need a
-new optional `StorageAdapter` maintenance method on the in-memory KV, SQLite and PostgreSQL
-backends; Cloudflare and FoundationDB are frozen and need not implement it.
+Data keys belong to a **subject** and a **key class**. `ValueCodec.aesGcmWith({ subjectOf })` maps a
+value to its subject, which defaults to the entity ID; a host may map related entities, such as a
+person's documents, to the person. The key class comes from the attribute declaration.
+
+Backends: in-memory KV, SQLite and PostgreSQL implement `scrubBlindTokens`. On SQL it finds the
+facts by key ID with a scan of the sealed facts that still carry a token; erasure is rare, so there
+is no dedicated index. Cloudflare and FoundationDB are frozen and do not implement it, so
+`Sensitive.erase` fails there with `SensitiveErasureError` (`unsupported`) after nothing has changed.
+With an external key service, the keys are destroyed first; if a later step fails, repeat the call.
+
+Outside Triplex's reach: values already copied out, such as host outbox payloads, exports and
+opened plaintext held by the host; and, with `SqlKeyStore`, older backups until the root key is
+rotated (see [the SQL key store](#the-sql-key-store)). Live queries that compared an erased value are
+not notified by the scrub; re-run them, or they update with the next change to that attribute.
 
 ## Key rotation
 
@@ -590,5 +619,5 @@ planning, blind equality in the KV and SQL engines, storage migrations for SQLit
 Cloudflare, constraint and validation support, derivation and overlay support, surface defaults,
 shared conformance corpora, and raw-storage scan tests.
 
-Designed but not built: blind-token scrubbing and the erasure fact, rewrap, blind-key rotation,
+Designed but not built: rewrap, blind-key rotation,
 and opening sealed values in `ConfigRuntime`.
