@@ -38,9 +38,11 @@ describe("host-owned SQLite migrations", () => {
     );
 
     expect(result.before).toHaveLength(0);
-    expect(migrations.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(migrations.map(({ version }) => version)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
     expect(result.applied.map(({ version }) => version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
     ]);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([

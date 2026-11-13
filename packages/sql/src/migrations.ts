@@ -25,6 +25,7 @@ import {
   JOURNAL_BLIND_SCRUB_SQLITE_DDLS,
   JOURNAL_BLIND_SCRUB_POSTGRES_DDLS,
   SNAPSHOT_BLIND_SCRUB_DDLS,
+  BLIND_KEY_STAGING_DDLS,
 } from "./schema.js";
 
 export interface Migration {
@@ -111,6 +112,7 @@ export const migrations: readonly Migration[] = [
     dialects: { sqlite: JOURNAL_BLIND_SCRUB_SQLITE_DDLS, pg: JOURNAL_BLIND_SCRUB_POSTGRES_DDLS },
     up: SNAPSHOT_BLIND_SCRUB_DDLS,
   },
+  { version: 12, name: "triplex_blind_key_staging", up: BLIND_KEY_STAGING_DDLS },
 ];
 
 export const runMigrations = Effect.gen(function* () {

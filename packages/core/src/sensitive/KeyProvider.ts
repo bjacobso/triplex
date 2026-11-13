@@ -98,6 +98,24 @@ export interface KeyCustodyService {
    * sealed under earlier versions still open.
    */
   readonly rotate: (scope: RotationScope) => Effect.Effect<void, KeyError>;
+  /**
+   * Destroy specific data key versions once no stored value uses them, for
+   * example after `Sensitive.rewrap`. Unlike `destroy`, the scope keeps
+   * sealing under its current key. Fails without destroying anything if one
+   * of the keys is current.
+   */
+  readonly retire: (
+    database: string,
+    keyIds: ReadonlyArray<string>,
+  ) => Effect.Effect<void, KeyError>;
+  /**
+   * Create the next blind key version without making it current, or return the
+   * one already staged. Blind-key rotation computes every token under it
+   * before activating it.
+   */
+  readonly stageBlindKey: (database: string) => Effect.Effect<DataKey, KeyError>;
+  /** Make a staged blind key current and retire the previous versions. */
+  readonly activateBlindKey: (database: string, keyId: string) => Effect.Effect<void, KeyError>;
 }
 
 export class KeyCustody extends Context.Service<KeyCustody, KeyCustodyService>()(
@@ -166,6 +184,17 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
   // Versions actually issued per scope; only these open and are reported destroyed.
   const issued = new Map<string, Set<number>>();
   const cache = new Map<string, CryptoKey>();
+  // Retired data key IDs, and blind key versions per database.
+  const retired = new Set<string>();
+  const blindCurrent = new Map<string, number>();
+  const blindStaged = new Map<string, number>();
+
+  const blindVersionKey = (database: string, version: number) =>
+    cached(
+      `blind\u0000${database}\u0000${version}`,
+      () => derive(options.seed, "blind", database, String(version)),
+      "hmac",
+    ).pipe(Effect.map((key) => ({ keyId: `test-blind.v${version}`, key })));
 
   const versionOf = (context: KeyContext): number =>
     1 + (databaseEpoch.get(context.database) ?? 0) + (scopeEpoch.get(scopeKey(context)) ?? 0);
@@ -223,6 +252,7 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
       }),
     openingKey: (context, keyId) => {
       const match = TEST_KEY_ID.exec(keyId);
+      if (retired.has(keyId)) return Effect.fail(destroyedError());
       return match &&
         match[1] === scopeDigest(context) &&
         issued.get(scopeKey(context))?.has(Number(match[2])) === true
@@ -231,13 +261,10 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
             new KeyError({ reason: "unavailable", message: "Unknown test key ID for this value" }),
           );
     },
-    blindKey: (database) =>
-      cached(`blind\u0000${database}`, () => derive(options.seed, "blind", database), "hmac").pipe(
-        Effect.map((key) => ({ keyId: "test-blind.v1", key })),
-      ),
+    blindKey: (database) => blindVersionKey(database, blindCurrent.get(database) ?? 1),
   };
 
-  const custody: KeyCustodyService = {
+  const custody: Pick<KeyCustodyService, "destroy" | "rotate"> = {
     destroy: (scope) =>
       Effect.sync(() =>
         matching(scope).flatMap((context) => {
@@ -265,10 +292,55 @@ export const testKeys = (options: TestKeysOptions): TestKeys => {
       }),
   };
 
+  const currentIds = () =>
+    new Set(
+      [...known.values()].map((context) => `test:${scopeDigest(context)}:v${versionOf(context)}`),
+    );
+
+  const fullCustody: KeyCustodyService = {
+    ...custody,
+    retire: (_database, keyIds) =>
+      Effect.suspend(() => {
+        const current = currentIds();
+        const live = keyIds.filter((keyId) => current.has(keyId));
+        if (live.length > 0) {
+          return Effect.fail(
+            new KeyError({
+              reason: "unavailable",
+              message: "A current data key cannot be retired",
+            }),
+          );
+        }
+        for (const keyId of keyIds) retired.add(keyId);
+        return Effect.void;
+      }),
+    stageBlindKey: (database) =>
+      Effect.suspend(() => {
+        const version = blindStaged.get(database) ?? (blindCurrent.get(database) ?? 1) + 1;
+        blindStaged.set(database, version);
+        return blindVersionKey(database, version);
+      }),
+    activateBlindKey: (database, keyId) =>
+      Effect.suspend(() => {
+        const staged = blindStaged.get(database);
+        if (staged === undefined || keyId !== `test-blind.v${staged}`) {
+          return Effect.fail(
+            new KeyError({ reason: "unavailable", message: "That blind key is not staged" }),
+          );
+        }
+        blindCurrent.set(database, staged);
+        blindStaged.delete(database);
+        return Effect.void;
+      }),
+  };
+
   return {
     provider,
-    custody,
-    layer: Layer.mergeAll(Layer.succeed(KeyProvider, provider), Layer.succeed(KeyCustody, custody)),
+    custody: fullCustody,
+    layer: Layer.mergeAll(
+      Layer.succeed(KeyProvider, provider),
+      Layer.succeed(KeyCustody, fullCustody),
+    ),
   };
 };
 

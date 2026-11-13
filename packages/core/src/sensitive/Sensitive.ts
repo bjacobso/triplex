@@ -18,9 +18,20 @@ import {
   TransactionConflictError,
 } from "../errors/index.js";
 import type { Pattern } from "../types/Pattern.js";
-import { Triples, type TransactionRecord, type TriplesService } from "../store/Triples.js";
+import {
+  Triples,
+  type TransactionRecord,
+  type TriplesService,
+  type ValueRewrite,
+} from "../store/Triples.js";
 import type { TransactOp, Triple } from "../Triple.js";
-import type { PlainValue, SealableValueType, SealedValue, TripleValue } from "../Value.js";
+import {
+  withoutBlind,
+  type PlainValue,
+  type SealableValueType,
+  type SealedValue,
+  type TripleValue,
+} from "../Value.js";
 import {
   NO_MATCH_BLIND,
   coerceValue,
@@ -179,6 +190,12 @@ export interface SensitivityService {
   readonly attributes: SensitiveAttributes;
   readonly codec: ValueCodecService;
   readonly isSensitive: (attribute: string) => boolean;
+  /** The codec context of one value: database, entity, attribute, type and key class. */
+  readonly contextOf: (
+    entityId: string,
+    attribute: string,
+    valueType: SealableValueType,
+  ) => SensitiveContext;
   /**
    * Seal an assertion value when its attribute is sensitive. Rejects any
    * caller-supplied sealed value and any value of the wrong declared type.
@@ -334,6 +351,7 @@ export const makeSensitivity = (options: {
     attributes,
     codec,
     isSensitive: (attribute) => attributes.has(attribute),
+    contextOf,
     sealValue,
     preparePattern,
     prepareQuery: (query) => prepareQuery(policy, query),
@@ -758,3 +776,227 @@ export const erase = (
     scrubbed += yield* scrubTokens;
     return { subject: request.subject, keyClass, keyIds, scrubbed, transaction };
   });
+
+// =============================================================================
+// Rotation
+// =============================================================================
+
+export class RotationError extends Data.TaggedError("SensitiveRotationError")<{
+  readonly reason: "unsupported" | "keys" | "storage";
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
+
+export interface RewrapReport {
+  /** Facts resealed under their scope's current data key. */
+  readonly rewrapped: number;
+  /** Journal `:_tx/change` copies rewritten with them. */
+  readonly journalCopies: number;
+  /** Facts left alone: erased, or on an attribute the policy no longer lists. */
+  readonly skipped: number;
+  /** Key IDs no stored value uses any more; pass them to `KeyCustody.retire`. */
+  readonly replacedKeyIds: ReadonlyArray<string>;
+}
+
+export interface BlindRotationReport {
+  /** The blind key now current. */
+  readonly keyId: string;
+  /** Tokens recomputed under it. */
+  readonly recomputed: number;
+  /** Tokens removed because their value's data key was destroyed. */
+  readonly scrubbed: number;
+}
+
+const BATCH = 100;
+
+const maintenanceOf = (triples: TriplesService) => {
+  const { sealedFacts, rewriteValues } = triples;
+  return sealedFacts === undefined || rewriteValues === undefined
+    ? Effect.fail(
+        new RotationError({
+          reason: "unsupported",
+          message: "This backend cannot rewrite stored values, so it cannot rotate keys",
+        }),
+      )
+    : Effect.succeed({ sealedFacts, rewriteValues });
+};
+
+const rotationStorage = (message: string) => (cause: unknown) =>
+  new RotationError({ reason: "storage", message, cause });
+
+/** The journal `:_tx/change` copies of a fact, rewritten to carry `value`. */
+const journalRewrites = (triples: TriplesService, fact: Triple, value: SealedValue) =>
+  Effect.gen(function* () {
+    const rewrites: Array<ValueRewrite> = [];
+    for (const txId of [fact.txId, fact.retractTxId]) {
+      if (Option.isNone(txId)) continue;
+      for (const entry of yield* triples.history(unsafe.entityId(txId.value))) {
+        if (entry.attribute !== ":_tx/change" || entry.value.type !== "json") continue;
+        const change = entry.value.value as { readonly tripleId?: unknown } | null;
+        if (change === null || typeof change !== "object" || change.tripleId !== fact.id) continue;
+        rewrites.push({
+          id: entry.id,
+          value: { type: "json", value: { ...change, value: withoutBlind(value) } },
+        });
+      }
+    }
+    return rewrites;
+  });
+
+/**
+ * Reseal every stored value under its scope's current data key, after
+ * `KeyCustody.rotate`. Rewrites the fact's `value_sealed` and its journal
+ * copies in place; meaning, valid time, transaction and position do not
+ * change, and nothing is journaled. Erased values are left alone. Resumable:
+ * a value already under its current key is skipped. Afterwards, retire
+ * `replacedKeyIds` with `KeyCustody.retire`.
+ */
+export const rewrap: Effect.Effect<RewrapReport, RotationError, Triples | Sensitivity> = Effect.gen(
+  function* () {
+    const sensitivity = yield* Sensitivity;
+    const triples = yield* Triples;
+    const { sealedFacts, rewriteValues } = yield* maintenanceOf(triples);
+    const reseal = sensitivity.codec.reseal;
+    if (reseal === undefined) {
+      return yield* new RotationError({
+        reason: "unsupported",
+        message: `The ${sensitivity.codec.name} codec has no keys to rotate`,
+      });
+    }
+    const facts = yield* sealedFacts().pipe(
+      Effect.mapError(rotationStorage("Sealed facts could not be read")),
+    );
+    let rewrapped = 0;
+    let journalCopies = 0;
+    let skipped = 0;
+    const replaced = new Set<string>();
+    let pending: Array<ValueRewrite> = [];
+    const flush = Effect.suspend(() => {
+      const batch = pending;
+      pending = [];
+      return batch.length === 0
+        ? Effect.void
+        : rewriteValues(batch).pipe(
+            Effect.mapError(rotationStorage("Values could not be rewritten")),
+          );
+    });
+    for (const fact of facts) {
+      const value = fact.value as SealedValue;
+      if (!sensitivity.isSensitive(fact.attribute)) {
+        skipped += 1;
+        continue;
+      }
+      const context = sensitivity.contextOf(fact.entityId, fact.attribute, value.valueType);
+      const outcome = yield* reseal(context, value).pipe(
+        Effect.map((sealed) => (sealed === undefined ? ("current" as const) : sealed)),
+        Effect.catchIf(
+          (error) => error.reason === "key-destroyed",
+          () => Effect.succeed("erased" as const),
+        ),
+        Effect.mapError(
+          (cause) =>
+            new RotationError({ reason: "keys", message: "A value could not be resealed", cause }),
+        ),
+      );
+      if (outcome === "current") continue;
+      if (outcome === "erased") {
+        skipped += 1;
+        continue;
+      }
+      const next: SealedValue = {
+        type: "sealed",
+        valueType: value.valueType,
+        keyId: outcome.keyId,
+        ciphertext: outcome.ciphertext,
+        ...(value.blind !== undefined && outcome.blind !== undefined
+          ? { blind: outcome.blind }
+          : {}),
+      };
+      const copies = yield* journalRewrites(triples, fact, next).pipe(
+        Effect.mapError(rotationStorage("Journal copies could not be read")),
+      );
+      pending.push({ id: fact.id, value: next }, ...copies);
+      rewrapped += 1;
+      journalCopies += copies.length;
+      replaced.add(value.keyId);
+      if (pending.length >= BATCH) yield* flush;
+    }
+    yield* flush;
+    return { rewrapped, journalCopies, skipped, replacedKeyIds: [...replaced] };
+  },
+);
+
+/**
+ * Rotate the database's blind key: stage the next version, recompute every
+ * stored token under it, activate it, then recompute any token written under
+ * the old key meanwhile. Equality, joins and uniqueness may miss values for
+ * the short time between the rewrite and the activation, so run it when
+ * writes are quiet. Tokens of erased values are removed rather than kept.
+ */
+export const rotateBlindKey: Effect.Effect<
+  BlindRotationReport,
+  RotationError,
+  Triples | Sensitivity | KeyCustody
+> = Effect.gen(function* () {
+  const sensitivity = yield* Sensitivity;
+  const custody = yield* KeyCustody;
+  const triples = yield* Triples;
+  const { sealedFacts, rewriteValues } = yield* maintenanceOf(triples);
+  const blindWith = sensitivity.codec.blindWith;
+  if (blindWith === undefined || sensitivity.codec.blindScope === "none") {
+    return yield* new RotationError({
+      reason: "unsupported",
+      message: `The ${sensitivity.codec.name} codec has no blind key to rotate`,
+    });
+  }
+  const keyFailure = (message: string) => (cause: unknown) =>
+    new RotationError({ reason: "keys", message, cause });
+  const staged = yield* custody
+    .stageBlindKey(sensitivity.database)
+    .pipe(Effect.mapError(keyFailure("The next blind key could not be staged")));
+  let recomputed = 0;
+  let scrubbed = 0;
+  const pass = Effect.gen(function* () {
+    const facts = yield* sealedFacts().pipe(
+      Effect.mapError(rotationStorage("Sealed facts could not be read")),
+    );
+    const rewrites: Array<ValueRewrite> = [];
+    for (const fact of facts) {
+      const value = fact.value as SealedValue;
+      if (value.blind === undefined || value.blind.startsWith(`${staged.keyId}:`)) continue;
+      if (!sensitivity.isSensitive(fact.attribute)) continue;
+      const context = sensitivity.contextOf(fact.entityId, fact.attribute, value.valueType);
+      const plain = yield* sensitivity.codec.open(context, value).pipe(
+        Effect.catchIf(
+          (error) => error.reason === "key-destroyed",
+          () => Effect.succeed(undefined),
+        ),
+        Effect.mapError(keyFailure("A value could not be opened to recompute its token")),
+      );
+      if (plain === undefined) {
+        rewrites.push({ id: fact.id, value: withoutBlind(value) });
+        scrubbed += 1;
+        continue;
+      }
+      const blind = yield* blindWith(context, plain, staged).pipe(
+        Effect.mapError(keyFailure("A token could not be computed")),
+      );
+      rewrites.push({ id: fact.id, value: { ...value, blind } });
+      recomputed += 1;
+    }
+    if (rewrites.length > 0) {
+      // One call, so a SQL or KV backend rewrites every token in one transaction.
+      yield* rewriteValues(rewrites).pipe(
+        Effect.mapError(rotationStorage("Tokens could not be rewritten")),
+      );
+    }
+    return rewrites.length;
+  });
+  yield* pass;
+  yield* custody
+    .activateBlindKey(sensitivity.database, staged.keyId)
+    .pipe(Effect.mapError(keyFailure("The staged blind key could not be activated")));
+  // Writes that computed a token under the old key before activation.
+  for (let attempt = 0; attempt < 3 && (yield* pass) > 0; attempt++);
+  return { keyId: staged.keyId, recomputed, scrubbed };
+});

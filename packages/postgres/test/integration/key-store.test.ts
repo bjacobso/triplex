@@ -10,6 +10,7 @@ import {
   ERASURE_CONFORMANCE_DATABASE,
   erasureConformanceLayer,
   makeErasureSuite,
+  makeRotationSuite,
   KEY_STORE_CONFORMANCE_DATABASE,
   SENSITIVE_CONFORMANCE_DATABASE,
   makeKeyStoreSuite,
@@ -61,7 +62,10 @@ describe("PostgreSQL erasure", () => {
     { timeout: 120_000 },
     async () => {
       await withFreshDatabase(({ triples }) =>
-        makeErasureSuite().pipe(Effect.provide(erasureConformanceLayer(triples))),
+        makeErasureSuite().pipe(
+          Effect.andThen(makeRotationSuite()),
+          Effect.provide(erasureConformanceLayer(triples)),
+        ),
       );
     },
   );
@@ -82,6 +86,7 @@ describe("PostgreSQL erasure", () => {
             SELECT value_blind FROM triples WHERE entity_id = 'er:ada' AND value_blind IS NOT NULL
           `;
           yield* makeErasureSuite();
+          yield* makeRotationSuite();
           const tables = yield* sql<{ table_name: string }>`
             SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()
           `;
