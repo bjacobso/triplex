@@ -153,7 +153,8 @@ retry is performed. Direct `sql.withTransaction` remains available when the host
 wants the original SQL error channel.
 
 `layerFromSqlClient` creates no pool and runs no DDL. Acquisition checks the current
-schema version and fails with the Postgres package's exported `SchemaVersionError`
+schema version and fails with `SchemaVersionError` (exported from `@triplex-build/triplex/sql`
+and `/postgres`)
 when it differs from the release's expected version. The error includes
 `expectedVersion` and `actualVersion` (zero for absent migration history) and names
 `runMigrations`. Run migrations before building this layer, rather than inside the

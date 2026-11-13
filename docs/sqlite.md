@@ -64,6 +64,14 @@ const program = Effect.gen(function* () {
 await Effect.runPromise(program.pipe(Effect.provide(DatabaseLive)));
 ```
 
+To read a file without writing to it, for example from a reporting process, use
+`SqliteTriples.layerReadOnly({ filename })`. It opens the file read-only, runs no migration and
+refuses every write with `WriteError`. If the file is not at this release's schema version,
+acquiring the layer fails with `SchemaVersionError` (from `@triplex-build/triplex/sql`), whose
+`expectedVersion` and `actualVersion` say how far behind it is; open it once with
+`SqliteTriples.layer`, or run `runMigrations`, to migrate it. The database file is never changed,
+though SQLite still creates its shared-memory side files for a file in WAL mode.
+
 Re-running this command raises `CommandAlreadyCommittedError` with the original transaction ID.
 Handle that tag and call `transactionByCommand` with the same command ID to load the durable
 receipt; the retry writes no second fact or journal entry.
