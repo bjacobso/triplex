@@ -83,7 +83,7 @@ describe("sensitive attributes over HTTP", () => {
       const document = JSON.parse(createdText) as PersonDocument;
       expect(document.attributes[":person/name"]).toBe("Ada");
       expect(document.attributes[":person/ssn"]).toEqual({
-        $sealed: { valueType: "string", keyId: "test:v1" },
+        $sealed: { valueType: "string", keyId: expect.stringMatching(/^test:[0-9a-f]{16}:v1$/) },
       });
       expect(document.attributes[":person/alias"]).toHaveLength(2);
 
@@ -96,7 +96,7 @@ describe("sensitive attributes over HTTP", () => {
       expect(fetched.status).toBe(200);
       expect(fetchedText).not.toContain(PLANTED);
       expect((JSON.parse(fetchedText) as PersonDocument).attributes[":person/ssn"]).toEqual({
-        $sealed: { valueType: "string", keyId: "test:v1" },
+        $sealed: { valueType: "string", keyId: expect.stringMatching(/^test:[0-9a-f]{16}:v1$/) },
       });
 
       const listed = await web.handler(new Request("http://triplex.test/api/rest/latest/people"));
@@ -200,7 +200,7 @@ describe("sensitive attributes over HTTP", () => {
       expect(text).not.toContain(PLANTED);
       expect(fetched.status).toBe(200);
       expect((JSON.parse(text) as PersonDocument).attributes[":person/ssn"]).toEqual({
-        $sealed: { valueType: "string", keyId: "test:v1" },
+        $sealed: { valueType: "string", keyId: expect.stringMatching(/^test:[0-9a-f]{16}:v1$/) },
       });
     } finally {
       await web.dispose();

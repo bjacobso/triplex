@@ -28,20 +28,35 @@ import {
   prepareWrappedQuery,
   type AnalysisPolicy,
 } from "./analysis.js";
+import { DEFAULT_KEY_CLASS } from "./KeyProvider.js";
 import { ValueCodec, type SensitiveContext, type ValueCodecService } from "./ValueCodec.js";
 
 // =============================================================================
 // Policy
 // =============================================================================
 
-/** Sensitive attribute keyword → declared plaintext value type. */
-export type SensitiveAttributes = ReadonlyMap<string, SealableValueType>;
+/** How one sensitive attribute is sealed. */
+export interface SensitiveAttribute {
+  /** The declared plaintext value type. */
+  readonly valueType: SealableValueType;
+  /** The key class; absent for the subject's default key. */
+  readonly keyClass?: string;
+}
 
-/** An explicit `{ key, valueType }` descriptor, for hosts without DSL definitions. */
+/** Sensitive attribute keyword → how its values are sealed. */
+export type SensitiveAttributes = ReadonlyMap<string, SensitiveAttribute>;
+
+/** An explicit descriptor, for hosts without DSL definitions. */
 export interface AttributeDescriptor {
   readonly key: string;
   readonly valueType: SealableValueType;
+  readonly keyClass?: string;
 }
+
+const sensitiveAttribute = (
+  valueType: SealableValueType,
+  keyClass: string | undefined,
+): SensitiveAttribute => (keyClass === undefined ? { valueType } : { valueType, keyClass });
 
 /**
  * A source of sensitive attributes: an `Attribute` definition (included only
@@ -63,29 +78,37 @@ const isEntityType = (
 
 /** Collect sensitive attributes from definitions, entity types and descriptors. */
 export const attributesOf = (sources: readonly PolicySource[]): SensitiveAttributes => {
-  const out = new Map<string, SealableValueType>();
-  const add = (key: string, valueType: SealableValueType) => {
+  const out = new Map<string, SensitiveAttribute>();
+  const add = (key: string, valueType: SealableValueType, keyClass: string | undefined) => {
     const existing = out.get(key);
-    if (existing !== undefined && existing !== valueType) {
+    if (existing !== undefined && existing.valueType !== valueType) {
       throw new TypeError(
-        `Sensitive attribute ${key} is declared as both ${existing} and ${valueType}`,
+        `Sensitive attribute ${key} is declared as both ${existing.valueType} and ${valueType}`,
       );
     }
-    out.set(key, valueType);
+    if (existing !== undefined && existing.keyClass !== keyClass) {
+      throw new TypeError(
+        `Sensitive attribute ${key} is declared with key classes ${existing.keyClass ?? "(default)"} and ${keyClass ?? "(default)"}`,
+      );
+    }
+    out.set(key, sensitiveAttribute(valueType, keyClass));
+  };
+  const addDefinition = (definition: Attribute.AnyDefinition) => {
+    if (definition.sensitive) {
+      add(definition.key, definition.valueType as SealableValueType, definition.keyClass);
+    }
   };
   for (const source of sources) {
     if (isDefinition(source)) {
-      if (source.sensitive) add(source.key, source.valueType as SealableValueType);
+      addDefinition(source);
     } else if (isEntityType(source)) {
       for (const handle of Object.values(source.attributes) as ReadonlyArray<{
         readonly definition: Attribute.AnyDefinition;
       }>) {
-        if (handle.definition.sensitive) {
-          add(handle.definition.key, handle.definition.valueType as SealableValueType);
-        }
+        addDefinition(handle.definition);
       }
     } else {
-      add(source.key, source.valueType);
+      add(source.key, source.valueType, source.keyClass);
     }
   }
   return out;
@@ -118,11 +141,12 @@ const storedTypeOf = (type: TypeExpr.TypeExpr): SealableValueType | undefined =>
 export const attributesFromNodes = (
   nodes: ReadonlyArray<ConfigNode.ConfigNode>,
 ): SensitiveAttributes => {
-  const out = new Map<string, SealableValueType>();
+  const out = new Map<string, SensitiveAttribute>();
   for (const node of nodes) {
     if (node.kind !== "attribute") continue;
     const attrs = node.attrs as {
       readonly sensitive?: boolean;
+      readonly keyClass?: string;
       readonly valueType?: TypeExpr.TypeExpr;
     } | null;
     if (attrs?.sensitive !== true || attrs.valueType === undefined) continue;
@@ -130,7 +154,7 @@ export const attributesFromNodes = (
     if (valueType === undefined) {
       throw new TypeError(`Sensitive attribute ${node.key} has a value type that cannot be sealed`);
     }
-    out.set(node.key, valueType);
+    out.set(node.key, sensitiveAttribute(valueType, attrs.keyClass));
   }
   return out;
 };
@@ -196,14 +220,20 @@ export const makeSensitivity = (options: {
   readonly codec: ValueCodecService;
 }): SensitivityService => {
   const { database, attributes, codec } = options;
+  const valueTypes = new Map(
+    [...attributes].map(([attribute, { valueType }]) => [attribute, valueType] as const),
+  );
   const contextOf = (
     entityId: string,
     attribute: string,
     valueType: SealableValueType,
-  ): SensitiveContext => ({ database, entityId, attribute, valueType });
+  ): SensitiveContext => {
+    const keyClass = attributes.get(attribute)?.keyClass ?? DEFAULT_KEY_CLASS;
+    return { database, entityId, attribute, valueType, keyClass };
+  };
 
   const blindFor = (attribute: string, value: PlainValue) =>
-    codec.blind(contextOf("", attribute, attributes.get(attribute)!), value).pipe(
+    codec.blind(contextOf("", attribute, valueTypes.get(attribute)!), value).pipe(
       Effect.mapError(
         (cause) =>
           new SensitiveQueryError({
@@ -215,10 +245,14 @@ export const makeSensitivity = (options: {
       ),
     );
 
-  const policy: AnalysisPolicy = { attributes, blindScope: codec.blindScope, blind: blindFor };
+  const policy: AnalysisPolicy = {
+    attributes: valueTypes,
+    blindScope: codec.blindScope,
+    blind: blindFor,
+  };
 
   const sealValue: SensitivityService["sealValue"] = (entityId, attribute, value) => {
-    const valueType = attributes.get(attribute);
+    const valueType = valueTypes.get(attribute);
     if (value.type === "sealed") {
       return Effect.fail(
         new SensitiveValueError({
@@ -267,7 +301,7 @@ export const makeSensitivity = (options: {
             "A value match without an attribute could compare a sensitive attribute with plaintext; name the attribute",
         });
       }
-      const valueType = attributes.get(pattern.attribute);
+      const valueType = valueTypes.get(pattern.attribute);
       if (valueType === undefined) return pattern;
       if (codec.blindScope === "none") {
         return yield* new SensitiveQueryError({

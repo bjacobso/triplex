@@ -58,8 +58,8 @@ describe("CLI output for sealed values", () => {
       expect(json).not.toContain("ciphertext");
       expect(json).not.toContain("blind");
     }
-    expect(JSON.stringify(outputs[1])).toContain(
-      JSON.stringify({ type: "sealed", valueType: "string", keyId: "test:v1" }),
+    expect(JSON.stringify(outputs[1])).toMatch(
+      /\{"type":"sealed","valueType":"string","keyId":"test:[0-9a-f]{16}:v1"\}/,
     );
     expect(JSON.stringify(outputs[4])).toContain('"type":"sealed"');
   });

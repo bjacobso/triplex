@@ -52,6 +52,12 @@ export interface Definition<K extends string, V> {
    * the attribute node's content identity; see `sensitive`.
    */
   readonly sensitive: boolean;
+  /**
+   * The key class of a sensitive attribute. Values of one subject in different
+   * key classes are sealed under different data keys, so one class can be
+   * erased while another is kept. Part of the node's content identity.
+   */
+  readonly keyClass?: string;
   readonly node: Effect.Effect<
     ConfigNode.ConfigNode,
     | ConfigNode.DuplicateChildKeyError
@@ -141,6 +147,17 @@ const SensitiveDefinitionType = TypeExpr.struct({
   sensitive: TypeExpr.required(TypeExpr.boolean),
 });
 
+/** Sensitive attribute nodes with a key class; those without keep the shape above. */
+const KeyClassDefinitionType = TypeExpr.struct({
+  key: TypeExpr.required(TypeExpr.text),
+  valueType: TypeExpr.required(TypeExpr.any),
+  sensitive: TypeExpr.required(TypeExpr.boolean),
+  keyClass: TypeExpr.required(TypeExpr.text),
+});
+
+/** Key classes appear in key IDs and erasure records, so they are short plain labels. */
+const KEY_CLASS = /^[a-z][a-z0-9_-]{0,62}$/;
+
 const SEALABLE: ReadonlySet<string> = new Set(["string", "number", "boolean", "datetime", "json"]);
 
 const validateKey = <const K extends string>(key: K): K => {
@@ -157,12 +174,21 @@ const nodeOf = (
   type: TypeExpr.TypeExpr,
   sensitive: boolean,
   refs: ReadonlyArray<ConfigNode.ConfigRef>,
+  keyClass?: string,
 ) =>
   ConfigNode.makeTyped({
     kind: KIND,
     key,
-    type: sensitive ? SensitiveDefinitionType : DefinitionType,
-    attrs: sensitive ? { key, valueType: type, sensitive: true } : { key, valueType: type },
+    type: !sensitive
+      ? DefinitionType
+      : keyClass === undefined
+        ? SensitiveDefinitionType
+        : KeyClassDefinitionType,
+    attrs: !sensitive
+      ? { key, valueType: type }
+      : keyClass === undefined
+        ? { key, valueType: type, sensitive: true }
+        : { key, valueType: type, sensitive: true, keyClass },
     refs,
   });
 
@@ -204,22 +230,50 @@ const make = <const K extends string, V>(
  * Sensitivity is part of the attribute node's content identity, so marking or
  * unmarking an attribute changes its content ID and appears in any release
  * that adopts it. Reference and blob attributes cannot be sensitive.
+ *
+ * `keyClass` groups attributes that share a data key per subject, for example
+ * by retention period: `Attribute.sensitive(ssn, { keyClass: "retention-7y" })`.
+ * Erasing a subject's key class leaves its other classes readable. Without a
+ * key class, the attribute uses the subject's default key.
  */
 export const sensitive = <const K extends string, V>(
   definition: Definition<K, V>,
+  options: SensitiveOptions = {},
 ): Definition<K, V> => {
   if (!SEALABLE.has(definition.valueType)) {
     throw new TypeError(
       `Attribute ${definition.key} stores ${definition.valueType} values, which cannot be sensitive; only string, number, boolean, datetime and json values can be sealed`,
     );
   }
-  if (definition.sensitive) return definition;
+  const { keyClass } = options;
+  if (keyClass === "default") {
+    throw new TypeError(
+      `Attribute ${definition.key}: "default" is the key class of attributes declared without one; omit keyClass instead`,
+    );
+  }
+  if (keyClass !== undefined && !KEY_CLASS.test(keyClass)) {
+    throw new TypeError(
+      `Attribute ${definition.key}: key class must be a short lowercase label such as retention-7y; received ${keyClass}`,
+    );
+  }
+  if (definition.sensitive && definition.keyClass === keyClass) return definition;
+  if (definition.sensitive) {
+    throw new TypeError(
+      `Attribute ${definition.key} is already sensitive with key class ${definition.keyClass ?? "(default)"}`,
+    );
+  }
   return {
     ...definition,
     sensitive: true,
-    node: nodeOf(definition.key, definition.type, true, []),
+    ...(keyClass === undefined ? {} : { keyClass }),
+    node: nodeOf(definition.key, definition.type, true, [], keyClass),
   };
 };
+
+export interface SensitiveOptions {
+  /** A short lowercase label naming the data key group, such as `retention-7y`. */
+  readonly keyClass?: string;
+}
 
 /** The sealed plaintext type of a sensitive definition. */
 export const sealableValueType = (definition: AnyDefinition): SealableValueType =>

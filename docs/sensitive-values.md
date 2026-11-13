@@ -90,6 +90,15 @@ records `sensitive: true` in its attributes, so the node's content ID changes an
 that adopts it shows a changed attribute node. Non-sensitive attributes keep their existing content
 IDs because the field is omitted when false. `EntityType` handles expose `sensitive` per attribute.
 
+`Attribute.sensitive(definition, { keyClass })` also names a **key class**, a short lowercase
+label such as `retention-7y`. A subject's values in different key classes are sealed under
+different data keys, so one class can be erased while another is kept, for example a passport
+number kept for one year and a tax identifier kept for seven. Attributes without a key class use
+the subject's `default` class; `default` is reserved and cannot be named explicitly. The key class
+is recorded on the attribute node next to `sensitive: true`, so it is part of the node's content
+ID and of every release that adopts it. A sensitive node without a key class keeps its earlier
+content ID.
+
 Reference attributes cannot be sensitive. A ref is graph identity, and sealing it would break
 traversal, reference-target constraints and entity expansion. Blob attributes already store a
 content hash rather than the content, so they are rejected too. Sensitive values may be
@@ -98,7 +107,7 @@ content hash rather than the content, so they are rejected too. Sensitive values
 The policy that the runtime enforces comes from one of three sources:
 
 - `Sensitive.attributesOf([...])` collects marked definitions and entity types. It also accepts
-  explicit `{ key, valueType }` descriptors.
+  explicit `{ key, valueType, keyClass? }` descriptors.
 - `Sensitive.attributesFromNodes(nodes)` reads `sensitive: true` attribute nodes, for example
   every node of a pinned release, so the release is the source of truth.
 - `Sensitive.layer({ attributes })` accepts either form.
@@ -137,7 +146,8 @@ variant explicitly.
 | Service       | Role                                                                                                            |
 | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | `ValueCodec`  | Seals, opens and blinds one value, given a `SensitiveContext` (database, entity, attribute, value type).        |
-| `KeyProvider` | Supplies per-subject data keys and the per-database blind key to the reference AES-GCM codec.                   |
+| `KeyProvider` | Supplies data keys per subject and key class, and the per-database blind key, to the reference AES-GCM codec.   |
+| `KeyCustody`  | Changes key lifecycle: destroys a subject's data keys (erasure) and makes a new key version current (rotation). |
 | `Sensitivity` | The composed runtime capability: policy, codec and database identity. Used by `open`, derivations and overlays. |
 
 ```ts
@@ -146,6 +156,8 @@ interface SensitiveContext {
   readonly entityId: string;
   readonly attribute: string;
   readonly valueType: SealableValueType;
+  /** The attribute's key class; "default" when it declares none. */
+  readonly keyClass: string;
 }
 
 interface ValueCodecService {
@@ -169,9 +181,9 @@ Codecs shipped in core (`@triplex-build/triplex/sensitive`):
 - `ValueCodec.aesGcm` (or `ValueCodec.aesGcmWith({ subjectOf, blindScope })`) is the reference
   implementation over WebCrypto (`crypto.subtle`, available in browsers, Node.js 22 and workerd;
   core still imports no Node API). It uses AES-256-GCM with a random 96-bit nonce per value. The
-  envelope is a version byte, the nonce and the ciphertext with its tag. The additional
-  authenticated data binds the database, entity, attribute and declared type, so a ciphertext
-  cannot be moved to another fact. The blind token is HMAC-SHA-256 under the database blind key
+  envelope is a version byte (2), the nonce and the ciphertext with its tag. The additional
+  authenticated data binds the database, entity, attribute, declared type, key class and key ID,
+  so a ciphertext cannot be moved to another fact or relabelled with another key ID. The blind token is HMAC-SHA-256 under the database blind key
   over a domain tag, the scalar family (number and datetime share one) and the canonical JSON
   plaintext. It is prefixed with the blind key ID. With the default `blindScope: "database"`, equal
   values in two sensitive attributes of one database join.
@@ -179,9 +191,41 @@ Codecs shipped in core (`@triplex-build/triplex/sensitive`):
   SHA-256 blind token. It gives development databases the same storage shape and query semantics
   as production, so turning encryption on swaps the codec rather than the schema. It is **not**
   confidential. `aesGcm` can still open identity envelopes until they are rewrapped.
-- `KeyProvider.test({ seed })` and `KeyProvider.testKeys({ seed })` provide deterministic
-  **test keys only**. They support per-subject keys, `rotate()` and `destroy({ database, subject })`.
-  Production hosts implement `KeyProvider` over their KMS. Triplex never persists key material.
+- `KeyProvider.test({ seed })` and `KeyProvider.testKeys({ seed })` provide a deterministic
+  `KeyProvider` and `KeyCustody` with **test keys only**. Anyone with the seed can open every value.
+  Production hosts implement `KeyProvider` and `KeyCustody` over their key service.
+
+The key contract:
+
+```ts
+interface KeyContext {
+  readonly database: string;
+  readonly subject: string; // from aesGcmWith({ subjectOf }); the entity ID by default
+  readonly keyClass: string; // "default" when the attribute declares none
+}
+
+interface KeyProviderService {
+  /** Current data key for new seals; fails with `destroyed` once the scope was erased. */
+  readonly sealingKey: (context: KeyContext) => Effect<DataKey, KeyError>;
+  /** The data key a stored key ID names. */
+  readonly openingKey: (context: KeyContext, keyId: string) => Effect<CryptoKey, KeyError>;
+  /** The database-wide HMAC key for blind tokens. */
+  readonly blindKey: (database: string) => Effect<DataKey, KeyError>;
+}
+
+interface KeyCustodyService {
+  /** Destroy a subject's data keys (one key class, or all); returns the destroyed key IDs. */
+  readonly destroy: (scope: KeyScope) => Effect<ReadonlyArray<string>, KeyError>;
+  /** Make a new data-key version current for a database, subject or key class. */
+  readonly rotate: (scope: RotationScope) => Effect<void, KeyError>;
+}
+```
+
+A key ID must name its key on its own and must not contain sensitive data. Opening resolves the
+key from the stored key ID, so a value opens under the key that sealed it even if the host later
+maps values to subjects or key classes differently. A provider may reject a key ID that does not
+belong to the value's context. `KeyCustody` is separate so a host whose key service manages
+lifecycle itself can provide only `KeyProvider`.
 
 There is no implicit codec. `Sensitive.layer` requires `ValueCodec` in context, so declaring
 sensitive attributes without choosing a codec fails to compose. This deliberately departs from an
@@ -381,10 +425,11 @@ positive control that finds a non-sensitive plaintext value.
 
 Design, partially built:
 
-- `KeyProvider` is keyed by **subject**. `ValueCodec.aesGcmWith({ subjectOf })` maps a value to its
-  subject, which defaults to the entity ID. A host may map related entities, such as a person's
-  documents, to the person.
-- Erasing a subject destroys its data keys in the key provider. Facts, positions, journal entries
+- Data keys belong to a **subject** and a **key class**. `ValueCodec.aesGcmWith({ subjectOf })` maps
+  a value to its subject, which defaults to the entity ID. A host may map related entities, such as
+  a person's documents, to the person. The key class comes from the attribute declaration.
+- Erasing a subject destroys its data keys through `KeyCustody.destroy`, for every key class or
+  for one. New seals for a destroyed scope fail with `key-destroyed`. Facts, positions, journal entries
   and sealed envelopes remain, so history stays complete and audit queries keep working. The
   ciphertext can no longer be opened.
 - Reads after erasure return the same sealed values. `Sensitive.open` fails with
@@ -400,7 +445,8 @@ Design, partially built:
 - Derivations over erased subjects keep their committed provenance. Re-evaluation sees presence but
   no equality matches, which is the correct post-erasure answer.
 
-Built: per-subject keys, key destruction in the test provider, typed `key-destroyed` opening and
+Built: per-subject and per-key-class keys, the `KeyCustody` contract, key destruction in the test
+provider, typed `key-destroyed` opening and
 the `keep-sealed` mode. Not built: the storage-level blind scrub and the erasure fact. Both need a
 new optional `StorageAdapter` maintenance method on the in-memory KV, SQLite and PostgreSQL
 backends; Cloudflare and FoundationDB are frozen and need not implement it.
