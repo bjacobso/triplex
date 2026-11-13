@@ -38,8 +38,10 @@ describe("host-owned SQLite migrations", () => {
     );
 
     expect(result.before).toHaveLength(0);
-    expect(migrations.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(result.applied.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(migrations.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(result.applied.map(({ version }) => version)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+    ]);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "recorded_at",
@@ -124,5 +126,74 @@ describe("host-owned SQLite migrations", () => {
     );
 
     expect(result).toEqual([{ value_string: "preserved" }]);
+  });
+
+  it("removes blind token copies from journal payloads and snapshots (v11)", async () => {
+    const result = await runUnmigrated(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* runMigrations;
+        // A journal change and a snapshot written before v11 carried the token.
+        const change = JSON.stringify({
+          op: "assert",
+          tripleId: "00000000000000000000000003",
+          entityId: "person:1",
+          attribute: ":person/ssn",
+          value: {
+            type: "sealed",
+            valueType: "string",
+            keyId: "k1.0",
+            ciphertext: "AQ",
+            blind: "b1.0:token",
+          },
+          changeIndex: 0,
+        });
+        yield* sql`
+          INSERT INTO triples (
+            id, entity_id, attribute, value_type, value_json,
+            recorded_at, recorded_position, valid_from, schema_version, tx_id
+          ) VALUES (
+            '00000000000000000000000004', '_tx/00000000000000000000000005', ':_tx/change',
+            'json', ${change}, 1, 1, 1, 1, '_tx/00000000000000000000000005'
+          )
+        `;
+        const blob = JSON.stringify([
+          [
+            ":person/ssn",
+            {
+              type: "sealed",
+              valueType: "string",
+              keyId: "k1.0",
+              ciphertext: "AQ",
+              blind: "b1.0:token",
+            },
+          ],
+        ]);
+        yield* sql`INSERT INTO entity_blobs (hash, data, byte_size) VALUES ('sealed-blob', ${blob}, 1)`;
+        yield* sql`INSERT INTO entity_blobs (hash, data, byte_size) VALUES ('plain-blob', '[]', 2)`;
+        yield* sql`
+          INSERT INTO entity_snapshots (entity_id, tx_id, hash, tx_time)
+          VALUES ('person:1', '_tx/1', 'sealed-blob', 1), ('person:2', '_tx/1', 'plain-blob', 1)
+        `;
+        yield* sql`DELETE FROM triplex_schema_migrations WHERE version = 11`;
+        yield* runMigrations;
+        const [journal] = yield* sql<{ value_json: string }>`
+          SELECT value_json FROM triples WHERE attribute = ':_tx/change'
+        `;
+        return {
+          journal: JSON.parse(journal!.value_json) as { value: Record<string, unknown> },
+          blobs: yield* sql<{ hash: string }>`SELECT hash FROM entity_blobs ORDER BY hash`,
+          snapshots: yield* sql<{ entity_id: string }>`SELECT entity_id FROM entity_snapshots`,
+        };
+      }),
+    );
+    expect(result.journal.value).toEqual({
+      type: "sealed",
+      valueType: "string",
+      keyId: "k1.0",
+      ciphertext: "AQ",
+    });
+    expect(result.blobs).toEqual([{ hash: "plain-blob" }]);
+    expect(result.snapshots).toEqual([{ entity_id: "person:2" }]);
   });
 });
