@@ -90,6 +90,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       },
       { text: "Custom runtimes", link: "/custom-runtimes" },
       { text: "Roadmap", link: "/roadmap" },
+      { text: "Triplex and WorldVM", link: "/worldvm" },
     ],
   },
 ];
