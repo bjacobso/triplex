@@ -3,6 +3,7 @@ import { TxAttributes } from "../utils/id.js";
 import type { TransactionChange, TransactionMeta, TransactionRecord } from "./Triples.js";
 import { Option } from "effect";
 import { EntityId, TransactionId, TripleId, unsafe } from "../Branded.js";
+import { withoutBlind } from "../Value.js";
 
 const text = (value: string) => ({ type: "string" as const, value });
 
@@ -17,7 +18,8 @@ export const transactionChangeFromTriple = (
   entityId: triple.entityId,
   attribute: triple.attribute,
   ...(Option.isSome(triple.entityType) ? { entityType: triple.entityType.value } : {}),
-  value: triple.value,
+  // The journal copy of a sealed value has no blind token; see `withoutBlind`.
+  value: withoutBlind(triple.value),
   validFrom: triple.validFrom,
   ...(Option.isSome(triple.validTo) ? { validTo: triple.validTo.value } : {}),
   recordedAt: triple.recordedAt,

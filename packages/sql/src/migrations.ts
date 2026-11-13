@@ -22,6 +22,9 @@ import {
   COMMIT_POSITION_TABLE_DDL,
   COMMAND_RECEIPTS_TABLE_DDL,
   KEY_STORE_DDLS,
+  JOURNAL_BLIND_SCRUB_SQLITE_DDLS,
+  JOURNAL_BLIND_SCRUB_POSTGRES_DDLS,
+  SNAPSHOT_BLIND_SCRUB_DDLS,
 } from "./schema.js";
 
 export interface Migration {
@@ -102,6 +105,12 @@ export const migrations: readonly Migration[] = [
   },
   { version: 9, name: "triplex_public_read_indexes", up: PUBLIC_READ_INDEX_DDLS },
   { version: 10, name: "triplex_key_store", up: KEY_STORE_DDLS },
+  {
+    version: 11,
+    name: "triplex_blind_tokens_only_on_facts",
+    dialects: { sqlite: JOURNAL_BLIND_SCRUB_SQLITE_DDLS, pg: JOURNAL_BLIND_SCRUB_POSTGRES_DDLS },
+    up: SNAPSHOT_BLIND_SCRUB_DDLS,
+  },
 ];
 
 export const runMigrations = Effect.gen(function* () {

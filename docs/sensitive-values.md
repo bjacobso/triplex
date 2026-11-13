@@ -345,9 +345,17 @@ the operations so a concurrent retraction fails with `TransactionConflictError`.
 
 `get`, `entity`, `entities`, `entityPage`, `match`, `history`, `transaction`, `transactions`,
 `transactionByCommand` and `transactionsForEntity` return stored sealed values unchanged. The
-journal's `:_tx/change` payload embeds the same sealed value, so history and "what changed" reads
-show that a sensitive fact changed, by whom and when, without its plaintext. Entity snapshots
-commit to the sealed envelope.
+journal's `:_tx/change` payload embeds the sealed value without its blind token, so history and
+"what changed" reads show that a sensitive fact changed, by whom and when, without its plaintext.
+Entity snapshots commit to the sealed envelope, also without the blind token.
+
+**Blind tokens live only on the fact.** A sealed value's blind token is stored on the fact and in
+its blind index (`value_blind` in SQL, the AVET entries in KV) and nowhere else: journal
+payloads, transaction records and entity snapshots carry the key ID and ciphertext only. Erasure
+can therefore remove a subject's tokens in one place. SQL migration v11 removes the copies that
+earlier versions wrote into journal payloads, and drops entity snapshots that committed to a token;
+`SnapshotWriter.backfill` and the next write recreate them. Existing SQLite and PostgreSQL databases
+must run it. Cloudflare and FoundationDB storage is frozen and keeps any earlier copies.
 
 `match` with a value on a sensitive attribute is rewritten to a blind-token lookup, so "which
 person has this SSN?" is an indexed equality read. A value of a type that can never equal the
@@ -495,7 +503,8 @@ Design, partially built:
   leaves erased values sealed instead, so a UI can render "erased" without failing the read.
 - **Blind tokens must be scrubbed too.** A blind token keyed per database survives a destroyed data
   key, so someone holding a candidate value could still confirm it. Erasure therefore also clears
-  the subject's blind tokens (`value_blind`, and the KV blind index entries) through an unjournaled
+  the subject's blind tokens (`value_blind`, and the KV blind index entries, which are the only
+  copies) through an unjournaled
   maintenance operation, like checkpoint maintenance. It also records one journaled erasure fact
   that names the subject and the time but no attribute or value. After scrubbing, Datalog presence
   still matches erased facts, while equality, joins and uniqueness no longer do, so a unique value

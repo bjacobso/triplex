@@ -403,3 +403,37 @@ export const KEY_STORE_DDLS: ReadonlyArray<string> = [
   KEY_ERASURES_TABLE_DDL,
   BLIND_KEYS_TABLE_DDL,
 ];
+
+// =============================================================================
+// No blind tokens outside facts — migration v11
+// =============================================================================
+
+/**
+ * Journal `:_tx/change` payloads embedded each sealed value with its blind
+ * token. Blind tokens now live only on the fact, so erasure scrubs them in one
+ * place; this removes the copies from existing journals.
+ */
+export const JOURNAL_BLIND_SCRUB_SQLITE_DDLS: ReadonlyArray<string> = [
+  `UPDATE triples SET value_json = json_remove(value_json, '$.value.blind')
+   WHERE attribute = ':_tx/change' AND value_type = 'json'
+     AND json_extract(value_json, '$.value.blind') IS NOT NULL`,
+];
+
+export const JOURNAL_BLIND_SCRUB_POSTGRES_DDLS: ReadonlyArray<string> = [
+  `UPDATE triples SET value_json = (value_json::jsonb #- '{value,blind}')::text
+   WHERE attribute = ':_tx/change' AND value_type = 'json'
+     AND (value_json::jsonb -> 'value') ? 'blind'`,
+];
+
+/**
+ * Entity snapshots committed to blind tokens. Snapshots are content-addressed
+ * caches, so the affected snapshots and blobs are dropped rather than
+ * rewritten; `SnapshotWriter.backfill` and the next write recreate them.
+ */
+export const SNAPSHOT_BLIND_SCRUB_DDLS: ReadonlyArray<string> = [
+  `DELETE FROM entity_snapshots WHERE hash IN (
+     SELECT hash FROM entity_blobs
+     WHERE data LIKE '%"type":"sealed"%' AND data LIKE '%"blind":%'
+   )`,
+  `DELETE FROM entity_blobs WHERE data LIKE '%"type":"sealed"%' AND data LIKE '%"blind":%'`,
+];
