@@ -603,12 +603,19 @@ on Cloudflare and FoundationDB.
 The shared corpora are exported from `@triplex-build/triplex/testkit` as `sealedStorageCases`,
 `sensitiveConformanceCases`, `sensitiveConformanceLayer` and `findPlaintext`.
 
-## Proposed host-sealing integration
+## Host keys, not host-sealed values
 
-The [host-sealed values RFC](rfcs/tx3-host-sealed-values.md) proposes an explicit
-trusted-host import contract and compares a custom KeyProvider alternative. It
-requires an owner decision and changes no current behavior. Raw storage already
-round-trips sealed envelopes; the Sensitive decorator continues to reject them.
+Decision (2026-11-13, ask 0014): a host that needs its own key custody implements `KeyProvider` (and
+`KeyCustody` for erasure and rotation) over its key service, or uses `SqlKeyStore` with its own
+`RootKey`. Triplex always seals. There is one sealing path, so there is one erasure story and one
+rotation story, and every surface keeps its "never plaintext by accident" guarantee.
+
+The [host-sealed values RFC](rfcs/tx3-host-sealed-values.md) proposed a trusted-host import contract
+for values sealed before they reach Triplex. It is not adopted. The gaps it listed for the
+`KeyProvider` route are closed: key classes on attributes, key IDs that name their key on their own,
+erasure that scrubs blind tokens, and rotation. Data a host sealed itself before adopting Triplex
+moves in once: open it with the host's own code and write the plaintext through the decorator. Raw
+storage still round-trips sealed envelopes; the decorator still rejects them.
 
 ## Out of scope
 
@@ -635,11 +642,22 @@ round-trips sealed envelopes; the Sensitive decorator continues to reject them.
 
 ## Implementation status
 
-Built: marking, the sealed value type, the identity and AES-GCM codecs, the test key provider with
-rotation and destruction, the `Triples` decorator for writes, reads, the journal and Datalog
-planning, blind equality in the KV and SQL engines, storage migrations for SQLite, PostgreSQL and
-Cloudflare, constraint and validation support, derivation and overlay support, surface defaults,
-shared conformance corpora, and raw-storage scan tests.
+Built: marking and key classes, the sealed value type, the identity and AES-GCM codecs, the
+`KeyProvider`, `KeyCustody` and `RootKey` contracts, the test key provider, the `SqlKeyStore` reference
+key store for SQLite and PostgreSQL, the `Triples` decorator for writes, reads, the journal and
+Datalog planning, blind equality in the KV and SQL engines, blind tokens kept only on facts, storage
+migrations for SQLite, PostgreSQL and Cloudflare, constraint and validation support, derivation and
+overlay support, surface defaults, erasure (`Sensitive.erase`), rotation (`SqlKeyStore.rewrapRoot`,
+`Sensitive.rewrap`, `Sensitive.rotateBlindKey`), shared conformance corpora for sealed storage, the
+decorator, key stores, erasure and rotation, and raw-storage scan tests. The
+[sensitive lifecycle example](https://github.com/bjacobso/triplex/tree/main/examples/sensitive-lifecycle)
+runs the whole life of a value on a SQLite file.
 
-Designed but not built: dual-version blind lookups during an online blind-key rotation, and opening
-sealed values in `ConfigRuntime`.
+Deliberately deferred:
+
+- Dual-version blind lookups, so a blind-key rotation can run while writes continue. Today's rotation
+  should run when writes are quiet.
+- Erasure and rotation on Cloudflare and FoundationDB, which are frozen. `Sensitive.erase` and the
+  rotations fail there with `unsupported`.
+- Opening sealed values inside `ConfigRuntime` rule evaluation, which needs an explicit host
+  decision to open (see [Out of scope](#out-of-scope)).
