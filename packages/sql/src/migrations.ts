@@ -21,6 +21,7 @@ import {
   OPERATIONAL_ENTRIES_POSTGRES_TABLE_DDL,
   COMMIT_POSITION_TABLE_DDL,
   COMMAND_RECEIPTS_TABLE_DDL,
+  KEY_STORE_DDLS,
 } from "./schema.js";
 
 export interface Migration {
@@ -100,6 +101,7 @@ export const migrations: readonly Migration[] = [
     up: INTERVAL_HISTORY_INDEX_DDLS,
   },
   { version: 9, name: "triplex_public_read_indexes", up: PUBLIC_READ_INDEX_DDLS },
+  { version: 10, name: "triplex_key_store", up: KEY_STORE_DDLS },
 ];
 
 export const runMigrations = Effect.gen(function* () {

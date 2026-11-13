@@ -15,6 +15,7 @@
 export * as Sensitive from "./Sensitive.js";
 export * as ValueCodec from "./ValueCodec.js";
 export * as KeyProvider from "./KeyProvider.js";
+export * as RootKey from "./RootKey.js";
 export { Sensitivity, type SensitivityService, type OpenOptions } from "./Sensitive.js";
 export { SensitiveQueryError, SensitiveValueError } from "../errors/index.js";
 export type { SealedValue, SealableValueType } from "../Value.js";

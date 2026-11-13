@@ -26,6 +26,11 @@ export {
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
+  DATA_KEYS_TABLE_DDL,
+  DATA_KEYS_ROOT_INDEX_DDL,
+  KEY_ERASURES_TABLE_DDL,
+  BLIND_KEYS_TABLE_DDL,
+  KEY_STORE_DDLS,
 } from "./schema.js";
 export { packValue } from "./queries.js";
 export { type Migration, migrations, runMigrations } from "./migrations.js";
@@ -58,3 +63,6 @@ export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";
 export { makeSqlLivePreconditionLookup, makeSqlLiveFactsLookup } from "./LivePreconditions.js";
 
 export { makeSqlTransactionPrefixLookup } from "./TransactionFeed.js";
+
+// Reference key store: wrapped data and blind keys in the database's own SQL storage
+export { SqlKeyStore, type SqlKeyStoreOptions } from "./KeyStore.js";

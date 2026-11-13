@@ -227,6 +227,64 @@ maps values to subjects or key classes differently. A provider may reject a key 
 belong to the value's context. `KeyCustody` is separate so a host whose key service manages
 lifecycle itself can provide only `KeyProvider`.
 
+A blind key ID must not contain `:`, because blind tokens are stored as `<blind key ID>:<token>`.
+
+### The SQL key store
+
+`SqlKeyStore.layer({ database })` from `@triplex-build/triplex/sql` is the reference `KeyProvider`
+and `KeyCustody` for real use on SQLite and PostgreSQL. It is never a default: a host opts in by
+providing it.
+
+```ts
+import { KeyProvider, RootKey, Sensitive, ValueCodec } from "@triplex-build/triplex/sensitive";
+import { SqlKeyStore } from "@triplex-build/triplex/sql";
+import { SqliteTriples } from "@triplex-build/triplex/sqlite";
+
+const rootKey = RootKey.fromBytes({
+  current: { id: "root-2026-11", key: rootKeyBytesFromYourSecretManager },
+});
+
+const layer = Sensitive.layer({ database: "acme/main", attributes: [Person] }).pipe(
+  Layer.provide(ValueCodec.aesGcm),
+  Layer.provide(SqlKeyStore.layer({ database: "acme/main" })),
+  Layer.provide(rootKey),
+  Layer.provideMerge(SqliteTriples.layerWithSqlClient({ filename: "app.db" })),
+);
+```
+
+It keeps keys in the database's own SQL storage, in tables created by SQL migration v10:
+
+- `triplex_data_keys` holds one row per subject, key class and version. Each data key is 32 random
+  bytes stored only wrapped (AES-256-GCM) under the root key; the row records which root key
+  wrapped it. Its key ID is an opaque random `k1.<hex>`, so opening looks the key up by ID alone.
+- `triplex_blind_keys` holds the database's blind key versions, wrapped the same way.
+- `triplex_key_erasures` records erased scopes, so a key is never recreated for an erased subject or
+  key class. Destroying a key clears its wrapped bytes and keeps the row, so the key ID resolves to
+  "destroyed" rather than "unknown".
+
+The **root key** is a `RootKey` service the host supplies, and it is never written to the database.
+`RootKey.fromBytes` holds 32 bytes in process memory, for example read from a secret manager at
+startup; a host can implement `RootKey` over its key service instead. Each wrapped key is
+authenticated against its database and key ID, so it cannot be moved to another row. Pass earlier
+root keys in `previous` while stored keys are still wrapped under them.
+
+**Threat model.** This is envelope encryption. It protects a database file, dump or backup that
+leaks _without_ the root key: the stored keys cannot be unwrapped, so neither sealed values nor
+blind tokens can be computed or checked. It protects nothing if the root key is stored beside the
+database, for example in the same disk image, backup or environment file, or if an attacker can run
+code in a process that holds the root key. Keep the root key in a different place from the
+database and its backups.
+
+Two consequences for erasure. Destroying a key clears it from the live database, but an older backup
+still holds the wrapped key, and anyone with that backup and the current root key can still unwrap
+it. Erasure is complete against backups only after the root key is rotated, every live key is
+rewrapped under the new root key and the old root key is destroyed. Rewrapping arrives with key
+rotation. On SQLite, a cleared value can also survive in free pages or the write-ahead log until it
+is overwritten or vacuumed.
+
+The key store checks the database row on every open and seal, so a key destroyed by another process
+is refused there too; only the unwrapped key bytes are cached in memory, keyed by key ID.
+
 There is no implicit codec. `Sensitive.layer` requires `ValueCodec` in context, so declaring
 sensitive attributes without choosing a codec fails to compose. This deliberately departs from an
 identity-by-default design: forgetting to configure encryption must not store plaintext silently.
