@@ -8,9 +8,15 @@
  * indexes), and prints every statement whose plan changes.
  *
  *   pnpm --filter triplex-stress index-plan-diff
+ *
+ * To compare two builds instead (for example before and after a storage
+ * change), dump every plan with `PLAN_DUMP=plans.json` on the first build and
+ * compare against it with `PLAN_BASELINE=plans.json` on the second. The report
+ * lists every statement present in both whose plan changed, and counts the
+ * statements only one build issues.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync, StatementSync } from "node:sqlite";
@@ -111,7 +117,43 @@ const main = async () => {
         return undefined;
       }
     };
-    const before = new Map(candidates.map((sql) => [sql, plan(sql)]));
+    const current = new Map(candidates.map((sql) => [sql, plan(sql)]));
+    const dump = process.env["PLAN_DUMP"];
+    const baselineFile = process.env["PLAN_BASELINE"];
+    if (dump !== undefined || baselineFile !== undefined) {
+      db.close();
+      const plans = Object.fromEntries(
+        [...current].filter((entry): entry is [string, string] => entry[1] !== undefined),
+      );
+      if (dump !== undefined) {
+        writeFileSync(dump, JSON.stringify(plans, null, 2));
+        console.log(`Wrote ${Object.keys(plans).length} plans to ${dump}`);
+      }
+      if (baselineFile !== undefined) {
+        const baseline = JSON.parse(readFileSync(baselineFile, "utf8")) as Record<string, string>;
+        const shared = Object.keys(plans).filter((sql) => sql in baseline);
+        const changed = shared.filter((sql) => baseline[sql] !== plans[sql]);
+        console.log(`Statements in both builds: ${shared.length}`);
+        console.log(`Only in the baseline: ${Object.keys(baseline).length - shared.length}`);
+        console.log(`Only in this build: ${Object.keys(plans).length - shared.length}`);
+        console.log(`Shared statements whose plan changed: ${changed.length}`);
+        for (const sql of changed) {
+          console.log("\n---");
+          console.log(sql.replace(/\s+/g, " ").trim().slice(0, 400));
+          console.log(`  baseline: ${baseline[sql]}`);
+          console.log(`  now:      ${plans[sql]}`);
+        }
+        if (process.env["PLAN_LIST_NEW"] !== undefined) {
+          for (const sql of Object.keys(plans).filter((sql) => !(sql in baseline))) {
+            console.log("\n+++");
+            console.log(sql.replace(/\s+/g, " ").trim().slice(0, 400));
+            console.log(`  now: ${plans[sql]}`);
+          }
+        }
+      }
+      return;
+    }
+    const before = current;
     for (const index of DROP) db.exec(`DROP INDEX IF EXISTS ${index}`);
     db.exec("ANALYZE");
     const after = new Map(candidates.map((sql) => [sql, plan(sql)]));
