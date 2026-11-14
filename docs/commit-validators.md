@@ -54,7 +54,7 @@ function receives a `CommitValidation.CommitContext`:
 | `transaction` | The attempted `txId`, `instant`, `basisPosition`, `actor`, `commandId`, `correlationId`, `causationId`, `configSnapshot`                                                             |
 | `changes`     | The resolved `TransactionChange` list (asserts and retracts with triple ID, entity, attribute, typed value, entity type, valid interval). This is the same list the journal records. |
 | `before`      | A read view at `basisPosition`, the last committed position                                                                                                                          |
-| `after`       | A read view at the attempted position, which includes this transaction's facts and its `_Transaction` envelope                                                                       |
+| `after`       | A read view at the attempted position, which includes this transaction's facts and its journal entry (`:_tx/*`)                                                                      |
 
 Each view has `entity`, `entities`, `match`, and complete Datalog `query`. These fact reads accept
 `{ validAt }`, which defaults to the transaction instant. The recorded axis is fixed by the view.
@@ -137,7 +137,7 @@ Inside the backend's serialized transaction boundary:
 4. Apply operations: assert, retract, `append-entry`, and `acknowledge-entry`.
 5. Evaluate `enforce` graph constraints against the projected post-state, retaining the
    pre-state baseline so unchanged legacy violations still permit repairs.
-6. Write the `_Transaction` journal envelope.
+6. Write the journal entry (the transaction row and its changed-entity rows).
 7. **Commit validators**: runtime-wide validators first, then per-call validators, each in
    declaration order.
 8. Commit.
@@ -222,7 +222,7 @@ A record can't be mistaken for committed facts:
 - It lives in the reserved namespace, which ordinary writes can't target.
 - The attempted changes are stored only as JSON payloads on the record entity, never as facts on
   the target entities.
-- The attempted `txId` never becomes a `_Transaction`, so `Triples.transaction(attemptTxId)`
+- The attempted `txId` never gets a journal entry, so `Triples.transaction(attemptTxId)`
   returns `null`.
 - The record's own journal envelope names only the record entity as changed.
 
@@ -269,7 +269,7 @@ and narrow Datalog.
 ## Interaction with other features
 
 - **Datalog.** `view.query` is complete (not paged) Datalog at one commit cut. `after` includes
-  the attempted `_Transaction` envelope, so rules can join `:_tx/actor` for this transaction.
+  the attempted journal entry, so rules can join `:_tx/actor` for this transaction.
 - **Derivations.** Not run automatically. A validator can run a derivation's query through
   `view.query`.
 - **History and the journal.** Rejected transactions leave no facts, envelope, position, or

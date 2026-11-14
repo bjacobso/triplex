@@ -168,7 +168,7 @@ new variants. Existing `TripleLive` and `EntityState` behavior is unchanged.
 
 ### Commit validators
 
-`TransactionMeta.validate` runs host validators after the operations and `_Transaction` envelope
+`TransactionMeta.validate` runs host validators after the operations and the journal entry
 are applied and before commit. Preconditions and `enforce` run first. Each validator receives the
 attempted envelope, the resolved changes, and read-only `before` and `after` views at exact commit
 positions. It can return typed rejections, which roll back the whole transaction with
@@ -178,7 +178,17 @@ path and can record each rejection durably, as a reserved entity written after r
 
 ### Causal transaction envelopes
 
-Every successful `transact` persists an `_Transaction` entity with:
+Every successful `transact` writes one journal entry, in the same atomic backend transaction as
+its facts and outside the fact store. SQL keeps it in `triplex_transactions` (one row per
+transaction) and `triplex_transaction_entities` (one row per changed application entity); KV keeps
+a journal keyspace. The entry holds the transaction's position, instant, actor, command ID,
+correlation ID, causation ID and config snapshot, and the ordered references `[tripleId, op]` to
+the facts it asserted or retracted. It does not copy the facts: `Triples.transaction(txId)`
+rebuilds the typed envelope and its changes with one batched primary-key read of the referenced
+facts, which are immutable apart from their retraction fields.
+
+Datalog reads the envelope as facts of the transaction entity, for application-specific audit
+queries:
 
 - `:_tx/position`;
 - `:_tx/instant`;
@@ -187,16 +197,13 @@ Every successful `transact` persists an `_Transaction` entity with:
 - `:_tx/correlation-id`;
 - `:_tx/causation-id`;
 - `:_tx/config-snapshot`; and
-- one indexed `:_tx/changed-entity` reference per changed application entity; and
-- one `:_tx/change` JSON fact for every asserted or retracted application fact.
+- one `:_tx/changed-entity` reference per changed application entity.
 
-`Triples.transaction(txId)` reconstructs the typed envelope. The same facts remain available to
-Datalog for application-specific audit queries. Their valid time starts at the commit instant, so
-query them at the current valid time; a past `validAt` hides them (see
-[Datalog](/datalog#query-shape)). A command ID is an atomically unique idempotency
-identity within one Triplex database. Concurrent attempts acquire a backend-local claim inside the
-same transaction as the facts and envelope; exactly one commits. A loser receives
-`CommandAlreadyCommittedError` with the original transaction ID, and
+These follow the query's recorded cut and ignore valid time (see [Datalog](/datalog#query-shape)).
+Triple-level reads (`match`, `entity`, `history`) return application facts only. A command ID is an
+atomically unique idempotency identity within one Triplex database: the journal entry's command ID
+is unique, so concurrent attempts race on it inside the same transaction as the facts; exactly one
+commits. A loser receives `CommandAlreadyCommittedError` with the original transaction ID, and
 `Triples.transactionByCommand(commandId)` loads that durable receipt.
 
 Receipt and journal ordering is backend-independent. `TransactionResult.triples` contains only
@@ -208,11 +215,10 @@ A `retract-pattern` expands at its operation position in ascending triple-ID ord
 that change no fact and inbox/outbox operations contribute no fact changes. The receipt's
 `retracted` field counts successful retractions; it does not add retracted facts to `triples`.
 
-New `:_tx/change` JSON facts store an internal `changeIndex` so journal reads do not depend on
-storage scan order. Existing journals remain readable using metadata fact IDs as the ordering
-fallback; their original submitted order cannot be recovered if an older writer reordered changes.
+The entry stores its change references as one ordered list, so journal reads do not depend on
+storage scan order.
 
-`Triples.transactionsForEntity(entityId, request)` uses the changed-entity references to read a
+`Triples.transactionsForEntity(entityId, request)` uses the changed-entity rows to read a
 bounded newest-first audit page without replaying or decoding the global journal. It deduplicates
 transactions that changed several facts on the entity, then hydrates their authoritative complete
 envelopes. The first page returns a `snapshotPosition`; continuation requests combine it with the
@@ -263,22 +269,19 @@ when resuming a consumer checkpoint; changing it intentionally changes the selec
 subsequence after that global position. The tenant protocol's `Transactions`
 operation accepts the same optional `entityIdPrefix` field.
 
-Discovery uses changed-entity references before hydrating only matching command
-records. SQLite/Cloudflare reuse the existing reference index. PostgreSQL SQL
-migration **v7** adds a binary-collation covering prefix/position index and analyzes
-triples; host-owned clients must migrate before layer acquisition. SQLite records
-v7 without extra DDL, and Cloudflare needs no new migration beyond v6. KV uses its
-existing AVET changed-entity prefix, pins the committed head for the scan, and
-retains a bounded candidate set before reading complete envelopes. No KV feed
-backfill is needed. Custom storage adapters implement `transactionIdsForEntityPrefix`.
+Discovery reads the changed-entity rows before hydrating only matching command
+records: SQL reads a range of the `triplex_transaction_entities` primary key
+`(entity_id, position)` (bytewise on PostgreSQL), and KV reads its changed-entity
+keyspace, pins the committed head for the scan, and retains a bounded candidate
+set before reading complete envelopes. Custom storage adapters implement
+`transactionEntriesForEntityPrefix`.
 
 Without `entityIdPrefix`, a page seeks straight to `after` in the journal and reads
 only the requested transactions, so polling "what changed since position N" costs
-the same at any history length. SQL backends seek the existing
-`idx_attribute_history` index over each command's `:_tx/position` fact (no
-migration); KV seeks its AVET `:_tx/position` range up to the pinned committed
-head. Custom storage adapters implement `transactionIdsAfter` with the same
-contract: candidates after `after`, ordered by global position, at most `limit`.
+the same at any history length. SQL backends seek the unique `position` of
+`triplex_transactions`; KV seeks its journal keyspace up to the pinned committed
+head. Custom storage adapters implement `transactionEntriesAfter` with the same
+contract: entries after `after`, ordered by global position, at most `limit`.
 
 The filter avoids unrelated transaction metadata. Work can still grow with the
 matching prefix's history: KV scans those references and SQL can visit matching
@@ -507,8 +510,8 @@ Each entry has its own record. SQL uses a primary-key lookup and separate partia
 for an entity scope and the whole database. KV uses primary records and separate global/scoped
 pending ranges. Reads fetch at most `limit + 1` candidates; acknowledged history is absent from
 those indexes. No operation materializes a home entity or scans acknowledged entries. Entries
-link to their original and acknowledgement receipts; their payloads are not copied into
-`:_tx/change`, which continues to describe fact changes. Transaction results still report only
+link to their original and acknowledgement receipts; their payloads are not part of the
+journal's fact changes. Transaction results still report only
 asserted/retracted facts. Entry storage is a separate operational record store, so fact history,
 Datalog, temporal cuts, and entity snapshots do not include these entries.
 

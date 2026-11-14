@@ -74,7 +74,7 @@ One candidate design is an optimistic staging adapter:
 3. Submit the staged changes with a compare-and-swap from the observed position to the next one.
    Every writer of that logical database's source data must participate in this guard.
 4. On a conflict, discard the staged result, acquire a fresh database value, and re-evaluate.
-   For a duplicate, `claimCommand` must return the original transaction ID so core raises
+   For a duplicate, `appendTransaction` must return the original transaction ID so core raises
    `CommandAlreadyCommittedError`; callers can load its receipt with `transactionByCommand`.
    Publish a successful callback result only after confirmed commit.
 

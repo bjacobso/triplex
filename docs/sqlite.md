@@ -89,8 +89,8 @@ SQL migration entrypoints. See [host integration](/host-integration).
 | Recorded and valid time       | `recorded_at`, `retracted_at`, `valid_from`, and `valid_to`                                  |
 | Exact commit visibility       | `recorded_position` and `retracted_position` on each row                                     |
 | Ordered command boundary      | Transactional `triplex_commit_position` row                                                  |
-| Retry identity                | Unique command claim in `triplex_command_receipts`                                           |
-| Attributed journal            | `_Transaction` facts and typed changes stored with the application writes                    |
+| Retry identity                | Unique command ID on the journal row in `triplex_transactions`                               |
+| Attributed journal            | One journal row per transaction, committed with the application writes                       |
 | Entity projections            | Content-addressed blobs and entity snapshot tables, when composed with snapshot services     |
 | Datalog                       | Shared SQL compiler/executor with the SQLite dialect                                         |
 

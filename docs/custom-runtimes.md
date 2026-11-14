@@ -230,8 +230,10 @@ Adapter authors must preserve these guarantees:
 - `nextCommitPosition` allocates an ordered position inside that transaction. Committed positions
   strictly increase; allocation participates in rollback. `currentCommitPosition` identifies a
   consistent committed read boundary.
-- `claimCommand` reserves a command identity atomically. A competing duplicate sees the original
-  transaction ID; an aborted claimant cannot leave a durable receipt.
+- `appendTransaction` writes the journal entry inside the caller's transaction and keeps its
+  command ID unique: a competing duplicate gets the original transaction ID back and writes
+  nothing; an aborted transaction cannot leave a durable receipt. `transactionEntry*` and
+  `getByIds` read the journal and the facts it references.
 - Temporal reads honor the resolved recorded/valid basis, assertion and retraction boundaries,
   and commit positions used for pagination. Results cannot drift while traversing a pinned page.
 - Query executors validate inputs and preserve typed-value, join, ordering, and pagination
