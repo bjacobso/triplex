@@ -19,10 +19,13 @@ same values.
 
 | Backend                 | Triplex, bytes per asserted triple | Plain table | Ratio |
 | ----------------------- | ---------------------------------: | ----------: | ----: |
-| SQLite 3 (`dbstat`)     |                              2,121 |          97 |   22× |
-| PostgreSQL 17 (on disk) |                              2,472 |         156 |   16× |
+| SQLite 3 (`dbstat`)     |                                699 |          97 |    7× |
+| PostgreSQL 17 (on disk) |                              1,044 |         156 |    7× |
 
-Measured on 2026-11-13 at the commit that added this page. SQLite sizes are the pages in use after
+Measured on 2026-11-13 after the journal moved to its own tables (0.5, ask 0019); 0.4 measured
+2,023 bytes on SQLite and 2,428 on PostgreSQL. The sections below "Where the bytes go" describe the
+0.4 layout that motivated the change; [The 0.5 layout](#the-0-5-layout) has the current split.
+The first numbers on this page were measured on 2026-11-13 at the commit that added it. SQLite sizes are the pages in use after
 a WAL checkpoint; PostgreSQL sizes are `pg_relation_size` plus TOAST after `VACUUM ANALYZE`.
 
 The ratio is the price of what a plain table does not keep: every assertion's valid and recorded
@@ -30,6 +33,27 @@ times, the retracted history, an ordered journal of who changed what, and the in
 time-travel, history, journal and Datalog reads without scanning. A workload that asserts more facts
 per transaction pays less journal metadata per fact; longer values raise the value share and lower
 the ratio.
+
+## The 0.5 layout
+
+The journal no longer lives in `triples`. Each transaction writes one row to `triplex_transactions`
+(its envelope and the ordered `[tripleId, op]` references to the facts it changed) and one row per
+changed entity to `triplex_transaction_entities`; a transaction record is rebuilt from the
+referenced facts. Same workload as above, bytes per asserted triple:
+
+| Part                                                                                   | SQLite | PostgreSQL |
+| -------------------------------------------------------------------------------------- | -----: | ---------: |
+| `triples`: the facts (no journal rows)                                                 |    178 |        217 |
+| Journal: `triplex_transactions` and its keys and instant index                         |     67 |         85 |
+| Journal: `triplex_transaction_entities` and its key                                    |     10 |         21 |
+| Journal `:_tx/change` copies and other `_Transaction` rows in `triples` (0.4: 596/653) |      0 |          0 |
+| Secondary indexes on `triples` (16 on SQLite, 17 on PostgreSQL) and its primary key    |    429 |        681 |
+
+Indexes on `triples` now hold only facts, so `idx_tx_id`, for example, fell from 115 to 44 bytes
+per asserted triple on SQLite. Write time per 10-attribute transaction fell from 2.1–2.3 ms to
+0.9–1.0 ms (mean, SQLite, several runs on a shared laptop): 12 rows per commit instead of 25, and the
+journal's two rows enter three small indexes instead of every index on `triples`. Run the two
+scripts to see your own numbers.
 
 ## Where the bytes go
 
