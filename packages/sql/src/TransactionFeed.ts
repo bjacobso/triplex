@@ -38,7 +38,7 @@ export const makeSqlTransactionJournalLookup =
   (runner: SqlStatementRunner, dialect: SqlDialect): StorageAdapterService["transactionIdsAfter"] =>
   (after, limit) => {
     const p = createParamCollector(dialect);
-    // SQLite may otherwise prefer the partial idx_attribute or idx_type and sort the journal.
+    // SQLite may otherwise prefer a partial index such as idx_type and sort the journal.
     const from =
       dialect.name === "postgresql" ? "triples" : "triples INDEXED BY idx_attribute_history";
     return runner

@@ -13,6 +13,7 @@
     "benchmark:positions": "tsx scripts/commit-position-contention.ts",
     "benchmark": "tsx scripts/generate-benchmark-report.ts",
     "footprint": "tsx scripts/storage-footprint.ts",
+    "index-plan-diff": "tsx scripts/index-plan-diff.ts",
     "write-cost": "tsx scripts/write-cost.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

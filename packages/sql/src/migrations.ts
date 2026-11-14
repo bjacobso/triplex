@@ -26,6 +26,7 @@ import {
   JOURNAL_BLIND_SCRUB_POSTGRES_DDLS,
   SNAPSHOT_BLIND_SCRUB_DDLS,
   BLIND_KEY_STAGING_DDLS,
+  DROP_PREFIX_INDEX_DDLS,
 } from "./schema.js";
 
 export interface Migration {
@@ -113,6 +114,7 @@ export const migrations: readonly Migration[] = [
     up: SNAPSHOT_BLIND_SCRUB_DDLS,
   },
   { version: 12, name: "triplex_blind_key_staging", up: BLIND_KEY_STAGING_DDLS },
+  { version: 13, name: "triplex_drop_prefix_indexes", up: DROP_PREFIX_INDEX_DDLS },
 ];
 
 export const runMigrations = Effect.gen(function* () {
