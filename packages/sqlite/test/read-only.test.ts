@@ -80,14 +80,16 @@ describe("read-only SQLite", () => {
     expect(after["triplex.db-wal"] ?? "").toBe("");
   });
 
-  it("fails with SchemaVersionError for a file that needs a migration, and does not migrate it", async () => {
+  it("fails with SchemaVersionError for a file with another schema history, and changes nothing", async () => {
     const { filename } = await tempFile();
     const client = SqliteClient.layer({ filename });
+    // A history like Triplex 0.4's: a different baseline and later versions.
     await run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* runMigrations;
-        yield* sql`DELETE FROM triplex_schema_migrations WHERE version = ${LATEST}`;
+        yield* sql`UPDATE triplex_schema_migrations SET name = 'triplex_baseline'`;
+        yield* sql`INSERT INTO triplex_schema_migrations VALUES (13, 'triplex_drop_prefix_indexes', 0)`;
       }).pipe(Effect.provide(client)),
     );
     const exit = await runExit(
@@ -95,7 +97,7 @@ describe("read-only SQLite", () => {
     );
     const error = failureOf(exit);
     expect(error).toBeInstanceOf(SchemaVersionError);
-    expect(error).toMatchObject({ expectedVersion: LATEST, actualVersion: LATEST - 1 });
+    expect(error).toMatchObject({ expectedVersion: LATEST, actualVersion: 13 });
     const [latest] = await run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -104,7 +106,7 @@ describe("read-only SQLite", () => {
         }>`SELECT MAX(version) AS version FROM triplex_schema_migrations`;
       }).pipe(Effect.provide(Layer.fresh(client))),
     );
-    expect(latest!.version).toBe(LATEST - 1);
+    expect(latest!.version).toBe(13);
   });
 
   it("reports version zero for a file with no Triplex schema", async () => {

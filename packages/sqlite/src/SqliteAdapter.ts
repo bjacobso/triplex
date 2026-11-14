@@ -27,9 +27,9 @@ import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
   makeSqlLiveFactsLookup,
-  makeSqlTransactionJournalLookup,
-  makeSqlTransactionPrefixLookup,
+  makeSqlTransactionJournal,
   SqliteDialect,
+  checkSchema,
   packValue,
   runMigrations,
   INDEX_DDLS,
@@ -92,6 +92,10 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const { autoMigrate = true, dropIndexesThreshold, unsafeModeThreshold } = config;
+      // Refuse a database with another storage layout (such as Triplex 0.4) before using it.
+      yield* checkSchema({ allowEmpty: true }).pipe(
+        Effect.provideService(SqlClient.SqlClient, sql),
+      );
 
       // Helper to provide SqlClient to inner effects
       const provide = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
@@ -218,47 +222,6 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
           ),
         );
       };
-
-      const claimCommand: StorageAdapterService["claimCommand"] = (
-        commandId,
-        transactionId,
-        timestamp,
-      ) =>
-        provide(
-          Effect.gen(function* () {
-            const inserted = yield* sql<{ readonly transaction_id: string }>`
-              INSERT INTO triplex_command_receipts (command_id, transaction_id, recorded_at)
-              VALUES (${commandId}, ${transactionId}, ${timestamp})
-              ON CONFLICT(command_id) DO NOTHING
-              RETURNING transaction_id
-            `;
-            if (inserted.length > 0) return null;
-
-            const existing = yield* sql<{ readonly transaction_id: string }>`
-              SELECT transaction_id
-              FROM triplex_command_receipts
-              WHERE command_id = ${commandId}
-            `;
-            const original = existing[0]?.transaction_id;
-            if (original === undefined) {
-              return yield* Effect.fail(
-                new WriteError({
-                  message: `Command receipt ${commandId} conflicted without an original transaction`,
-                }),
-              );
-            }
-            return original;
-          }).pipe(
-            Effect.mapError((error) =>
-              error instanceof WriteError
-                ? error
-                : new WriteError({
-                    message: `Failed to claim command ${commandId}: ${String(error)}`,
-                    cause: error,
-                  }),
-            ),
-          ),
-        );
 
       // =========================================================================
       // Write Operations
@@ -750,11 +713,7 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
 
       return {
         ...entries,
-        transactionIdsForEntityPrefix: makeSqlTransactionPrefixLookup(
-          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
-          SqliteDialect,
-        ),
-        transactionIdsAfter: makeSqlTransactionJournalLookup(
+        ...makeSqlTransactionJournal(
           { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
           SqliteDialect,
         ),
@@ -771,20 +730,6 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
         currentCommitPosition,
         dependencyState,
         dependencyStateAll: (basis) => dependencyState(undefined, basis),
-        recordedPositionAt: (instant, head) =>
-          provide(
-            sql<{ readonly position: number | string | null }>`
-            SELECT MAX(recorded_position) AS position FROM triples INDEXED BY idx_journal_instant_position
-            WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'
-              AND recorded_at <= ${instant} AND recorded_position <= ${head}
-          `.pipe(
-              Effect.map((rows) => Number(rows[0]?.position ?? 0)),
-              Effect.mapError(
-                (cause) => new ReadError({ message: "Failed to resolve recorded basis", cause }),
-              ),
-            ),
-          ),
-        claimCommand,
         insert,
         batchInsert,
         retract,

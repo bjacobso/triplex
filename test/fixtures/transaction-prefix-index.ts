@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { EntityId, TransactionId, Triples, number } from "@triplex-build/triplex";
-import { makeSqlTransactionPrefixLookup, SqliteDialect } from "@triplex-build/triplex/sql";
+import { makeSqlTransactionJournal, SqliteDialect } from "@triplex-build/triplex/sql";
 import { expect } from "vitest";
 
 const fixtureId = (value: number): string => {
@@ -18,80 +18,86 @@ const fixtureId = (value: number): string => {
 
 /**
  * Replace earlier synthetic rows with `count` complete one-change commands at
- * positions `base + 1 .. base + count`, then advance the commit head.
+ * positions `base + 1 .. base + count` (one fact, one journal row, one entity
+ * row each), then advance the commit head.
  */
 export const insertSyntheticTransactions = (base: number, count: number) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const row = (
-      id: string,
-      entity: string,
-      attribute: string,
-      type: string,
-      position: number,
-      tx: string,
-      entityType: string,
-      value: { text?: string; numeric?: number; datetime?: number; json?: string },
-    ) => ({
-      id,
-      entity_id: entity,
-      attribute,
-      value_type: type,
-      value_string: value.text ?? null,
-      value_number: value.numeric ?? null,
-      value_datetime: value.datetime ?? null,
-      value_json: value.json ?? null,
-      recorded_at: 0,
-      recorded_position: position,
-      valid_from: 0,
-      tx_id: tx,
-      entity_type: entityType,
-    });
     yield* sql`DELETE FROM triples WHERE id LIKE '00000000000000000000%'`;
+    yield* sql`DELETE FROM triplex_transaction_entities WHERE entity_id LIKE 'noise:%'`;
+    yield* sql`DELETE FROM triplex_transactions WHERE position > ${base}`;
     for (let offset = 0; offset < count; offset += 100) {
-      const rows = Array.from({ length: Math.min(100, count - offset) }, (_, index) => {
+      const batch = Array.from({ length: Math.min(100, count - offset) }, (_, index) => {
         const i = offset + index;
-        const tx = `_tx/${fixtureId(100001 + i)}`,
-          entity = `noise:${i}`,
-          id = fixtureId(i * 5 + 1),
-          position = base + i + 1;
-        const change = {
-          op: "assert",
-          tripleId: id,
-          entityId: entity,
-          entityType: "Noise",
-          attribute: ":noise/value",
-          value: { type: "number", value: i },
-          validFrom: 0,
-          recordedAt: 0,
-          assertionTxId: tx,
+        return {
+          i,
+          tx: `_tx/${fixtureId(100001 + i)}`,
+          entity: `noise:${i}`,
+          id: fixtureId(i * 5 + 1),
+          position: base + i + 1,
         };
-        return [
-          row(id, entity, ":noise/value", "number", position, tx, "Noise", { numeric: i }),
-          row(fixtureId(i * 5 + 2), tx, ":_tx/position", "number", position, tx, "_Transaction", {
-            numeric: position,
-          }),
-          row(fixtureId(i * 5 + 3), tx, ":_tx/instant", "datetime", position, tx, "_Transaction", {
-            datetime: 0,
-          }),
-          row(
-            fixtureId(i * 5 + 4),
-            tx,
-            ":_tx/changed-entity",
-            "ref",
-            position,
-            tx,
-            "_Transaction",
-            { text: entity },
-          ),
-          row(fixtureId(i * 5 + 5), tx, ":_tx/change", "json", position, tx, "_Transaction", {
-            json: JSON.stringify(change),
-          }),
-        ];
-      }).flat();
-      yield* sql`INSERT INTO triples ${sql.insert(rows)}`;
+      });
+      const facts = batch.map(({ i, tx, entity, id, position }) => ({
+        id,
+        entity_id: entity,
+        attribute: ":noise/value",
+        value_type: "number",
+        value_string: null,
+        value_number: i,
+        value_datetime: null,
+        value_json: null,
+        recorded_at: 0,
+        recorded_position: position,
+        valid_from: 0,
+        tx_id: tx,
+        entity_type: "Noise",
+      }));
+      const journal = batch.map(({ tx, id, position }) => ({
+        tx_id: tx,
+        position,
+        instant: 0,
+        changes: JSON.stringify([[id, "assert"]]),
+      }));
+      const entities = batch.map(({ tx, entity, position }) => ({
+        entity_id: entity,
+        position,
+        tx_id: tx,
+      }));
+      yield* sql`INSERT INTO triples ${sql.insert(facts)}`;
+      yield* sql`INSERT INTO triplex_transactions ${sql.insert(journal)}`;
+      yield* sql`INSERT INTO triplex_transaction_entities ${sql.insert(entities)}`;
     }
     yield* sql`UPDATE triplex_commit_position SET position = ${base + count} WHERE singleton = 1`;
+  });
+
+/** The journal statements an adapter would run, captured for EXPLAIN. */
+export const captureJournalStatement = (
+  backend: "sqlite" | "postgres",
+  read: (journal: ReturnType<typeof makeSqlTransactionJournal>) => Effect.Effect<unknown, unknown>,
+) =>
+  Effect.gen(function* () {
+    let captured: { statement: string; params: readonly unknown[] } | undefined;
+    const dialect =
+      backend === "postgres"
+        ? {
+            ...SqliteDialect,
+            name: "postgresql" as const,
+            paramPlaceholder: (i: number) => `$${i + 1}`,
+          }
+        : SqliteDialect;
+    yield* read(
+      makeSqlTransactionJournal(
+        {
+          run: (statement, params) => {
+            captured = { statement, params };
+            return Effect.succeed([]);
+          },
+        },
+        dialect,
+      ),
+    ).pipe(Effect.ignore);
+    return captured!;
   });
 
 /** Complete synthetic unrelated commands plus actual related commands. */
@@ -153,33 +159,22 @@ export const transactionPrefixIndexPlan = (backend: "sqlite" | "postgres") =>
         limit: 2,
       });
       expect(next.transactions.map((record) => record.txId)).toEqual([wanted[2]!.txId]);
-      yield* sql.unsafe("ANALYZE triples");
-      let captured: { statement: string; params: readonly unknown[] } | undefined;
-      const dialect =
-        backend === "postgres"
-          ? {
-              ...SqliteDialect,
-              name: "postgresql" as const,
-              paramPlaceholder: (i: number) => `$${i + 1}`,
-            }
-          : SqliteDialect;
-      const lookup = makeSqlTransactionPrefixLookup(
-        {
-          run: (statement, params) => {
-            captured = { statement, params };
-            return Effect.succeed([]);
-          },
-        },
-        dialect,
+      yield* sql.unsafe("ANALYZE triplex_transaction_entities");
+      yield* sql.unsafe("ANALYZE triplex_transactions");
+      const query = yield* captureJournalStatement(backend, (journal) =>
+        journal.transactionEntriesForEntityPrefix("feed:match:", 0, 2),
       );
-      yield* lookup("feed:match:", 0, 2);
-      const query = captured!;
       const plan = yield* sql.unsafe(
         `${backend === "postgres" ? "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)" : "EXPLAIN QUERY PLAN"} ${query.statement}`,
         query.params,
       );
-      if (backend === "sqlite") expect(JSON.stringify(plan)).toContain("idx_ref_target");
-      else if (count === 10000) expect(JSON.stringify(plan)).toContain("idx_tx_entity_prefix");
+      // The prefix is a range on the entity rows' primary key.
+      if (backend === "sqlite")
+        expect(JSON.stringify(plan)).toMatch(
+          /SEARCH e USING (COVERING )?INDEX sqlite_autoindex_triplex_transaction_entities_1 \(entity_id>\? AND entity_id<\?\)/,
+        );
+      else if (count === 10000)
+        expect(JSON.stringify(plan)).toContain("triplex_transaction_entities_pkey");
       evidence.push({ backend, unrelatedCommands: count, statement: query.statement, plan });
     }
     const path = process.env["TRIPLEX_FEED_PLANS"];

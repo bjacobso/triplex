@@ -130,7 +130,7 @@ const program = Effect.gen(function* () {
     const rewrap = yield* Sensitive.rewrap;
     yield* custody.retire(DATABASE, rewrap.replacedKeyIds);
     log(
-      `3. Data keys rotated: ${rewrap.rewrapped} values and ${rewrap.journalCopies} journal copies resealed, ${rewrap.replacedKeyIds.length} old keys retired`,
+      `3. Data keys rotated: ${rewrap.rewrapped} values resealed (the journal shows them), ${rewrap.replacedKeyIds.length} old keys retired`,
     );
     expect(rewrap.rewrapped === 2, "both sealed values are resealed");
     const blind = yield* Sensitive.rotateBlindKey;

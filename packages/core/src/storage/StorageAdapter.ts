@@ -19,6 +19,7 @@ import type { DependencyState } from "../store/Triples.js";
 import type { OperationalEntryRecord, PendingEntriesScan } from "../operational/Entry.js";
 import type { ContentId } from "../content/ContentId.js";
 import type { TransactionId } from "../Branded.js";
+import type { JournalAppend, JournalEntry } from "../store/journal.js";
 
 /**
  * StorageAdapterService - Backend-agnostic storage primitives
@@ -26,20 +27,49 @@ import type { TransactionId } from "../Branded.js";
 export interface StorageAdapterService {
   /** Indexed unretracted assertions across all valid time at the current recorded cut. */
   readonly liveFacts: (entityId: string) => Effect.Effect<readonly TripleRow[], ReadError>;
-  /** Indexed changed-entity prefix candidates, deduplicated and ordered by global position. */
-  readonly transactionIdsForEntityPrefix: (
+  // --- Transaction journal ------------------------------------------------
+  /**
+   * Append the transaction's journal entry and its changed-entity rows inside
+   * the current atomic transaction. The command ID is unique: when another
+   * committed transaction already holds it, nothing is written and the
+   * winner's transaction ID is returned; otherwise `null`.
+   */
+  readonly appendTransaction: (entry: JournalAppend) => Effect.Effect<string | null, WriteError>;
+  /** One journal entry by transaction ID. */
+  readonly transactionEntry: (txId: string) => Effect.Effect<JournalEntry | null, ReadError>;
+  /** The journal entry holding a command ID. */
+  readonly transactionEntryByCommand: (
+    commandId: string,
+  ) => Effect.Effect<JournalEntry | null, ReadError>;
+  /**
+   * Indexed journal page: entries committed after `after`, ordered by
+   * position, at most `limit`. Must seek, not scan the whole journal.
+   */
+  readonly transactionEntriesAfter: (
+    after: number,
+    limit: number,
+  ) => Effect.Effect<readonly JournalEntry[], ReadError>;
+  /**
+   * Entries after `after` that changed an entity whose ID starts with `prefix`
+   * (literal, case-sensitive), ordered by position, deduplicated, at most `limit`.
+   */
+  readonly transactionEntriesForEntityPrefix: (
     prefix: string,
     after: number,
     limit: number,
-  ) => Effect.Effect<readonly { readonly txId: string; readonly position: number }[], ReadError>;
+  ) => Effect.Effect<readonly JournalEntry[], ReadError>;
   /**
-   * Indexed journal page: transactions committed after `after`, ordered by global
-   * position, at most `limit`. Must seek, not scan the whole journal.
+   * Entries that changed one entity at or before `snapshotPosition` and before
+   * `beforePosition` when given, newest first, at most `limit`.
    */
-  readonly transactionIdsAfter: (
-    after: number,
+  readonly transactionEntriesForEntity: (
+    entityId: string,
+    snapshotPosition: number,
+    beforePosition: number | undefined,
     limit: number,
-  ) => Effect.Effect<readonly { readonly txId: string; readonly position: number }[], ReadError>;
+  ) => Effect.Effect<readonly JournalEntry[], ReadError>;
+  /** Batched primary-key read of facts, retracted or not, for journal hydration. */
+  readonly getByIds: (ids: readonly string[]) => Effect.Effect<readonly TripleRow[], ReadError>;
   /** Bounded live (unretracted, across all valid time) lookup using a live index. */
   readonly livePreconditionFacts: (
     entityId: string,
@@ -71,7 +101,7 @@ export interface StorageAdapterService {
   readonly nextCommitPosition: () => Effect.Effect<number, WriteError>;
   /** Read the latest committed position for an exact read snapshot boundary. */
   readonly currentCommitPosition: () => Effect.Effect<number, ReadError>;
-  /** Greatest journal position at or before instant, bounded by a captured head. */
+  /** Greatest journal position whose instant is at or before `instant`, bounded by a captured head. */
   readonly recordedPositionAt: (instant: number, head: number) => Effect.Effect<number, ReadError>;
   readonly dependencyStateAll: (
     basis: ResolvedTemporalBasis,
@@ -81,16 +111,6 @@ export interface StorageAdapterService {
     attributes: readonly string[],
     basis: ResolvedTemporalBasis,
   ) => Effect.Effect<DependencyState, ReadError>;
-  /**
-   * Atomically reserve a command idempotency identity inside the current
-   * transaction. Returns the original transaction id when it was already
-   * reserved, or `null` when this transaction acquired it.
-   */
-  readonly claimCommand: (
-    commandId: string,
-    transactionId: string,
-    timestamp: number,
-  ) => Effect.Effect<string | null, WriteError>;
   readonly insert: (
     input: TripleInput,
     txId: string | null,

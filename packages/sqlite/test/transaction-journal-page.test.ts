@@ -61,7 +61,7 @@ it(
         rows: () => counter.rows,
       }).pipe(Effect.provide(layer)),
     );
-    // Two candidates plus the two four-fact envelopes, independent of history.
-    expect(measurements.map((measurement) => measurement.rows)).toEqual([10, 10]);
+    // Two journal entries plus their two referenced facts, independent of history.
+    expect(measurements.map((measurement) => measurement.rows)).toEqual([4, 4]);
   },
 );

@@ -142,3 +142,21 @@ export {
 export { KvTriplesLive } from "./kv/layers/KvTriplesLive.js";
 
 export { transactionPrefixBounds } from "./store/transactionPrefix.js";
+export {
+  type JournalAppend,
+  type JournalChangeRef,
+  type JournalEntry,
+  type JournalOp,
+  checkedJournalEntry,
+  decodeJournalChanges,
+  encodeJournalChanges,
+} from "./store/journal.js";
+export {
+  ALL_FACTS_SOURCE,
+  FACT_SOURCE_COLUMNS,
+  JOURNAL_ATTRIBUTES,
+  JOURNAL_ATTRIBUTES_TABLE_DDLS,
+  JOURNAL_FACTS_VIEW,
+  JOURNAL_FACTS_VIEW_DDL,
+  constantAttributeSource,
+} from "./datalog/journalSource.js";

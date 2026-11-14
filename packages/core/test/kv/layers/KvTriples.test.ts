@@ -58,8 +58,13 @@ describe("KvTriples (merged service)", () => {
           ],
           { actor: "alice" },
         );
-        const txTriples = yield* t.match({ entityId: tx.txId });
-        return txTriples.map((tr) => tr.attribute as string);
+        // Journal metadata is not stored as triples; Datalog reads it as such.
+        expect(yield* t.match({ entityId: tx.txId })).toEqual([]);
+        const { results } = yield* t.queryAll({
+          find: ["?a"],
+          where: [[tx.txId, "?a", "?v"]],
+        });
+        return results.map((row) => row["?a"] as string);
       }),
     );
 

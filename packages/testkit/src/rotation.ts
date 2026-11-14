@@ -3,9 +3,9 @@
  *
  * Runs against `erasureConformanceLayer(raw, keys)` (the same fixture policy).
  * Pins what `Sensitive.rewrap` and `Sensitive.rotateBlindKey` promise: every
- * stored value, current or retracted, and its journal copies move to the
- * current key, old key versions can then be retired and everything still
- * opens; equality, joins and uniqueness survive a blind-key rotation; erased
+ * stored value, current or retracted, moves to the current key (and the
+ * journal, which references facts, shows the moved values), old key versions
+ * can then be retired and everything still opens; equality, joins and uniqueness survive a blind-key rotation; erased
  * values stay erased.
  */
 
@@ -41,7 +41,7 @@ const sealedOf = (facts: ReadonlyArray<{ readonly value: unknown }>) =>
 
 export const rotationCases: readonly RotationCase[] = [
   {
-    name: "rewraps current and past values and their journal copies, then retires old keys",
+    name: "rewraps current and past values, which the journal shows, then retires old keys",
     run: Effect.gen(function* () {
       const triples = yield* Triples;
       const custody = yield* KeyProvider.KeyCustody;
@@ -63,7 +63,6 @@ export const rotationCases: readonly RotationCase[] = [
         report.rewrapped >= 2,
         `current and past values rewrapped (${report.rewrapped})`,
       );
-      yield* check(report.journalCopies >= 3, `journal copies rewrapped (${report.journalCopies})`);
       yield* check(report.replacedKeyIds.includes(oldKeyId), "the old key is reported replaced");
 
       const history = yield* triples.history(kim);
@@ -78,10 +77,19 @@ export const rotationCases: readonly RotationCase[] = [
         "history opens after the old key is retired",
       );
       const record = yield* triples.transaction(correction.txId);
+      yield* check(
+        record!.changes.every(
+          (change) =>
+            change.value?.type !== "sealed" ||
+            (change.value.keyId !== oldKeyId && change.value.blind === undefined),
+        ),
+        "the journal shows the resealed values, without blind tokens",
+      );
       const journal = yield* Sensitive.open(record!);
       yield* check(
-        JSON.stringify(journal).includes("121-21-2121"),
-        "the journal's copies open after the old key is retired",
+        JSON.stringify(journal).includes("121-21-2121") &&
+          JSON.stringify(journal).includes("131-31-3131"),
+        "the journal's changes open after the old key is retired",
       );
       yield* check(
         (yield* triples.match({ attribute: ":er-person/ssn", value: text("131-31-3131") }))

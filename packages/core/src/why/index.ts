@@ -1,12 +1,11 @@
 import { Clock, Context, Effect, Layer, Option } from "effect";
 import type { EntityId, TripleId, TransactionId } from "../Branded.js";
-import * as CanonicalJson from "../content/CanonicalJson.js";
 import type { ContentId } from "../content/ContentId.js";
 import * as ConfigStore from "../config/ConfigStore.js";
 import * as Derivation from "../derivation/Derivation.js";
 import { Sensitivity } from "../sensitive/Sensitive.js";
 import type { Triple } from "../Triple.js";
-import { withoutBlind, type TripleValue } from "../Value.js";
+import type { TripleValue } from "../Value.js";
 import { Triples, type TransactionRecord } from "../store/Triples.js";
 import {
   WhyInvalidRequest,
@@ -229,38 +228,16 @@ export class Why extends Context.Service<Why, WhyService>()("triplex/Why") {
               entityJournals.set(entityId, found);
               return found;
             });
+          // A journal change references its fact rather than copying it, so the
+          // only check left is that the transaction changed this fact exactly once.
           const consistentChange = (
             tx: TransactionRecord,
             fact: Triple,
             op: "assert" | "retract",
           ) =>
-            Effect.gen(function* () {
-              const changes = tx.changes.filter((c) => c.op === op && c.tripleId === fact.id);
-              if (changes.length !== 1) return false;
-              const change = changes[0]!;
-              if (
-                change.entityId !== fact.entityId ||
-                change.attribute !== fact.attribute ||
-                (change.entityType !== undefined &&
-                  change.entityType !== Option.getOrUndefined(fact.entityType)) ||
-                (change.validFrom !== undefined &&
-                  (change.validFrom !== fact.validFrom ||
-                    change.validTo !== Option.getOrUndefined(fact.validTo))) ||
-                (change.recordedAt !== undefined && change.recordedAt !== fact.recordedAt)
-              )
-                return false;
-              if (change.value !== undefined) {
-                // Journal copies of sealed values carry no blind token.
-                const stored = yield* CanonicalJson.encode(
-                  withoutBlind(fact.value) as CanonicalJson.CanonicalValue,
-                );
-                const journal = yield* CanonicalJson.encode(
-                  change.value as CanonicalJson.CanonicalValue,
-                );
-                if (stored !== journal) return false;
-              }
-              return true;
-            });
+            Effect.succeed(
+              tx.changes.filter((c) => c.op === op && c.tripleId === fact.id).length === 1,
+            );
           const expand = (fact: Triple) =>
             Effect.gen(function* () {
               if (

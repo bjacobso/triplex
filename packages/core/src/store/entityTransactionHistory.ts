@@ -1,23 +1,26 @@
 import { Effect } from "effect";
 
-import { TransactionId, type EntityId } from "../Branded.js";
-import type { DatalogQuery } from "../datalog/types.js";
+import type { EntityId } from "../Branded.js";
 import { ReadError } from "../errors/index.js";
-import { ref } from "../Value.js";
-import { TxAttributes } from "../utils/id.js";
+import type { JournalEntry } from "./journal.js";
 import type {
   EntityTransactionPage,
   EntityTransactionPageRequest,
-  QueryResponse,
   TransactionRecord,
 } from "./Triples.js";
 
 interface EntityTransactionReader {
   readonly currentPosition: () => Effect.Effect<number, ReadError>;
-  readonly query: (query: DatalogQuery) => Effect.Effect<QueryResponse, unknown>;
-  readonly transaction: (
-    transactionId: TransactionId,
-  ) => Effect.Effect<TransactionRecord | null, ReadError>;
+  /** Indexed entries that changed the entity, newest first. */
+  readonly entries: (
+    entityId: string,
+    snapshotPosition: number,
+    beforePosition: number | undefined,
+    limit: number,
+  ) => Effect.Effect<readonly JournalEntry[], ReadError>;
+  readonly hydrate: (
+    entries: readonly JournalEntry[],
+  ) => Effect.Effect<readonly TransactionRecord[], ReadError>;
 }
 
 const invalidPage = (message: string) => Effect.fail(new ReadError({ message }));
@@ -47,64 +50,13 @@ export const transactionsForEntity = (
 
   return Effect.gen(function* () {
     const snapshotPosition = request.snapshotPosition ?? (yield* reader.currentPosition());
-    const where: DatalogQuery["where"] = [
-      ["?transaction", TxAttributes.CHANGED_ENTITY, ref(entityId)],
-      ["?transaction", TxAttributes.POSITION, "?position"],
-      ["<=", "?position", snapshotPosition],
-      ...(request.beforePosition === undefined
-        ? []
-        : ([["<", "?position", request.beforePosition]] as const)),
-    ];
-    const response = yield* reader
-      .query({
-        find: ["?transaction", "?position"],
-        where,
-        orderBy: [{ variable: "?position", direction: "desc" }],
-        limit: limit + 1,
-      })
-      .pipe(
-        Effect.mapError(
-          (cause) =>
-            new ReadError({
-              message: `Failed to query entity transaction index: ${String(cause)}`,
-              cause,
-            }),
-        ),
-      );
-
-    const indexed = yield* Effect.forEach(response.results, (row) =>
-      Effect.try({
-        try: () => {
-          const transaction = row["?transaction"];
-          const position = row["?position"];
-          if (
-            typeof transaction !== "string" ||
-            typeof position !== "number" ||
-            !Number.isSafeInteger(position) ||
-            position < 1
-          ) {
-            throw new TypeError("invalid transaction journal index row");
-          }
-          return { transactionId: TransactionId.make(transaction), position };
-        },
-        catch: (cause) =>
-          new ReadError({ message: "Corrupt entity transaction journal index", cause }),
-      }),
+    const indexed = yield* reader.entries(
+      entityId,
+      snapshotPosition,
+      request.beforePosition,
+      limit + 1,
     );
-    const selected = indexed.slice(0, limit);
-    const records = yield* Effect.forEach(selected, ({ transactionId, position }) =>
-      reader.transaction(transactionId).pipe(
-        Effect.flatMap((record) =>
-          record !== null && record.position === position
-            ? Effect.succeed(record)
-            : Effect.fail(
-                new ReadError({
-                  message: `Missing or inconsistent transaction envelope ${transactionId}`,
-                }),
-              ),
-        ),
-      ),
-    );
+    const records = yield* reader.hydrate(indexed.slice(0, limit));
     const last = records.at(-1);
     return {
       transactions: records,

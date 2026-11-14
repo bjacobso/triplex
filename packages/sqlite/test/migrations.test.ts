@@ -1,14 +1,79 @@
-import { describe, expect, it } from "vitest";
-import { Effect } from "effect";
+import { afterEach, describe, expect, it } from "vitest";
+import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
-import { migrations, runMigrations } from "@triplex-build/triplex-sql";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  BASELINE_MIGRATION_NAME,
+  migrations,
+  runMigrations,
+  SchemaVersionError,
+} from "@triplex-build/triplex-sql";
+import {
+  CurrentDialect,
+  SqliteDialect,
+  Triples,
+  TriplesLive,
+  TripleStoreRuntimeLayer,
+} from "@triplex-internal/core/internal";
+import { SqlQueryExecutorLive } from "@triplex-build/triplex-sql";
 import { makeSqliteLayerUnmigrated } from "../src/SqliteLayer.js";
+import { SqliteAdapterLive, SqliteAdapterUnmigrated } from "../src/SqliteAdapter.js";
+import { SqliteTriples } from "../src/SqliteTriples.js";
 
 const runUnmigrated = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
   Effect.runPromise(effect.pipe(Effect.provide(makeSqliteLayerUnmigrated(":memory:"))));
 
+const directories: string[] = [];
+afterEach(async () => {
+  for (const directory of directories.splice(0))
+    await rm(directory, { recursive: true, force: true });
+});
+const tempFile = async () => {
+  const directory = await mkdtemp(join(tmpdir(), "triplex-sqlite-migrations-"));
+  directories.push(directory);
+  return join(directory, "triplex.db");
+};
+
+/** The schema history every Triplex 0.4 SQLite database records. */
+const HISTORY_0_4 = [
+  "triplex_baseline",
+  "triplex_numeric_value_index",
+  "triplex_sealed_values",
+  "triplex_entity_recorded_position_index",
+  "triplex_operational_entries",
+  "triplex_live_precondition_index",
+  "triplex_transaction_entity_prefix_index",
+  "triplex_interval_history_indexes",
+  "triplex_public_read_indexes",
+  "triplex_key_store",
+  "triplex_blind_tokens_only_on_facts",
+  "triplex_blind_key_staging",
+  "triplex_drop_prefix_indexes",
+];
+
+/** A file shaped like a 0.4 database: its migration history and a journal row in `triples`. */
+const write04Database = (filename: string, history: readonly string[]) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at BIGINT NOT NULL)`;
+      for (const [index, name] of history.entries())
+        yield* sql`INSERT INTO triplex_schema_migrations VALUES (${index + 1}, ${name}, 0)`;
+      yield* sql`CREATE TABLE triples (id TEXT PRIMARY KEY, entity_id TEXT, attribute TEXT, value_type TEXT, value_number REAL, entity_type TEXT)`;
+      yield* sql`INSERT INTO triples VALUES ('j1', '_tx/01', ':_tx/position', 'number', 1, '_Transaction')`;
+    }).pipe(Effect.provide(makeSqliteLayerUnmigrated(filename))),
+  );
+
+const schemaVersionErrorOf = async (effect: Effect.Effect<unknown, unknown>) => {
+  const error = await Effect.runPromise(Effect.flip(effect));
+  expect(error).toBeInstanceOf(SchemaVersionError);
+  return error as SchemaVersionError;
+};
+
 describe("host-owned SQLite migrations", () => {
-  it("starts without DDL and applies the exported migrations idempotently", async () => {
+  it("starts without DDL and applies the one baseline idempotently", async () => {
     const result = await runUnmigrated(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -19,30 +84,32 @@ describe("host-owned SQLite migrations", () => {
         yield* runMigrations;
         yield* runMigrations;
 
-        const applied = yield* sql<{ version: number }>`
-          SELECT version FROM triplex_schema_migrations ORDER BY version
+        const applied = yield* sql<{ version: number; name: string }>`
+          SELECT version, name FROM triplex_schema_migrations ORDER BY version
         `;
         const columns = yield* sql.unsafe<{ name: string }>("PRAGMA table_info(triples)");
-        const snapshotColumns = yield* sql.unsafe<{ name: string }>(
-          "PRAGMA table_info(entity_snapshots)",
+        const journalColumns = yield* sql.unsafe<{ name: string }>(
+          "PRAGMA table_info(triplex_transactions)",
         );
-        const blobColumns = yield* sql.unsafe<{ name: string }>("PRAGMA table_info(entity_blobs)");
-        const receiptColumns = yield* sql.unsafe<{ name: string }>(
-          "PRAGMA table_info(triplex_command_receipts)",
+        const entityColumns = yield* sql.unsafe<{ name: string; pk: number }>(
+          "PRAGMA table_info(triplex_transaction_entities)",
         );
-        const indexes = yield* sql<{ name: string }>`
-          SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'triples'
+        const objects = yield* sql<{ type: string; name: string; tbl_name: string }>`
+          SELECT type, name, tbl_name FROM sqlite_master
         `;
-        return { before, applied, columns, snapshotColumns, blobColumns, receiptColumns, indexes };
+        const attributes = yield* sql<{ attribute: string }>`
+          SELECT attribute FROM triplex_journal_attributes ORDER BY attribute
+        `;
+        return { before, applied, columns, journalColumns, entityColumns, objects, attributes };
       }),
     );
 
     expect(result.before).toHaveLength(0);
-    expect(migrations.map(({ version }) => version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+    expect(migrations.map(({ version, name }) => [version, name])).toEqual([
+      [1, BASELINE_MIGRATION_NAME],
     ]);
-    expect(result.applied.map(({ version }) => version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+    expect(result.applied.map(({ version, name }) => [version, name])).toEqual([
+      [1, BASELINE_MIGRATION_NAME],
     ]);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
@@ -56,14 +123,39 @@ describe("host-owned SQLite migrations", () => {
         "value_blind",
       ]),
     );
-    expect(result.columns.map(({ name }) => name)).not.toContain("created_at");
-    expect(result.columns.map(({ name }) => name)).not.toContain("recorded_retracted_at");
-    expect(result.snapshotColumns.map(({ name }) => name)).toContain("tx_position");
-    expect(result.blobColumns.map(({ name }) => name)).not.toContain("ref_count");
-    expect(result.receiptColumns.map(({ name }) => name)).toEqual(
-      expect.arrayContaining(["command_id", "transaction_id", "recorded_at"]),
+    expect(result.journalColumns.map(({ name }) => name)).toEqual([
+      "tx_id",
+      "position",
+      "instant",
+      "actor",
+      "command_id",
+      "correlation_id",
+      "causation_id",
+      "config_snapshot",
+      "changes",
+    ]);
+    expect(
+      result.entityColumns.filter(({ pk }) => pk > 0).map(({ name, pk }) => [name, pk]),
+    ).toEqual([
+      ["entity_id", 1],
+      ["position", 2],
+    ]);
+    expect(result.attributes.map(({ attribute }) => attribute)).toHaveLength(8);
+    const names = (type: string, table?: string) =>
+      result.objects
+        .filter(
+          (object) => object.type === type && (table === undefined || object.tbl_name === table),
+        )
+        .map(({ name }) => name);
+    expect(names("table")).not.toContain("triplex_command_receipts");
+    expect(names("view")).toEqual(["triplex_journal_facts"]);
+    expect(names("index", "triplex_transactions")).toEqual(
+      expect.arrayContaining(["idx_transactions_instant"]),
     );
-    expect(result.indexes.map(({ name }) => name)).toEqual(
+    expect(names("index", "triplex_transaction_entities")).toEqual(
+      expect.arrayContaining(["idx_transaction_entities_position"]),
+    );
+    expect(names("index", "triples")).toEqual(
       expect.arrayContaining([
         "idx_attribute_history",
         "idx_attribute_temporal",
@@ -74,131 +166,71 @@ describe("host-owned SQLite migrations", () => {
         "idx_tx_id",
       ]),
     );
-    // v13 drops two indexes that were prefixes of others.
-    expect(result.indexes.map(({ name }) => name)).not.toContain("idx_attribute");
-    expect(result.indexes.map(({ name }) => name)).not.toContain("idx_recorded_position");
+    // Indexes that served only journal rows, and prefixes of other indexes, are gone.
+    for (const dropped of [
+      "idx_journal_instant_position",
+      "idx_attribute",
+      "idx_recorded_position",
+    ])
+      expect(names("index", "triples")).not.toContain(dropped);
   });
 
-  it("upgrades an existing v1 database once and preserves its data", async () => {
-    const result = await runUnmigrated(
+  it("refuses a Triplex 0.4 database everywhere and changes nothing", async () => {
+    const filename = await tempFile();
+    await write04Database(filename, HISTORY_0_4);
+    const client = makeSqliteLayerUnmigrated(filename);
+
+    const migrated = await schemaVersionErrorOf(runMigrations.pipe(Effect.provide(client)));
+    expect(migrated).toMatchObject({ expectedVersion: 1, actualVersion: 13 });
+    expect(migrated.message).toContain("Triplex 0.4 or earlier");
+    expect(migrated.message).toContain("Start a fresh database");
+
+    // The auto-migrating layer, the read-only layer, and adapters over a host client.
+    for (const layer of [
+      SqliteTriples.layer({ filename }),
+      SqliteTriples.layerReadOnly({ filename }),
+      TriplesLive.pipe(
+        Layer.provide(SqlQueryExecutorLive),
+        Layer.provide(SqliteAdapterLive),
+        Layer.provide(Layer.succeed(CurrentDialect, SqliteDialect)),
+        Layer.provide(makeSqliteLayerUnmigrated(filename)),
+        Layer.provide(TripleStoreRuntimeLayer),
+      ),
+      TriplesLive.pipe(
+        Layer.provide(SqlQueryExecutorLive),
+        Layer.provide(SqliteAdapterUnmigrated),
+        Layer.provide(Layer.succeed(CurrentDialect, SqliteDialect)),
+        Layer.provide(makeSqliteLayerUnmigrated(filename)),
+        Layer.provide(TripleStoreRuntimeLayer),
+      ),
+    ]) {
+      const error = await schemaVersionErrorOf(
+        Triples.pipe(Effect.provide(Layer.fresh(layer)), Effect.scoped),
+      );
+      expect(error.actualVersion).toBe(13);
+    }
+
+    const untouched = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        for (const statement of migrations[0]!.up) yield* sql.unsafe(statement);
-        yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at BIGINT NOT NULL)`;
-        yield* sql`INSERT INTO triplex_schema_migrations VALUES (1, 'triplex_baseline', 0)`;
-        yield* sql`
-          INSERT INTO triples (
-            id, entity_id, attribute, value_type, value_string,
-            recorded_at, recorded_position, valid_from, schema_version, tx_id
-          ) VALUES (
-            '00000000000000000000000000', 'migration:entity', ':migration/value',
-            'string', 'preserved', 1, 1, 1, 1, '_tx/00000000000000000000000000'
-          )
-        `;
-
-        yield* runMigrations;
-
-        yield* runMigrations;
-        const indexes = yield* sql`SELECT name FROM sqlite_master WHERE name = 'idx_attr_numeric'`;
-        expect(indexes).toHaveLength(1);
-        const applied = yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`;
-        expect(applied).toEqual(migrations.map(({ version }) => ({ version })));
-        // v3 admits sealed values and requires their envelope.
-        yield* sql`
-          INSERT INTO triples (
-            id, entity_id, attribute, value_type, value_sealed, value_blind,
-            recorded_at, recorded_position, valid_from, schema_version, tx_id
-          ) VALUES (
-            '00000000000000000000000001', 'migration:entity', ':migration/sealed',
-            'sealed', '{}', 'token', 2, 2, 2, 1, '_tx/00000000000000000000000001'
-          )
-        `;
-        const missingEnvelope = yield* sql`
-          INSERT INTO triples (
-            id, entity_id, attribute, value_type,
-            recorded_at, recorded_position, valid_from, schema_version, tx_id
-          ) VALUES (
-            '00000000000000000000000002', 'migration:entity', ':migration/sealed',
-            'sealed', 3, 3, 3, 1, '_tx/00000000000000000000000002'
-          )
-        `.pipe(Effect.flip);
-        expect(String((missingEnvelope as { cause?: unknown }).cause)).toMatch(/ConstraintError/);
-        return yield* sql<{ value_string: string }>`
-          SELECT value_string FROM triples
-          WHERE entity_id = 'migration:entity' AND value_type = 'string'
-        `;
-      }),
-    );
-
-    expect(result).toEqual([{ value_string: "preserved" }]);
-  });
-
-  it("removes blind token copies from journal payloads and snapshots (v11)", async () => {
-    const result = await runUnmigrated(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        yield* runMigrations;
-        // A journal change and a snapshot written before v11 carried the token.
-        const change = JSON.stringify({
-          op: "assert",
-          tripleId: "00000000000000000000000003",
-          entityId: "person:1",
-          attribute: ":person/ssn",
-          value: {
-            type: "sealed",
-            valueType: "string",
-            keyId: "k1.0",
-            ciphertext: "AQ",
-            blind: "b1.0:token",
-          },
-          changeIndex: 0,
-        });
-        yield* sql`
-          INSERT INTO triples (
-            id, entity_id, attribute, value_type, value_json,
-            recorded_at, recorded_position, valid_from, schema_version, tx_id
-          ) VALUES (
-            '00000000000000000000000004', '_tx/00000000000000000000000005', ':_tx/change',
-            'json', ${change}, 1, 1, 1, 1, '_tx/00000000000000000000000005'
-          )
-        `;
-        const blob = JSON.stringify([
-          [
-            ":person/ssn",
-            {
-              type: "sealed",
-              valueType: "string",
-              keyId: "k1.0",
-              ciphertext: "AQ",
-              blind: "b1.0:token",
-            },
-          ],
-        ]);
-        yield* sql`INSERT INTO entity_blobs (hash, data, byte_size) VALUES ('sealed-blob', ${blob}, 1)`;
-        yield* sql`INSERT INTO entity_blobs (hash, data, byte_size) VALUES ('plain-blob', '[]', 2)`;
-        yield* sql`
-          INSERT INTO entity_snapshots (entity_id, tx_id, hash, tx_time)
-          VALUES ('person:1', '_tx/1', 'sealed-blob', 1), ('person:2', '_tx/1', 'plain-blob', 1)
-        `;
-        yield* sql`DELETE FROM triplex_schema_migrations WHERE version = 11`;
-        yield* runMigrations;
-        const [journal] = yield* sql<{ value_json: string }>`
-          SELECT value_json FROM triples WHERE attribute = ':_tx/change'
-        `;
         return {
-          journal: JSON.parse(journal!.value_json) as { value: Record<string, unknown> },
-          blobs: yield* sql<{ hash: string }>`SELECT hash FROM entity_blobs ORDER BY hash`,
-          snapshots: yield* sql<{ entity_id: string }>`SELECT entity_id FROM entity_snapshots`,
+          history: yield* sql<{ version: number }>`SELECT version FROM triplex_schema_migrations`,
+          tables: yield* sql<{ name: string }>`
+            SELECT name FROM sqlite_master WHERE name LIKE 'triplex_transaction%'
+          `,
         };
-      }),
+      }).pipe(Effect.provide(client)),
     );
-    expect(result.journal.value).toEqual({
-      type: "sealed",
-      valueType: "string",
-      keyId: "k1.0",
-      ciphertext: "AQ",
-    });
-    expect(result.blobs).toEqual([{ hash: "plain-blob" }]);
-    expect(result.snapshots).toEqual([{ entity_id: "person:2" }]);
+    expect(untouched.history).toHaveLength(13);
+    expect(untouched.tables).toEqual([]);
+  });
+
+  it("refuses the 0.1 baseline history too, though its version number matches", async () => {
+    const filename = await tempFile();
+    await write04Database(filename, ["triplex_baseline"]);
+    const error = await schemaVersionErrorOf(
+      Triples.pipe(Effect.provide(Layer.fresh(SqliteTriples.layer({ filename }))), Effect.scoped),
+    );
+    expect(error).toMatchObject({ actualVersion: 1, actualName: "triplex_baseline" });
   });
 });

@@ -13,12 +13,15 @@ it("uses covering indexes for wildcard dependencies and the journal timestamp lo
       expect(dependency.map((row) => row.detail).join(" ")).toContain(
         "COVERING INDEX idx_dependency_all",
       );
+      // The timestamp lookup of the adapter's recordedPositionAt, on the journal table.
       const journal = yield* sql.unsafe<{ detail: string }>(`EXPLAIN QUERY PLAN
-      SELECT MAX(recorded_position) FROM triples INDEXED BY idx_journal_instant_position
-      WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'
-        AND recorded_at <= 150 AND recorded_position <= 2`);
-      expect(journal.map((row) => row.detail).join(" ")).toContain("idx_journal_instant_position");
-      expect(journal.map((row) => row.detail).join(" ")).not.toContain("SCAN triples");
+      SELECT MAX(position) AS position FROM triplex_transactions
+      WHERE instant <= 150 AND position <= 2`);
+      // Either the (instant, position) index or the unique position index; never a scan.
+      expect(journal.map((row) => row.detail).join(" ")).toMatch(
+        /SEARCH triplex_transactions USING (COVERING )?INDEX (idx_transactions_instant|sqlite_autoindex_triplex_transactions_2)/,
+      );
+      expect(journal.map((row) => row.detail).join(" ")).not.toContain("SCAN");
     }).pipe(Effect.provide(SqliteTestLayer)),
   );
 });

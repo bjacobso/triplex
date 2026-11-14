@@ -37,8 +37,6 @@ export const TxAttributes = {
   CAUSATION_ID: ":_tx/causation-id",
   /** Immutable configuration snapshot that governed the command. */
   CONFIG_SNAPSHOT: ":_tx/config-snapshot",
-  /** Persisted description of an asserted or retracted fact. */
-  CHANGE: ":_tx/change",
   /** Indexed reference from a transaction envelope to every changed entity. */
   CHANGED_ENTITY: ":_tx/changed-entity",
 } as const;

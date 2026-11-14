@@ -39,7 +39,8 @@ it(
           return kv.getRange(range).pipe(
             Stream.tap(() =>
               Effect.sync(() => {
-                if (range.start[0] === 0x03) prefixCandidates++;
+                // The journal's changed-entity keyspace.
+                if (range.start[0] === 0x0d) prefixCandidates++;
               }),
             ),
           );

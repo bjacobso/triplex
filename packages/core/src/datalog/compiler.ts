@@ -2,6 +2,8 @@ import { planIntervalPattern } from "./interval.js";
 import { assertQueryBasis } from "./temporal.js";
 import { isIntervalPattern, normalizePattern, type FactPattern } from "./schema.js";
 import type { QueryTemporalBasis } from "./temporal.js";
+import { TxAttributes } from "../utils/id.js";
+import { ALL_FACTS_SOURCE, JOURNAL_FACTS_VIEW, constantAttributeSource } from "./journalSource.js";
 /**
  * SQL Compiler for Datalog Queries
  *
@@ -108,6 +110,16 @@ interface CompilerContext {
   /** Parameter collector for parameterized queries */
   collector: ParamCollector;
   basis?: QueryTemporalBasis | undefined;
+  /** FROM item of the first pattern. */
+  fromSource?: string;
+  /** Top-level aliases whose variable attribute reads facts and journal metadata. */
+  variableSources: string[];
+  /**
+   * Aliases of `:_tx/position` and `:_tx/instant` patterns. Their value equals
+   * the row's commit position or instant, so ordered predicates compare that
+   * indexed column instead of the scalar expression.
+   */
+  journalNumbers: Map<string, string>;
 }
 
 /**
@@ -193,6 +205,64 @@ const visibility = (alias: string, ctx: CompilerContext, attribute?: string): st
       ? point
       : `(SUBSTR(${alias}.attribute, 1, 5) = ':_tx/' OR (${point}))`;
   return `(${recorded} AND (${domain}))`;
+};
+
+// =============================================================================
+// Fact sources
+// =============================================================================
+
+/**
+ * Facts live in `triples`; transaction metadata (`:_tx/*`) lives in the journal
+ * tables, presented as triple-shaped rows by `journalSource.ts`. A constant
+ * attribute picks its one source. A variable attribute must read both: its
+ * alias gets a placeholder, and the query is compiled once per way of sending
+ * each such alias to `triples` or to the journal view (at most
+ * 2^MAX_SPLIT_SOURCES variants, combined with UNION). Each variant keeps every
+ * index plan of a plain fact query. Beyond that, and where rows cannot be
+ * split (aggregates, rules), an alias reads the UNION ALL of both sources.
+ */
+const MAX_SPLIT_SOURCES = 3;
+
+const sourcePlaceholder = (alias: string): string => `__triplex_source_${alias}__`;
+
+const patternSource = (attribute: Term, alias: string, variables: string[]): string => {
+  if (isVariable(attribute)) {
+    variables.push(alias);
+    return sourcePlaceholder(alias);
+  }
+  return typeof attribute === "string" ? constantAttributeSource(attribute) : "triples";
+};
+
+/** The source of a pattern compiled without variants. */
+const unsplitSource = (attribute: Term): string =>
+  isVariable(attribute)
+    ? ALL_FACTS_SOURCE
+    : typeof attribute === "string"
+      ? constantAttributeSource(attribute)
+      : "triples";
+
+const resolveSources = (
+  sql: string,
+  aliases: readonly string[],
+  pick: (index: number) => string,
+): string =>
+  aliases.reduce(
+    (resolved, alias, index) => resolved.split(sourcePlaceholder(alias)).join(pick(index)),
+    sql,
+  );
+
+/** Every split of the aliases' sources, or one unsplit query when splitting is not allowed. */
+const sourceVariants = (
+  sql: string,
+  aliases: readonly string[],
+  split = true,
+): readonly string[] => {
+  if (aliases.length === 0) return [sql];
+  if (!split || aliases.length > MAX_SPLIT_SOURCES)
+    return [resolveSources(sql, aliases, () => ALL_FACTS_SOURCE)];
+  return Array.from({ length: 2 ** aliases.length }, (_, mask) =>
+    resolveSources(sql, aliases, (index) => (mask & (1 << index) ? JOURNAL_FACTS_VIEW : "triples")),
+  );
 };
 
 // =============================================================================
@@ -443,6 +513,8 @@ const orderedTermExpression = (
       typeCondition: `${resolveBinding(binding)} IS NOT NULL`,
     };
   if (!binding || !isTripleValueBinding(binding)) return null;
+  const journal = ctx.journalNumbers.get(binding.alias);
+  if (journal !== undefined) return { expression: journal };
   return {
     expression: numberScalarExpression(binding.alias),
     typeCondition: numberScalarTypeCondition(binding.alias),
@@ -566,6 +638,8 @@ const createContext = (dialect: SqlDialect, basis?: QueryTemporalBasis): Compile
   patternAliases: new Map(),
   aggregateExpressions: new Map(),
   collector: createParamCollector(dialect),
+  variableSources: [],
+  journalNumbers: new Map(),
 });
 
 /**
@@ -598,9 +672,15 @@ const compilePattern = (
   const tx = pattern.length === 4 ? pattern[3] : undefined;
   const alias = nextAlias(ctx);
 
+  const source = patternSource(attribute, alias, ctx.variableSources);
+  if (attribute === TxAttributes.POSITION)
+    ctx.journalNumbers.set(alias, `${alias}.recorded_position`);
+  if (attribute === TxAttributes.INSTANT) ctx.journalNumbers.set(alias, `${alias}.recorded_at`);
+
   // Build JOIN or FROM clause
   if (isFirstPattern) {
     // First pattern goes in FROM (no JOIN needed)
+    ctx.fromSource = `${source} ${alias}`;
     ctx.conditions.push(visibility(alias, ctx, attribute));
   } else {
     // Subsequent patterns are JOINed
@@ -613,7 +693,7 @@ const compilePattern = (
       joinCondition = `${compileBindingEquality(tripleBinding(alias, "entity"), binding)} AND ${joinCondition}`;
     }
 
-    ctx.joins.push(`JOIN triples ${alias} ON ${joinCondition}`);
+    ctx.joins.push(`JOIN ${source} ${alias} ON ${joinCondition}`);
   }
 
   // Process entity term
@@ -855,16 +935,13 @@ const compileNotCondition = (notClause: NotClause, ctx: CompilerContext): string
   const localBindings = new Map<string, VariableBinding>();
   const allConditions: string[] = [];
   const fromParts: string[] = [];
+  const variableSources: string[] = [];
 
   for (const pattern of patterns) {
     const alias = nextAlias(ctx);
-    fromParts.push(`triples ${alias}`);
-    const conditions = compileNotPattern(
-      planIntervalPattern(pattern, predicates),
-      alias,
-      ctx,
-      localBindings,
-    );
+    const planned = planIntervalPattern(pattern, predicates);
+    fromParts.push(`${patternSource(planned[1], alias, variableSources)} ${alias}`);
+    const conditions = compileNotPattern(planned, alias, ctx, localBindings);
     allConditions.push(...conditions);
   }
 
@@ -881,7 +958,12 @@ const compileNotCondition = (notClause: NotClause, ctx: CompilerContext): string
   }
 
   const fromClause = fromParts.join(", ");
-  return `NOT EXISTS (SELECT 1 FROM ${fromClause} WHERE ${allConditions.join(" AND ")})`;
+  // NOT EXISTS over a union is the conjunction of NOT EXISTS over each part.
+  const variants = sourceVariants(
+    `SELECT 1 FROM ${fromClause} WHERE ${allConditions.join(" AND ")}`,
+    variableSources,
+  ).map((variant) => `NOT EXISTS (${variant})`);
+  return variants.length === 1 ? variants[0]! : `(${variants.join(" AND ")})`;
 };
 
 const compileNot = (notClause: NotClause, ctx: CompilerContext): void => {
@@ -911,7 +993,17 @@ const compileOr = (orClause: OrClause, ctx: CompilerContext): void => {
     const alias = nextAlias(ctx);
     const localBindings = new Map<string, VariableBinding>();
     const conditions = compileNotPattern(alternative as PatternClause, alias, ctx, localBindings);
-    return `(EXISTS (SELECT 1 FROM triples ${alias} WHERE ${conditions.join(" AND ")}))`;
+    const variableSources: string[] = [];
+    const source = patternSource(
+      normalizePattern(alternative as FactPattern)[1],
+      alias,
+      variableSources,
+    );
+    const variants = sourceVariants(
+      `SELECT 1 FROM ${source} ${alias} WHERE ${conditions.join(" AND ")}`,
+      variableSources,
+    ).map((variant) => `EXISTS (${variant})`);
+    return `(${variants.join(" OR ")})`;
   });
 
   if (orConditions.length > 0) {
@@ -1017,7 +1109,7 @@ const optionalProjectionExpressions = (
   const select = (expression: string): string => {
     return `(
     SELECT ${expression}
-    FROM triples opt
+    FROM ${constantAttributeSource(projection.attribute)} opt
     WHERE opt.entity_id = ${entityExpr}
       AND opt.attribute = ${attributeExpr}
       AND ${visibility("opt", ctx, projection.attribute)}
@@ -1505,11 +1597,11 @@ export const compile = (
   const limitClause = buildLimitClause(limit, offset, dialect);
 
   // Build final SQL
-  const fromTable = `triples t0`;
+  const fromTable = ctx.fromSource!;
   const joinClause = ctx.joins.length > 0 ? ctx.joins.join("\n") : "";
   const whereClause = ctx.conditions.length > 0 ? `WHERE ${ctx.conditions.join(" AND ")}` : "";
 
-  const currentSql = [
+  const body = [
     `SELECT DISTINCT`,
     `  ${selectParts.join(",\n  ")}`,
     `FROM ${fromTable}`,
@@ -1517,12 +1609,17 @@ export const compile = (
     whereClause,
     groupByClause,
     havingClause,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  // Variants are disjoint row sets of one join; UNION keeps the DISTINCT result.
+  const sql = [
+    sourceVariants(body, ctx.variableSources, !hasAggregates).join("\nUNION\n"),
     orderByClause,
     limitClause,
   ]
     .filter(Boolean)
     .join("\n");
-  const sql = currentSql;
 
   const result: CompiledQuery = {
     sql,
@@ -1680,7 +1777,7 @@ const compileRuleDefinition = (rule: Rule, ctx: CompilerContext): string => {
       const [entity, attribute, value] = clause as PatternClause;
 
       if (fromParts.length === 0) {
-        fromParts.push(`triples ${alias}`);
+        fromParts.push(`${unsplitSource(attribute)} ${alias}`);
         allConditions.push(visibility(alias, ctx, attribute));
 
         // Handle entity
@@ -1730,7 +1827,9 @@ const compileRuleDefinition = (rule: Rule, ctx: CompilerContext): string => {
           joinConditions.push(compilePatternValueCondition(alias, value, ctx));
         }
 
-        allJoins.push(`JOIN triples ${alias} ON ${joinConditions.join(" AND ")}`);
+        allJoins.push(
+          `JOIN ${unsplitSource(attribute)} ${alias} ON ${joinConditions.join(" AND ")}`,
+        );
       }
     }
   }
@@ -1874,7 +1973,7 @@ const compileRecursiveCTE = (ruleName: string, rules: Rule[], ctx: CompilerConte
     // Result: (X, Y) = (entity_id, r.arg2)
 
     const recursiveSql = `SELECT ${selectArg1} AS arg1, ${selectArg2} AS arg2, r.depth + 1 AS depth
-FROM triples t
+FROM ${unsplitSource(attribute)} t
 JOIN ${ruleIdentifier(ruleName)} r ON ${joinCondition}
 WHERE ${conditions.join(" AND ")}`;
 
@@ -2066,26 +2165,32 @@ export const compileWithRules = (
       if (firstRule.joinCondition !== "1=1") ctx.conditions.push(firstRule.joinCondition);
     }
   } else {
-    fromTable = `triples t0`;
+    fromTable = ctx.fromSource!;
   }
 
   const joinClause = ctx.joins.length > 0 ? ctx.joins.join("\n") : "";
   const whereClause = ctx.conditions.length > 0 ? `WHERE ${ctx.conditions.join(" AND ")}` : "";
 
-  const currentSql = [
-    cteClause + `SELECT DISTINCT`,
+  const body = [
+    `SELECT DISTINCT`,
     `  ${selectParts.join(",\n  ")}`,
     `FROM ${fromTable}`,
     joinClause,
     whereClause,
     groupByClause,
     havingClause,
-    orderByClause,
-    limitClause,
   ]
     .filter(Boolean)
     .join("\n");
-  const sql = currentSql;
+  const sql =
+    cteClause +
+    [
+      sourceVariants(body, ctx.variableSources, !hasAggregates).join("\nUNION\n"),
+      orderByClause,
+      limitClause,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
   const result: CompiledQuery = {
     sql,

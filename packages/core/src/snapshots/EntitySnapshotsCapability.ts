@@ -13,7 +13,7 @@ import type { StoreCapability } from "../store/StoreCapability.js";
 import type { TriplesService } from "../store/Triples.js";
 import type { SnapshotWriterShape } from "./SnapshotService.js";
 import type { Triple, EntityId } from "../Triple.js";
-import { generateTransactionId, SystemPrefixes, TxAttributes } from "../utils/id.js";
+import { generateTransactionId, SystemPrefixes } from "../utils/id.js";
 import { WriteError } from "../errors/index.js";
 import { unsafe } from "../Branded.js";
 
@@ -27,13 +27,10 @@ const resolveTxTime = (
       return assertedTriples[0]!.recordedAt;
     }
 
-    const txMetaTriples = yield* store
-      .match({ entityId: unsafe.entityId(txId), attribute: TxAttributes.INSTANT })
-      .pipe(Effect.catch(() => Effect.succeed([] as readonly Triple[])));
-    const txInstant = txMetaTriples.find((triple) => triple.value.type === "datetime");
-    if (txInstant && txInstant.value.type === "datetime") {
-      return txInstant.value.value;
-    }
+    const record = yield* store
+      .transaction(unsafe.transactionId(txId))
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (record !== null) return record.instant;
 
     return yield* Effect.fail(
       new WriteError({
