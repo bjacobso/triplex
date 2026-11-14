@@ -788,10 +788,12 @@ export class RotationError extends Data.TaggedError("SensitiveRotationError")<{
 }> {}
 
 export interface RewrapReport {
-  /** Facts resealed under their scope's current data key. */
+  /**
+   * Facts resealed under their scope's current data key. The journal
+   * references facts rather than copying their values, so its records show
+   * the resealed values with nothing else to rewrite.
+   */
   readonly rewrapped: number;
-  /** Journal `:_tx/change` copies rewritten with them. */
-  readonly journalCopies: number;
   /** Facts left alone: erased, or on an attribute the policy no longer lists. */
   readonly skipped: number;
   /** Key IDs no stored value uses any more; pass them to `KeyCustody.retire`. */
@@ -824,29 +826,10 @@ const maintenanceOf = (triples: TriplesService) => {
 const rotationStorage = (message: string) => (cause: unknown) =>
   new RotationError({ reason: "storage", message, cause });
 
-/** The journal `:_tx/change` copies of a fact, rewritten to carry `value`. */
-const journalRewrites = (triples: TriplesService, fact: Triple, value: SealedValue) =>
-  Effect.gen(function* () {
-    const rewrites: Array<ValueRewrite> = [];
-    for (const txId of [fact.txId, fact.retractTxId]) {
-      if (Option.isNone(txId)) continue;
-      for (const entry of yield* triples.history(unsafe.entityId(txId.value))) {
-        if (entry.attribute !== ":_tx/change" || entry.value.type !== "json") continue;
-        const change = entry.value.value as { readonly tripleId?: unknown } | null;
-        if (change === null || typeof change !== "object" || change.tripleId !== fact.id) continue;
-        rewrites.push({
-          id: entry.id,
-          value: { type: "json", value: { ...change, value: withoutBlind(value) } },
-        });
-      }
-    }
-    return rewrites;
-  });
-
 /**
  * Reseal every stored value under its scope's current data key, after
- * `KeyCustody.rotate`. Rewrites the fact's `value_sealed` and its journal
- * copies in place; meaning, valid time, transaction and position do not
+ * `KeyCustody.rotate`. Rewrites each fact's `value_sealed` in place (which is
+ * also what its transaction records show); meaning, valid time, transaction and position do not
  * change, and nothing is journaled. Erased values are left alone. Resumable:
  * a value already under its current key is skipped. Afterwards, retire
  * `replacedKeyIds` with `KeyCustody.retire`.
@@ -867,7 +850,6 @@ export const rewrap: Effect.Effect<RewrapReport, RotationError, Triples | Sensit
       Effect.mapError(rotationStorage("Sealed facts could not be read")),
     );
     let rewrapped = 0;
-    let journalCopies = 0;
     let skipped = 0;
     const replaced = new Set<string>();
     let pending: Array<ValueRewrite> = [];
@@ -912,17 +894,13 @@ export const rewrap: Effect.Effect<RewrapReport, RotationError, Triples | Sensit
           ? { blind: outcome.blind }
           : {}),
       };
-      const copies = yield* journalRewrites(triples, fact, next).pipe(
-        Effect.mapError(rotationStorage("Journal copies could not be read")),
-      );
-      pending.push({ id: fact.id, value: next }, ...copies);
+      pending.push({ id: fact.id, value: next });
       rewrapped += 1;
-      journalCopies += copies.length;
       replaced.add(value.keyId);
       if (pending.length >= BATCH) yield* flush;
     }
     yield* flush;
-    return { rewrapped, journalCopies, skipped, replacedKeyIds: [...replaced] };
+    return { rewrapped, skipped, replacedKeyIds: [...replaced] };
   },
 );
 

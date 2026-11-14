@@ -4,16 +4,17 @@ import { makeTestKvBackend } from "../../../src/kv/kv/InMemoryKvBackend.js";
 import { createKvTripleStore, type Datom } from "../../../src/kv/hexastore/KvTripleStore.js";
 import {
   dependencyProjections,
+  journalInstantEntries,
   recordedPositionAt,
   READ_INDEX_READY,
 } from "../../../src/kv/hexastore/readIndexes.js";
 import { resolveRecordedBasis } from "../../../src/store/recordedBasis.js";
 
 const datom = (position: number, instant: number): Datom => ({
-  tripleId: `instant-${position}`,
-  entity: `tx-${position}`,
-  attribute: ":_tx/instant",
-  entityType: "_Transaction",
+  tripleId: `fact-${position}`,
+  entity: `entity-${position}`,
+  attribute: ":test/at",
+  entityType: null,
   value: { type: "datetime", value: instant },
   txId: `tx-${position}`,
   recordedAt: instant,
@@ -30,8 +31,15 @@ it("seeks only bounded journal index ranges at a captured head, including negati
   await Effect.runPromise(
     Effect.gen(function* () {
       const kv = makeTestKvBackend();
-      const store = createKvTripleStore(kv);
-      yield* store.assertBatch([datom(1, -100), datom(2, 200), datom(3, 100), datom(4, 100)]);
+      // The journal writes these entries with each transaction's entry.
+      yield* kv.setAll(
+        [
+          [1, -100],
+          [2, 200],
+          [3, 100],
+          [4, 100],
+        ].flatMap(([position, instant]) => journalInstantEntries(instant!, position!)),
+      );
       let seeks = 0;
       const indexed = {
         ...kv,
@@ -58,7 +66,7 @@ it("backfills read indexes once and retains retraction metadata without reading 
       const kv = makeTestKvBackend();
       const store = createKvTripleStore(kv);
       yield* store.assert(datom(1, 100));
-      yield* store.retract("instant-1", 200, "tx-2", 2);
+      yield* store.retract("fact-1", 200, "tx-2", 2);
       // Simulate an existing store with only the pre-upgrade indexes.
       for (const prefix of [0x09, 0x0a]) {
         const rows = yield* Stream.runCollect(
@@ -68,7 +76,8 @@ it("backfills read indexes once and retains retraction metadata without reading 
       }
       yield* store.initializeReadIndexes();
       expect(yield* kv.get(READ_INDEX_READY)).not.toBeNull();
-      expect(yield* recordedPositionAt(kv, 100, 2)).toBe(1);
+      // Facts never enter the journal's instant trie.
+      expect(yield* recordedPositionAt(kv, 100, 2)).toBe(0);
       const projected = yield* dependencyProjections({
         ...kv,
         getRange: (options) => {

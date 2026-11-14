@@ -172,8 +172,8 @@ const program = Effect.gen(function* () {
               entries: number | string;
               latest: number | string | null;
             }>`SELECT COALESCE((SELECT position FROM triplex_commit_position WHERE singleton = 1), 0) AS head,
-             (SELECT COUNT(DISTINCT value_number) FROM triples WHERE attribute = ':_tx/position') AS entries,
-             (SELECT MAX(value_number) FROM triples WHERE attribute = ':_tx/position') AS latest`;
+             (SELECT COUNT(*) FROM triplex_transactions) AS entries,
+             (SELECT MAX(position) FROM triplex_transactions) AS latest`;
             if (
               Number(view!.head) < observedHead ||
               Number(view!.head) !== Number(view!.entries) ||

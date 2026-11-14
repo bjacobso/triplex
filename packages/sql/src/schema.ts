@@ -10,27 +10,40 @@
  * - Enables sharing between different adapters
  */
 
+import {
+  JOURNAL_ATTRIBUTES_TABLE_DDLS,
+  JOURNAL_FACTS_VIEW_DDL,
+} from "@triplex-internal/core/internal";
+
+export { JOURNAL_ATTRIBUTES_TABLE_DDLS, JOURNAL_FACTS_VIEW_DDL };
+
 // =============================================================================
 // Table Definitions
 // =============================================================================
 
+const VALUE_TYPES = "'string', 'number', 'boolean', 'datetime', 'ref', 'json', 'blob', 'sealed'";
+
 /**
  * Triples table DDL
  *
- * Core table storing all facts as entity-attribute-value triples.
+ * Core table storing every application fact as an entity-attribute-value triple.
  * Supports:
- * - Multiple value types (string, number, boolean, datetime, ref, json)
- * - Recorded-time history via recorded_at/retracted_at timestamps
+ * - Multiple value types (string, number, boolean, datetime, ref, json, blob, sealed)
+ * - Recorded-time history via recorded_at/retracted_at timestamps and positions
  * - Business-time history via valid_from/valid_to timestamps
  * - Entity typing for schema validation
  * - Transaction grouping via tx_id
+ *
+ * Sealed values keep their codec envelope in `value_sealed` and their
+ * blind-index token in `value_blind`; plaintext value columns stay NULL. The
+ * transaction journal is not stored here; see `TRANSACTIONS_TABLE_DDL`.
  */
 export const TRIPLES_TABLE_DDL = `
   CREATE TABLE IF NOT EXISTS triples (
     id TEXT PRIMARY KEY NOT NULL,
     entity_id TEXT NOT NULL,
     attribute TEXT NOT NULL,
-    value_type TEXT NOT NULL CHECK (value_type IN ('string', 'number', 'boolean', 'datetime', 'ref', 'json', 'blob')),
+    value_type TEXT NOT NULL CHECK (value_type IN (${VALUE_TYPES})),
     value_string TEXT,
     value_number DOUBLE PRECISION,
     value_boolean INTEGER,
@@ -46,14 +59,18 @@ export const TRIPLES_TABLE_DDL = `
     retract_tx_id TEXT,
     entity_type TEXT,
     schema_version INTEGER DEFAULT 1,
-    tx_id TEXT
+    tx_id TEXT,
+    value_sealed TEXT,
+    value_blind TEXT,
+    CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)
   )
 `;
 
 /**
  * Schema migrations table DDL
  *
- * Tracks applied migrations for versioned schema updates.
+ * Records the applied schema. A database this release can open has exactly
+ * one row: the baseline (see `migrations.ts`).
  */
 export const MIGRATIONS_TABLE_DDL = `
   CREATE TABLE IF NOT EXISTS triplex_schema_migrations (
@@ -74,42 +91,92 @@ export const COMMIT_POSITION_TABLE_DDL = `
   )
 `;
 
+// =============================================================================
+// Transaction journal
+// =============================================================================
+
 /**
- * Atomic uniqueness index for command receipts.
+ * One row per journaled transaction: its envelope and the ordered references
+ * to the facts it changed (`changes`, a JSON array of `[tripleId, op]`).
  *
- * The corresponding `_Transaction` facts remain the public, queryable
- * receipt. This table exists only to make first-writer-wins atomic across
- * pooled SQL connections.
+ * - `position` is unique: `transactions({ after })` seeks it.
+ * - `command_id` is unique (NULLs allowed): first-writer-wins for commands and
+ *   `transactionByCommand`.
+ * - `idx_transactions_instant (instant, position)` resolves a recorded time to
+ *   a position.
+ *
+ * The row, its entity rows and the facts commit in one backend transaction.
  */
-export const COMMAND_RECEIPTS_TABLE_DDL = `
-  CREATE TABLE IF NOT EXISTS triplex_command_receipts (
-    command_id TEXT PRIMARY KEY NOT NULL,
-    transaction_id TEXT NOT NULL UNIQUE,
-    recorded_at BIGINT NOT NULL
+export const TRANSACTIONS_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_transactions (
+    tx_id TEXT PRIMARY KEY NOT NULL,
+    position BIGINT NOT NULL UNIQUE,
+    instant BIGINT NOT NULL,
+    actor TEXT,
+    command_id TEXT UNIQUE,
+    correlation_id TEXT,
+    causation_id TEXT,
+    config_snapshot TEXT,
+    changes TEXT NOT NULL
   )
 `;
+
+export const TRANSACTIONS_INSTANT_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_transactions_instant ON triplex_transactions(instant, position)";
+
+/**
+ * One row per entity a journaled transaction changed. The primary key serves
+ * an entity's transaction history and the entity-ID prefix feed as a range on
+ * `entity_id`. PostgreSQL compares entity IDs bytewise (`COLLATE "C"`) so the
+ * prefix range is exact.
+ */
+export const TRANSACTION_ENTITIES_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS triplex_transaction_entities (
+    entity_id TEXT NOT NULL,
+    position BIGINT NOT NULL,
+    tx_id TEXT NOT NULL,
+    PRIMARY KEY (entity_id, position)
+  )
+`;
+
+export const TRANSACTION_ENTITIES_POSTGRES_TABLE_DDL = TRANSACTION_ENTITIES_TABLE_DDL.replace(
+  "entity_id TEXT NOT NULL",
+  'entity_id TEXT COLLATE "C" NOT NULL',
+);
+
+/**
+ * Datalog joins a transaction to its changed entities (`[?tx
+ * :_tx/changed-entity ?e]` with `?tx` bound) through the commit position.
+ */
+export const TRANSACTION_ENTITIES_POSITION_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_transaction_entities_position ON triplex_transaction_entities(position)";
+
+/** The journal tables, the attribute table and the Datalog view over them. */
+export const JOURNAL_DDLS: ReadonlyArray<string> = [
+  TRANSACTIONS_TABLE_DDL,
+  TRANSACTIONS_INSTANT_INDEX_DDL,
+  TRANSACTION_ENTITIES_TABLE_DDL,
+  TRANSACTION_ENTITIES_POSITION_INDEX_DDL,
+  ...JOURNAL_ATTRIBUTES_TABLE_DDLS,
+  JOURNAL_FACTS_VIEW_DDL,
+];
 
 // =============================================================================
 // Index Definitions
 // =============================================================================
 
 /**
- * Frozen v1 index definitions for the triples table. Migration v13 drops
- * idx_attribute and idx_recorded_position again (see DROPPED_INDEX_NAMES).
- *
- * These indexes optimize common query patterns:
- * - Entity lookups (idx_entity)
- * - Attribute scans (idx_attribute)
+ * Indexes on the triples table. Each serves a fact read the plan fixtures pin:
+ * - Entity lookups (idx_entity, idx_entity_attr)
+ * - Attribute history and temporal scans (idx_attribute_history, idx_attribute_temporal)
  * - Type filtering (idx_type)
  * - Value searches (idx_attr_string, idx_attr_number)
  * - Reference traversal (idx_ref_target)
  * - Time travel queries (idx_temporal)
- * - Entity+attribute lookups (idx_entity_attr)
- * - Transaction queries (idx_tx_id)
+ * - Datalog's fourth term (idx_tx_id)
  */
 export const BASELINE_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_entity ON triples(entity_id) WHERE retracted_at IS NULL",
-  "CREATE INDEX IF NOT EXISTS idx_attribute ON triples(attribute) WHERE retracted_at IS NULL",
   "CREATE INDEX IF NOT EXISTS idx_attribute_history ON triples(attribute, recorded_position, retracted_position)",
   "CREATE INDEX IF NOT EXISTS idx_attribute_temporal ON triples(attribute, valid_from, valid_to) WHERE retracted_at IS NULL",
   "CREATE INDEX IF NOT EXISTS idx_type ON triples(entity_type) WHERE retracted_at IS NULL",
@@ -117,7 +184,6 @@ export const BASELINE_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_attr_number ON triples(attribute, value_number) WHERE retracted_at IS NULL AND value_type = 'number'",
   "CREATE INDEX IF NOT EXISTS idx_ref_target ON triples(attribute, value_string, entity_id) WHERE retracted_at IS NULL AND value_type = 'ref'",
   "CREATE INDEX IF NOT EXISTS idx_temporal ON triples(entity_id, recorded_at, retracted_at, valid_from, valid_to)",
-  "CREATE INDEX IF NOT EXISTS idx_recorded_position ON triples(recorded_position, retracted_position)",
   "CREATE INDEX IF NOT EXISTS idx_entity_attr ON triples(entity_id, attribute) WHERE retracted_at IS NULL",
   "CREATE INDEX IF NOT EXISTS idx_tx_id ON triples(tx_id) WHERE retracted_at IS NULL",
 ] as const;
@@ -141,42 +207,21 @@ export const SEALED_BLIND_INDEX_DDL =
 export const ENTITY_RECORDED_POSITION_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_entity_recorded_position ON triples(entity_id, recorded_position)";
 
-/** Binary prefix bounds and covering columns for PostgreSQL journal candidates. */
-export const TRANSACTION_ENTITY_PREFIX_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_tx_entity_prefix
-  ON triples (value_string COLLATE "C", recorded_position, entity_id)
-  WHERE attribute = ':_tx/changed-entity' AND entity_type = '_Transaction' AND value_type = 'ref' AND retracted_at IS NULL`;
-
 /** Non-partial indexes preserve interval access at historical recorded cuts. */
 export const INTERVAL_HISTORY_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_attribute_valid_to_history ON triples (attribute, valid_to, recorded_position)",
   "CREATE INDEX IF NOT EXISTS idx_attribute_valid_from_history ON triples (attribute, valid_from, recorded_position)",
 ] as const;
 
-/** Covering metadata only: wildcard freshness and journal timestamp resolution. */
+/** Covering metadata only: wildcard freshness. */
 export const PUBLIC_READ_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_dependency_all ON triples(recorded_position, retracted_position, recorded_at, retracted_at, valid_from, valid_to)",
-  "CREATE INDEX IF NOT EXISTS idx_journal_instant_position ON triples(recorded_at, recorded_position, attribute, entity_type) WHERE attribute = ':_tx/instant' AND entity_type = '_Transaction'",
 ] as const;
-
-/**
- * Indexes the current schema no longer has. Each was a prefix of another index
- * that serves the same reads: idx_attribute of idx_attribute_temporal (no query
- * planned through it), idx_recorded_position of idx_dependency_all.
- */
-export const DROPPED_INDEX_NAMES = ["idx_attribute", "idx_recorded_position"] as const;
-
-/** Migration v13. */
-export const DROP_PREFIX_INDEX_DDLS: ReadonlyArray<string> = DROPPED_INDEX_NAMES.map(
-  (name) => `DROP INDEX IF EXISTS ${name}`,
-);
-
-const isCurrentIndex = (ddl: string) =>
-  !DROPPED_INDEX_NAMES.some((name) => ddl.includes(` ${name} ON `));
 
 /** The current schema's `triples` indexes. */
 export const INDEX_DDLS = [
   ...PUBLIC_READ_INDEX_DDLS,
-  ...BASELINE_INDEX_DDLS.filter(isCurrentIndex),
+  ...BASELINE_INDEX_DDLS,
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
@@ -188,7 +233,6 @@ export const INDEX_DDLS = [
  */
 export const INDEX_NAMES = [
   "idx_dependency_all",
-  "idx_journal_instant_position",
   "idx_entity",
   "idx_attribute_history",
   "idx_attribute_temporal",
@@ -258,71 +302,8 @@ export const SNAPSHOT_INDEX_DDLS = [
 ] as const;
 
 // =============================================================================
-// Sealed (sensitive) values — migration v3
+// Operational entries
 // =============================================================================
-
-const VALUE_TYPES_V3 = "'string', 'number', 'boolean', 'datetime', 'ref', 'json', 'blob', 'sealed'";
-
-/**
- * The v3 `triples` shape: `sealed` joins the value types, and sealed values
- * keep their codec envelope in `value_sealed` and their blind-index token in
- * `value_blind`. Plaintext value columns stay NULL for sealed facts.
- */
-const triplesTableDdlV3 = (name: string) => `
-  CREATE TABLE IF NOT EXISTS ${name} (
-    id TEXT PRIMARY KEY NOT NULL,
-    entity_id TEXT NOT NULL,
-    attribute TEXT NOT NULL,
-    value_type TEXT NOT NULL CHECK (value_type IN (${VALUE_TYPES_V3})),
-    value_string TEXT,
-    value_number DOUBLE PRECISION,
-    value_boolean INTEGER,
-    value_datetime BIGINT,
-    value_json TEXT,
-    recorded_at BIGINT NOT NULL,
-    recorded_position BIGINT NOT NULL,
-    valid_from BIGINT NOT NULL,
-    valid_to BIGINT,
-    created_by TEXT,
-    retracted_at BIGINT,
-    retracted_position BIGINT,
-    retract_tx_id TEXT,
-    entity_type TEXT,
-    schema_version INTEGER DEFAULT 1,
-    tx_id TEXT,
-    value_sealed TEXT,
-    value_blind TEXT,
-    CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)
-  )
-`;
-
-const V2_TRIPLES_COLUMNS =
-  "id, entity_id, attribute, value_type, value_string, value_number, value_boolean, value_datetime, value_json, recorded_at, recorded_position, valid_from, valid_to, created_by, retracted_at, retracted_position, retract_tx_id, entity_type, schema_version, tx_id";
-
-/**
- * SQLite cannot alter a CHECK constraint, so v3 rebuilds `triples` using the
- * documented create-copy-drop-rename procedure inside the migration
- * transaction, then recreates every index. Existing rows are copied unchanged.
- */
-export const SEALED_VALUES_SQLITE_DDLS = [
-  "DROP TABLE IF EXISTS triples_v3",
-  triplesTableDdlV3("triples_v3"),
-  `INSERT INTO triples_v3 (${V2_TRIPLES_COLUMNS}) SELECT ${V2_TRIPLES_COLUMNS} FROM triples`,
-  "DROP TABLE triples",
-  "ALTER TABLE triples_v3 RENAME TO triples",
-  ...BASELINE_INDEX_DDLS,
-  NUMERIC_VALUE_INDEX_DDL,
-] as const;
-
-/** PostgreSQL widens the inline value-type check in place. */
-export const SEALED_VALUES_POSTGRES_DDLS = [
-  "ALTER TABLE triples DROP CONSTRAINT IF EXISTS triples_value_type_check",
-  `ALTER TABLE triples ADD CONSTRAINT triples_value_type_check CHECK (value_type IN (${VALUE_TYPES_V3}))`,
-  "ALTER TABLE triples ADD COLUMN IF NOT EXISTS value_sealed TEXT",
-  "ALTER TABLE triples ADD COLUMN IF NOT EXISTS value_blind TEXT",
-  "ALTER TABLE triples DROP CONSTRAINT IF EXISTS triples_sealed_envelope_check",
-  "ALTER TABLE triples ADD CONSTRAINT triples_sealed_envelope_check CHECK (value_type <> 'sealed' OR value_sealed IS NOT NULL)",
-] as const;
 
 /** Entries retain history; partial indexes contain only unacknowledged work. */
 export const OPERATIONAL_ENTRIES_TABLE_DDL = `
@@ -355,6 +336,10 @@ export const OPERATIONAL_ENTRY_INDEX_DDLS = [
 /** Expression statistics cover only live rows, avoiding historical attribute skew. */
 export const LIVE_PRECONDITION_INDEX_POSTGRES_DDL = `CREATE INDEX IF NOT EXISTS idx_live_precondition_key
   ON triples ((length(entity_id)::text || ':' || entity_id || attribute)) WHERE retracted_at IS NULL`;
+
+// =============================================================================
+// Key store
+// =============================================================================
 
 /**
  * Data keys of the SQL key store (`SqlKeyStore`), one row per subject, key
@@ -398,7 +383,11 @@ export const KEY_ERASURES_TABLE_DDL = `
   )
 `;
 
-/** Blind-index HMAC keys, one current version per database, wrapped like data keys. */
+/**
+ * Blind-index HMAC keys, one current version per database, wrapped like data
+ * keys. Rotation stages the next version (`staged`), computes every token under
+ * it, then activates it; a staged version is never current.
+ */
 export const BLIND_KEYS_TABLE_DDL = `
   CREATE TABLE IF NOT EXISTS triplex_blind_keys (
     key_id TEXT PRIMARY KEY,
@@ -408,6 +397,7 @@ export const BLIND_KEYS_TABLE_DDL = `
     wrapped_key TEXT NOT NULL,
     created_at BIGINT NOT NULL,
     retired_at BIGINT,
+    staged INTEGER NOT NULL DEFAULT 0,
     UNIQUE (database_id, version)
   )
 `;
@@ -417,50 +407,4 @@ export const KEY_STORE_DDLS: ReadonlyArray<string> = [
   DATA_KEYS_ROOT_INDEX_DDL,
   KEY_ERASURES_TABLE_DDL,
   BLIND_KEYS_TABLE_DDL,
-];
-
-// =============================================================================
-// No blind tokens outside facts — migration v11
-// =============================================================================
-
-/**
- * Journal `:_tx/change` payloads embedded each sealed value with its blind
- * token. Blind tokens now live only on the fact, so erasure scrubs them in one
- * place; this removes the copies from existing journals.
- */
-export const JOURNAL_BLIND_SCRUB_SQLITE_DDLS: ReadonlyArray<string> = [
-  `UPDATE triples SET value_json = json_remove(value_json, '$.value.blind')
-   WHERE attribute = ':_tx/change' AND value_type = 'json'
-     AND json_extract(value_json, '$.value.blind') IS NOT NULL`,
-];
-
-export const JOURNAL_BLIND_SCRUB_POSTGRES_DDLS: ReadonlyArray<string> = [
-  `UPDATE triples SET value_json = (value_json::jsonb #- '{value,blind}')::text
-   WHERE attribute = ':_tx/change' AND value_type = 'json'
-     AND (value_json::jsonb -> 'value') ? 'blind'`,
-];
-
-/**
- * Entity snapshots committed to blind tokens. Snapshots are content-addressed
- * caches, so the affected snapshots and blobs are dropped rather than
- * rewritten; `SnapshotWriter.backfill` and the next write recreate them.
- */
-export const SNAPSHOT_BLIND_SCRUB_DDLS: ReadonlyArray<string> = [
-  `DELETE FROM entity_snapshots WHERE hash IN (
-     SELECT hash FROM entity_blobs
-     WHERE data LIKE '%"type":"sealed"%' AND data LIKE '%"blind":%'
-   )`,
-  `DELETE FROM entity_blobs WHERE data LIKE '%"type":"sealed"%' AND data LIKE '%"blind":%'`,
-];
-
-// =============================================================================
-// Staged blind keys — migration v12
-// =============================================================================
-
-/**
- * Blind-key rotation stages the next version, computes every token under it,
- * then activates it. A staged version is never current.
- */
-export const BLIND_KEY_STAGING_DDLS: ReadonlyArray<string> = [
-  "ALTER TABLE triplex_blind_keys ADD COLUMN staged INTEGER NOT NULL DEFAULT 0",
 ];

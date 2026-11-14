@@ -237,13 +237,12 @@ export const advance = (
         ],
         {
           ...request.meta,
-          commandId: `triplex/consumer-checkpoint/init/${ContentIds.hash(
-            ContentIds.Domain.consumerCheckpoint,
-            request.consumer,
-          )}`,
+          // Unjournaled writes keep no command receipt; the first initializer
+          // wins because every later one finds the consumer entity present.
+          preconditions: [{ _tag: "EntityAbsent", entityId: id }],
         },
       ).pipe(
-        Effect.catchTag("CommandAlreadyCommittedError", () =>
+        Effect.catchTag("TransactionConflictError", () =>
           readLoaded(triples, request.consumer).pipe(
             Effect.flatMap((winner) =>
               winner?.position === request.nextPosition

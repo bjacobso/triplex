@@ -18,7 +18,7 @@ import { isFactPattern, normalizePattern } from "../../datalog/schema.js";
  * and wrapper queries with cursor-based keyset pagination.
  */
 
-import { Effect, Stream } from "effect";
+import { Effect } from "effect";
 import type { KvTripleStore } from "../hexastore/KvTripleStore.js";
 import { isSealedBinding, type TripleValue } from "../../Value.js";
 import type { QueryTemporalBasis as ResolvedTemporalBasis } from "../../datalog/temporal.js";
@@ -530,9 +530,7 @@ const hydrateOptionalProjection = (
         let entityFields = entityCache.get(entityId);
         if (!entityFields) {
           entityFields = new Map<string, Constant | null>();
-          const datoms = yield* asOf === undefined
-            ? store.getEntity(entityId).pipe(Stream.runCollect)
-            : store.scanCollectDatalogAsync({ entity: entityId }, asOf);
+          const datoms = yield* store.datalogScanAsync({ entity: entityId }, asOf);
           for (const datom of datoms) {
             if (!entityFields.has(datom.attribute)) {
               entityFields.set(datom.attribute, tripleValueToResultValue(datom.value));

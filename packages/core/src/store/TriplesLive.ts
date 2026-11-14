@@ -58,19 +58,23 @@ import {
   entityStatePreconditions,
   invalidCommandId,
   livePreconditionIds,
-  metadataInputs,
-  transactionRecordFromTriples,
-  transactionChangeFromTriple,
   validatePreconditions,
 } from "./transactionMetadata.js";
+import {
+  journalAppend,
+  referencedFactIds,
+  transactionChangeFromTriple,
+  transactionRecordFromEntry,
+  type JournalEntry,
+} from "./journal.js";
 import {
   isJournalSuppressed,
   isSystemWriteAuthorized,
   reservedAssertError,
+  reservedPatternError,
   reservedWriteError,
 } from "./systemNamespace.js";
 import { resolveTemporalBasis } from "../Temporal.js";
-import { TxAttributes } from "../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
@@ -337,23 +341,20 @@ export const TriplesLive = Layer.effect(
             }
             const txId = yield* nextTxId;
             const timestamp = yield* now;
+            const position = yield* adapter.nextCommitPosition();
+            const commandAlreadyCommitted = (commandId: string, original: string) =>
+              new CommandAlreadyCommittedError({
+                commandId,
+                transactionId: unsafe.transactionId(original),
+                message: `Command ${commandId} already committed as ${original}`,
+              });
             if (meta?.commandId !== undefined) {
-              const originalTransactionId = yield* adapter.claimCommand(
-                meta.commandId,
-                txId,
-                timestamp,
-              );
-              if (originalTransactionId !== null) {
-                return yield* Effect.fail(
-                  new CommandAlreadyCommittedError({
-                    commandId: meta.commandId,
-                    transactionId: unsafe.transactionId(originalTransactionId),
-                    message: `Command ${meta.commandId} already committed as ${originalTransactionId}`,
-                  }),
-                );
+              // Fast path; the unique command ID on the journal row decides races.
+              const original = yield* adapter.transactionEntryByCommand(meta.commandId);
+              if (original !== null) {
+                return yield* Effect.fail(commandAlreadyCommitted(meta.commandId, original.txId));
               }
             }
-            const position = yield* adapter.nextCommitPosition();
             const actor = meta?.actor;
             const preconditionIds = livePreconditionIds(meta);
 
@@ -509,6 +510,10 @@ export const TriplesLive = Layer.effect(
                   break;
                 }
                 case "retract-pattern": {
+                  if (!isSystemWriteAuthorized(meta)) {
+                    const reserved = reservedPatternError(op.pattern);
+                    if (reserved) return yield* Effect.fail(reserved);
+                  }
                   const pattern = queryToPattern(op.pattern);
                   const matched = [...(yield* adapter.query(pattern))].sort((left, right) =>
                     left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
@@ -555,9 +560,16 @@ export const TriplesLive = Layer.effect(
             yield* enforce;
 
             if (!isJournalSuppressed(meta)) {
-              for (const input of metadataInputs(txId, position, timestamp, meta, changes)) {
-                yield* adapter.insert(input, txId, timestamp, yield* nextTripleId, position);
+              const original = yield* adapter.appendTransaction(
+                journalAppend(txId, position, timestamp, meta, changes),
+              );
+              if (original !== null && meta?.commandId !== undefined) {
+                return yield* Effect.fail(commandAlreadyCommitted(meta.commandId, original));
               }
+            } else if (meta?.commandId !== undefined) {
+              return yield* Effect.fail(
+                new WriteError({ message: "An unjournaled write cannot carry a command ID" }),
+              );
             }
 
             if (meta?.validate !== undefined && meta.validate.length > 0) {
@@ -709,21 +721,32 @@ export const TriplesLive = Layer.effect(
         return rows.map(rowToTriple);
       });
 
+    /** One batched primary-key read of every fact a page of entries references. */
+    const hydrate = (entries: readonly JournalEntry[]) =>
+      Effect.gen(function* () {
+        const ids = referencedFactIds(entries);
+        const rows = ids.length === 0 ? [] : yield* adapter.getByIds(ids);
+        const facts = new Map(rows.map((row) => [row.id, rowToTriple(row)] as const));
+        return yield* Effect.forEach(entries, (entry) => {
+          const record = transactionRecordFromEntry(entry, facts);
+          return "missing" in record
+            ? Effect.fail(
+                new ReadError({
+                  message: `Transaction ${entry.txId} references missing fact ${record.missing}`,
+                }),
+              )
+            : Effect.succeed(record);
+        });
+      });
+
+    const one = (entry: JournalEntry | null) =>
+      entry === null ? Effect.succeed(null) : hydrate([entry]).pipe(Effect.map(([r]) => r!));
+
     const transaction: TriplesService["transaction"] = (txId) =>
-      adapter
-        .query({ entityId: unsafe.entityId(txId), entityType: "_Transaction" })
-        .pipe(Effect.map((rows) => transactionRecordFromTriples(txId, rows.map(rowToTriple))));
+      adapter.transactionEntry(txId).pipe(Effect.flatMap(one));
 
     const transactionByCommand: TriplesService["transactionByCommand"] = (commandId) =>
-      adapter
-        .query({ attribute: TxAttributes.COMMAND_ID, value: { type: "string", value: commandId } })
-        .pipe(
-          Effect.flatMap((rows) =>
-            rows[0] === undefined
-              ? Effect.succeed(null)
-              : transaction(unsafe.transactionId(rows[0].entity_id)),
-          ),
-        );
+      adapter.transactionEntryByCommand(commandId).pipe(Effect.flatMap(one));
 
     const transactions: TriplesService["transactions"] = (request = {}) => {
       const prefix = request.entityIdPrefix;
@@ -743,25 +766,13 @@ export const TriplesLive = Layer.effect(
         return Effect.fail(
           new ReadError({ message: "Transaction entityIdPrefix must be a string" }),
         );
-      // Both paths seek from `after` and hydrate only the selected page's envelopes.
+      // Both paths seek from `after` and hydrate only the selected page.
       return Effect.gen(function* () {
-        const candidates =
+        const entries =
           prefix === undefined
-            ? yield* adapter.transactionIdsAfter(after, limit)
-            : yield* adapter.transactionIdsForEntityPrefix(prefix, after, limit);
-        const grouped = yield* adapter.getByEntities(candidates.map((candidate) => candidate.txId));
-        const page = [];
-        for (const candidate of candidates) {
-          const record = transactionRecordFromTriples(
-            unsafe.transactionId(candidate.txId),
-            (grouped.get(candidate.txId) ?? [])
-              .filter((row) => row.entity_type === "_Transaction")
-              .map(rowToTriple),
-          );
-          if (record === null || record.position !== candidate.position)
-            return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
-          page.push(record);
-        }
+            ? yield* adapter.transactionEntriesAfter(after, limit)
+            : yield* adapter.transactionEntriesForEntityPrefix(prefix, after, limit);
+        const page = yield* hydrate(entries);
         return {
           transactions: page,
           ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
@@ -771,7 +782,11 @@ export const TriplesLive = Layer.effect(
 
     const entityTransactions: TriplesService["transactionsForEntity"] = (entityId, request) =>
       transactionsForEntity(
-        { currentPosition: adapter.currentCommitPosition, query: queryAll, transaction },
+        {
+          currentPosition: adapter.currentCommitPosition,
+          entries: adapter.transactionEntriesForEntity,
+          hydrate,
+        },
         entityId,
         request,
       );
@@ -919,32 +934,22 @@ export const TriplesLive = Layer.effect(
               .withTransaction(
                 Effect.gen(function* () {
                   for (const update of updates) {
-                    const [row] = yield* sql.rawQuery<{ attribute: string; value_type: string }>(
-                      "SELECT attribute, value_type FROM triples WHERE id = ?",
+                    const [row] = yield* sql.rawQuery<{ value_type: string }>(
+                      "SELECT value_type FROM triples WHERE id = ?",
                       [update.id],
                     );
                     if (row === undefined) {
                       return yield* new WriteError({ message: `No fact ${update.id} to rewrite` });
                     }
-                    if (row.value_type === "sealed" && update.value.type === "sealed") {
-                      yield* sql.rawQuery(
-                        "UPDATE triples SET value_sealed = ?, value_blind = ? WHERE id = ?",
-                        [encodeSealedEnvelope(update.value), update.value.blind ?? null, update.id],
-                      );
-                    } else if (
-                      row.attribute === TxAttributes.CHANGE &&
-                      row.value_type === "json" &&
-                      update.value.type === "json"
-                    ) {
-                      yield* sql.rawQuery("UPDATE triples SET value_json = ? WHERE id = ?", [
-                        JSON.stringify(update.value.value),
-                        update.id,
-                      ]);
-                    } else {
+                    if (row.value_type !== "sealed" || update.value.type !== "sealed") {
                       return yield* new WriteError({
-                        message: `Fact ${update.id} is not a sealed value or journal change`,
+                        message: `Fact ${update.id} is not a sealed value`,
                       });
                     }
+                    yield* sql.rawQuery(
+                      "UPDATE triples SET value_sealed = ?, value_blind = ? WHERE id = ?",
+                      [encodeSealedEnvelope(update.value), update.value.blind ?? null, update.id],
+                    );
                   }
                   return updates.length;
                 }),

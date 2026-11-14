@@ -1080,21 +1080,18 @@ describe("Recursive Datalog Queries", () => {
             { actor: "testuser" },
           );
 
-          // Query the transaction metadata
-          const txTriples = yield* store.entity(txId as any);
+          // Transaction metadata is journal data, not stored triples; Datalog
+          // reads it as facts of the transaction entity.
+          expect(yield* store.entity(txId as any)).toEqual([]);
+          const { results } = yield* store.queryAll({
+            find: ["?a", "?v"],
+            where: [[txId, "?a", "?v"]],
+          });
+          const instantTriple = results.find((row) => row["?a"] === ":_tx/instant");
+          const actorTriple = results.find((row) => row["?a"] === ":_tx/actor");
 
-          // Should have :_tx/instant and :_tx/actor triples
-          const instantTriple = txTriples.find((t) => t.attribute === ":_tx/instant");
-          const actorTriple = txTriples.find((t) => t.attribute === ":_tx/actor");
-
-          expect(instantTriple).toBeDefined();
-          expect(instantTriple?.value.type).toBe("datetime");
-
-          expect(actorTriple).toBeDefined();
-          expect(actorTriple?.value.type).toBe("string");
-          if (actorTriple?.value.type === "string") {
-            expect(actorTriple.value.value).toBe("testuser");
-          }
+          expect(typeof instantTriple?.["?v"]).toBe("number");
+          expect(actorTriple?.["?v"]).toBe("testuser");
 
           return { txId, instantTriple, actorTriple };
         }).pipe(Effect.provide(TestLayer)),

@@ -22,15 +22,11 @@ const instantBits = (instant: number): string =>
   ).join("");
 const journalPrefix = (bits: string) => concat(JOURNAL, encodeTuple(tString(bits)));
 
-/**
- * Covering temporal projection, plus a timestamp trie of position-ordered journals.
- * Each trie prefix supports a reverse, limit-one seek at a captured head. A range
- * maximum visits at most 65 prefixes, even with clock rollback or concurrent commits.
- */
+/** Covering temporal projection of a fact, for dependency freshness. */
 export const readIndexEntries = (datom: Datom): KvEntry[] => {
   const { recordedAt, recordedPosition, retractedAt, retractedPosition, validFrom, validTo } =
     datom;
-  const entries: KvEntry[] = [
+  return [
     [
       concat(DEPENDENCY, encodeTuple(tString(datom.tripleId))),
       encoder.encode(
@@ -45,14 +41,21 @@ export const readIndexEntries = (datom: Datom): KvEntry[] => {
       ),
     ],
   ];
-  if (datom.entityType === "_Transaction" && datom.attribute === ":_tx/instant") {
-    const bits = instantBits(recordedAt);
-    for (let length = 0; length <= bits.length; length++)
-      entries.push([
-        concat(journalPrefix(bits.slice(0, length)), encodeTuple(tNumber(recordedPosition))),
-        encoder.encode(String(recordedPosition)),
-      ]);
-  }
+};
+
+/**
+ * A timestamp trie of position-ordered journal entries. Each trie prefix
+ * supports a reverse, limit-one seek at a captured head. A range maximum visits
+ * at most 65 prefixes, even with clock rollback or concurrent commits.
+ */
+export const journalInstantEntries = (instant: number, position: number): KvEntry[] => {
+  const bits = instantBits(instant);
+  const entries: KvEntry[] = [];
+  for (let length = 0; length <= bits.length; length++)
+    entries.push([
+      concat(journalPrefix(bits.slice(0, length)), encodeTuple(tNumber(position))),
+      encoder.encode(String(position)),
+    ]);
   return entries;
 };
 

@@ -1,51 +1,67 @@
-import { Schema } from "effect";
+import { Option } from "effect";
 import { expect, it } from "vitest";
 import { EntityId, TransactionId, TripleId } from "../../src/Branded.js";
-import { Triple } from "../../src/Triple.js";
-import type { TransactionChange } from "../../src/store/Triples.js";
+import type { Triple } from "../../src/Triple.js";
 import {
-  metadataInputs,
-  transactionRecordFromTriples,
-} from "../../src/store/transactionMetadata.js";
+  decodeJournalChanges,
+  encodeJournalChanges,
+  journalAppend,
+  transactionRecordFromEntry,
+} from "../../src/store/journal.js";
 
 const txId = TransactionId.make(`_tx/${"0".repeat(26)}`);
-const changes: readonly TransactionChange[] = ["z", "a", "m"].map((id, index) => ({
-  op: index === 1 ? "retract" : "assert",
-  tripleId: TripleId.make(id.toUpperCase().repeat(26)),
-  entityId: EntityId.make("entity:ordered"),
-  attribute: ":test/status",
+const ids = ["z", "a", "m"].map((id) => TripleId.make(id.toUpperCase().repeat(26)));
+const fact = (id: TripleId, entity: string): Triple => ({
+  id,
+  entityId: EntityId.make(entity),
+  attribute: ":test/status" as Triple["attribute"],
+  value: { type: "string", value: id },
+  recordedAt: 50,
+  validFrom: 50,
+  validTo: Option.none(),
+  createdBy: Option.none(),
+  retractedAt: Option.none(),
+  entityType: Option.none(),
+  schemaVersion: Option.none(),
+  txId: Option.some(txId),
+  retractTxId: Option.none(),
+});
+const facts = new Map(
+  ids.map((id, index) => [id, fact(id, index === 2 ? "entity:other" : "entity:ordered")]),
+);
+const changes = ids.map((tripleId, index) => ({
+  op: index === 1 ? ("retract" as const) : ("assert" as const),
+  tripleId,
+  entityId: facts.get(tripleId)!.entityId,
 }));
 
-const metadata = () =>
-  metadataInputs(txId, 1, 100, undefined, changes).map((input, index) =>
-    Schema.decodeUnknownSync(Triple)({
-      ...input,
-      id: String(index).padStart(26, "0"),
-      recordedAt: 100,
-      validFrom: 100,
-    }),
-  );
-
-it("reconstructs operation order independently of metadata row order", () => {
+it("keeps operation order, independent of fact ID order", () => {
   // ID ordering is deliberately unrelated to operation ordering.
-  const triples = metadata().map((triple, index) => ({
-    ...triple,
-    id: TripleId.make(String(100 - index).padStart(26, "0")),
-  }));
-  for (const rows of [
-    triples,
-    [...triples].reverse(),
-    [...triples.slice(2), ...triples.slice(0, 2)],
-  ]) {
-    expect(transactionRecordFromTriples(txId, rows)?.changes).toEqual(changes);
-  }
+  const entry = journalAppend(txId, 1, 100, { actor: "alice" }, changes);
+  expect(entry.changes).toEqual([
+    [ids[0], "assert"],
+    [ids[1], "retract"],
+    [ids[2], "assert"],
+  ]);
+  expect(entry.entities).toEqual(["entity:ordered", "entity:other"]);
+  const stored = { ...entry, changes: decodeJournalChanges(encodeJournalChanges(entry.changes)) };
+  const record = transactionRecordFromEntry(stored, facts);
+  expect("missing" in record).toBe(false);
+  if ("missing" in record) return;
+  expect(record.changes.map((change) => [change.tripleId, change.op])).toEqual(entry.changes);
+  expect(record.actor).toBe("alice");
+  // A retract change carries the retracting transaction's time and ID.
+  expect(record.changes[1]).toMatchObject({ retractedAt: 100, retractionTxId: txId });
+  expect(record.changes[0]).not.toHaveProperty("retractedAt");
 });
 
-it("keeps legacy journal facts without a change index readable in metadata ID order", () => {
-  const triples = metadata().map((triple) => {
-    if (triple.attribute !== ":_tx/change" || triple.value.type !== "json") return triple;
-    const { changeIndex: _, ...value } = triple.value.value as Record<string, unknown>;
-    return { ...triple, value: { type: "json" as const, value } };
-  });
-  expect(transactionRecordFromTriples(txId, [...triples].reverse())?.changes).toEqual(changes);
+it("reports a referenced fact that is missing", () => {
+  const entry = journalAppend(txId, 1, 100, undefined, changes);
+  const record = transactionRecordFromEntry(entry, new Map([[ids[0]!, facts.get(ids[0]!)!]]));
+  expect(record).toEqual({ missing: ids[1] });
+});
+
+it("rejects malformed change references", () => {
+  expect(() => decodeJournalChanges("{}")).toThrow();
+  expect(() => decodeJournalChanges('[["id", "delete"]]')).toThrow();
 });

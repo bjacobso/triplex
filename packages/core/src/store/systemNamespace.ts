@@ -109,3 +109,25 @@ export const reservedAssertError = (operations: readonly TransactOp[]): WriteErr
   }
   return undefined;
 };
+
+/**
+ * A retract-pattern that names reserved data. The transaction journal is not
+ * stored as facts, so no pattern can match it; naming it is still refused.
+ */
+export const reservedPatternError = (pattern: {
+  readonly entityId?: string | undefined;
+  readonly attribute?: string | undefined;
+  readonly entityType?: string | undefined;
+}): WriteError | undefined => {
+  const reason =
+    (pattern.entityId !== undefined && isReservedEntityId(pattern.entityId)
+      ? `entity ${pattern.entityId}`
+      : undefined) ??
+    (pattern.attribute !== undefined && isReservedAttribute(pattern.attribute)
+      ? `attribute ${pattern.attribute}`
+      : undefined) ??
+    (isReservedEntityType(pattern.entityType) ? `entity type ${pattern.entityType}` : undefined);
+  return reason
+    ? new WriteError({ message: `Write targets reserved Triplex system namespace: ${reason}` })
+    : undefined;
+};

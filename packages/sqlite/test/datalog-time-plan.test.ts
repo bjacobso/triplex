@@ -73,8 +73,9 @@ it("uses historical bound indexes for selective expiry and start ranges", async 
         `EXPLAIN QUERY PLAN ${provenance.sql}`,
         provenance.params,
       );
+      // Transaction metadata reads the journal row by its primary key.
       expect(plan.map((row) => row.detail).join("\n")).toMatch(
-        /idx_(entity_recorded_position|temporal)/,
+        /SEARCH t USING INDEX sqlite_autoindex_triplex_transactions_1 \(tx_id=\?\)/,
       );
     }).pipe(Effect.provide(SqliteTestLayer)),
   );

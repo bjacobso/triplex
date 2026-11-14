@@ -2299,8 +2299,17 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
         { actor: "conformance-tester" },
       );
 
-      const txTriples = yield* t.match({ entityId: eid(result.txId) });
-      const attributes = new Set(txTriples.map((tr) => tr.attribute as string));
+      // Transaction metadata lives in the journal; Datalog reads it as facts of
+      // the transaction entity, and triple-level reads do not return it.
+      const { results } = yield* t.queryAll({
+        find: ["?attribute"],
+        where: [[result.txId, "?attribute", "?value"]],
+      });
+      const attributes = new Set(results.map((row) => row["?attribute"] as string));
+      yield* check(
+        (yield* t.match({ entityId: eid(result.txId) })).length === 0,
+        "transaction metadata should not be stored as triples",
+      );
       yield* check(
         attributes.has(":_tx/instant"),
         "transact should write a :_tx/instant provenance datom",
@@ -3259,25 +3268,30 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
           value: string("journalled"),
         },
       ]);
-      const journalFacts = yield* t.match({ entityId: eid(committed.txId) });
-      const instant = journalFacts.find((triple) => triple.attribute === ":_tx/instant");
-      yield* check(instant !== undefined, "a committed transaction should have a journal instant");
+      const before = yield* t.transaction(committed.txId);
+      yield* check(before !== null, "a committed transaction should have a journal entry");
 
-      const retractFailure = yield* t.retract(instant!.id).pipe(Effect.flip);
-      yield* check(
-        retractFailure.message.includes("reserved Triplex system namespace"),
-        "direct retraction must not mutate the transaction journal",
-      );
-      const patternFailure = yield* t
-        .retractByPattern({ entityType: "_Transaction" })
+      for (const pattern of [
+        { entityType: "_Transaction" },
+        { attribute: ":_tx/instant" },
+        { entityId: eid(committed.txId), attribute: ":_tx/actor" },
+      ]) {
+        const patternFailure = yield* t.retractByPattern(pattern).pipe(Effect.flip);
+        yield* check(
+          patternFailure.message.includes("reserved Triplex system namespace"),
+          `pattern retraction must not target transaction journals (${JSON.stringify(pattern)})`,
+        );
+      }
+      const assertFailure = yield* t
+        .assert({ entityId: eid(committed.txId), attribute: ":_tx/actor", value: string("x") })
         .pipe(Effect.flip);
       yield* check(
-        patternFailure.message.includes("reserved Triplex system namespace"),
-        "pattern retraction must not mutate transaction journals",
+        assertFailure.message.includes("reserved Triplex system namespace"),
+        "ordinary writes must not add transaction metadata",
       );
       yield* check(
-        (yield* t.match({ entityId: eid(committed.txId) })).length === journalFacts.length,
-        "rejected journal mutations must preserve every journal fact",
+        JSON.stringify(yield* t.transaction(committed.txId)) === JSON.stringify(before),
+        "rejected journal mutations must preserve the journal entry",
       );
     }),
   },

@@ -438,13 +438,14 @@ command ID. See the [CLI contract and examples](https://github.com/bjacobso/trip
 ## Temporal operations and audit
 
 Every successful application transaction receives a monotonically increasing commit position and
-a queryable `_Transaction` envelope. It can retain:
+a journal entry, queryable as a typed record and through Datalog's `:_tx/*` attributes. It can
+retain:
 
 - actor and atomically unique command ID;
 - correlation and causation IDs;
 - the governing config snapshot; and
 - complete typed assertion and retraction changes, including valid intervals and source
-  transactions.
+  transactions, rebuilt from the facts the entry references.
 
 `triples.transactions({ after, limit })` is the durable at-least-once catch-up feed.
 `ConsumerCheckpoint` persists a compare-and-retract-protected cursor. Best-effort change emitters

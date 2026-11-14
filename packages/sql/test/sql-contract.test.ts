@@ -1,20 +1,44 @@
 import { boolean, datetime, json, number, ref, string } from "@triplex-internal/core";
 import { describe, expect, it } from "vitest";
 
-import { INDEX_NAMES, migrations, packValue } from "../src/index.js";
+import {
+  BASELINE_MIGRATION_NAME,
+  INDEX_NAMES,
+  SchemaVersionError,
+  checkSchemaHistory,
+  migrations,
+  packValue,
+} from "../src/index.js";
 
 describe("SQL package contract", () => {
-  it("keeps migration versions ordered and index declarations complete", () => {
-    expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+  it("keeps one baseline migration with every index declared", () => {
+    expect(migrations.map((migration) => [migration.version, migration.name])).toEqual([
+      [1, BASELINE_MIGRATION_NAME],
     ]);
-    expect(new Set(migrations.flatMap((migration) => migration.up)).size).toBe(
-      migrations.flatMap((migration) => migration.up).length,
-    );
+    const statements = migrations.flatMap((migration) => migration.up);
+    expect(new Set(statements).size).toBe(statements.length);
     for (const name of INDEX_NAMES) {
-      expect(migrations.flatMap(({ up }) => up).some((statement) => statement.includes(name))).toBe(
-        true,
-      );
+      expect(statements.some((statement) => statement.includes(name))).toBe(true);
+    }
+    // Indexes that served only journal rows in `triples` are gone.
+    expect(statements.join("\n")).not.toContain("idx_journal_instant_position");
+    expect(statements.join("\n")).not.toContain("triplex_command_receipts");
+  });
+
+  it("accepts only this release's schema history", () => {
+    expect(checkSchemaHistory([])).toBe("empty");
+    expect(checkSchemaHistory([{ version: 1, name: BASELINE_MIGRATION_NAME }])).toBe("current");
+    for (const history of [
+      [{ version: 1, name: "triplex_baseline" }],
+      Array.from({ length: 13 }, (_, index) => ({ version: index + 1, name: `v${index + 1}` })),
+      [
+        { version: 1, name: BASELINE_MIGRATION_NAME },
+        { version: 2, name: "from_a_newer_release" },
+      ],
+    ]) {
+      const status = checkSchemaHistory(history);
+      expect(status).toBeInstanceOf(SchemaVersionError);
+      expect((status as SchemaVersionError).message).toContain("Start a fresh database");
     }
   });
 
@@ -39,11 +63,15 @@ describe("SQL package contract", () => {
     });
   });
 
-  it("declares the sealed-value migration for both SQL dialects", () => {
-    const sealed = migrations.find((migration) => migration.version === 3)!;
-    expect(sealed.dialects?.sqlite?.join("\n")).toContain("value_blind TEXT");
-    expect(sealed.dialects?.pg?.join("\n")).toContain("ADD COLUMN IF NOT EXISTS value_blind");
-    expect(sealed.up.join("\n")).toContain("idx_attr_blind");
+  it("creates the journal tables, their bytewise PostgreSQL key and the Datalog view", () => {
+    const baseline = migrations[0]!;
+    const all = [...(baseline.dialects?.pg ?? []), ...baseline.up].join("\n");
+    expect(all).toContain("CREATE TABLE IF NOT EXISTS triplex_transactions");
+    expect(all).toContain("command_id TEXT UNIQUE");
+    expect(all).toContain("PRIMARY KEY (entity_id, position)");
+    expect(baseline.dialects?.pg?.join("\n")).toContain('entity_id TEXT COLLATE "C" NOT NULL');
+    expect(all).toContain("CREATE VIEW triplex_journal_facts");
+    expect(baseline.up.join("\n")).toContain("idx_attr_blind");
   });
 
   it.each([

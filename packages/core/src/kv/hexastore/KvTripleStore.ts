@@ -26,11 +26,10 @@ import type { KvBackendService } from "../kv/KvBackend.js";
 import type { ResolvedTemporalBasis } from "../../Temporal.js";
 import { ReadError, MigrationError } from "../../errors/index.js";
 import { concat, increment } from "../kv/encoding.js";
-import { transactionPrefixBounds } from "../../store/transactionPrefix.js";
 import { TxAttributes } from "../../utils/id.js";
 import { unsafe } from "../../Branded.js";
+import { kvJournalAsync, kvJournalSync, type KvJournalEntry } from "../kv/Journal.js";
 import {
-  AVET_PREFIX,
   intervalKey,
   INTERVAL_READY_KEY,
   INTERVAL_CURSOR_KEY,
@@ -54,7 +53,7 @@ import {
   metaKeyStr,
   typeKeyStr,
 } from "./indexes.js";
-import { tNumber, tString, tRef, encodeTuple, encodeStringStr } from "./tuple.js";
+import { tString, encodeStringStr } from "./tuple.js";
 import { valueToTuplePart, type ScanPattern, patternToScan, valueToPartStr } from "./scan.js";
 
 // ─── Datom: The fundamental unit of data ───────────────────────────────────
@@ -562,100 +561,6 @@ export class KvTripleStore {
     );
   }
 
-  /**
-   * Journal page by global position: seek AVET `:_tx/position` to `(after, head]`
-   * and read at most `limit` index entries, never the whole journal.
-   */
-  transactionIdsAfter(
-    after: number,
-    limit: number,
-    snapshotPosition: number,
-  ): Effect.Effect<{ txId: string; position: number }[], ReadError> {
-    if (snapshotPosition <= after) return Effect.succeed([]);
-    const at = (position: number) =>
-      concat(AVET_PREFIX, encodeTuple(tString(TxAttributes.POSITION), tNumber(position)));
-    return Effect.gen({ self: this }, function* () {
-      const entries = yield* Stream.runCollect(
-        this.kv.getRange({
-          start: increment(at(after)),
-          end: increment(at(snapshotPosition)),
-          limit,
-        }),
-      );
-      const candidates: { txId: string; position: number }[] = [];
-      for (const [, value] of entries) {
-        const datom = yield* this.getById(textDecoder.decode(value));
-        if (datom === null)
-          return yield* new ReadError({ message: "Missing transaction position index target" });
-        if (
-          datom.entityType !== "_Transaction" ||
-          datom.retractedAt !== null ||
-          datom.value.type !== "number" ||
-          datom.value.value !== datom.recordedPosition
-        )
-          return yield* new ReadError({ message: "Invalid transaction position index target" });
-        candidates.push({ txId: datom.entity, position: datom.recordedPosition });
-      }
-      return candidates;
-    });
-  }
-
-  /** Prefix-only candidate scan; retain a bounded earliest-position set, never hydrate unrelated journals. */
-  transactionIdsForEntityPrefix(
-    prefix: string,
-    after: number,
-    limit: number,
-    snapshotPosition: number,
-  ): Effect.Effect<{ txId: string; position: number }[], ReadError> {
-    const bounds = transactionPrefixBounds(prefix);
-    if (bounds === null) return Effect.succeed([]);
-    const keyPrefix = (value: string) =>
-      concat(AVET_PREFIX, encodeTuple(tString(TxAttributes.CHANGED_ENTITY), tRef(value))).slice(
-        0,
-        -2,
-      );
-    const start = keyPrefix(bounds.lower);
-    const end = bounds.upper === undefined ? increment(keyPrefix("")) : keyPrefix(bounds.upper);
-    return Effect.gen({ self: this }, function* () {
-      const candidates: { txId: string; position: number }[] = [];
-      const selected = new Set<string>();
-      yield* Stream.runForEach(this.kv.getRange({ start, end }), ([, value]) =>
-        Effect.gen({ self: this }, function* () {
-          const bytes = yield* this.kv.get(metaKey(textDecoder.decode(value)));
-          if (bytes === null)
-            return yield* new ReadError({ message: "Missing changed-entity index target" });
-          const datom = yield* Effect.try({
-            try: () => deserializeDatom(bytes),
-            catch: (cause) =>
-              new ReadError({ message: "Invalid changed-entity index target", cause }),
-          });
-          if (
-            datom.entityType !== "_Transaction" ||
-            datom.retractedAt !== null ||
-            datom.value.type !== "ref" ||
-            !datom.value.value.startsWith(prefix) ||
-            datom.recordedPosition <= after ||
-            datom.recordedPosition > snapshotPosition ||
-            selected.has(datom.entity)
-          )
-            return;
-          let low = 0,
-            high = candidates.length;
-          while (low < high) {
-            const middle = (low + high) >>> 1;
-            if (candidates[middle]!.position < datom.recordedPosition) low = middle + 1;
-            else high = middle;
-          }
-          if (low >= limit) return;
-          candidates.splice(low, 0, { txId: datom.entity, position: datom.recordedPosition });
-          selected.add(datom.entity);
-          if (candidates.length > limit) selected.delete(candidates.pop()!.txId);
-        }),
-      );
-      return candidates;
-    });
-  }
-
   /** Never scan retracted history to decide a cheap precondition. */
   livePreconditionFacts(
     entity: string,
@@ -963,6 +868,11 @@ export class KvTripleStore {
     });
   }
 
+  /** Batched META read, retracted or not, in input order; null where missing. */
+  getByIds(tripleIds: readonly string[]): Effect.Effect<(Datom | null)[]> {
+    return this.batchFetchMeta(tripleIds);
+  }
+
   /**
    * Get a datom by triple ID synchronously (cache or sync KV lookup).
    * Returns null if not found.
@@ -1199,16 +1109,60 @@ export class KvTripleStore {
     });
   }
 
+  /**
+   * Datalog's view of a pattern: application facts, plus transaction metadata
+   * (`:_tx/*`) read from the journal keyspace as datoms of the transaction
+   * entity. A constant `:_tx/*` attribute reads only the journal, a variable
+   * attribute reads both. Without a basis, current facts; with one, reserved
+   * transaction metadata follows only recorded time.
+   */
+  datalogScan(pattern: ScanPattern, basis?: QueryTemporalBasis): Datom[] | null {
+    const scope = journalScope(pattern.attribute);
+    const facts =
+      scope === "journal"
+        ? []
+        : basis === undefined
+          ? this.scanCollect(pattern)
+          : this.scanCollect(pattern, { includeRetracted: true });
+    if (facts === null) return null;
+    let journal: Datom[] = [];
+    if (scope !== "facts") {
+      const reader = kvJournalSync(this.kv);
+      if (reader === null) return null;
+      journal = journalDatoms(journalCandidatesSync(reader, pattern), pattern);
+    }
+    const datoms = journal.length === 0 ? facts : [...facts, ...journal];
+    return basis === undefined ? datoms : datoms.filter((datom) => visibleAt(datom, basis, true));
+  }
+
+  datalogScanAsync(pattern: ScanPattern, basis?: QueryTemporalBasis): Effect.Effect<Datom[]> {
+    const scope = journalScope(pattern.attribute);
+    return Effect.gen({ self: this }, function* () {
+      const facts =
+        scope === "journal"
+          ? []
+          : yield* basis === undefined
+              ? this.scanCollectAsync(pattern)
+              : this.scanCollectAsync(pattern, { includeRetracted: true });
+      const journal =
+        scope === "facts"
+          ? []
+          : journalDatoms(
+              yield* journalCandidatesAsync(kvJournalAsync(this.kv), pattern).pipe(Effect.orDie),
+              pattern,
+            );
+      const datoms = journal.length === 0 ? facts : [...facts, ...journal];
+      return basis === undefined ? datoms : datoms.filter((datom) => visibleAt(datom, basis, true));
+    });
+  }
+
   /** Datalog visibility: reserved transaction metadata follows only recorded time. */
   scanCollectDatalog(pattern: ScanPattern, basis: QueryTemporalBasis): Datom[] | null {
-    const datoms = this.scanCollect(pattern, { includeRetracted: true });
-    return datoms === null ? null : datoms.filter((datom) => visibleAt(datom, basis, true));
+    return this.datalogScan(pattern, basis);
   }
 
   scanCollectDatalogAsync(pattern: ScanPattern, basis: QueryTemporalBasis): Effect.Effect<Datom[]> {
-    return this.scanCollectAsync(pattern, { includeRetracted: true }).pipe(
-      Effect.map((datoms) => datoms.filter((datom) => visibleAt(datom, basis, true))),
-    );
+    return this.datalogScanAsync(pattern, basis);
   }
 
   /** Synchronous bitemporal scan, when the backend supports it. */
@@ -1309,6 +1263,166 @@ const matchesPattern = (datom: Datom, pattern: ScanPattern): boolean => {
   if (pattern.value !== undefined && !valuesEqual(datom.value, pattern.value)) return false;
   return true;
 };
+
+// ─── Journal datoms ────────────────────────────────────────────────────────
+
+const JOURNAL_DATOM_ATTRIBUTES = [
+  TxAttributes.POSITION,
+  TxAttributes.INSTANT,
+  TxAttributes.ACTOR,
+  TxAttributes.COMMAND_ID,
+  TxAttributes.CORRELATION_ID,
+  TxAttributes.CAUSATION_ID,
+  TxAttributes.CONFIG_SNAPSHOT,
+  TxAttributes.CHANGED_ENTITY,
+] as const;
+const JOURNAL_ATTRIBUTE_SET: ReadonlySet<string> = new Set(JOURNAL_DATOM_ATTRIBUTES);
+
+/** Which keyspaces a pattern's attribute reads: facts, the journal, or both. */
+const journalScope = (attribute: string | undefined): "facts" | "journal" | "both" =>
+  attribute === undefined ? "both" : JOURNAL_ATTRIBUTE_SET.has(attribute) ? "journal" : "facts";
+
+/** The narrowest journal read that can answer a pattern. */
+const journalLookup = (
+  pattern: ScanPattern,
+):
+  | { readonly kind: "transaction"; readonly txId: string }
+  | { readonly kind: "entity"; readonly entityId: string }
+  | { readonly kind: "command"; readonly commandId: string }
+  | { readonly kind: "position"; readonly position: number }
+  | { readonly kind: "all" } => {
+  if (pattern.entity !== undefined) return { kind: "transaction", txId: pattern.entity };
+  const value = pattern.value;
+  if (pattern.attribute === TxAttributes.CHANGED_ENTITY && value?.type === "ref")
+    return { kind: "entity", entityId: value.value };
+  if (pattern.attribute === TxAttributes.COMMAND_ID && value?.type === "string")
+    return { kind: "command", commandId: value.value };
+  if (
+    pattern.attribute === TxAttributes.POSITION &&
+    value?.type === "number" &&
+    Number.isSafeInteger(value.value) &&
+    value.value > 0
+  )
+    return { kind: "position", position: value.value };
+  return { kind: "all" };
+};
+
+const journalCandidatesSync = (
+  reader: NonNullable<ReturnType<typeof kvJournalSync>>,
+  pattern: ScanPattern,
+): readonly KvJournalEntry[] => {
+  const lookup = journalLookup(pattern);
+  const one = (entry: KvJournalEntry | null) => (entry === null ? [] : [entry]);
+  switch (lookup.kind) {
+    case "transaction":
+      return one(reader.byTransaction(lookup.txId));
+    case "entity":
+      return reader.forEntity(lookup.entityId);
+    case "command":
+      return one(reader.byCommand(lookup.commandId));
+    case "position":
+      return one(reader.at(lookup.position));
+    case "all":
+      return reader.all();
+  }
+};
+
+const journalCandidatesAsync = (
+  reader: ReturnType<typeof kvJournalAsync>,
+  pattern: ScanPattern,
+): Effect.Effect<readonly KvJournalEntry[], ReadError> => {
+  const lookup = journalLookup(pattern);
+  const one = (entry: Effect.Effect<KvJournalEntry | null, ReadError>) =>
+    entry.pipe(Effect.map((found) => (found === null ? [] : [found])));
+  switch (lookup.kind) {
+    case "transaction":
+      return one(reader.byTransaction(lookup.txId));
+    case "entity":
+      return reader.forEntity(lookup.entityId);
+    case "command":
+      return one(reader.byCommand(lookup.commandId));
+    case "position":
+      return one(reader.at(lookup.position));
+    case "all":
+      return reader.all();
+  }
+};
+
+/** One transaction's metadata as datoms of the transaction entity. */
+const entryDatoms = (entry: KvJournalEntry, attribute: string | undefined): Datom[] => {
+  const datom = (name: string, value: TripleValue, suffix = ""): Datom => ({
+    tripleId: `${entry.txId}#${name}${suffix}`,
+    entity: entry.txId,
+    attribute: name,
+    value,
+    txId: entry.txId,
+    recordedAt: entry.instant,
+    recordedPosition: entry.position,
+    validFrom: entry.instant,
+    validTo: null,
+    createdBy: null,
+    retractedAt: null,
+    retractedPosition: null,
+    retractTxId: null,
+    entityType: "_Transaction",
+  });
+  const text = (name: string, value: string | undefined) =>
+    value === undefined || value === "" ? [] : [datom(name, { type: "string", value })];
+  const wanted = (name: string) => attribute === undefined || attribute === name;
+  return [
+    ...(wanted(TxAttributes.POSITION)
+      ? [datom(TxAttributes.POSITION, { type: "number", value: entry.position })]
+      : []),
+    ...(wanted(TxAttributes.INSTANT)
+      ? [datom(TxAttributes.INSTANT, { type: "datetime", value: entry.instant })]
+      : []),
+    ...(wanted(TxAttributes.ACTOR) ? text(TxAttributes.ACTOR, entry.actor) : []),
+    ...(wanted(TxAttributes.COMMAND_ID) ? text(TxAttributes.COMMAND_ID, entry.commandId) : []),
+    ...(wanted(TxAttributes.CORRELATION_ID)
+      ? text(TxAttributes.CORRELATION_ID, entry.correlationId)
+      : []),
+    ...(wanted(TxAttributes.CAUSATION_ID)
+      ? text(TxAttributes.CAUSATION_ID, entry.causationId)
+      : []),
+    ...(wanted(TxAttributes.CONFIG_SNAPSHOT)
+      ? text(TxAttributes.CONFIG_SNAPSHOT, entry.configSnapshot)
+      : []),
+    ...(wanted(TxAttributes.CHANGED_ENTITY)
+      ? entry.entities.map((entityId) =>
+          datom(
+            TxAttributes.CHANGED_ENTITY,
+            { type: "ref", value: unsafe.entityId(entityId) },
+            `#${entityId}`,
+          ),
+        )
+      : []),
+  ];
+};
+
+const withinInterval = (datom: Datom, pattern: ScanPattern): boolean => {
+  const range = pattern.intervalRange;
+  if (range === undefined) return true;
+  const bound = range.bound === "from" ? datom.validFrom : datom.validTo;
+  if (bound === null) return false;
+  if (
+    range.lower &&
+    (range.lower.inclusive ? bound < range.lower.value : bound <= range.lower.value)
+  )
+    return false;
+  if (
+    range.upper &&
+    (range.upper.inclusive ? bound > range.upper.value : bound >= range.upper.value)
+  )
+    return false;
+  return true;
+};
+
+const journalDatoms = (entries: readonly KvJournalEntry[], pattern: ScanPattern): Datom[] =>
+  entries.flatMap((entry) =>
+    entryDatoms(entry, pattern.attribute).filter(
+      (datom) => matchesPattern(datom, pattern) && withinInterval(datom, pattern),
+    ),
+  );
 
 const visibleAt = (datom: Datom, basis: QueryTemporalBasis, datalog = false): boolean => {
   const recordedVisible =

@@ -274,21 +274,19 @@ describe("Triples", () => {
           expect(tx.txId).toBe("_tx/00000000000000000000000002");
           expect(tx.position).toBe(2);
 
-          const txPosition = yield* store.match({
-            entityId: eid(tx.txId),
-            attribute: TxAttributes.POSITION,
+          // The journal is not stored as triples, so it consumes no triple IDs.
+          expect(tx.triples[0]!.id).toBe("00000000000000000000000003");
+          const txPosition = yield* store.queryAll({
+            find: ["?p"],
+            where: [[tx.txId, TxAttributes.POSITION, "?p"]],
           });
-          expect(txPosition).toHaveLength(1);
-          expect(txPosition[0]!.id).toBe("00000000000000000000000009");
-          expect(txPosition[0]!.value).toEqual({ type: "number", value: 2 });
+          expect(txPosition.results).toEqual([{ "?p": 2 }]);
 
-          const txMeta = yield* store.match({
-            entityId: eid(tx.txId),
-            attribute: TxAttributes.INSTANT,
+          const txMeta = yield* store.queryAll({
+            find: ["?at"],
+            where: [[tx.txId, TxAttributes.INSTANT, "?at"]],
           });
-          expect(txMeta).toHaveLength(1);
-          expect(txMeta[0]!.id).toBe("00000000000000000000000010");
-          expect(txMeta[0]!.value).toEqual({ type: "datetime", value: 1020 });
+          expect(txMeta.results).toEqual([{ "?at": 1020 }]);
 
           yield* store.retract(batch[0]!.id);
           const history = yield* store.history("person-1" as EntityId);
@@ -329,7 +327,8 @@ describe("Triples", () => {
           ]);
 
           expect(tx.txId).toBe("_tx/0051DTYX000000000000000002");
-          expect(tx.triples[0]!.id).toBe("00W1X84B000000000000000006");
+          // The journal is not stored as triples, so it consumes no triple IDs.
+          expect(tx.triples[0]!.id).toBe("00W1X84B000000000000000002");
         }).pipe(Effect.provide(makeRuntimeTestLayer(RuntimeLayer))),
       );
     });

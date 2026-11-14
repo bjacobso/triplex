@@ -75,7 +75,7 @@ describe("SQLite sensitive values", () => {
       }).pipe(Effect.provide(makeSqliteLayer(filename)), Effect.scoped),
     );
     expect(dump.tables.map((table) => table.name)).toEqual(
-      expect.arrayContaining(["triples", "triplex_command_receipts"]),
+      expect.arrayContaining(["triples", "triplex_transactions", "triplex_transaction_entities"]),
     );
     expect(dump.text).toContain("value_blind");
     // Positive control: the same scan finds a non-sensitive plaintext value.

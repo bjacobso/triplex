@@ -145,6 +145,13 @@ describeFdb("FDB Integration: Triples", (it) => {
           kv = Context.get(context, KvBackend);
         const entityId = EntityId.make("native:legacy");
         const first = yield* t.assert({ entityId, attribute: ":native/value", value: num(1) });
+        // Journal entries no longer live among the facts, so a second fact keeps
+        // the one-fact first batch below from finishing the backfill.
+        yield* t.assert({
+          entityId: EntityId.make("native:other"),
+          attribute: ":native/value",
+          value: num(0),
+        });
         // Reproduce the pre-live-index durable format without importing core source.
         const live = yield* Stream.runCollect(
           kv.getRange({ start: new Uint8Array([6]), end: new Uint8Array([7]) }),

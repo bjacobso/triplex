@@ -6,9 +6,10 @@
  *    attributes (default 10) of 32 characters, with an actor and a command ID,
  *    through `SqliteTriples.layer` on a file (WAL, synchronous NORMAL). Every
  *    `node:sqlite` statement is timed, grouped by kind.
- * 2. Replay: inserts the exact rows that run wrote into fresh tables with plain
+ * 2. Replay: inserts the exact rows that run wrote (facts, and the journal's
+ *    transaction and changed-entity rows) into fresh tables with plain
  *    `node:sqlite`, one transaction per Triplex transaction, with and without the
- *    `triples` indexes and with and without the journal rows. The differences
+ *    secondary indexes and with and without the journal rows. The differences
  *    are the cost of index maintenance and of the journal at the SQLite level.
  * 3. Profile: a CPU profile of a second live run, self time grouped by where
  *    the code lives (SQLite native calls, Effect, Triplex store, SQL layer...).
@@ -119,100 +120,71 @@ const percentile = (values: number[], p: number) =>
 
 // ── Replay ───────────────────────────────────────────────────────────────────
 
+/** The tables one commit writes: the facts and the journal (row and changed entities). */
+const JOURNAL_TABLES = ["triplex_transactions", "triplex_transaction_entities"] as const;
+const POSITION: Record<string, string> = {
+  triples: "recorded_position",
+  triplex_transactions: "position",
+  triplex_transaction_entities: "position",
+};
+
 const replay = (source: string, directory: string) => {
   const db = new DatabaseSync(source, { readOnly: true });
+  const tables = ["triples", ...JOURNAL_TABLES];
   const schema = db
     .prepare(
-      "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = 'triples' AND sql IS NOT NULL",
+      `SELECT type, name, tbl_name, sql FROM sqlite_master
+       WHERE tbl_name IN (${tables.map(() => "?").join(", ")}) AND sql IS NOT NULL`,
     )
-    .all() as Array<{ type: string; name: string; sql: string }>;
-  const rows = db.prepare("SELECT * FROM triples ORDER BY recorded_position, rowid").all() as Array<
-    Record<string, unknown>
-  >;
-  db.close();
-  const columns = Object.keys(rows[0]!);
-  const groups = new Map<unknown, Array<Record<string, unknown>>>();
-  for (const row of rows) {
-    const group = groups.get(row["recorded_position"]) ?? [];
-    group.push(row);
-    groups.set(row["recorded_position"], group);
+    .all(...tables) as Array<{ type: string; name: string; tbl_name: string; sql: string }>;
+  // Rows of each table, grouped by the commit position that wrote them.
+  const groups = new Map<number, Array<{ table: string; row: Record<string, unknown> }>>();
+  for (const table of tables) {
+    const rows = db
+      .prepare(`SELECT * FROM ${table} ORDER BY ${POSITION[table]}, rowid`)
+      .all() as Array<Record<string, unknown>>;
+    for (const row of rows) {
+      const position = Number(row[POSITION[table]!]);
+      const group = groups.get(position) ?? [];
+      group.push({ table, row });
+      groups.set(position, group);
+    }
   }
-  const transactions = [...groups.values()].slice(-TRANSACTIONS);
-  const isJournal = (row: Record<string, unknown>) => row["entity_type"] === "_Transaction";
+  db.close();
+  const transactions = [...groups.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, group]) => group)
+    .slice(-TRANSACTIONS);
+  const isJournal = (table: string) => table !== "triples";
 
-  // The indexes journal reads use: transaction records by entity, the page
-  // seek by position, command and Datalog lookups by value, the instant index,
-  // entity history at a position, and live-query dependency state.
-  const JOURNAL_INDEXES = [
-    "idx_entity_attr",
-    "idx_attribute_history",
-    "idx_attr_string",
-    "idx_journal_instant_position",
-    "idx_entity_recorded_position",
-    "idx_dependency_all",
-  ];
-  const REDUNDANT = new Set(["idx_entity", "idx_attribute", "idx_recorded_position"]);
-
-  const variant = (
-    name: string,
-    withIndexes: boolean,
-    withJournal: boolean,
-    options: {
-      readonly separateJournal?: boolean;
-      readonly dropRedundant?: boolean;
-      /** Journal rows in their own table with copies of only these `triples` indexes. */
-      readonly journalIndexes?: ReadonlyArray<string>;
-      /** Leave out the journal's `:_tx/change` rows (the copies of each changed value). */
-      readonly withoutChangeCopies?: boolean;
-    } = {},
-  ) => {
+  const variant = (name: string, withIndexes: boolean, withJournal: boolean) => {
     const file = join(directory, `${name}.db`);
     const target = new DatabaseSync(file);
     target.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL");
+    // Tables keep their primary keys and unique constraints (the journal's
+    // command and position uniqueness are part of a commit's cost).
     for (const object of schema.filter((o) => o.type === "table")) target.exec(object.sql);
-    if (withIndexes) {
-      for (const object of schema.filter((o) => o.type === "index")) {
-        if (options.dropRedundant && REDUNDANT.has(object.name)) continue;
-        target.exec(object.sql);
-      }
-    }
-    const values = `VALUES (${columns.map(() => "?").join(", ")})`;
-    const insert = target.prepare(`INSERT INTO triples (${columns.join(", ")}) ${values}`);
-    // A journal table with only what journal reads need: its key, the
-    // transaction and the commit position.
-    if (options.separateJournal) {
-      target.exec(
-        `CREATE TABLE journal AS SELECT * FROM triples WHERE 0;
-         CREATE UNIQUE INDEX journal_id ON journal(id);
-         CREATE INDEX journal_tx ON journal(entity_id, attribute);
-         CREATE INDEX journal_position ON journal(attribute, recorded_position)`,
-      );
-    }
-    if (options.journalIndexes) {
-      target.exec(
-        "CREATE TABLE journal AS SELECT * FROM triples WHERE 0; CREATE UNIQUE INDEX journal_id ON journal(id)",
-      );
-      for (const object of schema.filter((o) => options.journalIndexes!.includes(o.name))) {
-        target.exec(
-          object.sql
-            .replace(/INDEX (IF NOT EXISTS )?(\w+)/, "INDEX $1journal_$2")
-            .replace(/ON triples/, "ON journal"),
+    if (withIndexes)
+      for (const object of schema.filter((o) => o.type === "index")) target.exec(object.sql);
+    const inserts = new Map<string, StatementSync>();
+    const insert = (table: string, row: Record<string, unknown>) => {
+      const columns = Object.keys(row);
+      const key = `${table}:${columns.join(",")}`;
+      let statement = inserts.get(key);
+      if (statement === undefined) {
+        statement = target.prepare(
+          `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
         );
+        inserts.set(key, statement);
       }
-    }
-    const journalInsert =
-      options.separateJournal || options.journalIndexes
-        ? target.prepare(`INSERT INTO journal (${columns.join(", ")}) ${values}`)
-        : insert;
+      statement.run(...(columns.map((column) => row[column]) as never[]));
+    };
     const start = performance.now();
     for (const group of transactions) {
       target.exec("BEGIN");
-      for (const row of group) {
-        if (!withJournal && isJournal(row)) continue;
-        if (options.withoutChangeCopies && row["attribute"] === ":_tx/change") continue;
-        (isJournal(row) ? journalInsert : insert).run(
-          ...(columns.map((column) => row[column]) as never[]),
-        );
+      for (const { table, row } of group) {
+        if (!withJournal && isJournal(table)) continue;
+        insert(table, row);
       }
       target.exec("COMMIT");
     }
@@ -220,8 +192,11 @@ const replay = (source: string, directory: string) => {
     target.close();
     return ms;
   };
-  const facts = transactions.reduce((sum, g) => sum + g.filter((r) => !isJournal(r)).length, 0);
-  const journal = transactions.reduce((sum, g) => sum + g.filter(isJournal).length, 0);
+  const count = (journal: boolean) =>
+    transactions.reduce(
+      (sum, g) => sum + g.filter((r) => isJournal(r.table) === journal).length,
+      0,
+    );
   // Each variant runs ROUNDS times, interleaved, and reports its median, so a
   // busy machine skews every variant alike.
   const plans = {
@@ -229,34 +204,26 @@ const replay = (source: string, directory: string) => {
     tableOnlyAll: () => variant("b", false, true),
     indexedFacts: () => variant("c", true, false),
     indexedAll: () => variant("d", true, true),
-    separateJournal: () => variant("e", true, true, { separateJournal: true }),
-    withoutRedundant: () => variant("f", true, true, { dropRedundant: true }),
-    both: () => variant("g", true, true, { separateJournal: true, dropRedundant: true }),
-    journalSix: () => variant("h", true, true, { journalIndexes: JOURNAL_INDEXES }),
-    noChangeCopies: () => variant("i", true, true, { withoutChangeCopies: true }),
   };
   const samples = Object.fromEntries(
     Object.keys(plans).map((key) => [key, [] as number[]]),
   ) as Record<keyof typeof plans, number[]>;
   for (let round = 0; round < ROUNDS; round++) {
-    for (const [key, plan] of Object.entries(plans) as Array<[keyof typeof plans, () => number]>) {
+    for (const [index, [key, plan]] of (
+      Object.entries(plans) as Array<[keyof typeof plans, () => number]>
+    ).entries()) {
       samples[key].push(plan());
-      rmSync(join(directory, `${"abcdefghi"[Object.keys(plans).indexOf(key)]}.db`), {
-        force: true,
-      });
-      for (const suffix of ["-wal", "-shm"]) {
-        rmSync(join(directory, `${"abcdefghi"[Object.keys(plans).indexOf(key)]}.db${suffix}`), {
-          force: true,
-        });
-      }
+      for (const suffix of ["", "-wal", "-shm"])
+        rmSync(join(directory, `${"abcd"[index]}.db${suffix}`), { force: true });
     }
   }
   const median = (values: number[]) =>
     [...values].sort((x, y) => x - y)[Math.floor(values.length / 2)]!;
   return {
-    facts,
-    journal,
-    indexes: schema.filter((o) => o.type === "index").length,
+    facts: count(false),
+    journal: count(true),
+    indexes: schema.filter((o) => o.type === "index" && o.tbl_name === "triples").length,
+    journalIndexes: schema.filter((o) => o.type === "index" && o.tbl_name !== "triples").length,
     ...(Object.fromEntries(
       Object.entries(samples).map(([key, values]) => [key, median(values)]),
     ) as Record<keyof typeof plans, number>),
@@ -362,9 +329,9 @@ const main = async () => {
       `\n### Replay of the same rows with plain node:sqlite (µs per transaction, median of ${ROUNDS} interleaved runs)\n`,
     );
     console.log(
-      `${(r.facts / TRANSACTIONS).toFixed(1)} fact rows and ${(r.journal / TRANSACTIONS).toFixed(1)} journal rows per transaction; ${r.indexes} indexes on \`triples\`.\n`,
+      `${(r.facts / TRANSACTIONS).toFixed(1)} fact rows and ${(r.journal / TRANSACTIONS).toFixed(1)} journal rows (one transaction row, one row per changed entity) per transaction; ${r.indexes} indexes on \`triples\`, ${r.journalIndexes} declared indexes on the journal tables besides their keys.\n`,
     );
-    console.log("| Rows inserted | Table and primary key only | With every index |");
+    console.log("| Rows inserted | Tables and keys only | With every index |");
     console.log("| --- | ---: | ---: |");
     console.log(
       `| Facts only | ${us(r.tableOnlyFacts, TRANSACTIONS)} | ${us(r.indexedFacts, TRANSACTIONS)} |`,
@@ -374,25 +341,6 @@ const main = async () => {
     );
     console.log(
       `\nIndex maintenance: ${us(r.indexedAll - r.tableOnlyAll, TRANSACTIONS)} µs per transaction. Journal rows: ${us(r.indexedAll - r.indexedFacts, TRANSACTIONS)} µs per transaction (with indexes).`,
-    );
-    console.log(
-      "\n| What if (same rows, every other index kept) | µs per transaction | vs today |",
-    );
-    console.log("| --- | ---: | ---: |");
-    const versus = (ms: number) => `${(((ms - r.indexedAll) / r.indexedAll) * 100).toFixed(0)}%`;
-    console.log(`| Today | ${us(r.indexedAll, TRANSACTIONS)} | |`);
-    console.log(
-      `| Journal rows in their own table with three indexes | ${us(r.separateJournal, TRANSACTIONS)} | ${versus(r.separateJournal)} |`,
-    );
-    console.log(
-      `| Without idx_entity, idx_attribute, idx_recorded_position | ${us(r.withoutRedundant, TRANSACTIONS)} | ${versus(r.withoutRedundant)} |`,
-    );
-    console.log(`| Both | ${us(r.both, TRANSACTIONS)} | ${versus(r.both)} |`);
-    console.log(
-      `| Without the journal's change copies (10 of the 15 journal rows) | ${us(r.noChangeCopies, TRANSACTIONS)} | ${versus(r.noChangeCopies)} |`,
-    );
-    console.log(
-      `| Journal rows kept only in the six indexes journal reads use | ${us(r.journalSix, TRANSACTIONS)} | ${versus(r.journalSix)} |`,
     );
 
     const shares = await profile(join(directory, "profile.db"));

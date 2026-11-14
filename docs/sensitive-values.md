@@ -345,8 +345,9 @@ the operations so a concurrent retraction fails with `TransactionConflictError`.
 
 `get`, `entity`, `entities`, `entityPage`, `match`, `history`, `transaction`, `transactions`,
 `transactionByCommand` and `transactionsForEntity` return stored sealed values unchanged. The
-journal's `:_tx/change` payload embeds the sealed value without its blind token, so history and
-"what changed" reads show that a sensitive fact changed, by whom and when, without its plaintext.
+journal references facts rather than copying them; a transaction record's changes carry each sealed
+value without its blind token, so history and "what changed" reads show that a sensitive fact
+changed, by whom and when, without its plaintext.
 Entity snapshots commit to the sealed envelope, also without the blind token.
 
 **Blind tokens live only on the fact.** A sealed value's blind token is stored on the fact and in
@@ -568,8 +569,8 @@ const rewrapAll = Effect.gen(function* () {
 **Data keys.** `KeyCustody.rotate({ database, subject?, keyClass? })` makes a new data key version
 current, so new seals use it while older values still open under the key ID they record. To move
 existing values too, run `Sensitive.rewrap`. It reseals every stored value whose key is not its
-scope's current key, current and retracted facts alike, and rewrites each fact's journal
-`:_tx/change` copies with it. It skips erased values and values whose attribute the policy no longer
+scope's current key, current and retracted facts alike. The journal references facts, so
+transaction records show the resealed values with nothing else to rewrite. It skips erased values and values whose attribute the policy no longer
 lists, and it is resumable: a value already under its current key is left alone. Its report lists
 the replaced key IDs; pass them to `KeyCustody.retire(database, keyIds)` to destroy those versions.
 `retire` refuses a key that is still current.

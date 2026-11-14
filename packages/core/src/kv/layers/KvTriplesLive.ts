@@ -58,19 +58,31 @@ import {
   entityStatePreconditions,
   invalidCommandId,
   livePreconditionIds,
-  metadataInputs,
-  transactionRecordFromTriples,
-  transactionChangeFromTriple,
   validatePreconditions,
 } from "../../store/transactionMetadata.js";
+import {
+  journalAppend,
+  referencedFactIds,
+  transactionChangeFromTriple,
+  transactionRecordFromEntry,
+  type JournalEntry,
+} from "../../store/journal.js";
+import {
+  appendKvJournal,
+  kvJournalEntriesAfter,
+  kvJournalEntriesForEntity,
+  kvJournalEntriesForEntityPrefix,
+  kvJournalEntry,
+  kvJournalEntryByCommand,
+} from "../kv/Journal.js";
 import {
   isJournalSuppressed,
   isSystemWriteAuthorized,
   reservedAssertError,
+  reservedPatternError,
   reservedWriteError,
 } from "../../store/systemNamespace.js";
 import { resolveTemporalBasis, type ResolvedTemporalBasis } from "../../Temporal.js";
-import { TxAttributes } from "../../utils/id.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../../Pagination.js";
 import * as ContentIds from "../../content/ContentId.js";
 import { unsafe } from "../../Branded.js";
@@ -89,30 +101,8 @@ import type * as CommitValidation from "../../store/CommitValidation.js";
 import { attemptFrom, runValidators, viewBasis } from "../../store/commitValidationRun.js";
 
 const COMMIT_POSITION_KEY = new Uint8Array([0x21]);
-const COMMAND_RECEIPT_PREFIX = 0x22;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
-
-const commandReceiptKey = (commandId: string): Uint8Array => {
-  const digest = textEncoder.encode(ContentIds.hash(ContentIds.Domain.commandReceipt, commandId));
-  const key = new Uint8Array(digest.length + 1);
-  key[0] = COMMAND_RECEIPT_PREFIX;
-  key.set(digest, 1);
-  return key;
-};
-
-const claimKvCommand = (
-  tx: KvTransaction,
-  commandId: string,
-  transactionId: string,
-): Effect.Effect<string | null> =>
-  Effect.gen(function* () {
-    const key = commandReceiptKey(commandId);
-    const existing = yield* tx.get(key);
-    if (existing !== null) return textDecoder.decode(existing);
-    yield* tx.set(key, textEncoder.encode(transactionId));
-    return null;
-  });
 
 const nextKvCommitPosition = (tx: KvTransaction): Effect.Effect<number, WriteError> =>
   Effect.gen(function* () {
@@ -440,6 +430,31 @@ const makeKvTriplesService = Effect.gen(function* () {
 
   let transactService: TriplesService["transact"];
 
+  /** One batched META read of every fact a page of journal entries references. */
+  const hydrate = (entries: readonly JournalEntry[]) =>
+    Effect.gen(function* () {
+      const ids = referencedFactIds(entries);
+      const datoms = ids.length === 0 ? [] : yield* hexaStore.getByIds(ids);
+      const facts = new Map(
+        datoms.flatMap((datom) =>
+          datom === null ? [] : [[datom.tripleId, datomToTriple(datom)] as const],
+        ),
+      );
+      return yield* Effect.forEach(entries, (entry) => {
+        const record = transactionRecordFromEntry(entry, facts);
+        return "missing" in record
+          ? Effect.fail(
+              new ReadError({
+                message: `Transaction ${entry.txId} references missing fact ${record.missing}`,
+              }),
+            )
+          : Effect.succeed(record);
+      });
+    });
+
+  const hydrateOne = (entry: JournalEntry | null) =>
+    entry === null ? Effect.succeed(null) : hydrate([entry]).pipe(Effect.map(([r]) => r!));
+
   const service: TriplesService = {
     scrubBlindTokens: (keyIds) => {
       const wanted = new Set(keyIds);
@@ -481,14 +496,9 @@ const makeKvTriplesService = Effect.gen(function* () {
               if (datom === null) {
                 return yield* new WriteError({ message: `No fact ${update.id} to rewrite` });
               }
-              const allowed =
-                (datom.value.type === "sealed" && update.value.type === "sealed") ||
-                (datom.attribute === TxAttributes.CHANGE &&
-                  datom.value.type === "json" &&
-                  update.value.type === "json");
-              if (!allowed) {
+              if (datom.value.type !== "sealed" || update.value.type !== "sealed") {
                 return yield* new WriteError({
-                  message: `Fact ${update.id} is not a sealed value or journal change`,
+                  message: `Fact ${update.id} is not a sealed value`,
                 });
               }
               yield* store.rewriteValue(datom, update.value);
@@ -636,19 +646,19 @@ const makeKvTriplesService = Effect.gen(function* () {
             }
             const txId = yield* runtime.nextTxId;
             const now = yield* runtime.now;
+            const position = yield* nextKvCommitPosition(tx);
+            const commandAlreadyCommitted = (commandId: string, original: string) =>
+              new CommandAlreadyCommittedError({
+                commandId,
+                transactionId: unsafe.transactionId(original),
+                message: `Command ${commandId} already committed as ${original}`,
+              });
             if (meta?.commandId !== undefined) {
-              const originalTransactionId = yield* claimKvCommand(tx, meta.commandId, txId);
-              if (originalTransactionId !== null) {
-                return yield* Effect.fail(
-                  new CommandAlreadyCommittedError({
-                    commandId: meta.commandId,
-                    transactionId: unsafe.transactionId(originalTransactionId),
-                    message: `Command ${meta.commandId} already committed as ${originalTransactionId}`,
-                  }),
-                );
+              const original = yield* kvJournalEntryByCommand(tx, meta.commandId);
+              if (original !== null) {
+                return yield* Effect.fail(commandAlreadyCommitted(meta.commandId, original.txId));
               }
             }
-            const position = yield* nextKvCommitPosition(tx);
             const actor = meta?.actor;
             const preconditionIds = livePreconditionIds(meta);
 
@@ -795,6 +805,10 @@ const makeKvTriplesService = Effect.gen(function* () {
                   break;
                 }
                 case "retract-pattern": {
+                  if (!isSystemWriteAuthorized(meta)) {
+                    const reserved = reservedPatternError(op.pattern);
+                    if (reserved) return yield* Effect.fail(reserved);
+                  }
                   const pat = patternToScan(op.pattern as unknown as Pattern);
                   const scanned = yield* transactionStore.scanCollectAsync(pat);
                   const matched = op.pattern.entityType
@@ -830,11 +844,17 @@ const makeKvTriplesService = Effect.gen(function* () {
             yield* enforce;
 
             if (!isJournalSuppressed(meta)) {
-              for (const input of metadataInputs(txId, position, now, meta, changes)) {
-                yield* transactionStore.assert(
-                  tripleInputToDatom(input, yield* runtime.nextTripleId, txId, now, position),
-                );
+              const original = yield* appendKvJournal(
+                tx,
+                journalAppend(txId, position, now, meta, changes),
+              );
+              if (original !== null && meta?.commandId !== undefined) {
+                return yield* Effect.fail(commandAlreadyCommitted(meta.commandId, original));
               }
+            } else if (meta?.commandId !== undefined) {
+              return yield* Effect.fail(
+                new WriteError({ message: "An unjournaled write cannot carry a command ID" }),
+              );
             }
 
             if (meta?.validate !== undefined && meta.validate.length > 0) {
@@ -1009,38 +1029,10 @@ const makeKvTriplesService = Effect.gen(function* () {
         ),
       ),
 
-    transaction: (txId) =>
-      Effect.gen(function* () {
-        const datoms = yield* hexaStore.scanCollectAsync({ entity: txId });
-        return transactionRecordFromTriples(txId, datoms.map(datomToTriple));
-      }).pipe(
-        Effect.catch((e) =>
-          Effect.fail(
-            new ReadError({ message: `Transaction read failed: ${String(e)}`, cause: e }),
-          ),
-        ),
-      ),
+    transaction: (txId) => kvJournalEntry(kvBackend, txId).pipe(Effect.flatMap(hydrateOne)),
 
     transactionByCommand: (commandId) =>
-      Effect.gen(function* () {
-        const commandFacts = yield* match({
-          attribute: TxAttributes.COMMAND_ID,
-          value: { type: "string", value: commandId },
-        });
-        const fact = commandFacts[0];
-        if (fact === undefined) return null;
-        const datoms = yield* hexaStore.scanCollectAsync({ entity: fact.entityId });
-        return transactionRecordFromTriples(
-          unsafe.transactionId(fact.entityId),
-          datoms.map(datomToTriple),
-        );
-      }).pipe(
-        Effect.catch((e) =>
-          Effect.fail(
-            new ReadError({ message: `Command transaction lookup failed: ${String(e)}`, cause: e }),
-          ),
-        ),
-      ),
+      kvJournalEntryByCommand(kvBackend, commandId).pipe(Effect.flatMap(hydrateOne)),
 
     transactions: (request = {}) => {
       const prefix = request.entityIdPrefix;
@@ -1063,24 +1055,11 @@ const makeKvTriplesService = Effect.gen(function* () {
       // Both paths seek from `after` at a pinned head and hydrate only the selected page.
       return Effect.gen(function* () {
         const head = yield* currentKvCommitPosition(kvBackend);
-        const candidates =
+        const entries =
           prefix === undefined
-            ? yield* hexaStore.transactionIdsAfter(after, limit, head)
-            : yield* hexaStore.transactionIdsForEntityPrefix(prefix, after, limit, head);
-        const page = [];
-        for (const candidate of candidates) {
-          // Global KV journal reads use TYPE order (journal fact ID), unlike EAVT's value order.
-          const datoms = (yield* hexaStore.scanCollectAsync({ entity: candidate.txId }))
-            .filter((datom) => datom.entityType === "_Transaction")
-            .sort((a, b) => (a.tripleId < b.tripleId ? -1 : a.tripleId > b.tripleId ? 1 : 0));
-          const record = transactionRecordFromTriples(
-            unsafe.transactionId(candidate.txId),
-            datoms.map(datomToTriple),
-          );
-          if (record === null || record.position !== candidate.position)
-            return yield* new ReadError({ message: "Incomplete indexed transaction envelope" });
-          page.push(record);
-        }
+            ? yield* kvJournalEntriesAfter(kvBackend, after, limit, head)
+            : yield* kvJournalEntriesForEntityPrefix(kvBackend, prefix, after, limit, head);
+        const page = yield* hydrate(entries);
         return {
           transactions: page,
           ...(page.length === 0 ? {} : { next: page.at(-1)!.position }),
@@ -1089,7 +1068,16 @@ const makeKvTriplesService = Effect.gen(function* () {
     },
 
     transactionsForEntity: (entityId, request) =>
-      transactionsForEntity({ ...service, query: service.queryAll }, entityId, request),
+      transactionsForEntity(
+        {
+          currentPosition: () => currentKvCommitPosition(kvBackend),
+          entries: (id, snapshot, before, limit) =>
+            kvJournalEntriesForEntity(kvBackend, id, snapshot, before, limit),
+          hydrate,
+        },
+        entityId,
+        request,
+      ),
 
     currentPosition: () => currentKvCommitPosition(kvBackend),
 

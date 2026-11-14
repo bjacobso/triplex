@@ -1,9 +1,11 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { EntityId, Triples, number } from "@triplex-build/triplex";
-import { makeSqlTransactionJournalLookup, SqliteDialect } from "@triplex-build/triplex/sql";
 import { expect } from "vitest";
-import { insertSyntheticTransactions } from "./transaction-prefix-index.js";
+import {
+  captureJournalStatement,
+  insertSyntheticTransactions,
+} from "./transaction-prefix-index.js";
 
 /** Counts storage rows a measured `transactions` call reads, when the backend can expose them. */
 export interface JournalPageMeter {
@@ -47,7 +49,7 @@ export const transactionJournalPagePlan = (
     const measurements = [];
     for (const count of [10, 10000]) {
       yield* insertSyntheticTransactions(base, count);
-      yield* sql.unsafe("ANALYZE triples");
+      yield* sql.unsafe("ANALYZE triplex_transactions");
       const tail = base + count - 2;
       meter?.reset();
       const page = yield* t.transactions({ after: tail, limit: 2 });
@@ -64,36 +66,22 @@ export const transactionJournalPagePlan = (
         wanted[2]!.txId,
         expect.stringMatching(/^_tx\//),
       ]);
-      let captured: { statement: string; params: readonly unknown[] } | undefined;
-      const dialect =
-        backend === "postgres"
-          ? {
-              ...SqliteDialect,
-              name: "postgresql" as const,
-              paramPlaceholder: (i: number) => `$${i + 1}`,
-            }
-          : SqliteDialect;
-      yield* makeSqlTransactionJournalLookup(
-        {
-          run: (statement, params) => {
-            captured = { statement, params };
-            return Effect.succeed([]);
-          },
-        },
-        dialect,
-      )(tail, 2);
+      const captured = yield* captureJournalStatement(backend, (journal) =>
+        journal.transactionEntriesAfter(tail, 2),
+      );
       const plan = JSON.stringify(
         yield* sql.unsafe(
-          `${backend === "postgres" ? "EXPLAIN (ANALYZE, FORMAT JSON)" : "EXPLAIN QUERY PLAN"} ${captured!.statement}`,
-          captured!.params,
+          `${backend === "postgres" ? "EXPLAIN (ANALYZE, FORMAT JSON)" : "EXPLAIN QUERY PLAN"} ${captured.statement}`,
+          captured.params,
         ),
       );
+      // The page seeks the unique position index from `after`.
       if (backend === "sqlite") {
-        expect(plan).toContain("idx_attribute_history");
+        expect(plan).toMatch(/SEARCH triplex_transactions USING INDEX \w+ \(position>\?\)/);
         expect(plan).not.toContain("TEMP B-TREE");
       } else if (count === 10000) {
         // A tiny table may sequentially scan; a large journal must seek, not sort.
-        expect(plan).toContain("idx_attribute_history");
+        expect(plan).toContain("triplex_transactions_position_key");
         expect(plan).not.toContain('"Sort"');
       }
       measurements.push({ earlierCommands: count, rows, plan });

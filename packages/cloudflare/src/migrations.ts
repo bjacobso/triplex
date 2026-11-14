@@ -13,6 +13,7 @@ import {
   SNAPSHOT_INDEX_DDLS,
   OPERATIONAL_ENTRIES_TABLE_DDL,
   OPERATIONAL_ENTRY_INDEX_DDLS,
+  JOURNAL_DDLS,
 } from "@triplex-build/triplex-sql";
 
 export interface Migration {
@@ -56,5 +57,15 @@ export const migrations: readonly Migration[] = [
     version: 6,
     name: "triplex_operational_entries",
     up: [OPERATIONAL_ENTRIES_TABLE_DDL, ...OPERATIONAL_ENTRY_INDEX_DDLS],
+  },
+  {
+    // The transaction journal in its own tables, shared with the SQL backends.
+    // Command IDs are unique on the journal row, so the receipts table goes.
+    // DDL only: this frozen backend upgrades in place, and transactions
+    // committed before it keep their old `_Transaction` rows in `triples`,
+    // which the journal reads do not see.
+    version: 7,
+    name: "triplex_journal_store",
+    up: [...JOURNAL_DDLS, "DROP TABLE IF EXISTS triplex_command_receipts"],
   },
 ];

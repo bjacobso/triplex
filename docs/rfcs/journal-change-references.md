@@ -1,6 +1,6 @@
 # Design note: journal change references instead of copies
 
-Status: proposed for 0.5.0, not for 0.4.0 (2026-11-13, ask 0015). Nothing here is built.
+Status: built in 0.5.0 (ask 0019), together with the journal table of its own that the last section calls for. The journal is `triplex_transactions` plus `triplex_transaction_entities`; see [Storage footprint](../storage-footprint.md). The text below is the original proposal.
 
 ## Today
 

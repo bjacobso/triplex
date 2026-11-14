@@ -316,9 +316,7 @@ export const executePattern = (
 
     for (const ctx of contexts) {
       for (const scanPattern of patternToScanPatterns(pattern, ctx)) {
-        const datoms = yield* basis === undefined
-          ? store.scanCollectAsync(scanPattern)
-          : store.scanCollectDatalogAsync(scanPattern, basis);
+        const datoms = yield* store.datalogScanAsync(scanPattern, basis);
 
         for (let i = 0; i < datoms.length; i++) {
           const bound = bindDatom(pattern, datoms[i]!, ctx);
@@ -362,10 +360,7 @@ const executePatternSync = (
 
   for (const ctx of contexts) {
     for (const scanPattern of patternToScanPatterns(pattern, ctx)) {
-      const datoms =
-        basis === undefined
-          ? store.scanCollect(scanPattern)
-          : store.scanCollectDatalog(scanPattern, basis);
+      const datoms = store.datalogScan(scanPattern, basis);
       if (datoms === null) return null; // Backend doesn't support sync
 
       for (let i = 0; i < datoms.length; i++) {
@@ -414,10 +409,7 @@ const executePatternHashJoin = (
     attribute: attrValue,
     ...(pattern.intervalRange ? { intervalRange: pattern.intervalRange } : {}),
   };
-  const allDatoms =
-    basis === undefined
-      ? store.scanCollect(scanPattern)
-      : store.scanCollectDatalog(scanPattern, basis);
+  const allDatoms = store.datalogScan(scanPattern, basis);
   if (allDatoms === null) return null;
 
   // Build hash map: entity → Datom[]
@@ -479,9 +471,7 @@ const executePatternHashJoinAsync = (
   };
 
   return Effect.gen(function* () {
-    const allDatoms = yield* basis === undefined
-      ? store.scanCollectAsync(scanPattern)
-      : store.scanCollectDatalogAsync(scanPattern, basis);
+    const allDatoms = yield* store.datalogScanAsync(scanPattern, basis);
 
     // Build hash map: entity → Datom[]
     const entityMap = new Map<string, Datom[]>();

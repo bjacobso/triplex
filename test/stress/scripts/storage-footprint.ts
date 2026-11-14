@@ -6,11 +6,12 @@
  * FOOTPRINT_VALUE_BYTES characters (default 32), with an actor and a command ID,
  * like a typical host write. Then it reports, per asserted triple:
  *
- * - the `triples` table, split into the facts themselves, the journal's
- *   `:_tx/change` copies and the other journal metadata (position, instant,
- *   actor, command, changed entity), in proportion to their row payloads;
- * - every index on `triples`;
- * - the other tables;
+ * - the `triples` table, split by row category in proportion to row payloads
+ *   (databases before 0.5 also kept the journal there, as `_Transaction` rows:
+ *   `:_tx/change` copies and other metadata; now every row is a fact);
+ * - every index, including the journal tables' keys and indexes;
+ * - the other tables, including the journal (`triplex_transactions`, one row
+ *   per transaction, and `triplex_transaction_entities`, one per changed entity);
  * - a plain `(entity, attribute, value)` table holding the same values, as a
  *   baseline.
  *

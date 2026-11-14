@@ -449,21 +449,19 @@ describe("PostgreSQL Integration", () => {
             false,
             { basis: { recordedPosition: 1, validAt: 0 } },
           );
-          const plan = yield* sql.unsafe(
-            `EXPLAIN (FORMAT JSON) ${provenance.sql}`,
-            provenance.params,
+          // An empty journal may be scanned; any index the plan can use must be the key.
+          const plan = yield* sql.withTransaction(
+            sql
+              .unsafe("SET LOCAL enable_seqscan = off")
+              .pipe(
+                Effect.andThen(
+                  sql.unsafe(`EXPLAIN (FORMAT JSON) ${provenance.sql}`, provenance.params),
+                ),
+              ),
           );
           const provenancePlan = JSON.stringify(plan);
-          // With rare actor metadata, PostgreSQL may prefer the history index:
-          // attribute and recorded_position are index conditions; entity is residual.
-          expect(provenancePlan).toMatch(
-            /idx_(entity_recorded_position|temporal|attribute_valid_from_history)/,
-          );
-          if (provenancePlan.includes("idx_attribute_valid_from_history")) {
-            expect(provenancePlan).toContain(
-              `"Index Cond":"((attribute = ':_tx/actor'::text) AND (recorded_position <= 1))"`,
-            );
-          }
+          // Transaction metadata reads the journal row by its primary key.
+          expect(provenancePlan).toContain("triplex_transactions_pkey");
           yield* sql.unsafe("DELETE FROM triples WHERE attribute = ':time-plan/expiry'");
         }),
       );
@@ -497,8 +495,8 @@ describe("PostgreSQL Integration", () => {
                       yield* sql.unsafe(`CREATE SCHEMA ${schema}`);
                       yield* sql.unsafe(`SET LOCAL search_path TO ${schema}, public, pg_catalog`);
                       if (mode === "newer") {
-                        yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER)`;
-                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (${EXPECTED_SCHEMA_VERSION + 1})`;
+                        yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER, name TEXT)`;
+                        yield* sql`INSERT INTO triplex_schema_migrations VALUES (${EXPECTED_SCHEMA_VERSION + 1}, 'from_a_newer_release')`;
                       } else if (mode === "malformed") {
                         yield* sql`CREATE TABLE triplex_schema_migrations (wrong_column INTEGER)`;
                       }
@@ -616,7 +614,7 @@ describe("PostgreSQL Integration", () => {
     },
   );
   it.skipIf(!DOCKER_AVAILABLE)(
-    "rejects a v2 schema during layer acquisition before any application effect",
+    "refuses a Triplex 0.4 schema in every layer before any application effect, changing nothing",
     { timeout: 120_000 },
     async () => {
       await Effect.runPromise(
@@ -627,28 +625,53 @@ describe("PostgreSQL Integration", () => {
               const sql = yield* SqlClient.SqlClient;
               yield* sql.withTransaction(
                 Effect.gen(function* () {
-                  yield* sql`CREATE SCHEMA schema_guard_v2`;
-                  yield* sql`SET LOCAL search_path TO schema_guard_v2, pg_catalog`;
+                  yield* sql`CREATE SCHEMA schema_guard_04`;
+                  yield* sql`SET LOCAL search_path TO schema_guard_04, pg_catalog`;
                   yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at BIGINT NOT NULL)`;
-                  for (const migration of migrations.filter((m) => m.version <= 2)) {
-                    for (const statement of migration.up) yield* sql.unsafe(statement);
-                    yield* sql`INSERT INTO triplex_schema_migrations VALUES (${migration.version}, ${migration.name}, 0)`;
+                  // The history every Triplex 0.4 database records.
+                  for (const [index, name] of [
+                    "triplex_baseline",
+                    "triplex_numeric_value_index",
+                    "triplex_sealed_values",
+                    "triplex_entity_recorded_position_index",
+                    "triplex_operational_entries",
+                    "triplex_live_precondition_index",
+                    "triplex_transaction_entity_prefix_index",
+                    "triplex_interval_history_indexes",
+                    "triplex_public_read_indexes",
+                    "triplex_key_store",
+                    "triplex_blind_tokens_only_on_facts",
+                    "triplex_blind_key_staging",
+                    "triplex_drop_prefix_indexes",
+                  ].entries())
+                    yield* sql`INSERT INTO triplex_schema_migrations VALUES (${index + 1}, ${name}, 0)`;
+                  yield* sql`CREATE TABLE triples (id TEXT PRIMARY KEY, entity_id TEXT, attribute TEXT, entity_type TEXT)`;
+                  yield* sql`INSERT INTO triples VALUES ('j1', '_tx/01', ':_tx/position', '_Transaction')`;
+                  for (const layer of [
+                    PgTriples.layerFromSqlClient({ scope: "guard:0.4" }),
+                    PgTriples.layerFromSqlClientMigrated({ scope: "guard:0.4:migrated" }),
+                  ]) {
+                    let applicationRan = false;
+                    const error = yield* Effect.sync(() => {
+                      applicationRan = true;
+                    }).pipe(
+                      Effect.provide(Layer.fresh(layer)),
+                      Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }),
+                    );
+                    expect(applicationRan).toBe(false);
+                    expect(error).toMatchObject({
+                      _tag: "SchemaVersionError",
+                      expectedVersion: EXPECTED_SCHEMA_VERSION,
+                      actualVersion: 13,
+                    });
+                    expect(String(error)).toContain("Start a fresh database");
                   }
-                  let applicationRan = false;
-                  const error = yield* Effect.sync(() => {
-                    applicationRan = true;
-                  }).pipe(
-                    Effect.provide(PgTriples.layerFromSqlClient({ scope: "guard:v2" })),
-                    Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }),
-                  );
-                  expect(applicationRan).toBe(false);
-                  expect(error).toMatchObject({
-                    _tag: "SchemaVersionError",
-                    expectedVersion: EXPECTED_SCHEMA_VERSION,
-                    actualVersion: 2,
-                  });
-                  expect(String(error)).toContain("runMigrations");
-                  yield* sql`DROP SCHEMA schema_guard_v2 CASCADE`;
+                  const migrated = yield* runMigrations.pipe(Effect.flip);
+                  expect(migrated).toMatchObject({ _tag: "SchemaVersionError", actualVersion: 13 });
+                  expect(
+                    yield* sql`SELECT tablename FROM pg_tables WHERE schemaname = 'schema_guard_04' ORDER BY tablename`,
+                  ).toEqual([{ tablename: "triples" }, { tablename: "triplex_schema_migrations" }]);
+                  yield* sql`DROP SCHEMA schema_guard_04 CASCADE`;
                 }),
               );
             }).pipe(Effect.provide(makePostgresqlLayerUnmigratedFromUrl(url)));
@@ -664,46 +687,6 @@ describe("PostgreSQL Integration", () => {
       await runWithHostSql(numericIndexPlan("postgres"));
     },
   );
-  it.skipIf(!DOCKER_AVAILABLE)(
-    "upgrades an existing v1 schema once without losing data",
-    { timeout: 120_000 },
-    async () => {
-      await runWithHostSql(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient;
-          yield* sql.withTransaction(
-            Effect.gen(function* () {
-              yield* sql`CREATE SCHEMA numeric_index_upgrade`;
-              yield* sql`SET LOCAL search_path TO numeric_index_upgrade`;
-              for (const statement of migrations[0]!.up) yield* sql.unsafe(statement);
-              yield* sql`CREATE TABLE triplex_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at BIGINT NOT NULL)`;
-              yield* sql`INSERT INTO triplex_schema_migrations VALUES (1, 'triplex_baseline', 0)`;
-              yield* sql`INSERT INTO triples (id, entity_id, attribute, value_type, value_number, recorded_at, recorded_position, valid_from) VALUES ('old', 'old', ':due', 'number', 42, 1, 1, 1)`;
-              expect(
-                yield* sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'numeric_index_upgrade' AND indexname = 'idx_attr_numeric'`,
-              ).toHaveLength(0);
-              yield* runMigrations;
-              yield* runMigrations;
-              expect(
-                yield* sql`SELECT version FROM triplex_schema_migrations ORDER BY version`,
-              ).toEqual(migrations.map(({ version }) => ({ version })));
-              expect(yield* sql`SELECT value_number FROM triples`).toEqual([{ value_number: 42 }]);
-              // v3 admits sealed values with an envelope and a blind-index token.
-              yield* sql`INSERT INTO triples (id, entity_id, attribute, value_type, value_sealed, value_blind, recorded_at, recorded_position, valid_from) VALUES ('sealed', 'old', ':secret', 'sealed', '{}', 'token', 2, 2, 2)`;
-              expect(
-                yield* sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'numeric_index_upgrade' AND indexname = 'idx_attr_blind'`,
-              ).toHaveLength(1);
-              expect(
-                yield* sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'numeric_index_upgrade' AND indexname = 'idx_attr_numeric'`,
-              ).toHaveLength(1);
-              yield* sql`DROP SCHEMA numeric_index_upgrade CASCADE`;
-            }),
-          );
-        }),
-      );
-    },
-  );
-
   describe("sensitive values", () => {
     const withFreshDatabase = <A, E>(
       use: (context: {
@@ -778,7 +761,11 @@ describe("PostgreSQL Integration", () => {
           }),
         );
         expect(dump.tables).toEqual(
-          expect.arrayContaining(["triples", "triplex_command_receipts"]),
+          expect.arrayContaining([
+            "triples",
+            "triplex_transactions",
+            "triplex_transaction_entities",
+          ]),
         );
         expect(dump.text).toContain("idx_attr_blind");
         expect(findPlaintext(dump.text, "Grace")).not.toEqual([]);

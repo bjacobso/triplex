@@ -77,11 +77,14 @@ The storage-independent data model and backend implementations retain this modul
 - The `Triples` transaction boundary owns portable operational guarantees. KV implementations run
   `transact` through `KvBackend.transact`, SQL implementations use their native transaction, and
   compare-and-retract preconditions turn moving facts such as config refs and validation heads
-  into optimistic concurrency boundaries. Every successful `transact` persists a causal envelope
-  and asserted/retracted change descriptions as ordinary `_Transaction` facts. The backend also
-  allocates a monotonic commit position in that atomic boundary; `Triples.transactions` pages the
-  journal from a durable resume cursor. Command IDs are atomically unique per database through a
-  backend-local claim index, while the corresponding `_Transaction` remains the queryable receipt.
+  into optimistic concurrency boundaries. Every successful `transact` writes one journal entry in
+  that atomic boundary, outside the fact store: the causal envelope and ordered `[tripleId, op]`
+  references to the changed facts (SQL: `triplex_transactions` and `triplex_transaction_entities`;
+  KV: a journal keyspace). Records are rebuilt from the referenced facts, and Datalog reads the
+  envelope as `:_tx/*` facts of the transaction entity. The backend also allocates a monotonic
+  commit position in that boundary; `Triples.transactions` pages the journal from a durable resume
+  cursor. Command IDs are atomically unique per database through the journal entry's unique
+  command ID, which is also the queryable receipt.
 - Entity-state preconditions compare the complete observed live fact-ID set after entering that
   serialized boundary. They extend compare-and-retract to insertion-only races, so replacement and
   deletion cannot silently overlook facts written between read and commit.

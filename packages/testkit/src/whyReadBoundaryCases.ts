@@ -64,22 +64,28 @@ export const whyReadBoundaryConformance = Effect.gen(function* () {
       {
         ...t,
         transaction: (id) =>
-          t
-            .transaction(id)
-            .pipe(
-              Effect.map((tx) =>
-                tx
-                  ? { ...tx, changes: tx.changes.map((c) => ({ ...c, value: string("corrupt") })) }
-                  : null,
-              ),
+          t.transaction(id).pipe(
+            Effect.map((tx) =>
+              tx
+                ? {
+                    ...tx,
+                    // The journal references facts, so a value cannot drift from its
+                    // fact; a receipt that no longer names the fact is still corrupt.
+                    changes: tx.changes.map((c) => ({
+                      ...c,
+                      tripleId: TripleId.make("00000000000000000000000000"),
+                    })),
+                  }
+                : null,
             ),
+          ),
       },
       subject,
     ),
   );
   yield* check(
     badValue._tag === "Failure" && badValue.failure._tag === "WhyIncompleteHistory",
-    "receipt value inconsistency is corrupt history",
+    "a receipt that does not reference the fact is corrupt history",
   );
   const wrongId = yield* Effect.result(
     run(
