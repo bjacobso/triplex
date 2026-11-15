@@ -60,6 +60,15 @@ catalogs:
     '@types/node':
       specifier: 25.9.1
       version: 25.9.1
+    '@types/react':
+      specifier: 19.3.0
+      version: 19.3.0
+    '@types/react-dom':
+      specifier: 19.3.0
+      version: 19.3.0
+    '@vitejs/plugin-react':
+      specifier: 6.3.0
+      version: 6.3.0
     alchemy:
       specifier: 2.0.0-beta.84
       version: 2.0.0-beta.84
@@ -72,12 +81,21 @@ catalogs:
     foundationdb:
       specifier: 2.0.1
       version: 2.0.1
+    lucide-react:
+      specifier: 1.73.0
+      version: 1.73.0
     oxfmt:
       specifier: 0.44.0
       version: 0.44.0
     oxlint:
       specifier: 1.59.0
       version: 1.59.0
+    react:
+      specifier: 19.3.1
+      version: 19.3.1
+    react-dom:
+      specifier: 19.3.1
+      version: 19.3.1
     semver:
       specifier: 7.8.5
       version: 7.8.5
@@ -143,7 +161,7 @@ importers:
     devDependencies:
       '@alchemy.run/cloudflare':
         specifier: 'catalog:'
-        version: 2.0.0-beta.84(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/sql-pg@4.1.1(effect@4.1.1))(@types/node@25.9.1)(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
+        version: 2.0.0-beta.84(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/sql-pg@4.1.1(effect@4.1.1))(@types/node@25.9.1)(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
       '@changesets/cli':
         specifier: 'catalog:'
         version: 3.0.1
@@ -173,7 +191,7 @@ importers:
         version: 25.9.1
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
+        version: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
       effect:
         specifier: 'catalog:'
         version: 4.1.1
@@ -330,7 +348,7 @@ importers:
     devDependencies:
       '@alchemy.run/cloudflare':
         specifier: 'catalog:'
-        version: 2.0.0-beta.84(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/sql-pg@4.1.1(effect@4.1.1))(@types/node@25.9.1)(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
+        version: 2.0.0-beta.84(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/sql-pg@4.1.1(effect@4.1.1))(@types/node@25.9.1)(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
         version: 1.4.0(@cloudflare/workers-types@5.20261006.1)(@types/node@25.9.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1)))
@@ -342,7 +360,7 @@ importers:
         version: 25.9.1
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
+        version: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
       tsdown:
         specifier: 'catalog:'
         version: 0.21.7(@emnapi/core@1.10.0)(@emnapi/runtime@1.11.3)(typescript@6.0.2)
@@ -482,6 +500,64 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
+
+  packages/explorer:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.1(effect@4.1.1)(redis@6.2.1)
+      '@fontsource-variable/ibm-plex-sans':
+        specifier: 'catalog:'
+        version: 5.3.0
+      '@fontsource/ibm-plex-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
+      '@triplex-build/triplex-sqlite':
+        specifier: workspace:^
+        version: link:../sqlite
+      '@triplex-internal/core':
+        specifier: workspace:^
+        version: link:../core
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.1
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.73.0(@types/react@19.3.0)(react@19.3.1)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.1
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 6.3.0(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.21.7(@emnapi/core@1.10.0)(@emnapi/runtime@1.11.3)(typescript@6.0.2)
       tsx:
         specifier: 'catalog:'
         version: 4.19.0
@@ -2649,6 +2725,14 @@ packages:
   '@types/node@25.9.1':
     resolution: {integrity: sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg==}
 
+  '@types/react-dom@19.3.0':
+    resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
+    peerDependencies:
+      '@types/react': ^19.3.0
+
+  '@types/react@19.3.0':
+    resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
+
   '@types/ssh2-streams@0.1.13':
     resolution: {integrity: sha512-faHyY3brO9oLEA0QlcO8N2wT7R0+1sHWZvQ+y3rMLwdY1ZyS1z0W3t65j9PqT4HmQ6ALzNe7RZlNuCNE0wBSWA==}
 
@@ -2669,6 +2753,22 @@ packages:
 
   '@ungap/structured-clone@1.4.0':
     resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
+
+  '@vitejs/plugin-react@6.3.0':
+    resolution: {integrity: sha512-H9E955aVvD2F4zNHCw4eIZbIfF6xKldlh7MNu+hSU7xwQzh65lI/N+CJWqmfhi0PEjDXIt/H7T7J/4wU63KJiw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rolldown/plugin-babel': ^0.1.7 || ^0.2.0 || ^0.3.0
+      babel-plugin-react-compiler: ^1.0.0
+      oxc-transform-react: '>=0.152.0 <0.157.0'
+      vite: ^8.0.0
+    peerDependenciesMeta:
+      '@rolldown/plugin-babel':
+        optional: true
+      babel-plugin-react-compiler:
+        optional: true
+      oxc-transform-react:
+        optional: true
 
   '@vitejs/plugin-vue@6.0.8':
     resolution: {integrity: sha512-0ZjgOg7oO6farnNGup7yvoM/YXZV84OZxHAwtflItNa/6zzQyVb5LNxyea3FEKEX2XlagIKzrlH7wwxkKgtiew==}
@@ -3491,6 +3591,15 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
+  lucide-react@1.73.0:
+    resolution: {integrity: sha512-fVOzGviL9mTfHenG1PbCfIceavyGlnpYNSYr+aGZHLRymAJ7DTP6KHuqt0uBkCKAoenr1UVkwSbDIYt2xIesEQ==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -3760,6 +3869,15 @@ packages:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
     hasBin: true
 
+  react-dom@19.3.1:
+    resolution: {integrity: sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==}
+    peerDependencies:
+      react: ^19.3.1
+
+  react@19.3.1:
+    resolution: {integrity: sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==}
+    engines: {node: '>=0.10.0'}
+
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
 
@@ -3849,6 +3967,9 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+
+  scheduler@0.28.0:
+    resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
   semver@7.8.5:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
@@ -4382,10 +4503,10 @@ packages:
 
 snapshots:
 
-  '@alchemy.run/acme@2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)':
+  '@alchemy.run/acme@2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)':
     dependencies:
       '@distilled.cloud/acme': 1.0.0-rc.17(effect@4.1.1)
-      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
+      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
       effect: 4.1.1
 
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.84(@distilled.cloud/cloudflare@1.0.0-rc.17(effect@4.1.1))(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@types/node@25.9.1)(effect@4.1.1)(rolldown@1.2.13)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))':
@@ -4411,18 +4532,18 @@ snapshots:
       - proxy-agent
       - typescript
 
-  '@alchemy.run/cloudflare@2.0.0-beta.84(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/sql-pg@4.1.1(effect@4.1.1))(@types/node@25.9.1)(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))':
+  '@alchemy.run/cloudflare@2.0.0-beta.84(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/sql-pg@4.1.1(effect@4.1.1))(@types/node@25.9.1)(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))':
     dependencies:
-      '@alchemy.run/acme': 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)
+      '@alchemy.run/acme': 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)
       '@alchemy.run/cloudflare-runtime': 2.0.0-beta.84(@distilled.cloud/cloudflare@1.0.0-rc.17(effect@4.1.1))(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@types/node@25.9.1)(effect@4.1.1)(rolldown@1.2.13)(typescript@6.0.2)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))
-      '@alchemy.run/docker': 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)
-      '@alchemy.run/sql': 2.0.0-beta.84(@effect/sql-pg@4.1.1(effect@4.1.1))(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)
+      '@alchemy.run/docker': 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)
+      '@alchemy.run/sql': 2.0.0-beta.84(@effect/sql-pg@4.1.1(effect@4.1.1))(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)
       '@distilled.cloud/aws4signer': 1.0.0-rc.17(effect@4.1.1)
       '@distilled.cloud/cloudflare': 1.0.0-rc.17(effect@4.1.1)
       '@distilled.cloud/core': 1.0.0-rc.17(effect@4.1.1)
       '@distilled.cloud/iceberg': 1.0.0-rc.17(effect@4.1.1)
       '@effect/sql-d1': 4.1.1(effect@4.1.1)
-      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
+      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
       effect: 4.1.1
       pathe: 2.0.3
       rolldown: 1.2.13
@@ -4440,9 +4561,9 @@ snapshots:
       - proxy-agent
       - typescript
 
-  '@alchemy.run/docker@2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)':
+  '@alchemy.run/docker@2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)':
     dependencies:
-      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
+      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
       effect: 4.1.1
       rolldown: 1.2.13
 
@@ -4451,11 +4572,13 @@ snapshots:
       chokidar: 5.0.0
       rolldown: 1.2.13
 
-  '@alchemy.run/sigil@0.1.0-alpha.1': {}
+  '@alchemy.run/sigil@0.1.0-alpha.1(@types/react@19.3.0)':
+    optionalDependencies:
+      '@types/react': 19.3.0
 
-  '@alchemy.run/sql@2.0.0-beta.84(@effect/sql-pg@4.1.1(effect@4.1.1))(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)':
+  '@alchemy.run/sql@2.0.0-beta.84(@effect/sql-pg@4.1.1(effect@4.1.1))(alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0))(effect@4.1.1)(pg@8.23.0)':
     dependencies:
-      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
+      alchemy: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0)
       effect: 4.1.1
     optionalDependencies:
       '@effect/sql-pg': 4.1.1(effect@4.1.1)
@@ -5774,6 +5897,14 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
+  '@types/react-dom@19.3.0(@types/react@19.3.0)':
+    dependencies:
+      '@types/react': 19.3.0
+
+  '@types/react@19.3.0':
+    dependencies:
+      csstype: 3.2.3
+
   '@types/ssh2-streams@0.1.13':
     dependencies:
       '@types/node': 25.9.1
@@ -5796,6 +5927,11 @@ snapshots:
       '@types/node': 25.9.1
 
   '@ungap/structured-clone@1.4.0': {}
+
+  '@vitejs/plugin-react@6.3.0(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1)
 
   '@vitejs/plugin-vue@6.0.8(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(vue@3.5.40(typescript@6.0.2))':
     dependencies:
@@ -5908,10 +6044,10 @@ snapshots:
     dependencies:
       event-target-shim: 5.0.1
 
-  alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0):
+  alchemy@2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.1(effect@4.1.1)(redis@6.2.1))(@effect/vitest@4.1.1(effect@4.1.1)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.22.0):
     dependencies:
       '@alchemy.run/node-utils': 2.0.0-beta.84
-      '@alchemy.run/sigil': 0.1.0-alpha.1
+      '@alchemy.run/sigil': 0.1.0-alpha.1(@types/react@19.3.0)
       capnweb: 0.12.0
       effect: 4.1.1
       fflate: 0.8.3
@@ -6542,6 +6678,12 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
+  lucide-react@1.73.0(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
+
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -6856,6 +6998,13 @@ snapshots:
       minimist: 1.2.8
       strip-json-comments: 2.0.1
 
+  react-dom@19.3.1(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+      scheduler: 0.28.0
+
+  react@19.3.1: {}
+
   readable-stream@2.3.8:
     dependencies:
       core-util-is: 1.0.3
@@ -7047,6 +7196,8 @@ snapshots:
   safe-buffer@5.2.1: {}
 
   safer-buffer@2.1.2: {}
+
+  scheduler@0.28.0: {}
 
   semver@7.8.5: {}
 

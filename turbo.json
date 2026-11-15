@@ -52,6 +52,11 @@
       "dependsOn": ["^build"],
       "inputs": ["package.json", "$TURBO_ROOT$/scripts/check-single-package.test.mjs"],
       "outputs": []
+    },
+    "@triplex-build/triplex-explorer#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "vite.config.ts", "index.html"],
+      "outputs": ["dist/**", "dist-server/**"]
     }
   }
 }
