@@ -18,6 +18,9 @@ update in your browser. No installation or JSON editing needed to get started.
 </template>
 </ClientOnly>
 
+To model your own domain with entity types, seed data and saved queries, and share it as a link,
+open the <a href="/playground/share/" target="_self">shareable playground</a>.
+
 ## What this demonstrates
 
 The sample query runs automatically. Add a score or a training record to change its answer, then
