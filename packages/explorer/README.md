@@ -33,7 +33,7 @@ pnpm --filter @triplex-build/triplex-explorer dev   # then open /playground/shar
 ```
 
 The Alchemy `Docs` Worker serves it at `triplex.build/playground/share/`, beside the guided docs page at `/playground`:
-`pnpm playground:build` writes it into the documentation output after `pnpm docs:build`. Sharing is link-only for now; stored,
+`pnpm site:build` runs `pnpm docs:build`, then `pnpm playground:build` writes it into the documentation output. Sharing is link-only for now; stored,
 immutable snapshots like Forma's playground are the planned next step.
 
 ## Reads

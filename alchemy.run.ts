@@ -13,8 +13,9 @@ export default Alchemy.Stack(
     const docs = yield* Cloudflare.Website.StaticSite("Docs", {
       name: stage === "prod" ? "triplex-docs" : `triplex-docs-${stage}`,
       ...(stage === "prod" ? { domain: "triplex.build" } : {}),
-      // The playground is static and runs Triplex in the page, so the same Worker serves it.
-      command: "pnpm docs:build && pnpm playground:build",
+      // The docs plus the static playground. Alchemy passes the command without a shell,
+      // so chaining belongs in the package script, not here.
+      command: "pnpm site:build",
       outdir: "dist",
       workersDev: true,
       dev: { command: "pnpm docs:dev" },
