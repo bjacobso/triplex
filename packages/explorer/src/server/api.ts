@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import {
   Change as FactChange,
   EntityId,
@@ -526,7 +524,7 @@ export class Explorer extends Context.Service<Explorer, ExplorerService>()(
             if (ops.length === 0) return yield* Effect.fail(new Error("Nothing changed"));
             const result = yield* triples.transact(ops, {
               actor: request.actor,
-              commandId: `explorer:${randomUUID()}`,
+              commandId: `explorer:${crypto.randomUUID()}`,
               ...pin,
               preconditions,
             });

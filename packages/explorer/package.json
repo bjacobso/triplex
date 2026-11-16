@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build && tsdown",
+    "build:playground": "vite build --config vite.playground.config.ts",
     "clean": "rm -rf dist dist-server",
     "dev": "vite --host 0.0.0.0 --port 4175",
     "serve": "tsx src/server/main.ts",

@@ -41,7 +41,7 @@ export function App() {
 }
 
 /** Types, the table with its panels, and the inspector beside it: the reader's workspace layout. */
-function Workspace() {
+export function Workspace() {
   const explorer = useExplorer();
   if (explorer.error)
     return (
