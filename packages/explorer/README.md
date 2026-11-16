@@ -18,6 +18,24 @@ Open <http://localhost:4176>. Pass `--read-only` to open the file without writin
 `--port` to choose another port. `pnpm --filter @triplex-build/triplex-explorer activity -- --sqlite ./explorer.db`
 commits small changes every 20 seconds so the live view has something to follow.
 
+## Playground
+
+`/playground/share/` runs the same explorer over an in-memory Triplex database built in the page, with
+no host. A playground is a JSON bundle of entity types, seed commands and saved Datalog queries
+(`src/playground/bundle.ts`). The page publishes the types as the live release, applies each seed
+command as one attributed transaction enforced against it, and runs saved queries at the
+explorer's temporal basis. **Copy share link** puts the deflated bundle in the URL hash, so a link
+needs no storage and opening it gives the reader their own copy. Edits made in the table stay in
+that tab.
+
+```sh
+pnpm --filter @triplex-build/triplex-explorer dev   # then open /playground/share/
+```
+
+The Alchemy `Docs` Worker serves it at `triplex.build/playground/share/`, beside the guided docs page at `/playground`:
+`pnpm site:build` runs `pnpm docs:build`, then `pnpm playground:build` writes it into the documentation output. Sharing is link-only for now; stored,
+immutable snapshots like Forma's playground are the planned next step.
+
 ## Reads
 
 - Unsorted tables page with `Triples.entityPage` (exact type, by ID, one commit cut).

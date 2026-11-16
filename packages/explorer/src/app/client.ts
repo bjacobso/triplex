@@ -22,9 +22,23 @@ type Responses = {
   Save: Saved;
 };
 
+/** Where requests go when not to the HTTP host, such as a database running in the page. */
+export interface Transport {
+  readonly call: (request: ExplorerRequest) => Promise<unknown>;
+  readonly follow: typeof follow;
+}
+
+let transport: Transport | null = null;
+
+/** Send every later request to `next` instead of the HTTP host; `null` restores the host. */
+export const setTransport = (next: Transport | null) => {
+  transport = next;
+};
+
 export const call = async <T extends ExplorerRequest["_tag"]>(
   request: Extract<ExplorerRequest, { _tag: T }>,
 ): Promise<Responses[T]> => {
+  if (transport) return (await transport.call(request)) as Responses[T];
   const response = await fetch("/api/explorer", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -44,6 +58,7 @@ export const follow = (
   onEvent: (event: LiveEvent) => void,
   onConnection: (connected: boolean) => void,
 ): (() => void) => {
+  if (transport) return transport.follow(after, onEvent, onConnection);
   const controller = new AbortController();
   let position = after;
   const run = async () => {

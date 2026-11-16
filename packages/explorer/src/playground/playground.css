@@ -1,0 +1,229 @@
+/* The playground adds a bundle pane beside the explorer's workspace and reuses its tokens. */
+.pg-loading {
+  padding: 40px;
+  color: var(--ex-muted);
+}
+.pg-title {
+  min-width: 280px;
+}
+.pg-title-input {
+  display: block;
+  width: min(100%, 460px);
+  margin: 2px 0 2px -6px;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ex-ink);
+  font: inherit;
+  font-size: clamp(19px, 2vw, 24px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.pg-title-input:hover,
+.pg-title-input:focus {
+  border-color: var(--ex-line);
+  background: var(--ex-panel);
+  outline: none;
+}
+.pg-title p {
+  margin: 0;
+  color: var(--ex-muted);
+  font-size: 12.5px;
+}
+.pg-state {
+  color: var(--ex-kw);
+  font-weight: 600;
+}
+.pg-state.shared {
+  color: var(--ex-lit);
+}
+.pg-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pg-actions .ex-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pg-notice {
+  margin: -4px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ex-line);
+  border-radius: 8px;
+  background: var(--ex-lit-soft);
+  font-size: 12.5px;
+}
+.pg-notice.error {
+  background: var(--ex-error-soft);
+  color: var(--ex-error);
+}
+
+.pg-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+.pg-body.collapsed {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.pg-body > .ex-workspace,
+.pg-body > .ex-fatal {
+  min-height: 0;
+}
+.pg-open-pane {
+  align-self: start;
+  margin-top: 6px;
+}
+
+.pg-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--ex-line);
+  border-radius: 12px;
+  background: var(--ex-panel);
+}
+.pg-section {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 12px;
+  overflow: auto;
+}
+.pg-hint {
+  margin: 0;
+  line-height: 1.45;
+}
+.pg-editor {
+  flex: 1;
+  min-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid var(--ex-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ex-bg) 55%, var(--ex-panel));
+  color: var(--ex-ink);
+  font-family: var(--ex-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+  resize: none;
+  white-space: pre;
+}
+.pg-editor:focus {
+  border-color: var(--ex-accent);
+  outline: none;
+}
+.pg-editor[aria-invalid="true"] {
+  border-color: var(--ex-error);
+}
+.pg-editor.pg-prose {
+  font-family: var(--ex-sans);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.pg-json-error {
+  margin: 0;
+  font-family: var(--ex-mono);
+  font-size: 11.5px;
+}
+.pg-problems {
+  margin: 10px 12px 0;
+  padding: 8px 12px 8px 26px;
+  border-radius: 8px;
+  background: var(--ex-error-soft);
+  color: var(--ex-error);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pg-pane-foot {
+  padding: 7px 12px;
+  border-top: 1px solid var(--ex-line);
+  font-size: 11.5px;
+}
+
+.pg-query-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pg-query-list button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--ex-line);
+  border-radius: 999px;
+  color: var(--ex-muted);
+  font-size: 12px;
+  font-weight: 560;
+}
+.pg-query-list button[aria-selected="true"] {
+  border-color: var(--ex-accent);
+  background: var(--ex-accent-soft);
+  color: var(--ex-accent);
+}
+.pg-query-list .pg-add {
+  border-style: dashed;
+}
+.pg-section .pg-editor {
+  flex: 0 0 auto;
+  min-height: 200px;
+  height: 38%;
+}
+.pg-section:has(.pg-prose) .pg-editor,
+.pg-section:not(:has(.pg-query-list)) .pg-editor {
+  flex: 1;
+  height: auto;
+}
+.pg-query-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pg-query-actions .ex-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.pg-results p {
+  margin: 0 0 6px;
+}
+.pg-results table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pg-results th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--ex-line);
+  color: var(--ex-muted);
+  font-family: var(--ex-mono);
+  font-weight: 500;
+  text-align: left;
+}
+.pg-results td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--ex-line);
+  font-family: var(--ex-mono);
+}
+.pg-results tr:nth-child(even) td {
+  background: var(--ex-row);
+}
+.pg-intro {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--ex-accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--ex-accent-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
