@@ -102,8 +102,8 @@ for facts whose `value_type` is `number` or `datetime`. It matches the compiler'
 expression: both storage types compare numerically, and equal numeric values still collapse in
 Datalog projections. The existing number-only index remains available for typed storage reads.
 
-This covers [Runfold PR #4](https://github.com/bjacobso/runfold/pull/4)'s `src/actor.ts` due-work
-query without an application index declaration or per-actor DDL:
+This covers a host's due-work query, such as the one in Runfold (the engine behind WorldVM
+programs), without an application index declaration or per-actor DDL:
 
 ```ts check
 import { Effect } from "effect";
