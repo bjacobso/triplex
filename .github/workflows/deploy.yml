@@ -34,13 +34,13 @@ jobs:
           else
             echo "::notice::Skipping production deploy: configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID Actions secrets."
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.credentials.outputs.available == 'true'
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: steps.credentials.outputs.available == 'true'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.credentials.outputs.available == 'true'
         with:
           node-version: 24
