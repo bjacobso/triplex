@@ -11,9 +11,10 @@ import {
 } from "../src/index.js";
 
 describe("SQL package contract", () => {
-  it("keeps one baseline migration with every index declared", () => {
+  it("keeps the baseline and additive migrations with every index declared", () => {
     expect(migrations.map((migration) => [migration.version, migration.name])).toEqual([
       [1, BASELINE_MIGRATION_NAME],
+      [2, "triplex_entity_attribute_history_index"],
     ]);
     const statements = migrations.flatMap((migration) => migration.up);
     expect(new Set(statements).size).toBe(statements.length);
@@ -27,7 +28,10 @@ describe("SQL package contract", () => {
 
   it("accepts only this release's schema history", () => {
     expect(checkSchemaHistory([])).toBe("empty");
-    expect(checkSchemaHistory([{ version: 1, name: BASELINE_MIGRATION_NAME }])).toBe("current");
+    const current = migrations.map(({ version, name }) => ({ version, name }));
+    expect(checkSchemaHistory(current)).toBe("current");
+    // A 0.5 baseline database upgrades in place.
+    expect(checkSchemaHistory([{ version: 1, name: BASELINE_MIGRATION_NAME }])).toBe("pending");
     for (const history of [
       [{ version: 1, name: "triplex_baseline" }],
       Array.from({ length: 13 }, (_, index) => ({ version: index + 1, name: `v${index + 1}` })),
@@ -35,6 +39,7 @@ describe("SQL package contract", () => {
         { version: 1, name: BASELINE_MIGRATION_NAME },
         { version: 2, name: "from_a_newer_release" },
       ],
+      [...current, { version: 3, name: "from_a_newer_release" }],
     ]) {
       const status = checkSchemaHistory(history);
       expect(status).toBeInstanceOf(SchemaVersionError);

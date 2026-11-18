@@ -27,6 +27,7 @@ import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
   makeSqlLiveFactsLookup,
+  makeSqlHistoryPage,
   makeSqlTransactionJournal,
   packValue,
   runMigrations,
@@ -629,6 +630,10 @@ export const makePostgresqlAdapter = (config: PostgresqlAdapterConfig = {}) =>
           PostgresqlDialect,
         ),
         liveFacts: makeSqlLiveFactsLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          PostgresqlDialect,
+        ),
+        historyPage: makeSqlHistoryPage(
           { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
           PostgresqlDialect,
         ),

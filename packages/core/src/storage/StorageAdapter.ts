@@ -20,6 +20,7 @@ import type { OperationalEntryRecord, PendingEntriesScan } from "../operational/
 import type { ContentId } from "../content/ContentId.js";
 import type { TransactionId } from "../Branded.js";
 import type { JournalAppend, JournalEntry } from "../store/journal.js";
+import type { HistoryPageAfter } from "../HistoryPage.js";
 
 /**
  * StorageAdapterService - Backend-agnostic storage primitives
@@ -149,6 +150,18 @@ export interface StorageAdapterService {
     basis?: ResolvedTemporalBasis,
   ) => Effect.Effect<readonly TripleRow[], ReadError>;
   readonly history: (entityId: string) => Effect.Effect<readonly TripleRow[], ReadError>;
+  /**
+   * Indexed history page: one entity's facts (one attribute's, when given), retracted or
+   * not, recorded at or before `snapshotPosition` and after `after`, ordered by
+   * (recorded position, ID), at most `limit`. Must seek, not load the entity's history.
+   */
+  readonly historyPage: (
+    entityId: string,
+    attribute: string | undefined,
+    snapshotPosition: number,
+    after: HistoryPageAfter | undefined,
+    limit: number,
+  ) => Effect.Effect<readonly TripleRow[], ReadError>;
   readonly initialize: () => Effect.Effect<void, MigrationError>;
   readonly close: () => Effect.Effect<void, unknown>;
 }

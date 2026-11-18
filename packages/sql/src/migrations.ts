@@ -10,6 +10,7 @@ import {
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
+  ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
@@ -47,7 +48,8 @@ export interface Migration {
 export const BASELINE_MIGRATION_NAME = "triplex_journal_store_baseline";
 
 /**
- * The Triplex schema: one baseline that creates the current layout directly.
+ * The Triplex schema: a baseline that creates the 0.5 layout directly, then
+ * additive migrations that a baseline database applies in order.
  *
  * DDL is imported from schema.ts so explicit host-owned migration execution and
  * convenience auto-migration use the same definitions. PostgreSQL creates its
@@ -84,6 +86,12 @@ export const migrations: readonly Migration[] = [
       ...KEY_STORE_DDLS,
     ],
   },
+  {
+    // Bounded per-attribute history pages and optional-projection lookups.
+    version: 2,
+    name: "triplex_entity_attribute_history_index",
+    up: [ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL],
+  },
 ];
 
 /** The schema version this release requires. */
@@ -97,27 +105,27 @@ export interface SchemaHistoryRow {
 /**
  * Compare a database's recorded schema history with this release's. Returns
  * `"empty"` for a database with no history, `"current"` for exactly this
- * release's baseline, and a `SchemaVersionError` for anything else, including
- * every database written by Triplex 0.4 or earlier.
+ * release's migrations, `"pending"` for a strict prefix of them that
+ * `runMigrations` completes, and a `SchemaVersionError` for anything else,
+ * including every database written by Triplex 0.4 or earlier.
  */
 export const checkSchemaHistory = (
   history: ReadonlyArray<SchemaHistoryRow>,
-): "empty" | "current" | SchemaVersionError => {
+): "empty" | "current" | "pending" | SchemaVersionError => {
   if (history.length === 0) return "empty";
   const rows = [...history].sort((a, b) => Number(a.version) - Number(b.version));
-  const matches =
-    rows.length === migrations.length &&
+  const prefix =
+    rows.length <= migrations.length &&
     rows.every(
       (row, index) =>
         Number(row.version) === migrations[index]!.version && row.name === migrations[index]!.name,
     );
-  return matches
-    ? "current"
-    : new SchemaVersionError({
-        expectedVersion: SCHEMA_VERSION,
-        actualVersion: Math.max(...rows.map((row) => Number(row.version))),
-        actualName: rows.at(-1)!.name,
-      });
+  if (prefix) return rows.length === migrations.length ? "current" : "pending";
+  return new SchemaVersionError({
+    expectedVersion: SCHEMA_VERSION,
+    actualVersion: Math.max(...rows.map((row) => Number(row.version))),
+    actualName: rows.at(-1)!.name,
+  });
 };
 
 /**
@@ -147,19 +155,27 @@ export const readSchemaHistory = Effect.gen(function* () {
 
 /**
  * Fail with `SchemaVersionError` unless the database has this release's schema,
- * or (when `allowEmpty`) no Triplex schema yet. Every layer, migrating or not,
- * runs this before touching the database, so a 0.4 database is refused rather
- * than half-upgraded.
+ * or (when `allowEmpty`, for a layer that migrates) no Triplex schema yet or
+ * pending migrations. Every layer, migrating or not, runs this before touching
+ * the database, so a 0.4 database is refused rather than half-upgraded.
  */
 export const checkSchema = (options: { readonly allowEmpty: boolean }) =>
   readSchemaHistory.pipe(
     Effect.flatMap((history) => {
       const status = checkSchemaHistory(history);
-      if (status === "current" || (status === "empty" && options.allowEmpty)) return Effect.void;
+      if (status === "current") return Effect.void;
+      if (status instanceof SchemaVersionError) return Effect.fail(status);
+      if (options.allowEmpty) return Effect.void;
+      const latest = [...history].sort((a, b) => Number(a.version) - Number(b.version)).at(-1);
       return Effect.fail(
-        status === "empty"
+        latest === undefined
           ? new SchemaVersionError({ expectedVersion: SCHEMA_VERSION, actualVersion: 0 })
-          : status,
+          : new SchemaVersionError({
+              expectedVersion: SCHEMA_VERSION,
+              actualVersion: Number(latest.version),
+              actualName: latest.name,
+              pending: true,
+            }),
       );
     }),
   );
@@ -167,9 +183,11 @@ export const checkSchema = (options: { readonly allowEmpty: boolean }) =>
 export const runMigrations = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  const status = checkSchemaHistory(yield* readSchemaHistory);
+  const history = yield* readSchemaHistory;
+  const status = checkSchemaHistory(history);
   if (status === "current") return;
-  if (status !== "empty") return yield* status;
+  if (status !== "empty" && status !== "pending") return yield* status;
+  const applied = Math.max(0, ...history.map((row) => Number(row.version)));
 
   yield* sql`
     CREATE TABLE IF NOT EXISTS triplex_schema_migrations (
@@ -179,7 +197,7 @@ export const runMigrations = Effect.gen(function* () {
     )
   `;
 
-  for (const migration of migrations) {
+  for (const migration of migrations.filter(({ version }) => version > applied)) {
     const dialectStatements = sql.onDialectOrElse({
       orElse: () => [] as ReadonlyArray<string>,
       sqlite: () => migration.dialects?.sqlite ?? [],

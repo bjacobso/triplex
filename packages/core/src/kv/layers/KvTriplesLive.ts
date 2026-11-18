@@ -88,6 +88,7 @@ import * as ContentIds from "../../content/ContentId.js";
 import { unsafe } from "../../Branded.js";
 import { transactionsForEntity } from "../../store/entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../../EntityPage.js";
+import { encodeHistoryPageCursor, prepareHistoryPage } from "../../HistoryPage.js";
 import { tripleAtRecordedPosition } from "../../store/temporalView.js";
 import { makeKvOperationalEntryStorage } from "../kv/OperationalEntries.js";
 import {
@@ -1028,6 +1029,49 @@ const makeKvTriplesService = Effect.gen(function* () {
           Effect.fail(new ReadError({ message: `History failed: ${String(e)}`, cause: e })),
         ),
       ),
+
+    historyPage: (entityId, request = {}) =>
+      Effect.gen(function* () {
+        const head = yield* currentKvCommitPosition(kvBackend);
+        const prepared = yield* Effect.try({
+          try: () =>
+            prepareHistoryPage({ entityId, request, recordedPosition: head, scope: runtime.scope }),
+          catch: (cause) =>
+            cause instanceof PaginationCursorError
+              ? cause
+              : new PaginationCursorError({
+                  reason: "malformed",
+                  message: `Failed to prepare history page: ${String(cause)}`,
+                  cause,
+                }),
+        });
+        // One fact past the limit says whether another page exists.
+        const datoms = yield* hexaStore.historyPage(
+          entityId,
+          prepared.attribute,
+          prepared.snapshotPosition,
+          prepared.after,
+          prepared.limit + 1,
+        );
+        const page = datoms.slice(0, prepared.limit);
+        const last = page.at(-1);
+        return {
+          facts: page.map((datom) =>
+            datom.retractedPosition === null || datom.retractedPosition > prepared.snapshotPosition
+              ? tripleAtRecordedPosition(datomToTriple(datom), prepared.snapshotPosition)
+              : datomToTriple(datom),
+          ),
+          snapshotPosition: prepared.snapshotPosition,
+          ...(datoms.length > prepared.limit && last !== undefined
+            ? {
+                nextCursor: encodeHistoryPageCursor(prepared, {
+                  position: last.recordedPosition,
+                  id: last.tripleId,
+                }),
+              }
+            : {}),
+        };
+      }),
 
     transaction: (txId) => kvJournalEntry(kvBackend, txId).pipe(Effect.flatMap(hydrateOne)),
 

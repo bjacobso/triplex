@@ -249,6 +249,7 @@ describe("public runtime composition", () => {
           getByEntities: unused,
           query: unused,
           history: unused,
+          historyPage: unused,
           initialize: () => Effect.fail(failure),
           close: () => Effect.void,
         }),

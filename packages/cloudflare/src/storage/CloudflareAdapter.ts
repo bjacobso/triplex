@@ -28,6 +28,7 @@ import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
   makeSqlLiveFactsLookup,
+  makeSqlHistoryPage,
   makeSqlTransactionJournal,
   SqliteDialect,
 } from "@triplex-build/triplex-sql";
@@ -660,6 +661,15 @@ export function makeCloudflareAdapter(ctx: DOState): SqlStorageAdapterService {
       { maxParameters: 100 },
     ),
     liveFacts: makeSqlLiveFactsLookup(
+      {
+        run: <Row extends Record<string, unknown>>(statement: string, params: readonly unknown[]) =>
+          Effect.try(() =>
+            cursorToArray(sqlStorage.exec<Row>(statement, ...(params as SqlStorageValue[]))),
+          ),
+      },
+      SqliteDialect,
+    ),
+    historyPage: makeSqlHistoryPage(
       {
         run: <Row extends Record<string, unknown>>(statement: string, params: readonly unknown[]) =>
           Effect.try(() =>

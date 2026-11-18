@@ -8,6 +8,7 @@ import {
 import {
   NUMERIC_VALUE_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
+  ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
   SNAPSHOT_INDEX_DDLS,
@@ -67,5 +68,10 @@ export const migrations: readonly Migration[] = [
     version: 7,
     name: "triplex_journal_store",
     up: [...JOURNAL_DDLS, "DROP TABLE IF EXISTS triplex_command_receipts"],
+  },
+  {
+    version: 8,
+    name: "triplex_entity_attribute_history_index",
+    up: [ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL],
   },
 ];

@@ -32,6 +32,10 @@ import { kvJournalAsync, kvJournalSync, type KvJournalEntry } from "../kv/Journa
 import {
   intervalKey,
   INTERVAL_READY_KEY,
+  historyIndexEntries,
+  historyRange,
+  HISTORY_READY_KEY,
+  HISTORY_CURSOR_KEY,
   INTERVAL_CURSOR_KEY,
   liveFactKey,
   liveFactKeyStr,
@@ -641,6 +645,7 @@ export class KvTripleStore {
       ]);
     entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
     entries.push(...readIndexEntries(datom));
+    entries.push(...historyIndexEntries(datom));
 
     // TYPE index for entityType queries
     if (datom.entityType !== null) {
@@ -698,6 +703,7 @@ export class KvTripleStore {
         ]);
       entries.push([metaKey(datom.tripleId), serializeDatom(datom)]);
       entries.push(...readIndexEntries(datom));
+      entries.push(...historyIndexEntries(datom));
 
       if (datom.entityType !== null) {
         entries.push([typeKey(datom.entityType, datom.tripleId), tripleIdValue]);
@@ -756,6 +762,8 @@ export class KvTripleStore {
         ];
       entries[idx++] = [metaKeyStr(tripleIdStr), serializeDatom(datom)];
       for (const [key, value] of readIndexEntries(datom)) entries[idx++] = [keyString(key), value];
+      for (const [key, value] of historyIndexEntries(datom))
+        entries[idx++] = [keyString(key), value];
 
       if (datom.entityType !== null) {
         const etStr = encodeStringStr(datom.entityType);
@@ -1060,6 +1068,76 @@ export class KvTripleStore {
       }
       return results;
     });
+  }
+
+  private historyIndexesReady = false;
+
+  /** Resumable bounded backfill of the history indexes for stores written before them. */
+  ensureHistoryIndexes(): Effect.Effect<void> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.historyIndexesReady) return;
+      let complete = false;
+      while (!complete) {
+        complete = yield* this.kv.transact((tx) =>
+          Effect.gen(function* () {
+            if ((yield* tx.get(HISTORY_READY_KEY))?.[0] === 1) return true;
+            const cursor = yield* tx.get(HISTORY_CURSOR_KEY);
+            const entries = yield* Stream.runCollect(
+              tx.getRange({
+                start: cursor === null ? META_PREFIX : concat(cursor, new Uint8Array([0])),
+                end: new Uint8Array([0x21]),
+                limit: 501,
+              }),
+            );
+            const batch = entries.slice(0, 500);
+            for (const [, bytes] of batch)
+              for (const [key, value] of historyIndexEntries(deserializeDatom(bytes)))
+                yield* tx.set(key, value);
+            if (entries.length <= 500) {
+              yield* tx.set(HISTORY_READY_KEY, new Uint8Array([1]));
+              yield* tx.delete(HISTORY_CURSOR_KEY);
+              return true;
+            }
+            yield* tx.set(HISTORY_CURSOR_KEY, batch.at(-1)![0]);
+            return false;
+          }),
+        );
+      }
+      this.historyIndexesReady = true;
+    });
+  }
+
+  /**
+   * One page of retained history in (position, ID) order, read from the history
+   * index range and then by ID, so it never visits facts outside the page.
+   */
+  historyPage(
+    entity: string,
+    attribute: string | undefined,
+    snapshotPosition: number,
+    after: { readonly position: number; readonly id: string } | undefined,
+    limit: number,
+  ): Effect.Effect<Datom[], ReadError> {
+    return Effect.gen({ self: this }, function* () {
+      yield* this.ensureHistoryIndexes();
+      const rows = yield* Stream.runCollect(
+        this.kv.getRange({ ...historyRange(entity, attribute, snapshotPosition, after), limit }),
+      );
+      const facts: Datom[] = [];
+      for (const [, value] of rows) {
+        const fact = yield* this.getById(textDecoder.decode(value));
+        if (fact === null)
+          return yield* new ReadError({ message: "Inconsistent KV history index" });
+        facts.push(fact);
+      }
+      return facts;
+    }).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof ReadError
+          ? cause
+          : new ReadError({ message: "Failed to read KV history page", cause }),
+      ),
+    );
   }
 
   private intervalIndexesReady = false;

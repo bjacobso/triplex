@@ -48,6 +48,75 @@ export const liveFactRange = (entity: string, attribute?: string) => {
   return { start, end: increment(start) };
 };
 
+/**
+ * Retained history in commit order: (entity, position, ID) and
+ * (entity, attribute, position, ID). Entries never change after the assert,
+ * because a retraction keeps the fact's position.
+ */
+export const ENTITY_HISTORY_PREFIX = new Uint8Array([0x0e]);
+export const ENTITY_ATTRIBUTE_HISTORY_PREFIX = new Uint8Array([0x0f]);
+export const HISTORY_READY_KEY = new Uint8Array([0x29, 1]);
+export const HISTORY_CURSOR_KEY = new Uint8Array([0x29, 2]);
+export const historyIndexEntries = (datom: {
+  readonly entity: string;
+  readonly attribute: string;
+  readonly recordedPosition: number;
+  readonly tripleId: string;
+}): Array<readonly [Uint8Array, Uint8Array]> => {
+  const id = new TextEncoder().encode(datom.tripleId);
+  return [
+    [
+      concat(
+        ENTITY_HISTORY_PREFIX,
+        encodeTuple(
+          tString(datom.entity),
+          tNumber(datom.recordedPosition),
+          tString(datom.tripleId),
+        ),
+      ),
+      id,
+    ],
+    [
+      concat(
+        ENTITY_ATTRIBUTE_HISTORY_PREFIX,
+        encodeTuple(
+          tString(datom.entity),
+          tString(datom.attribute),
+          tNumber(datom.recordedPosition),
+          tString(datom.tripleId),
+        ),
+      ),
+      id,
+    ],
+  ];
+};
+/**
+ * Key range of one history page: facts after `after` (exclusive) up to and
+ * including `snapshotPosition`, in (position, ID) order.
+ */
+export const historyRange = (
+  entity: string,
+  attribute: string | undefined,
+  snapshotPosition: number,
+  after: { readonly position: number; readonly id: string } | undefined,
+) => {
+  const prefix =
+    attribute === undefined
+      ? concat(ENTITY_HISTORY_PREFIX, encodeTuple(tString(entity)))
+      : concat(ENTITY_ATTRIBUTE_HISTORY_PREFIX, encodeTuple(tString(entity), tString(attribute)));
+  return {
+    start:
+      after === undefined
+        ? prefix
+        : concat(
+            prefix,
+            encodeTuple(tNumber(after.position), tString(after.id)),
+            new Uint8Array([0]),
+          ),
+    end: concat(prefix, encodeTuple(tNumber(snapshotPosition + 1))),
+  };
+};
+
 /** Historical interval access paths; retractions retain entries. */
 export const INTERVAL_FROM_PREFIX = new Uint8Array([0x07]);
 export const INTERVAL_TO_PREFIX = new Uint8Array([0x08]);

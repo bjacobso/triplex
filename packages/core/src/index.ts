@@ -19,6 +19,7 @@ export {
   type EntityPageRequest,
   type EntityPageSnapshot,
 } from "./EntityPage.js";
+export { type HistoryPageCursor, type HistoryPageRequest } from "./HistoryPage.js";
 export * from "./Value.js";
 export * as Constraint from "./Constraint.js";
 export * as CommitValidation from "./store/CommitValidation.js";
@@ -88,6 +89,7 @@ export {
   type EntityTransactionPage,
   type DependencyState,
   type EntityPage,
+  type HistoryPage,
   type QueryOptions,
   type PagedQueryOptions,
   type QueryResponse,

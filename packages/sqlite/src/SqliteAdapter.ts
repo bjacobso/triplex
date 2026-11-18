@@ -27,6 +27,7 @@ import {
   makeSqlOperationalEntryStorage,
   makeSqlLivePreconditionLookup,
   makeSqlLiveFactsLookup,
+  makeSqlHistoryPage,
   makeSqlTransactionJournal,
   SqliteDialect,
   checkSchema,
@@ -718,6 +719,10 @@ export const makeSqliteAdapter = (config: SqliteAdapterConfig = {}) =>
           SqliteDialect,
         ),
         liveFacts: makeSqlLiveFactsLookup(
+          { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
+          SqliteDialect,
+        ),
+        historyPage: makeSqlHistoryPage(
           { run: (statement, params) => provide(sql.unsafe(statement, [...params])) },
           SqliteDialect,
         ),

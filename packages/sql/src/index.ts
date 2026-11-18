@@ -26,6 +26,7 @@ export {
   NUMERIC_VALUE_INDEX_DDL,
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
+  ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL,
   INDEX_NAMES,
   ENTITY_BLOBS_TABLE_DDL,
   ENTITY_SNAPSHOTS_TABLE_DDL,
@@ -76,6 +77,7 @@ export { DatabaseManagerLive } from "./DatabaseManagerLayer.js";
 export { makeSqlOperationalEntryStorage } from "./OperationalEntries.js";
 
 export { makeSqlLivePreconditionLookup, makeSqlLiveFactsLookup } from "./LivePreconditions.js";
+export { makeSqlHistoryPage } from "./HistoryPage.js";
 
 export {
   makeSqlTransactionJournal,
