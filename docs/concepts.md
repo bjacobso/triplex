@@ -38,7 +38,10 @@ Corrections therefore append evidence:
    or one attributed raw `Triples.transact` call.
 
 `history(entityId)` includes retracted assertions. Current `entity` and `match` reads show only
-facts visible at their requested bitemporal basis.
+facts visible at their requested bitemporal basis. For an entity with a long history, read it in
+bounded pages with `historyPage(entityId, { attribute?, limit?, cursor? })`: pages are oldest first,
+come from an index seek, and stay pinned to the first page's commit position, so writes between pages
+neither repeat nor skip facts.
 
 ### End a fact at a time
 

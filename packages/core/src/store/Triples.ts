@@ -49,6 +49,7 @@ import type { OperationalEntryConflictError } from "../errors/index.js";
 import type { TripleValue } from "../Value.js";
 import type { Rule as ConstraintRule } from "../Constraint.js";
 import type { EntityPageCursor, EntityPageRequest, EntityPageSnapshot } from "../EntityPage.js";
+import type { HistoryPageCursor, HistoryPageRequest } from "../HistoryPage.js";
 import type {
   QueryResult,
   QueryDebugInfo,
@@ -189,6 +190,18 @@ export interface EntityPage {
   readonly nextCursor?: EntityPageCursor;
 }
 
+export interface HistoryPage {
+  /**
+   * Assertions recorded at or before `snapshotPosition`, oldest first by commit position
+   * and then fact ID, including retracted ones. A retraction committed after the snapshot
+   * is not shown, so every page of one read sees the same history.
+   */
+  readonly facts: readonly Triple[];
+  /** Commit position the first page captured; continuations keep it. */
+  readonly snapshotPosition: number;
+  readonly nextCursor?: HistoryPageCursor;
+}
+
 /**
  * Options accepted by the Datalog read methods.
  */
@@ -292,6 +305,15 @@ export interface TriplesService {
   ) => Effect.Effect<readonly Triple[], ReadError>;
   /** Full history (including retracted) for an entity. */
   readonly history: (entityId: EntityId) => Effect.Effect<readonly Triple[], ReadError>;
+  /**
+   * One bounded page of an entity's history, or one attribute's, from an index seek.
+   * Pages are pinned to the first page's commit position, so writes between pages
+   * neither repeat nor skip facts.
+   */
+  readonly historyPage: (
+    entityId: EntityId,
+    request?: HistoryPageRequest,
+  ) => Effect.Effect<HistoryPage, ReadError | PaginationCursorError>;
   /** Read a persisted causal transaction envelope and its fact changes. */
   readonly transaction: (txId: TransactionId) => Effect.Effect<TransactionRecord | null, ReadError>;
   /** Lookup the durable receipt for an atomically unique command ID. */

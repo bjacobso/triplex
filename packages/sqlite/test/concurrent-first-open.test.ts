@@ -9,6 +9,7 @@ import { afterEach, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { Triples } from "@triplex-internal/core";
+import { migrations } from "@triplex-build/triplex-sql";
 import { SqliteTriples } from "../src/SqliteTriples.js";
 
 const directories: string[] = [];
@@ -42,7 +43,7 @@ it(
         Effect.all([open, open, open], { concurrency: "unbounded" }),
       );
       expect(first!.position).toBe(0);
-      expect(first!.history).toHaveLength(1);
+      expect(first!.history).toHaveLength(migrations.length);
       expect(second).toEqual(first);
     }
   },

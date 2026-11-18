@@ -207,6 +207,14 @@ export const SEALED_BLIND_INDEX_DDL =
 export const ENTITY_RECORDED_POSITION_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_entity_recorded_position ON triples(entity_id, recorded_position)";
 
+/**
+ * One attribute of one entity at any recorded cut, retracted rows included: bounded
+ * history pages for one attribute, and Datalog optional projections, which otherwise
+ * plan on an attribute-wide index and scan every entity's values for each row.
+ */
+export const ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_entity_attribute_history ON triples(entity_id, attribute, recorded_position)";
+
 /** Non-partial indexes preserve interval access at historical recorded cuts. */
 export const INTERVAL_HISTORY_INDEX_DDLS = [
   "CREATE INDEX IF NOT EXISTS idx_attribute_valid_to_history ON triples (attribute, valid_to, recorded_position)",
@@ -226,6 +234,7 @@ export const INDEX_DDLS = [
   SEALED_BLIND_INDEX_DDL,
   ENTITY_RECORDED_POSITION_INDEX_DDL,
   ...INTERVAL_HISTORY_INDEX_DDLS,
+  ENTITY_ATTRIBUTE_HISTORY_INDEX_DDL,
 ] as const;
 
 /**
@@ -248,6 +257,7 @@ export const INDEX_NAMES = [
   "idx_tx_id",
   "idx_attribute_valid_to_history",
   "idx_attribute_valid_from_history",
+  "idx_entity_attribute_history",
 ] as const;
 
 // =============================================================================

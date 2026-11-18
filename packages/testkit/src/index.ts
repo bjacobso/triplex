@@ -1,4 +1,5 @@
 import { datalogTimeConformanceCases } from "./datalogTimeCases.js";
+import { historyPageConformanceCases } from "./historyPageCases.js";
 /**
  * Shared backend test helpers for Triplex.
  *
@@ -125,6 +126,7 @@ export const triplesConformanceCases: readonly ConformanceCase[] = [
   },
   ...commitValidatorConformanceCases,
   ...datalogTimeConformanceCases,
+  ...historyPageConformanceCases,
   {
     name: "entity-prefix feeds are the ordered complete subsequence of the global journal",
     run: Effect.gen(function* () {

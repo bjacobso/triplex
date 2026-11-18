@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { Cause, Effect, Exit, Layer, Schema } from "effect";
-import { EntityId, Triples, KvTriples, type PagedQueryResponse } from "@triplex-internal/core";
+import { Cause, Effect, Exit, Layer, Option, Schema } from "effect";
+import {
+  EntityId,
+  Triples,
+  KvTriples,
+  type HistoryPage,
+  type PagedQueryResponse,
+} from "@triplex-internal/core";
 import { SqliteTriples } from "@triplex-build/triplex-sqlite";
 import {
   AuthorizationError,
@@ -254,6 +260,32 @@ describe("tenant request boundary", () => {
             ).pipe(Effect.result);
             expect(ambiguous._tag).toBe("Failure");
           }
+          // History pages travel through the decoded protocol with their cursor.
+          const names = (page: HistoryPage) =>
+            page.facts.map((fact) => [
+              (fact.value as { value: string }).value,
+              Option.isSome(fact.retractedAt),
+            ]);
+          const history = (yield* request({
+            _tag: "HistoryPage",
+            entityId: home,
+            limit: 1,
+          })) as HistoryPage;
+          expect(names(history)).toEqual([["Alice", true]]);
+          const rest = (yield* request({
+            _tag: "HistoryPage",
+            entityId: home,
+            limit: 1,
+            cursor: history.nextCursor!,
+          })) as HistoryPage;
+          expect(names(rest)).toEqual([["Alicia", false]]);
+          expect(rest.nextCursor).toBeUndefined();
+          const asRecorded = (yield* request({
+            _tag: "HistoryPage",
+            entityId: home,
+            recordedPosition: first.position,
+          })) as HistoryPage;
+          expect(names(asRecorded)).toEqual([["Alice", false]]);
         }).pipe(Effect.provide(backendLayer), Effect.provide(AuthorizerLive)),
       );
     },

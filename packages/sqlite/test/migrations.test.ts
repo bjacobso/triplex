@@ -73,7 +73,7 @@ const schemaVersionErrorOf = async (effect: Effect.Effect<unknown, unknown>) => 
 };
 
 describe("host-owned SQLite migrations", () => {
-  it("starts without DDL and applies the one baseline idempotently", async () => {
+  it("starts without DDL and applies every migration idempotently", async () => {
     const result = await runUnmigrated(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -105,12 +105,12 @@ describe("host-owned SQLite migrations", () => {
     );
 
     expect(result.before).toHaveLength(0);
-    expect(migrations.map(({ version, name }) => [version, name])).toEqual([
+    const expected = [
       [1, BASELINE_MIGRATION_NAME],
-    ]);
-    expect(result.applied.map(({ version, name }) => [version, name])).toEqual([
-      [1, BASELINE_MIGRATION_NAME],
-    ]);
+      [2, "triplex_entity_attribute_history_index"],
+    ];
+    expect(migrations.map(({ version, name }) => [version, name])).toEqual(expected);
+    expect(result.applied.map(({ version, name }) => [version, name])).toEqual(expected);
     expect(result.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "recorded_at",
@@ -163,6 +163,7 @@ describe("host-owned SQLite migrations", () => {
         "idx_attr_blind",
         "idx_entity",
         "idx_entity_recorded_position",
+        "idx_entity_attribute_history",
         "idx_tx_id",
       ]),
     );
@@ -181,7 +182,7 @@ describe("host-owned SQLite migrations", () => {
     const client = makeSqliteLayerUnmigrated(filename);
 
     const migrated = await schemaVersionErrorOf(runMigrations.pipe(Effect.provide(client)));
-    expect(migrated).toMatchObject({ expectedVersion: 1, actualVersion: 13 });
+    expect(migrated).toMatchObject({ expectedVersion: 2, actualVersion: 13 });
     expect(migrated.message).toContain("Triplex 0.4 or earlier");
     expect(migrated.message).toContain("Start a fresh database");
 
@@ -223,6 +224,58 @@ describe("host-owned SQLite migrations", () => {
     );
     expect(untouched.history).toHaveLength(13);
     expect(untouched.tables).toEqual([]);
+  });
+
+  it("upgrades a 0.5 baseline database in place and keeps its facts", async () => {
+    const filename = await tempFile();
+    const fact = await Effect.runPromise(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const sql = yield* SqlClient.SqlClient;
+        const written = yield* triples.assert({
+          entityId: "upgrade:a" as never,
+          attribute: ":upgrade/name",
+          value: { type: "string", value: "Ada" },
+        });
+        // Leave the file as the 0.5.0 baseline wrote it.
+        yield* sql`DROP INDEX idx_entity_attribute_history`;
+        yield* sql`DELETE FROM triplex_schema_migrations WHERE version = 2`;
+        return written;
+      }).pipe(
+        Effect.provide(Layer.fresh(SqliteTriples.layerWithSqlClient({ filename }))),
+        Effect.scoped,
+      ),
+    );
+
+    const pending = await schemaVersionErrorOf(
+      Triples.pipe(
+        Effect.provide(Layer.fresh(SqliteTriples.layerReadOnly({ filename }))),
+        Effect.scoped,
+      ),
+    );
+    expect(pending).toMatchObject({ expectedVersion: 2, actualVersion: 1, pending: true });
+    expect(pending.message).toContain("Run runMigrations");
+
+    const upgraded = await Effect.runPromise(
+      Effect.gen(function* () {
+        const triples = yield* Triples;
+        const sql = yield* SqlClient.SqlClient;
+        return {
+          history: (yield* triples.historyPage(fact.entityId, { attribute: ":upgrade/name" }))
+            .facts,
+          versions: yield* sql<{ version: number }>`
+            SELECT version FROM triplex_schema_migrations ORDER BY version`,
+          index: yield* sql<{ name: string }>`
+            SELECT name FROM sqlite_master WHERE name = 'idx_entity_attribute_history'`,
+        };
+      }).pipe(
+        Effect.provide(Layer.fresh(SqliteTriples.layerWithSqlClient({ filename }))),
+        Effect.scoped,
+      ),
+    );
+    expect(upgraded.history.map((f) => f.id)).toEqual([fact.id]);
+    expect(upgraded.versions.map(({ version }) => Number(version))).toEqual([1, 2]);
+    expect(upgraded.index).toHaveLength(1);
   });
 
   it("refuses the 0.1 baseline history too, though its version number matches", async () => {

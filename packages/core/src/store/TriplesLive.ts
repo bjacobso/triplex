@@ -78,6 +78,7 @@ import { resolveTemporalBasis } from "../Temporal.js";
 import { finishPagination, preparePagination, wrapDatalogQuery } from "../Pagination.js";
 import { transactionsForEntity } from "./entityTransactionHistory.js";
 import { encodeEntityPageCursor, prepareEntityPage } from "../EntityPage.js";
+import { encodeHistoryPageCursor, prepareHistoryPage } from "../HistoryPage.js";
 import { commitOperationalView } from "./commitOperationalView.js";
 import type * as CommitValidation from "./CommitValidation.js";
 import { attemptFrom, runValidators, viewBasis } from "./commitValidationRun.js";
@@ -721,6 +722,50 @@ export const TriplesLive = Layer.effect(
         return rows.map(rowToTriple);
       });
 
+    const historyPage: TriplesService["historyPage"] = (entityId, request = {}) =>
+      Effect.gen(function* () {
+        const head = yield* adapter.currentCommitPosition();
+        const prepared = yield* Effect.try({
+          try: () =>
+            prepareHistoryPage({ entityId, request, recordedPosition: head, scope: runtime.scope }),
+          catch: (cause) =>
+            cause instanceof PaginationCursorError
+              ? cause
+              : new PaginationCursorError({
+                  reason: "malformed",
+                  message: `Failed to prepare history page: ${String(cause)}`,
+                  cause,
+                }),
+        });
+        // One row past the limit says whether another page exists.
+        const rows = yield* adapter.historyPage(
+          entityId,
+          prepared.attribute,
+          prepared.snapshotPosition,
+          prepared.after,
+          prepared.limit + 1,
+        );
+        const page = rows.slice(0, prepared.limit);
+        const last = page.at(-1);
+        return {
+          facts: page.map((row) =>
+            row.retracted_position === null ||
+            Number(row.retracted_position) > prepared.snapshotPosition
+              ? tripleAtRecordedPosition(rowToTriple(row), prepared.snapshotPosition)
+              : rowToTriple(row),
+          ),
+          snapshotPosition: prepared.snapshotPosition,
+          ...(rows.length > prepared.limit && last !== undefined
+            ? {
+                nextCursor: encodeHistoryPageCursor(prepared, {
+                  position: Number(last.recorded_position),
+                  id: last.id,
+                }),
+              }
+            : {}),
+        };
+      });
+
     /** One batched primary-key read of every fact a page of entries references. */
     const hydrate = (entries: readonly JournalEntry[]) =>
       Effect.gen(function* () {
@@ -1000,6 +1045,7 @@ export const TriplesLive = Layer.effect(
       entityPage,
       match,
       history,
+      historyPage,
       liveFacts: (entityId) =>
         adapter.liveFacts(entityId).pipe(Effect.map((rows) => rows.map(rowToTriple))),
       transaction,

@@ -36,6 +36,14 @@ export const DataOperation = Schema.Union([
   }),
   Schema.Struct({ _tag: Schema.Literal("History"), entityId: EntityId }),
   Schema.Struct({
+    _tag: Schema.Literal("HistoryPage"),
+    entityId: EntityId,
+    attribute: Schema.optional(Schema.String),
+    limit: Schema.optional(Schema.Number),
+    cursor: Schema.optional(Schema.String),
+    recordedPosition: Schema.optional(Schema.Number),
+  }),
+  Schema.Struct({
     _tag: Schema.Literal("Query"),
     query: DatalogQuery,
     options: Schema.optional(
@@ -140,6 +148,15 @@ export const executeDataOperation = (
       return triples.match(queryToPattern(operation.pattern), operation.basis);
     case "History":
       return triples.history(operation.entityId);
+    case "HistoryPage":
+      return triples.historyPage(operation.entityId, {
+        ...(operation.attribute === undefined ? {} : { attribute: operation.attribute }),
+        ...(operation.limit === undefined ? {} : { limit: operation.limit }),
+        ...(operation.cursor === undefined ? {} : { cursor: operation.cursor }),
+        ...(operation.recordedPosition === undefined
+          ? {}
+          : { recordedPosition: operation.recordedPosition }),
+      });
     case "Query":
       return triples.query(operation.query, {
         ...queryOptions(operation.options),
