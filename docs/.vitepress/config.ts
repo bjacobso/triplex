@@ -42,6 +42,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "Configuration HTTP API", link: "/http-api" },
       { text: "Performance", link: "/performance" },
       { text: "Storage footprint", link: "/storage-footprint" },
+      { text: "Canonical JSON and content IDs", link: "/content-hashing" },
       {
         text: "Architecture",
         link: "https://github.com/bjacobso/triplex/blob/main/ARCHITECTURE.md",
@@ -157,6 +158,7 @@ export default defineConfig({
           { text: "HTTP API", link: "/http-api" },
           { text: "Performance", link: "/performance" },
           { text: "Storage footprint", link: "/storage-footprint" },
+          { text: "Canonical JSON and content IDs", link: "/content-hashing" },
         ],
       },
       { text: "Operate", link: "/tools" },
