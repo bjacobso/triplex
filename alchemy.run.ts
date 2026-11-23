@@ -1,6 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
+import { workspaceAliases } from "./vitest.workspace-aliases.ts";
 
 export default Alchemy.Stack(
   "triplex",
@@ -21,6 +22,19 @@ export default Alchemy.Stack(
       // one Durable Object per MCP session holds that session's own Triplex database.
       main: "packages/site/src/worker.ts",
       compatibility: { date: "2026-09-06", flags: ["nodejs_compat"] },
+      // Bundle workspace packages from source: CI does not build their dist before deploying.
+      build: {
+        input: {
+          resolve: {
+            alias: Object.fromEntries(
+              workspaceAliases().map(({ find, replacement }) => [
+                `${find.source.slice(1, -1).replaceAll("\\/", "/")}$`,
+                replacement,
+              ]),
+            ),
+          },
+        },
+      },
       env: {
         SESSIONS: Cloudflare.Workers.DurableObject("Sessions", { className: "TriplexSession" }),
         MCP_CALLS: Cloudflare.Workers.RateLimit("McpCalls", {
