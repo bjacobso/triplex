@@ -59,7 +59,6 @@ catalog:
   vitepress: 2.0.0-alpha.18
   vitest: 5.0.4
   vue: 3.5.40
-  wrangler: 4.149.0
   tailwindcss: 4.3.3
 
 # Libraries accept compatible releases; the default catalog pins repository tests.

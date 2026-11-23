@@ -1,13 +1,21 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as State from "alchemy/State";
 import { workspaceAliases } from "./vitest.workspace-aliases.ts";
 
 export default Alchemy.Stack(
   "triplex",
   {
     providers: Cloudflare.providers(),
-    state: Cloudflare.state(),
+    // The `local` stage (`pnpm site:dev`) keeps state on disk, so `alchemy dev` needs no
+    // Cloudflare account. Every other stage keeps state in Cloudflare.
+    state: Layer.unwrap(
+      Effect.map(Alchemy.Stage, (stage) =>
+        stage === "local" ? State.localState() : Cloudflare.state(),
+      ),
+    ),
   },
   Effect.gen(function* () {
     const stage = yield* Alchemy.Stage;
@@ -43,7 +51,9 @@ export default Alchemy.Stack(
         }),
       },
       workersDev: true,
-      dev: { command: "pnpm docs:dev" },
+      // `alchemy dev` runs this Worker in local workerd over the built site, so /mcp works
+      // locally too. Use `pnpm docs:dev` for VitePress hot reload while writing docs.
+      dev: { port: 8787 },
       assets: { notFoundHandling: "404-page", runWorkerFirst: ["/mcp", "/mcp/"] },
       memo: {
         include: [

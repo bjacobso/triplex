@@ -1,5 +1,5 @@
 {
-  // The Worker under test, without the documentation assets (built after tests).
+  // Read by @cloudflare/vitest-plugin for the workerd tests. Production is in ../../alchemy.run.ts.
   "name": "triplex-site-test",
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-06",

@@ -24,6 +24,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:plan": "alchemy plan --stage prod",
     "docs:preview": "vitepress preview docs",
+    "site:dev": "alchemy dev --stage local",
     "dashboard": "pnpm --filter @triplex-build/triplex-dashboard dev",
     "dashboard:serve": "turbo run build --filter=@triplex-build/triplex-dashboard && pnpm --filter @triplex-build/triplex-dashboard serve",
     "explorer": "turbo run build --filter=@triplex-build/triplex-explorer && pnpm --filter @triplex-build/triplex-explorer serve",

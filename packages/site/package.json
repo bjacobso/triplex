@@ -7,7 +7,6 @@
   "author": "Ben Jacobson",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --ip 0.0.0.0 --port 8787",
     "test": "vitest --run --config vitest.workerd.config.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -22,7 +21,6 @@
     "@triplex-build/triplex-testkit": "workspace:^",
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "wrangler": "catalog:"
+    "vitest": "catalog:"
   }
 }
