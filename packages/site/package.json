@@ -1,0 +1,28 @@
+{
+  "name": "@triplex-build/triplex-site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The triplex.build Worker: the documentation site, and a hosted MCP demo at /mcp with one Durable Object database per MCP session.",
+  "license": "MIT",
+  "author": "Ben Jacobson",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --ip 0.0.0.0 --port 8787",
+    "test": "vitest --run --config vitest.workerd.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@triplex-build/triplex": "workspace:^",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "@triplex-build/triplex-testkit": "workspace:^",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

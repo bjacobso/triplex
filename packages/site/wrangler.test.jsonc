@@ -1,0 +1,9 @@
+{
+  // The Worker under test, without the documentation assets (built after tests).
+  "name": "triplex-site-test",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "TriplexSession" }] },
+  "migrations": [{ "tag": "mcp-sessions", "new_sqlite_classes": ["TriplexSession"] }],
+}

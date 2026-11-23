@@ -17,12 +17,26 @@ export default Alchemy.Stack(
       // so chaining belongs in the package script, not here.
       command: "pnpm site:build",
       outdir: "dist",
+      // The Worker serves the docs, and MCP clients that POST to /mcp get the hosted demo:
+      // one Durable Object per MCP session holds that session's own Triplex database.
+      main: "packages/site/src/worker.ts",
+      compatibility: { date: "2026-09-06", flags: ["nodejs_compat"] },
+      env: {
+        SESSIONS: Cloudflare.Workers.DurableObject("Sessions", { className: "TriplexSession" }),
+        MCP_CALLS: Cloudflare.Workers.RateLimit("McpCalls", {
+          namespaceId: 2001,
+          simple: { limit: 120, period: 60 },
+        }),
+      },
       workersDev: true,
       dev: { command: "pnpm docs:dev" },
-      assets: { notFoundHandling: "404-page" },
+      assets: { notFoundHandling: "404-page", runWorkerFirst: ["/mcp", "/mcp/"] },
       memo: {
         include: [
           "docs/**",
+          "packages/site/src/**",
+          "packages/mcp/src/**",
+          "packages/cli/src/**",
           "packages/core/src/**",
           "packages/explorer/src/**",
           "packages/explorer/playground/**",

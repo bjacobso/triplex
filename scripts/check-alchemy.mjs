@@ -28,6 +28,10 @@ for (const stage of ["prod", "pr-123", "pr-456"]) {
           assert.equal(worker.Props.domain, stage === "prod" ? "triplex.build" : undefined);
           assert.equal(worker.Props.workersDev, true);
           assert.equal(worker.Props.assets.notFoundHandling, "404-page");
+          // triplex.build/mcp: the Worker answers MCP before assets, with one Durable Object per session.
+          assert.equal(worker.Props.main, "packages/site/src/worker.ts");
+          assert.deepEqual(worker.Props.assets.runWorkerFirst, ["/mcp", "/mcp/"]);
+          assert.ok(worker.Props.env.SESSIONS && worker.Props.env.MCP_CALLS);
           assert.equal(worker.RemovalPolicy, "destroy");
         }),
       { stage },
