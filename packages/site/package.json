@@ -20,6 +20,7 @@
     "@cloudflare/workers-types": "catalog:",
     "@triplex-build/triplex-testkit": "workspace:^",
     "@types/node": "catalog:",
+    "alchemy": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

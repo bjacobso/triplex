@@ -723,6 +723,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.1
+      alchemy:
+        specifier: 'catalog:'
+        version: 2.0.0-beta.84(patch_hash=6ce4cd56b1bcc86d46ca5cd470da92045e1dd44fe1f5645c133dd5073498f44d)(@effect/platform-node@4.1.4(effect@4.1.4)(redis@6.2.1))(@effect/vitest@4.1.4(effect@4.1.4)(vitest@5.0.4(@types/node@25.9.1)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))))(@types/react@19.3.0)(effect@4.1.4)(vite@8.2.2(@types/node@25.9.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.19.0)(yaml@2.9.1))(ws@8.23.0)
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
