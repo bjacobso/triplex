@@ -5,6 +5,7 @@
  * buffers its writes and applies them in one `transactionSync` when it
  * succeeds, as the in-memory backend does.
  */
+import type { DurableObjectStorage } from "@cloudflare/workers-types";
 import {
   KvBackend,
   type KvBackendService,

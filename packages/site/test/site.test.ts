@@ -1,31 +1,111 @@
-import { env, exports } from "cloudflare:workers";
-import { runInDurableObject } from "cloudflare:test";
-import { makeTriplesConformanceSuite } from "@triplex-build/triplex-testkit";
-import { Capabilities, DatabaseScope, Runtime } from "@triplex-build/triplex/runtime";
+import * as Alchemy from "alchemy";
+import * as State from "alchemy/State";
+import * as Test from "alchemy/Test/Vitest";
+import * as Cloudflare from "@alchemy.run/cloudflare";
 import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
-import { durableObjectKvLayer } from "../src/kv.js";
+import { describe, expect } from "vitest";
+import { workspaceAliases } from "../../../vitest.workspace-aliases.ts";
+import { siteWorker } from "../src/worker.ts";
+import { conformanceWorker } from "./conformance-worker.ts";
 
 const MAR_2 = Date.UTC(2026, 2, 2);
 
-const session = () => {
-  let id: string | null = null;
-  let n = 0;
-  const rpc = async (method: string, params: unknown) => {
-    const response = await exports.default.fetch(
-      new Request("https://triplex.build/mcp", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json, text/event-stream",
-          ...(id === null ? {} : { "mcp-session-id": id }),
-        },
-        body: JSON.stringify({ jsonrpc: "2.0", id: ++n, method, params }),
-      }),
+const workspaceAlias = Object.fromEntries(
+  workspaceAliases().map(({ find, replacement }) => [
+    `${find.source.slice(1, -1).replaceAll("\\/", "/")}$`,
+    replacement,
+  ]),
+);
+
+const compatibility = { date: "2026-09-06", flags: ["nodejs_compat"] };
+const build = { input: { resolve: { alias: workspaceAlias } } };
+
+const SiteTestStack = Alchemy.Stack(
+  "triplex-site-test",
+  { providers: Cloudflare.providers(), state: State.inMemoryState() },
+  Effect.gen(function* () {
+    const site = yield* Cloudflare.Workers.Worker(
+      "Site",
+      {
+        main: new URL("../src/worker.ts", import.meta.url).pathname,
+        compatibility,
+        build,
+      },
+      siteWorker,
     );
-    id ??= response.headers.get("mcp-session-id");
+    const conformance = yield* Cloudflare.Workers.Worker(
+      "Conformance",
+      {
+        main: new URL("./conformance-worker.ts", import.meta.url).pathname,
+        compatibility,
+        build,
+      },
+      conformanceWorker,
+    );
+    return {
+      siteUrl: site.url,
+      conformanceUrl: conformance.url,
+    };
+  }),
+);
+
+const { test, deploy, destroy, beforeAll, afterAll } = Test.make({
+  providers: Cloudflare.providers(),
+  state: State.inMemoryState(),
+  dev: true,
+  sidecar: false,
+  stage: `site-test-${process.pid}`,
+});
+
+const createClient = (baseUrl: string) => {
+  const endpoint = new URL("/mcp", baseUrl).toString();
+  let sessionId: string | null = null;
+  let id = 0;
+
+  const post = async (
+    method: string,
+    params: unknown,
+    extraHeaders: Record<string, string> = {},
+  ) => {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(sessionId === null ? {} : { "mcp-session-id": sessionId }),
+        ...extraHeaders,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+    });
+    if (response.status < 400) {
+      sessionId ??= response.headers.get("mcp-session-id");
+    }
+    return response;
+  };
+
+  const rpc = async (
+    method: string,
+    params: unknown,
+    extraHeaders: Record<string, string> = {},
+  ) => {
+    const response = await post(method, params, extraHeaders);
+    expect(response.status).toBe(200);
     return ((await response.json()) as { result: any }).result;
   };
+
+  const notify = async (method: string) => {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(sessionId === null ? {} : { "mcp-session-id": sessionId }),
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method }),
+    });
+    expect(response.status).toBe(202);
+  };
+
   const call = async (name: string, args: Record<string, unknown> = {}) => {
     const result = await rpc("tools/call", { name, arguments: args });
     const text = result.content[0].text as string;
@@ -34,84 +114,156 @@ const session = () => {
       data: text.startsWith("{") ? JSON.parse(text) : text,
     };
   };
-  return { rpc, call };
+
+  const close = () =>
+    fetch(endpoint, {
+      method: "DELETE",
+      headers: sessionId === null ? {} : { "mcp-session-id": sessionId },
+    });
+
+  return {
+    get sessionId() {
+      return sessionId;
+    },
+    post,
+    rpc,
+    notify,
+    call,
+    close,
+  };
 };
 
-describe("Durable Object KV backend", () => {
-  it("passes the shared Triples contract on native Durable Object SQLite", async () => {
-    await runInDurableObject(env.SESSIONS.getByName("conformance"), async (_instance, state) => {
-      const runtime = Runtime.fromKv({
-        name: "do-kv",
-        backend: durableObjectKvLayer(state.storage),
-      });
-      await Effect.runPromise(
-        makeTriplesConformanceSuite().pipe(
-          Effect.provide(
-            runtime.layer({
-              scope: DatabaseScope.test("conformance"),
-              capabilities: Capabilities.none,
-            }),
-          ),
-          Effect.scoped,
-        ) as Effect.Effect<void, unknown, never>,
+describe("triplex.build Effect Worker and Durable Object", () => {
+  const deployed = beforeAll(deploy(SiteTestStack));
+  afterAll(destroy(SiteTestStack));
+
+  test(
+    "passes the shared Triples conformance suite on native Durable Object SQLite",
+    Effect.gen(function* () {
+      const { conformanceUrl } = yield* deployed;
+      const response = yield* Effect.promise(() => fetch(conformanceUrl!));
+      const body = yield* Effect.promise(() => response.text());
+      expect(response.status, body).toBe(200);
+      expect(body).toBe("ok");
+    }),
+  );
+
+  test(
+    "gives each MCP session its own seeded database, with bitemporal reads, writes, isolation, reset and delete",
+    Effect.gen(function* () {
+      const { siteUrl } = yield* deployed;
+      const endpoint = new URL("/mcp", siteUrl!).toString();
+
+      // CORS preflight and unknown session handling.
+      const preflight = yield* Effect.promise(() => fetch(endpoint, { method: "OPTIONS" }));
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get("access-control-allow-origin")).toBe("*");
+
+      const missing = yield* Effect.promise(() =>
+        fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json, text/event-stream",
+            "mcp-session-id": "nonexistent-session",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+        }),
       );
-    });
-  });
-});
+      expect(missing.status).toBe(404);
 
-describe("triplex.build/mcp", () => {
-  it("gives each session its own seeded database, with bitemporal reads, writes and reset", async () => {
-    const a = session();
-    const init = await a.rpc("initialize", {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: { name: "test", version: "1" },
-    });
-    expect(init.serverInfo.name).toBe("triplex");
-    const tools = (await a.rpc("tools/list", {})).tools.map((tool: { name: string }) => tool.name);
-    expect(tools).toEqual(
-      expect.arrayContaining(["tour", "reset", "describe", "why", "transaction_apply"]),
-    );
-
-    // As known now Maria was not trained on March 2; as known when she was placed, she was.
-    const placed = (await a.call("journal_receipt", { commandId: "create:placement:maria-harbor" }))
-      .data;
-    const trained = async (basis: Record<string, number>) =>
-      (await a.call("entity_get", { entityId: "worker:maria", basis })).data.facts.some(
-        (fact: { attribute: string }) => fact.attribute === ":worker/trained-for",
+      // Initialize session A (including a browser Origin header).
+      const a = createClient(siteUrl!);
+      const init = yield* Effect.promise(() =>
+        a.rpc(
+          "initialize",
+          {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1" },
+          },
+          { origin: "http://localhost:6274" },
+        ),
       );
-    expect(await trained({ validAt: MAR_2 })).toBe(false);
-    expect(await trained({ validAt: MAR_2, recordedPosition: placed.transaction.position })).toBe(
-      true,
-    );
+      expect(init.serverInfo.name).toBe("triplex");
+      yield* Effect.promise(() => a.notify("notifications/initialized"));
 
-    // A write in one session is invisible to another, and reset removes it.
-    const example = (await a.call("describe")).data.schema.examples.find(
-      (e: { entityType: string }) => e.entityType === "Site",
-    ).input;
-    const write = JSON.parse(
-      JSON.stringify(example)
-        .replaceAll("<entity-id of Site>", "site:dock")
-        .replaceAll("<text>", "Dock")
-        .replaceAll("<actor>", "agent:test")
-        .replaceAll("<command-id for Site>", "create:site:dock"),
-    );
-    expect((await a.call("transaction_apply", write)).isError).toBe(false);
-    expect((await a.call("transaction_apply", write)).data.code).toBe(
-      "transaction.command-already-committed",
-    );
-    const dock = async (s: ReturnType<typeof session>) =>
-      (await s.call("entity_get", { entityId: "site:dock" })).data.facts.length;
-    const b = session();
-    await b.rpc("initialize", {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: { name: "b", version: "1" },
-    });
-    expect(await dock(a)).toBeGreaterThan(0);
-    expect(await dock(b)).toBe(0);
-    await a.call("reset");
-    expect(await dock(a)).toBe(0);
-    expect((await a.call("journal_list")).data.transactions).toHaveLength(6);
-  });
+      const tools = (yield* Effect.promise(() => a.rpc("tools/list", {}))).tools.map(
+        (tool: { name: string }) => tool.name,
+      );
+      expect(tools).toEqual(
+        expect.arrayContaining(["tour", "reset", "describe", "why", "transaction_apply"]),
+      );
+
+      const tourResult = yield* Effect.promise(() => a.call("tour"));
+      expect(tourResult.isError).toBe(false);
+      expect(tourResult.data).toMatch(/^# Triplex tour/);
+
+      // As known now Maria was not trained on March 2; as known when she was placed, she was.
+      const placed = (yield* Effect.promise(() =>
+        a.call("journal_receipt", { commandId: "create:placement:maria-harbor" }),
+      )).data;
+      const trained = (basis: Record<string, number>) =>
+        a
+          .call("entity_get", { entityId: "worker:maria", basis })
+          .then((r) =>
+            r.data.facts.some(
+              (fact: { attribute: string }) => fact.attribute === ":worker/trained-for",
+            ),
+          );
+      expect(yield* Effect.promise(() => trained({ validAt: MAR_2 }))).toBe(false);
+      expect(
+        yield* Effect.promise(() =>
+          trained({ validAt: MAR_2, recordedPosition: placed.transaction.position }),
+        ),
+      ).toBe(true);
+
+      // A write in one session is invisible to another, duplicate commandId is rejected, and reset clears it.
+      const described = (yield* Effect.promise(() => a.call("describe"))).data;
+      const example = described.schema.examples.find(
+        (e: { entityType: string }) => e.entityType === "Site",
+      ).input;
+      const write = JSON.parse(
+        JSON.stringify(example)
+          .replaceAll("<entity-id of Site>", "site:dock")
+          .replaceAll("<text>", "Dock")
+          .replaceAll("<actor>", "agent:test")
+          .replaceAll("<command-id for Site>", "create:site:dock"),
+      );
+      expect((yield* Effect.promise(() => a.call("transaction_apply", write))).isError).toBe(false);
+      expect((yield* Effect.promise(() => a.call("transaction_apply", write))).data.code).toBe(
+        "transaction.command-already-committed",
+      );
+
+      const dockCount = (client: ReturnType<typeof createClient>) =>
+        client
+          .call("entity_get", { entityId: "site:dock" })
+          .then((r) => (r.data.facts as unknown[]).length);
+
+      const b = createClient(siteUrl!);
+      yield* Effect.promise(() =>
+        b.rpc("initialize", {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "b", version: "1" },
+        }),
+      );
+      expect(yield* Effect.promise(() => dockCount(a))).toBeGreaterThan(0);
+      expect(yield* Effect.promise(() => dockCount(b))).toBe(0);
+
+      // Reset wipes session A's write and keeps its MCP session usable.
+      const resetResult = yield* Effect.promise(() => a.call("reset"));
+      expect(resetResult.isError).toBe(false);
+      expect(yield* Effect.promise(() => dockCount(a))).toBe(0);
+      expect((yield* Effect.promise(() => a.call("journal_list"))).data.transactions).toHaveLength(
+        6,
+      );
+
+      // DELETE ends session A; further calls get 404.
+      const deleted = yield* Effect.promise(() => a.close());
+      expect(deleted.status).toBe(204);
+      const afterDelete = yield* Effect.promise(() => a.post("tools/list", {}));
+      expect(afterDelete.status).toBe(404);
+    }),
+  );
 });

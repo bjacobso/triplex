@@ -7,20 +7,20 @@
   "author": "Ben Jacobson",
   "type": "module",
   "scripts": {
-    "test": "vitest --run --config vitest.workerd.config.ts",
+    "test": "vitest --run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:",
+    "@alchemy.run/cloudflare": "catalog:",
     "@triplex-build/triplex": "workspace:^",
+    "alchemy": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "catalog:",
     "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
     "@triplex-build/triplex-testkit": "workspace:^",
     "@types/node": "catalog:",
-    "alchemy": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
