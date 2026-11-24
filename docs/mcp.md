@@ -1,5 +1,26 @@
 # MCP server
 
+## Try it without installing
+
+`https://triplex.build/mcp` is a hosted MCP server (Streamable HTTP). With Claude Code:
+
+```sh
+claude mcp add --transport http triplex https://triplex.build/mcp
+```
+
+Other clients that support remote MCP servers take the same URL. Each MCP session gets its own
+database, already holding the site-safety story from the homepage. Ask the model to call `tour`
+first: it lists questions that show bitemporal reads, `why`, Datalog across valid time,
+constraint previews and idempotent commands. The server has the tools below plus `tour`, and
+`reset`, which restores the starting story. A session's database is deleted after a day without
+calls, and calls are rate limited per client address.
+
+The hosted server runs on Cloudflare: one Durable Object per MCP session, with Triplex's KV
+hexastore on that object's SQLite storage (`packages/site`). This is a demo host, not the
+frozen `/cloudflare` backend, and not a place for data you want to keep.
+
+## Local server
+
 `triplex mcp` exposes one database per process through MCP over stdio, using Effect's
 MCP server. The server is experimental and ships in `@triplex-build/triplex`.
 The `/mcp` library entry exports `tools`, `registrations` and `TransactionInput`.

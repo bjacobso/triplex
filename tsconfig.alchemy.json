@@ -5,6 +5,7 @@
     "declarationMap": false,
     "lib": ["ESNext", "DOM"],
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
   "include": ["alchemy.run.ts"]
