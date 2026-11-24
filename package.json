@@ -47,7 +47,7 @@
     "test:foundationdb:integration": "pnpm --filter @triplex-build/triplex-foundationdb test:integration",
     "test:postgres:integration": "pnpm --filter @triplex-build/triplex-postgres test:integration",
     "test:watch": "turbo watch test",
-    "typecheck": "tsc --noEmit -p tsconfig.alchemy.json && turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc --noEmit -p tsconfig.alchemy.json",
     "prepack": "turbo run build --filter=@triplex-build/triplex"
   },
   "devDependencies": {
