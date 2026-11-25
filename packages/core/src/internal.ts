@@ -100,7 +100,7 @@ export {
   validateWrappedQuery,
   type DatalogQueryValidationError,
 } from "./datalog/validation.js";
-export { type SqlDialect, CurrentDialect, SqliteDialect } from "./dialects/index.js";
+export { type SqlDialect, CurrentDialect, SqliteDialect, DuckDbDialect } from "./dialects/index.js";
 export { createParamCollector, type ParamCollector } from "./params.js";
 export {
   preparePagination,

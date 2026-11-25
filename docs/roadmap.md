@@ -163,25 +163,45 @@ shims, deprecations or opt-in flags for old shapes.
   delivers diffs, retries handlers and replays expiry-driven transitions without a daily full scan. Fixed attribute sets use backend
   dependency indexes; dynamic-attribute definitions retain an explicit journal fallback.
 
-## 4. Integrated Full-Text Search (FTS)
+## 4. Integrated Full-Text Search & Hybrid Retrieval
 
-**Goal:** Seamlessly combine graph traversal with text search.
+**Goal:** Seamlessly combine graph traversal, bitemporal validity, and provenance with full-text and
+semantic vector search.
 
-- Expose a `(fts ?entity "search term")` predicate within Datalog.
-- Support relevance scoring and highlighting in query results.
-- Leverage underlying SQL engine FTS capabilities (SQLite FTS5, Postgres GIN/GiST).
+- Expose `(fts ?entity :attr "search term" ?score)` and `(similar ?entity :attr $vec ?score)`
+  predicates within Datalog.
+- Support relevance scoring and hybrid fusion across SQLite (`FTS5` / `sqlite-vec`), PostgreSQL
+  (`tsvector` / `pgvector`), DuckDB (`fts` / `vss`), and KV.
+- See the [hybrid retrieval Datalog RFC](rfcs/hybrid-retrieval-datalog.md).
 
-## 5. Performance & Query Optimization
+## 5. Performance, Scale & Agent Workflows
 
-**Goal:** Handle millions of triples with sub-millisecond latency.
+**Goal:** Scale cleanly to millions of entities with millions of changed attributes and support
+concurrent, speculative agent workflows.
 
+- **Hot/Cold Tiering & DuckDB Executor:** Compact immutable retracted history below a durable
+  watermark into S3 Parquet and query cold/historical/analytical cuts (and federated hot+cold
+  views) through a `DuckDbQueryExecutor`. See the
+  [hot/cold tiering and DuckDB RFC](rfcs/cold-tier-duckdb.md).
+- **Federated & Distributed Datalog:** Start with explicit cross-database read federation over
+  `DatabaseScope` and Parquet snapshots; evaluate scale-out single-database engines once hot+cold
+  benchmarks establish the threshold. See the
+  [federated and distributed Datalog RFC](rfcs/distributed-datalog.md).
+- **Copy-on-Write Agent Branches:** O(1) writable branches forked at `recorded_position` with full
+  Datalog, constraint/validator enforcement, diffs, and optimistic atomic merges for multi-step
+  speculative agent workflows. See the [agent branches RFC](rfcs/agent-branches.md).
+- **Incremental Derivations & Bounded Low-Level Reads:** Entity-scoped dirty-key re-evaluation (and
+  optional Z-set/DBSP incremental maintenance) for derivations, plus cursor-paginated `historyPage`
+  / `matchPage` and token-aware MCP summaries. See the
+  [incremental derivations and bounded reads RFC](rfcs/incremental-derivations-and-bounded-reads.md).
 - **Cost-Based Optimizer:** Reorder Datalog clauses based on attribute cardinality.
 - **JSON Indexing:** Optimize `value_json` lookups for complex data types.
 - **Recursive Rule Performance:** Optimize CTE generation for deep graph traversals.
 - **Scoped concurrency (deferred):** Separate global journal ordering from entity and invariant
   conflict scopes only after the atomic multi-scope design in
   [`operational-primitives.md`](operational-primitives.md#deferred-scoped-optimistic-concurrency)
-  has cross-backend conformance coverage.
+  and [TX1 scoped concurrency](rfcs/tx1-scoped-concurrency.md) has cross-backend conformance
+  coverage.
 
 ## 6. Client-Side Sync & Offline-First
 
